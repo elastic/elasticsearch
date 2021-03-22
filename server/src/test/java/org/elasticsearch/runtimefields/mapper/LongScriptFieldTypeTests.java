@@ -355,7 +355,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             LongFieldScript.Factory factory = scriptService.compile(script, LongFieldScript.CONTEXT);
-            return new LongScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            return new LongScriptFieldType("test", factory, script, emptyMap(), (builder, params) -> builder);
         }
     }
 }

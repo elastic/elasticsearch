@@ -442,7 +442,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             StringFieldScript.Factory factory = scriptService.compile(script, StringFieldScript.CONTEXT);
-            return new KeywordScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            return new KeywordScriptFieldType("test", factory, script, emptyMap(), (builder, params) -> builder);
         }
     }
 }

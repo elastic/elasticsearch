@@ -270,7 +270,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             GeoPointFieldScript.Factory factory = scriptService.compile(script, GeoPointFieldScript.CONTEXT);
-            return new GeoPointScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            return new GeoPointScriptFieldType("test", factory, script, emptyMap(), (builder, params) -> builder);
         }
     }
 }

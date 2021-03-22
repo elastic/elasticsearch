@@ -8,54 +8,27 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
-
 /**
- * Base implementation for a runtime field that can be defined as part of the runtime section of the index mappings
+ * Definition of a runtime field that can be defined as part of the runtime section of the index mappings
  */
-public abstract class RuntimeFieldType extends MappedFieldType implements ToXContentFragment {
-
-    private final CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent;
-
-    protected RuntimeFieldType(String name, RuntimeFieldType.Builder builder) {
-        this(name, builder.meta(), builder::toXContent);
-    }
-
-    protected RuntimeFieldType(String name, Map<String, String> meta, CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
-        this.toXContent = toXContent;
-    }
+public interface RuntimeFieldType extends ToXContentFragment {
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name());
         builder.field("type", typeName());
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        doXContentBody(builder, includeDefaults);
+        doXContentBody(builder, params);
         builder.endObject();
         return builder;
     }
@@ -63,125 +36,25 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
     /**
      * Prints out the parameters that subclasses expose
      */
-    final void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException {
-        toXContent.accept(builder, includeDefaults);
-    }
+    void doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
-    @Override
-    public final boolean isSearchable() {
-        return true;
-    }
+    /**
+     * Exposes the name of the runtime field
+     * @return name of the field
+     */
+    String name();
 
-    @Override
-    public final boolean isAggregatable() {
-        return true;
-    }
+    /**
+     * Exposes the type of the runtime field
+     * @return type of the field
+     */
+    String typeName();
 
-    @Override
-    public final Query rangeQuery(
-        Object lowerTerm,
-        Object upperTerm,
-        boolean includeLower,
-        boolean includeUpper,
-        ShapeRelation relation,
-        ZoneId timeZone,
-        DateMathParser parser,
-        SearchExecutionContext context
-    ) {
-        if (relation == ShapeRelation.DISJOINT) {
-            String message = "Runtime field [%s] of type [%s] does not support DISJOINT ranges";
-            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName()));
-        }
-        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context);
-    }
-
-    protected abstract Query rangeQuery(
-        Object lowerTerm,
-        Object upperTerm,
-        boolean includeLower,
-        boolean includeUpper,
-        ZoneId timeZone,
-        DateMathParser parser,
-        SearchExecutionContext context
-    );
-
-    @Override
-    public Query fuzzyQuery(
-        Object value,
-        Fuzziness fuzziness,
-        int prefixLength,
-        int maxExpansions,
-        boolean transpositions,
-        SearchExecutionContext context
-    ) {
-        throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
-    }
-
-    @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
-    }
-
-    @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
-    }
-
-    @Override
-    public Query regexpQuery(
-        String value,
-        int syntaxFlags,
-        int matchFlags,
-        int maxDeterminizedStates,
-        MultiTermQuery.RewriteMethod method,
-        SearchExecutionContext context
-    ) {
-        throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
-    }
-
-    @Override
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
-        throw new IllegalArgumentException(unsupported("phrase", "text"));
-    }
-
-    @Override
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
-        throw new IllegalArgumentException(unsupported("phrase", "text"));
-    }
-
-    @Override
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) {
-        throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
-    }
-
-    @Override
-    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
-        throw new IllegalArgumentException(unsupported("span prefix", "text"));
-    }
-
-    private String unsupported(String query, String supported) {
-        return String.format(
-            Locale.ROOT,
-            "Can only use %s queries on %s fields - not on [%s] which is a runtime field of type [%s]",
-            query,
-            supported,
-            name(),
-            typeName()
-        );
-    }
-
-    protected final void checkAllowExpensiveQueries(SearchExecutionContext context) {
-        if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException(
-                "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
-            );
-        }
-    }
-
-    @Override
-    public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
-    }
+    /**
+     * Exposes the {@link MappedFieldType} backing this runtime field, used to execute queries, run aggs etc.
+     * @return the {@link MappedFieldType} backing this runtime field
+     */
+    MappedFieldType asMappedFieldType();
 
     /**
      *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
@@ -191,7 +64,7 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
      *  {@link RuntimeFieldType.Builder#parse(String, Mapper.TypeParser.ParserContext, Map)} and returns the corresponding
      *  {@link MappedFieldType}.
      */
-    public abstract static class Builder extends FieldMapper.Builder {
+    abstract class Builder extends FieldMapper.Builder {
         final FieldMapper.Parameter<Map<String, String>> meta = FieldMapper.Parameter.metaParam();
 
         protected Builder(String name) {
@@ -236,7 +109,7 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
      * Parser for a runtime field. Creates the appropriate {@link RuntimeFieldType} for a runtime field,
      * as defined in the runtime section of the index mappings.
      */
-    public static final class Parser {
+    final class Parser {
         private final BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeFieldType.Builder> builderFunction;
 
         public Parser(BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeFieldType.Builder> builderFunction) {
@@ -261,9 +134,9 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
      *                        translated to the removal of such runtime field
      * @return the parsed runtime fields
      */
-    public static Map<String, RuntimeFieldType> parseRuntimeFields(Map<String, Object> node,
-                                                                   Mapper.TypeParser.ParserContext parserContext,
-                                                                   boolean supportsRemoval) {
+    static Map<String, RuntimeFieldType> parseRuntimeFields(Map<String, Object> node,
+                                                            Mapper.TypeParser.ParserContext parserContext,
+                                                            boolean supportsRemoval) {
         Map<String, RuntimeFieldType> runtimeFields = new HashMap<>();
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {

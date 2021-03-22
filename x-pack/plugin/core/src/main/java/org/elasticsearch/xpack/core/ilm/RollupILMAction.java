@@ -36,6 +36,7 @@ public class RollupILMAction implements LifecycleAction {
     private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new RollupILMAction((RollupActionConfig) a[0], (String) a[1]));
     public static final String ROLLUP_INDEX_PREFIX = "rollup-";
+    public static final String GENERATE_ROLLUP_STEP_NAME = "generate-rollup-name";
 
     private final RollupActionConfig config;
     private final String rollupPolicy;
@@ -98,7 +99,7 @@ public class RollupILMAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
-        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GenerateRollupIndexNameStep.NAME);
+        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);

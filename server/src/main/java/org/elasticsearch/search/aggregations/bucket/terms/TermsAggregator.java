@@ -94,6 +94,13 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             }
         }
 
+        /**
+         * The minimum number of documents a bucket must have in order to
+         * be returned from a shard.
+         * <p>
+         * Important: The default for this is 0, but we should only return
+         * 0 document buckets if {@link #getMinDocCount()} is *also* 0.
+         */
         public long getShardMinDocCount() {
             return shardMinDocCount;
         }
@@ -102,6 +109,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             this.shardMinDocCount = shardMinDocCount;
         }
 
+        /**
+         * The minimum numbers of documents a bucket must have in order to
+         * survive the final reduction.
+         */
         public long getMinDocCount() {
             return minDocCount;
         }

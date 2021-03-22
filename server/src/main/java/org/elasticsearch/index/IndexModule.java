@@ -510,8 +510,7 @@ public final class IndexModule {
             ScriptService scriptService) throws IOException {
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings), xContentRegistry,
             new SimilarityService(indexSettings, scriptService, similarities), mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false,
-            scriptService::compile);
+            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false, scriptService);
     }
 
     /**

@@ -516,7 +516,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("long").field("long"),
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true)
                 )
-            ).aggregateAfter(Map.of("long", 1, "unmapped", randomFrom(randomBoolean(), 1, "b"))),
+            ).aggregateAfter(createAfterKey("long", 1, "unmapped", randomFrom(randomBoolean(), 1, "b"))),
             (result) -> {
                 assertEquals(2, result.getBuckets().size());
                 assertEquals("{long=4, unmapped=null}", result.afterKey().toString());

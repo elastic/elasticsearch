@@ -284,7 +284,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=tag::bulk-dynamic-template-hints]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-template-hints]
 --
 
 `delete`::
@@ -314,7 +314,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=tag::bulk-dynamic-template-hints]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-template-hints]
 --
 
 `update`::

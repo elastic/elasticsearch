@@ -38,7 +38,7 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected boolean allowsIndexTimeScript() {
+    protected boolean supportsScripts() {
         return true;
     }
 }

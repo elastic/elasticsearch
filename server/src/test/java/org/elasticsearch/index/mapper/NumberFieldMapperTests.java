@@ -32,13 +32,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     protected abstract Number missingValue();
 
-    /**
-     * @return does this mapper allow index time scripts
-     */
-    protected boolean allowsIndexTimeScript() {
-        return false;
-    }
-
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
@@ -229,7 +222,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testScriptableTypes() {
-        if (allowsIndexTimeScript()) {
+        if (supportsScripts()) {
             // won't actually compile because we don't have painless in unit tests, but we can
             // check that it gets as far as trying to compile it
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {

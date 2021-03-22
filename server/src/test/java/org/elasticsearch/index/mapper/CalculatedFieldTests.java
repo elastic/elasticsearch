@@ -144,10 +144,16 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
 
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("failed to parse", e.getMessage());
-        assertThat(e.getCause().getMessage(), containsString("Loop in field resolution detected"));
+        assertEquals("Error executing script on field [field1]", e.getCause().getMessage());
+
+        Throwable root = e.getCause();
+        while (root.getCause() != null) {
+            root = root.getCause();
+        }
+        assertThat(root.getMessage(), containsString("Loop in field resolution detected"));
         // Can be either field1->field2->field1 or field2->field1->field2 because
         // post-phase executor order is not deterministic
-        assertThat(e.getCause().getMessage(), containsString("field1->field2"));
+        assertThat(root.getMessage(), containsString("field1->field2"));
     }
 
     public void testStoredScriptsNotPermitted() {
@@ -169,7 +175,8 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         }));
 
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
+        assertEquals("Error executing script on field [index-field]", e.getCause().getMessage());
+        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getCause().getMessage());
     }
 
     public void testIgnoreScriptErrors() throws IOException {

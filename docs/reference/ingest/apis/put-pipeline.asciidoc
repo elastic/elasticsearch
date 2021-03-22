@@ -50,8 +50,8 @@ PUT _ingest/pipeline/my-pipeline-id
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
-[[put-pipeline-api-response-body]]
-==== {api-response-body-title}
+[[put-pipeline-api-request-body]]
+==== {api-request-body-title}
 
 `description`::
 (Optional, string)

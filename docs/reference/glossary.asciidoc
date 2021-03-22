@@ -508,7 +508,7 @@ typically <<glossary-analysis,analyze>> text for better search. See
 // tag::token-def[]
 A chunk of unstructured <<glossary-text,text>> that's been optimized for search.
 In most cases, tokens are individual words. Tokens are also called terms. See
-{ref}/analysis.html[Test analysis].
+{ref}/analysis.html[Text analysis].
 // end::token-def[]
 
 [[glossary-tokenization]] tokenization::

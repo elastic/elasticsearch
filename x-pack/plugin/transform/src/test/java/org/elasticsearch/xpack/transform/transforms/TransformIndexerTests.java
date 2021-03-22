@@ -223,8 +223,8 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
-            // assert that the indexer does not call doSaveState again, while its still saving state
-            // this is only useful togehter with the doSaveStateLatch
+            // assert that the indexer does not call doSaveState again, while it is still saving state
+            // this is only useful together with the doSaveStateLatch
             assertTrue("doSaveState called again while still in progress", saveStateInProgress.compareAndSet(false, true));
             if (doSaveStateLatch != null) {
                 try {
@@ -367,7 +367,7 @@ public class TransformIndexerTests extends ESTestCase {
      * This test ensures correct handling of async behavior during indexer shutdown
      *
      * Indexer shutdown is not atomic: 1st the state is set back to e.g. STARTED, afterwards state is stored.
-     * State is stored async and is IO based, there it can take time until this is done.
+     * State is stored async and is IO based, therefore it can take time until this is done.
      *
      * Between setting the state and storing it, some race condition occurred, this test acts
      * as regression test.

@@ -16,6 +16,7 @@ import java.util.Set;
 
 public final class SearchableSnapshotRecoveryState extends RecoveryState {
     private boolean preWarmComplete;
+    private boolean remoteTranslogSet;
 
     public SearchableSnapshotRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         super(shardRouting, targetNode, sourceNode, new Index());
@@ -24,7 +25,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
     @Override
     public synchronized RecoveryState setStage(Stage stage) {
         // The transition to the final state was done by #prewarmCompleted, just ignore the transition
-        if (getStage() == Stage.DONE) {
+        if (getStage() == Stage.DONE || stage == Stage.FINALIZE && remoteTranslogSet) {
             return this;
         }
 
@@ -35,7 +36,40 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             return this;
         }
 
+        if (stage == Stage.INIT) {
+            remoteTranslogSet = false;
+        }
+
         return super.setStage(stage);
+    }
+
+    @Override
+    public synchronized RecoveryState setRemoteTranslogStage() {
+        remoteTranslogSet = true;
+        super.setStage(Stage.TRANSLOG);
+        return super.setStage(Stage.FINALIZE);
+    }
+
+    @Override
+    public synchronized void validateCurrentStage(Stage expected) {
+        if (remoteTranslogSet == false) {
+            super.validateCurrentStage(expected);
+        } else {
+            final Stage stage = getStage();
+            // For small indices it's possible that pre-warming finished shortly
+            // after transitioning to FINALIZE stage
+            if (stage != Stage.FINALIZE && stage != Stage.DONE) {
+                assert false : "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; but current stage is [" + stage + "]";
+                throw new IllegalStateException(
+                    "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; " + "but current stage is [" + stage + "]"
+                );
+            }
+        }
+    }
+
+    // Visible for tests
+    boolean isRemoteTranslogSet() {
+        return remoteTranslogSet;
     }
 
     public synchronized void setPreWarmComplete() {

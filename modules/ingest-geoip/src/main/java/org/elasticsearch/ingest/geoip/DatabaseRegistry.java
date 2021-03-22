@@ -77,7 +77,8 @@ final class DatabaseRegistry implements Closeable {
 
     private final Client client;
     private final GeoIpCache cache;
-    private final Path geoipTmpDirectory;
+    private final Path geoipTmpBaseDirectory;
+    private Path geoipTmpDirectory;
     private final LocalDatabases localDatabases;
     private final Consumer<Runnable> genericExecutor;
 
@@ -100,13 +101,14 @@ final class DatabaseRegistry implements Closeable {
                      Consumer<Runnable> genericExecutor) {
         this.client = client;
         this.cache = cache;
-        this.geoipTmpDirectory = tmpDir.resolve("geoip-databases");
+        this.geoipTmpBaseDirectory = tmpDir.resolve("geoip-databases");
         this.localDatabases = localDatabases;
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
         localDatabases.initialize(resourceWatcher);
+        geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
@@ -138,7 +140,7 @@ final class DatabaseRegistry implements Closeable {
             }
         });
         if (Files.exists(geoipTmpDirectory) == false) {
-            Files.createDirectory(geoipTmpDirectory);
+            Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
         ingestService.addIngestClusterStateListener(this::checkDatabases);
@@ -230,6 +232,19 @@ final class DatabaseRegistry implements Closeable {
             return;
         }
 
+        // 2 types of threads:
+        // 1) The thread that checks whether database should be retrieved / updated and creates (^) tmp file (cluster state applied thread)
+        // 2) the thread that downloads the db file, updates the databases map and then removes the tmp file
+        // Thread 2 may have updated the databases map after thread 1 detects that there is no entry (or md5 mismatch) for a database.
+        // If thread 2 then also removes the tmp file before thread 1 attempts to create it then we're about to retrieve the same database
+        // twice. This check is here to avoid this:
+        DatabaseReaderLazyLoader lazyLoader = databases.get(databaseName);
+        if (lazyLoader != null && recordedMd5.equals(lazyLoader.getMd5())) {
+            LOGGER.debug("deleting tmp file because database [{}] has already been updated.", databaseName);
+            Files.delete(databaseTmpGzFile);
+            return;
+        }
+
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
         LOGGER.info("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
         retrieveDatabase(
@@ -250,8 +265,8 @@ final class DatabaseRegistry implements Closeable {
             failure -> {
                 LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to download database [{}]", databaseName), failure);
                 try {
-                    Files.delete(databaseTmpFile);
-                    Files.delete(databaseTmpGzFile);
+                    Files.deleteIfExists(databaseTmpFile);
+                    Files.deleteIfExists(databaseTmpGzFile);
                 } catch (IOException ioe) {
                     ioe.addSuppressed(failure);
                     LOGGER.error("Unable to delete tmp database file after failure", ioe);

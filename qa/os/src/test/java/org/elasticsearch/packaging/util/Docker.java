@@ -28,9 +28,9 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.FileMatcher.p555;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
@@ -442,9 +442,8 @@ public class Docker {
     /**
      * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
      * @param installation the installation to verify
-     * @param distribution the distribution to verify
      */
-    public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
+    public static void verifyContainerInstallation(Installation installation) {
         verifyOssInstallation(installation);
         verifyDefaultInstallation(installation);
     }
@@ -459,14 +458,12 @@ public class Docker {
 
         Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
-        Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
+        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p555));
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
-
-        Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
         Stream.of(
             "elasticsearch",
@@ -476,7 +473,7 @@ public class Docker {
             "elasticsearch-node",
             "elasticsearch-plugin",
             "elasticsearch-shard"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p555));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
@@ -505,11 +502,11 @@ public class Docker {
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p555));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
-        assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
+        assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p555);
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));

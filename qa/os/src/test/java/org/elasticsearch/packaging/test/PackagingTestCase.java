@@ -216,7 +216,7 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
                 installation = Docker.runContainer(distribution);
-                Docker.verifyContainerInstallation(installation, distribution);
+                Docker.verifyContainerInstallation(installation);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");

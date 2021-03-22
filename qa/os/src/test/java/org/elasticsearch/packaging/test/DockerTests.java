@@ -98,7 +98,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that the Docker image can be run, and that it passes various checks.
      */
     public void test010Install() {
-        verifyContainerInstallation(installation, distribution());
+        verifyContainerInstallation(installation);
     }
 
     /**

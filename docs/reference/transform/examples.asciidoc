@@ -20,7 +20,7 @@ step-by-step example, see <<ecommerce-transforms>>.
 [[example-best-customers]]
 == Finding your best customers
 
-This example uses the eCommerce orders sample dataset to find the customers who 
+This example uses the eCommerce orders sample data set to find the customers who 
 spent the most in a hypothetical webshop. Let's transform the data such that the 
 destination index contains the number of orders, the total price of the orders, 
 the amount of unique products and the average price per order, and the total 
@@ -55,7 +55,7 @@ POST _transform/_preview
 
 <1> The destination index for the {transform}. It is ignored by `_preview`.
 <2> Two `group_by` fields is selected. This means the {transform} contains a 
-unique row per `user` and `customer_id` combination. Within this dataset, both 
+unique row per `user` and `customer_id` combination. Within this data set, both 
 these fields are unique. By including both in the {transform}, it gives more 
 context to the final results.
 
@@ -105,7 +105,7 @@ make creating visualizations much simpler.
 [[example-airline]]
 == Finding air carriers with the most delays
 
-This example uses the Flights sample dataset to find out which air carrier 
+This example uses the Flights sample data set to find out which air carrier 
 had the most delays. First, filter the source data such that it excludes all 
 the cancelled flights by using a query filter. Then transform the data to 
 contain the distinct number of flights, the sum of delayed minutes, and the sum 
@@ -191,7 +191,7 @@ for any of the featured destination or origin airports.
 [[example-clientips]]
 == Finding suspicious client IPs
 
-This example uses the web log sample dataset to identify suspicious client IPs. 
+This example uses the web log sample data set to identify suspicious client IPs. 
 It transform the data such that the new index contains the sum of bytes and the 
 number of distinct URLs, agents, incoming requests by location, and geographic 
 destinations for each client IP. It also uses filter aggregations to count the 
@@ -340,11 +340,11 @@ This {transform} makes it easier to answer questions such as:
 
 
 [[example-last-log]]
-== Finding the last log event from an IP address
+== Finding the last log event for each IP address
 
-This example uses the web log sample dataset to find the last log from an IP 
+This example uses the web log sample data set to find the last log from an IP 
 address. Let's use the `latest` type of {transform} in continuous mode. It 
-copies the most recent documents from the source index to the destination index
+copies the most recent document for each unique key from the source index to the destination index
 and updates the destination index as new data comes into the source index. 
 
 Pick the `clientip` field as the unique key; the data is grouped by this field. 
@@ -352,7 +352,7 @@ Select `timestamp` as the date field that sorts the data chronologically. For
 continuous mode, specify a date field that is used to identify new documents, 
 and an interval between checks for changes in the source index.
 
-For applying a retention policy, specify a date field that is used to calculate 
+ Let's assume that we're interested in retaining documents only for IP addresses that appeared recently in the log. You can define a retention policy and specify a date field that is used to calculate 
 the age of a document. This example uses the same date field that is used to 
 sort the data. Then set the maximum age of a document; documents that are older 
 than the value you set will be removed from the destination index.
@@ -402,8 +402,8 @@ PUT _transform/last-log-from-clientip
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> Specifies the filed for grouping the data.
-<2> Specifies the date filed that is used for sorting the data.
+<1> Specifies the field for grouping the data.
+<2> Specifies the date field that is used for sorting the data.
 <3> Sets the interval for the {transform} to check for changes in the source 
 index.
 <4> Contains the time field and delay settings used to synchronize the source 
@@ -421,7 +421,7 @@ POST _transform/last-log-from-clientip/_start
 // TEST[skip:setup kibana sample data]
 
 
-After the {transform} stopped, search the destination index:
+After the {transform} processes the data, search the destination index:
 
 [source,console]
 ----------------------------------

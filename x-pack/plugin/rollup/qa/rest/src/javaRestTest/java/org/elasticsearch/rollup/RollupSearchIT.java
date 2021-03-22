@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * This class contains integration tests for searching rollup indices and dastreams containing rollups.
+ * This class contains integration tests for searching rollup indices and data streams containing rollups.
  */
 public class RollupSearchIT extends ESRestTestCase {
 

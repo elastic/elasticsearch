@@ -51,7 +51,7 @@ and <<indices-aliases,aliases>> that can be applied automatically to new indices
 [[delete-template-api-path-params]]
 ==== {api-path-parms-title}
 
-The name of the composable index template to delete. Wildcard (`*`)
+The name of the index template to delete. Wildcard (`*`)
 expressions are supported.
 
 [[delete-template-api-query-params]]

@@ -408,7 +408,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // Assert field mappings
         Map<String, Map<String,Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings().get(rollupIndex)
-            .getSourceAsMap().get("properties");
+          .get("_doc").getSourceAsMap().get("properties");
 
         RollupActionDateHistogramGroupConfig dateHistoConfig = config.getGroupConfig().getDateHistogram();
         assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(dateHistoConfig.getField()).get("type"));
@@ -527,7 +527,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
+            org.elasticsearch.common.collect.List.of(dataStreamName + "*"),
             idxTemplate,
             null,
             null,

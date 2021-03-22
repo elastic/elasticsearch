@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -34,13 +35,10 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -61,6 +59,7 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The master rollup action that coordinates
@@ -132,10 +131,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         String sourceIndexUuid = IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(originalIndexMetadata.getSettings()) ?
             IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.get(originalIndexMetadata.getSettings()) : originalIndexMetadata.getIndexUUID();
 
+        // Using the CreateIndexRequest class only to produce the transformation to the mappings map.
+        // Alternatively, we would have to copy-paste that part of the code.
+        Map<String, String> mappingAsMap = new CreateIndexRequest().mapping("_doc", mapping).mappings();
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest =
             new CreateIndexClusterStateUpdateRequest("rollup", tmpIndexName, tmpIndexName)
                 .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
-                .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
+                .mappings(mappingAsMap);
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);

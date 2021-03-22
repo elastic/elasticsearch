@@ -189,52 +189,65 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:52: token recognition error at: '\"'", e.getMessage());
     }
 
-    public void testStringWithIncorrectUnicodeEscapedChars() {
-        // Wrong hex digits
+    public void testUnicodeWithWrongHexDigits() {
+        String[] strings = new String[] { "\"\\u{U1}\"", "\"\\u{00U1}\"", "\"\\u{00AUF}\"" };
+        for (String str : strings) {
+            ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr(str));
+            assertEquals("line 1:1: token recognition error at: '" + str.substring(0, str.length() - 3) + "'", e.getMessage());
+        }
+    }
+
+    public void testUnicodeWithWrongNumberOfHexDigits() {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{00U1}\""));
-        assertEquals("line 1:1: token recognition error at: '\"\\u{00U'", e.getMessage());
-
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{00AFU1}\""));
-        assertEquals("line 1:1: token recognition error at: '\"\\u{00AFU'", e.getMessage());
-
-        // Wrong number of hex digits
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{D}\""));
-        assertEquals("line 1:2: Unicode sequence in curly braces should use [2-8] hex digits, [\\u{D}] has [1]", e.getMessage());
-
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{00AFD1431}\""));
-        assertEquals("line 1:2: Unicode sequence in curly braces should use [2-8] hex digits, [\\u{00AFD1431}] has [9]", e.getMessage());
-
-        e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\\u{}\""));
         assertEquals("line 1:1: token recognition error at: '\"\\u{}'", e.getMessage());
 
-        // Missing curly braces
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\uad12"));
-        assertEquals("line 1:1: token recognition error at: '\"\\ua'", e.getMessage());
+        String[] strings = new String[] { "\\u{D}", "\\u{123456789}", "\\u{123456789A}" };
+        for (String str : strings) {
+            e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str + "\""));
+            assertEquals("line 1:2: Unicode sequence should use [2-8] hex digits, [" + str + "] has [" + (str.length() - 4) + "]",
+                    e.getMessage());
+        }
+    }
 
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{DA12\""));
-        assertEquals("line 1:1: token recognition error at: '\"\\u{DA12\"'", e.getMessage());
+    public void testUnicodeWithWrongCurlyBraces() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{}\""));
+        assertEquals("line 1:1: token recognition error at: '\"\\u{}'", e.getMessage());
 
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u01f0}\""));
-        assertEquals("line 1:1: token recognition error at: '\"\\u0'", e.getMessage());
+        String[][] strings = new String[][] {
+                { "\\uad12", "\\ua" },
+                { "\\u{DA12", "\\u{DA12\"" },
+                { "\\u01f0}", "\\u0" }
+        };
+        for (String[] str : strings) {
+            e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str[0] + "\""));
+            assertEquals("line 1:1: token recognition error at: '\"" + str[1] + "'", e.getMessage());
+        }
+    }
 
-        // Invalid unicode
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{10000000}\""));
-        assertEquals("line 1:2: Invalid unicode character code [10000000]", e.getMessage());
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{d800}\""));
-        assertEquals("line 1:2: Invalid unicode character code, [d800] is a surrogate code", e.getMessage());
-        e = expectThrows(ParsingException.class, "Expected syntax error",
-                () -> expr("\"\\u{dfff}\""));
-        assertEquals("line 1:2: Invalid unicode character code, [dfff] is a surrogate code", e.getMessage());
+    public void testUnicodeWithInvalidUnicodePoints() {
+        String[] strings = new String[] {
+                "\\u{10000000}",
+                "\\u{FFFFFFFa}",
+                "\\u{FFFF0000}",
+        };
+        for (String str : strings) {
+            ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str + "\""));
+            assertEquals("line 1:2: Invalid unicode character code [" + str.substring(3, str.length() - 1) +"]", e.getMessage());
+        }
+
+        strings = new String[] {
+                "\\u{d800}",
+                "\\u{dB12}",
+                "\\u{DcF7}",
+                "\\u{dFFF}",
+        };
+        for (String str : strings) {
+            ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> expr("\"" + str + "\""));
+            assertEquals("line 1:2: Invalid unicode character code, [" + str.substring(3, str.length() - 1) +"] is a surrogate code",
+                    e.getMessage());
+        }
     }
 
     public void testStringWithUnicodeEscapedChars() {
@@ -249,8 +262,8 @@ public class ExpressionTests extends ESTestCase {
             { "\\u{0021}", "!" },
             { "\\u{41}", "A" },
             { "\\u{075}", "u" },
-            { "\\u{00eb}", "ë" },
-            { "\\u{1f0}", "ǰ" },
+            { "\\u{00Eb}", "ë" },
+            { "\\u{1F0}", "ǰ" },
             { "\\u{0398}", "Θ" },
             { "\\u{7e1}", "ߡ" },
             { "\\u{017e1}", "១" },
@@ -259,7 +272,7 @@ public class ExpressionTests extends ESTestCase {
             { "\\u{0003289}", "㊉" },
             { "\\u{06d89}", "涉" },
             { "\\u{00007c71}", "籱" },
-            { "\\u{1680b}", "𖠋" },
+            { "\\u{1680B}", "𖠋" },
             { "\\u{01f4a9}", "💩" },
             { "\\u{0010989}", "\uD802\uDD89"},
             { "\\u{d7FF}", "\uD7FF"},
@@ -476,11 +489,11 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testChainedComparisonsDisallowed() {
-        int noComparisions = randomIntBetween(2, 20);
+        int noComparisons = randomIntBetween(2, 20);
         String firstComparator = "";
         String secondComparator = "";
         StringBuilder sb = new StringBuilder("a ");
-        for (int i = 0 ; i < noComparisions; i++) {
+        for (int i = 0 ; i < noComparisons; i++) {
             String comparator = randomFrom("==", "!=", "<", "<=", ">", ">=");
             sb.append(comparator).append(" a ");
 

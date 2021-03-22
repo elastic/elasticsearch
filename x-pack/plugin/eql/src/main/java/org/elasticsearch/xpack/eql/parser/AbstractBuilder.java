@@ -161,7 +161,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
                         sb.append('\'');
                         break;
                     case 'u':
-                        i = handleUnicodeChars(source, sb, text, ++i);
+                        i = handleUnicodePoints(source, sb, text, ++i);
                         break;
                     case '\\':
                         sb.append('\\');
@@ -179,14 +179,14 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         return sb.toString();
     }
 
-    private static int handleUnicodeChars(Source source, StringBuilder sb, String text, int i) {
+    private static int handleUnicodePoints(Source source, StringBuilder sb, String text, int i) {
         String unicodeSequence;
         int startIdx = i + 1;
         int endIdx = text.indexOf('}', startIdx);
         unicodeSequence = text.substring(startIdx, endIdx);
         int length = unicodeSequence.length();
         if (length < 2 || length > 8) {
-            throw new ParsingException(source, "Unicode sequence in curly braces should use [2-8] hex digits, [{}] has [{}]",
+            throw new ParsingException(source, "Unicode sequence should use [2-8] hex digits, [{}] has [{}]",
                     text.substring(startIdx - 3, endIdx + 1), length);
         }
         sb.append(hexToUnicode(source, unicodeSequence));
@@ -194,12 +194,12 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
     }
 
     private static String hexToUnicode(Source source, String hex) {
-        int code = Integer.parseInt(hex, 16);
-        // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
-        if (code >= 55296 && code <= 57343) {
-            throw new ParsingException(source, "Invalid unicode character code, [{}] is a surrogate code", hex);
-        }
         try {
+            int code = Integer.parseInt(hex, 16);
+            // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
+            if (code >= 0xD800 && code <= 0xDFFF) {
+                throw new ParsingException(source, "Invalid unicode character code, [{}] is a surrogate code", hex);
+            }
             return String.valueOf(Character.toChars(code));
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid unicode character code [{}]", hex);

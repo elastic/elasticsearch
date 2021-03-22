@@ -34,7 +34,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;

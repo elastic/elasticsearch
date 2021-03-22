@@ -74,7 +74,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         assert tpPercentiles.length == fpPercentiles.length;
         assert tpPercentiles.length == 99;
 
-        List<AucRocPoint> points = new ArrayList<>();
+        List<AucRocPoint> points = new ArrayList<>(tpPercentiles.length + fpPercentiles.length);
         RateThresholdCurve tpCurve = new RateThresholdCurve(tpPercentiles, true);
         RateThresholdCurve fpCurve = new RateThresholdCurve(fpPercentiles, false);
         points.addAll(tpCurve.scanPoints(fpCurve));

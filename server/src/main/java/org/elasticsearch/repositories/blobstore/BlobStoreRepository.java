@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -130,6 +131,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -371,47 +373,60 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                              Consumer<Exception> onFailure) {
+        executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, taskListener) -> {
+            try {
+                taskListener.onResponse(createUpdateTask.apply(latestRepositoryData));
+            } catch (Exception e) {
+                onFailure.accept(e);
+            }
+        }, source, onFailure);
+    }
+
+    protected void executeConsistentStateUpdate(TriConsumer<RepositoryData, RepositoryMetadata,
+            ActionListener<ClusterStateUpdateTask>> createUpdateTaskSupplier,
+                                                String source,
+                                                Consumer<Exception> onFailure) {
         final RepositoryMetadata repositoryMetadataStart = metadata;
-        getRepositoryData(ActionListener.wrap(repositoryData -> {
-            final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
+        getRepositoryData(ActionListener.wrap(repositoryData ->
+                createUpdateTaskSupplier.apply(repositoryData, repositoryMetadataStart, ActionListener.wrap(updateTask -> {
+                    clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
 
-                private boolean executedTask = false;
+                        private boolean executedTask = false;
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
-                    // If the safe generation has changed, then we have to reload repository data and start over.
-                    // If the pending generation has changed we are in the midst of a write operation and might pick up the
-                    // updated repository data and state on the retry. We don't want to wait for the write to finish though
-                    // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
-                    // to change in any form.
-                    if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
-                        executedTask = true;
-                        return updateTask.execute(currentState);
-                    }
-                    return currentState;
-                }
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
+                            // If the safe generation has changed, then we have to reload repository data and start over.
+                            // If the pending generation has changed we are in the midst of a write operation and might pick up the
+                            // updated repository data and state on the retry. We don't want to wait for the write to finish though
+                            // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
+                            // to change in any form.
+                            if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
+                                executedTask = true;
+                                return updateTask.execute(currentState);
+                            }
+                            return currentState;
+                        }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    if (executedTask) {
-                        updateTask.onFailure(source, e);
-                    } else {
-                        onFailure.accept(e);
-                    }
-                }
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            if (executedTask) {
+                                updateTask.onFailure(source, e);
+                            } else {
+                                onFailure.accept(e);
+                            }
+                        }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (executedTask) {
-                        updateTask.clusterStateProcessed(source, oldState, newState);
-                    } else {
-                        executeConsistentStateUpdate(createUpdateTask, source, onFailure);
-                    }
-                }
-            });
-        }, onFailure));
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            if (executedTask) {
+                                updateTask.clusterStateProcessed(source, oldState, newState);
+                            } else {
+                                executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure);
+                            }
+                        }
+                    });
+                }, onFailure)), onFailure));
     }
 
     @Override
@@ -1259,7 +1274,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } else {
                 String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
-                BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+                BlobContainer testContainer = testBlobContainer(seed);
                 testContainer.writeBlobAtomic("master.dat", new BytesArray(testBytes), true);
                 return seed;
             }
@@ -1272,12 +1287,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                final String testPrefix = testBlobPrefix(seed);
-                blobStore().blobContainer(basePath().add(testPrefix)).delete();
+                testBlobContainer(seed).delete();
             } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
         }
+    }
+
+    private BlobContainer testBlobContainer(String seed) {
+        return blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
     }
 
     // Tracks the latest known repository generation in a best-effort way to detect inconsistent listing of root level index-N blobs
@@ -2518,7 +2536,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     " is not accessible on node " + localNode, e);
             }
         } else {
-            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+            BlobContainer testBlobContainer = testBlobContainer(seed);
             try {
                 testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", new BytesArray(seed), true);
             } catch (Exception exp) {

@@ -9,16 +9,19 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -35,20 +38,13 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 
 import javax.crypto.KeyGenerator;
@@ -59,11 +55,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -84,16 +83,6 @@ public class EncryptedRepository extends BlobStoreRepository {
     // this is relative to the root base path holding the encrypted blobs (i.e. the repository root base path)
     static final String DEK_ROOT_CONTAINER = ".encryption-metadata"; // package private for tests
     static final int DEK_ID_LENGTH = 22; // {@code org.elasticsearch.common.UUIDS} length
-
-    // the snapshot metadata (residing in the cluster state for the lifetime of the snapshot)
-    // contains the salted hash of the repository password as present on the master node (which starts the snapshot operation).
-    // The hash is verified on each data node, before initiating the actual shard files snapshot, as well
-    // as on the master node that finalizes the snapshot (which could be a different master node from the one that started
-    // the operation if a master failover occurred during the snapshot).
-    // This ensures that all participating nodes in the snapshot operation agree on the value of the key encryption key, so that
-    // all the data included in a snapshot is encrypted using the same password.
-    static final String PASSWORD_HASH_USER_METADATA_KEY = EncryptedRepository.class.getName() + ".repositoryPasswordHash";
-    static final String PASSWORD_SALT_USER_METADATA_KEY = EncryptedRepository.class.getName() + ".repositoryPasswordSalt";
     private static final int DEK_CACHE_WEIGHT = 2048;
 
     // this is the repository instance to which all blob reads and writes are forwarded to (it stores both the encrypted blobs, as well
@@ -103,10 +92,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     private final Supplier<Tuple<BytesReference, SecretKey>> dekGenerator;
     // license is checked before every snapshot operations; protected non-final for tests
     protected Supplier<XPackLicenseState> licenseStateSupplier;
-    private final SecureString repositoryPassword;
-    private final String localRepositoryPasswordHash;
-    private final String localRepositoryPasswordSalt;
-    private volatile String validatedLocalRepositoryPasswordHash;
+    private final RepositoryPasswords repositoryPasswords;
     private final Cache<String, SecretKey> dekCache;
 
     /**
@@ -127,7 +113,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         RecoverySettings recoverySettings,
         BlobStoreRepository delegatedRepository,
         Supplier<XPackLicenseState> licenseStateSupplier,
-        SecureString repositoryPassword
+        Map<String, SecureString> repositoryPasswordsMap
     ) throws GeneralSecurityException {
         super(
             metadata,
@@ -141,17 +127,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository = delegatedRepository;
         this.dekGenerator = createDEKGenerator();
         this.licenseStateSupplier = licenseStateSupplier;
-        this.repositoryPassword = repositoryPassword;
-        // the salt used to generate an irreversible "hash"; it is generated randomly but it's fixed for the lifetime of the
-        // repository solely for efficiency reasons
-        this.localRepositoryPasswordSalt = UUIDs.randomBase64UUID();
-        // the "hash" of the repository password from the local node is not actually a hash but the ciphertext of a
-        // known-plaintext using a key derived from the repository password using a random salt
-        this.localRepositoryPasswordHash = AESKeyUtils.computeId(
-            AESKeyUtils.generatePasswordBasedKey(repositoryPassword, localRepositoryPasswordSalt)
-        );
-        // a "hash" computed locally is also locally trusted (trivially)
-        this.validatedLocalRepositoryPasswordHash = this.localRepositoryPasswordHash;
+        this.repositoryPasswords = new RepositoryPasswords(repositoryPasswordsMap, threadPool());
         // stores decrypted DEKs; DEKs are reused to encrypt/decrypt multiple independent blobs
         this.dekCache = CacheBuilder.<String, SecretKey>builder().setMaximumWeight(DEK_CACHE_WEIGHT).build();
         if (isReadOnly() != delegatedRepository.isReadOnly()) {
@@ -163,112 +139,198 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
+//    @Override
+//    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+//        super.getRepositoryData(listener.delegateFailure((l1, repositoryData) -> {
+//            // only publish hashes if on master node and they've not been published yet
+//            // assumes this is always called on the master node
+//            if (false == repositoryPasswords.containsPasswordHashes(metadata)) {
+//                executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
+//                    // compute password hashes for task, given repository metadata
+//                    repositoryPasswords.computePasswordHashes(latestRepositoryMetadata,
+//                            l1.delegateFailure((l2, localPasswordHashes) -> {
+//                                updateTaskListener.onResponse(new ClusterStateUpdateTask() {
+//                                    @Override
+//                                    public ClusterState execute(ClusterState currentState) {
+//                                        // don't ever overwrite hashes
+//                                        if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
+//                                            logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains password " +
+//                                                    "hashes");
+//                                            return currentState;
+//                                        }
+//                                        // TODO throw if password hashes invalid?
+//                                        final RepositoryMetadata newRepositoryMetadata =
+//                                                repositoryPasswords.withPasswordHashes(latestRepositoryMetadata,
+//                                                localPasswordHashes);
+//                                        final RepositoriesMetadata repositories = currentState.metadata().custom(RepositoriesMetadata.TYPE,
+//                                                RepositoriesMetadata.EMPTY);
+//                                        final List<RepositoryMetadata> newRepositoriesMetadata =
+//                                                new ArrayList<>(repositories.repositories().size());
+//                                        boolean found = false;
+//                                        for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+//                                            if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+//                                                if (found) {
+//                                                    throw new IllegalStateException("Internal consistency error when updating repository " +
+//                                                            "[" +
+//                                                            latestRepositoryMetadata.name() + "] password hashes");
+//                                                }
+//                                                found = true;
+//                                                newRepositoriesMetadata.add(newRepositoryMetadata);
+//                                            } else {
+//                                                newRepositoriesMetadata.add(repositoryMetadata);
+//                                            }
+//                                        }
+//                                        if (found == false) {
+//                                            throw new IllegalStateException("Internal consistency error when updating repository [" +
+//                                                    latestRepositoryMetadata.name() + "] password hashes");
+//                                        }
+//                                        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+//                                        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
+//                                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
+//                                    }
+//
+//                                    @Override
+//                                    public void onFailure(String source, Exception e) {
+//                                        logger.warn("failed to " + source, e);
+//                                        l2.onFailure(e);
+//                                    }
+//
+//                                    @Override
+//                                    public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+//                                        logger.info("Published password hashes for repository [" + latestRepositoryMetadata.name() + "]");
+//                                        l2.onResponse(latestRepositoryData);
+//                                    }
+//                                });
+//                            }));
+//                }, "update encrypted repository password hashes [" + metadata.name() + "]", listener::onFailure);
+//            } else {
+//                // nothing to publish if hashes already published
+//                l1.onResponse(repositoryData);
+//            }
+//        }));
+//    }
+
+    @Override
+    protected void executeConsistentStateUpdate(TriConsumer<RepositoryData, RepositoryMetadata,
+            ActionListener<ClusterStateUpdateTask>> createUpdateTaskSupplier, String source, Consumer<Exception> onFailure) {
+        if (source.startsWith("create_snapshot") &&
+                false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+            onFailure.accept(LicenseUtils.newComplianceException("encrypted snapshots"));
+            return;
+        }
+        if (repositoryPasswords.containsPasswordHashes(metadata)) {
+            super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure);
+            return;
+        }
+        final StepListener<RepositoryData> publishHashesStepListener = new StepListener<>();
+        super.executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
+            // async compute password hashes for task, given the repository metadata
+            repositoryPasswords.computePasswordHashes(latestRepositoryMetadata,
+                    ActionListener.wrap(localPasswordHashes -> updateTaskListener.onResponse(new ClusterStateUpdateTask() {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            // don't ever overwrite hashes
+                            if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
+                                logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains password " +
+                                        "hashes");
+                                return currentState;
+                            }
+                            final RepositoryMetadata newRepositoryMetadata =
+                                    repositoryPasswords.withPasswordHashes(latestRepositoryMetadata,
+                                            localPasswordHashes);
+                            if (false == repositoryPasswords.containsRequiredPasswordHashes(newRepositoryMetadata)) {
+                                throw new IllegalStateException("Internal consistency error when updating repository [" +
+                                        latestRepositoryMetadata.name() + "] password hashes");
+                            }
+                            final RepositoriesMetadata repositories = currentState.metadata().custom(RepositoriesMetadata.TYPE,
+                                    RepositoriesMetadata.EMPTY);
+                            final List<RepositoryMetadata> newRepositoriesMetadata =
+                                    new ArrayList<>(repositories.repositories().size());
+                            boolean found = false;
+                            for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+                                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                                    if (found) {
+                                        throw new IllegalStateException("Internal consistency error when updating repository " +
+                                                "[" +
+                                                latestRepositoryMetadata.name() + "] password hashes");
+                                    }
+                                    found = true;
+                                    newRepositoriesMetadata.add(newRepositoryMetadata);
+                                } else {
+                                    newRepositoriesMetadata.add(repositoryMetadata);
+                                }
+                            }
+                            if (found == false) {
+                                throw new IllegalStateException("Internal consistency error when updating repository [" +
+                                        latestRepositoryMetadata.name() + "] password hashes");
+                            }
+                            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                            mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
+                            return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                        }
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.warn("failed to " + source, e);
+                            onFailure.accept(e);
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                            logger.info("Published password hashes for repository [" + latestRepositoryMetadata.name() + "]");
+                            publishHashesStepListener.onResponse(latestRepositoryData);
+                        }
+                    }), onFailure));
+        }, "update encrypted repository password hashes [" + metadata.name() + "]", onFailure);
+        // go on with the actual task to update the cluster state
+        publishHashesStepListener.whenComplete(latestRepositoryData -> super.executeConsistentStateUpdate(createUpdateTaskSupplier,
+                source, onFailure), onFailure);
+    }
+
+        //
+//    @Override
+//    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+//                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
+//                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+//        if (false == repositoryPasswords.containsPasswordHashes(metadata)) {
+//            listener.onFailure(new IllegalStateException("Repository metadata does not contain password hashes but should"));
+//            return;
+//        }
+//        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier, snapshotStatus,
+//                repositoryMetaVersion, userMetadata, listener);
+//    }
+//
+//    @Override
+//    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata, SnapshotInfo snapshotInfo, Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
+//        if (false == repositoryPasswords.containsPasswordHashes(metadata)) {
+//            listener.onFailure(new IllegalStateException("Repository metadata does not contain password hashes but should"));
+//            return;
+//        }
+//        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
+//                stateTransformer, listener);
+//    }
+
+    @Override
+    public String startVerification() {
+        // verification bypasses the encrypted blobstore because it must work without published hashes
+        return this.delegatedRepository.startVerification();
+    }
+
+    @Override
+    public void endVerification(String seed) {
+        // verification bypasses the encrypted blobstore because it must work without published hashes
+        this.delegatedRepository.endVerification(seed);
+    }
+
+    @Override
+    public void verify(String seed, DiscoveryNode localNode) {
+        // verification bypasses the encrypted blobstore because it must work without published hashes
+        this.delegatedRepository.verify(seed, localNode);
+    }
+
     @Override
     public RepositoryStats stats() {
         return this.delegatedRepository.stats();
-    }
-
-    /**
-     * The repository hook method which populates the snapshot metadata with the salted password hash of the repository on the (master)
-     * node that starts of the snapshot operation. All the other actions associated with the same snapshot operation will first verify
-     * that the local repository password checks with the hash from the snapshot metadata.
-     * <p>
-     * In addition, if the installed license does not comply with the "encrypted snapshots" feature, this method throws an exception,
-     * which aborts the snapshot operation.
-     *
-     * See {@link org.elasticsearch.repositories.Repository#adaptUserMetadata(Map)}.
-     *
-     * @param userMetadata the snapshot metadata as received from the calling user
-     * @return the snapshot metadata containing the salted password hash of the node initializing the snapshot
-     */
-    @Override
-    public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
-        // because populating the snapshot metadata must be done before the actual snapshot is first initialized,
-        // we take the opportunity to validate the license and abort if non-compliant
-        if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
-            throw LicenseUtils.newComplianceException("encrypted snapshots");
-        }
-        Map<String, Object> snapshotUserMetadata = new HashMap<>();
-        if (userMetadata != null) {
-            snapshotUserMetadata.putAll(userMetadata);
-        }
-        // fill in the hash of the repository password, which is then checked before every snapshot operation
-        // (i.e. {@link #snapshotShard} and {@link #finalizeSnapshot}) to ensure that all participating nodes
-        // in the snapshot operation use the same repository password
-        snapshotUserMetadata.put(PASSWORD_SALT_USER_METADATA_KEY, localRepositoryPasswordSalt);
-        snapshotUserMetadata.put(PASSWORD_HASH_USER_METADATA_KEY, localRepositoryPasswordHash);
-        logger.trace(
-            "Snapshot metadata for local repository password  [{}] and [{}]",
-            localRepositoryPasswordSalt,
-            localRepositoryPasswordHash
-        );
-        // do not wrap in Map.of; we have to be able to modify the map (remove the added entries) when finalizing the snapshot
-        return snapshotUserMetadata;
-    }
-
-    @Override
-    public void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    ) {
-        try {
-            validateLocalRepositorySecret(snapshotInfo.userMetadata());
-        } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
-            return;
-        } finally {
-            // remove the repository password hash (and salt) from the snapshot metadata so that it is not displayed in the API response
-            // to the user
-            snapshotInfo.userMetadata().remove(PASSWORD_HASH_USER_METADATA_KEY);
-            snapshotInfo.userMetadata().remove(PASSWORD_SALT_USER_METADATA_KEY);
-        }
-        super.finalizeSnapshot(
-            shardGenerations,
-            repositoryStateId,
-            clusterMetadata,
-            snapshotInfo,
-            repositoryMetaVersion,
-            stateTransformer,
-            listener
-        );
-    }
-
-    @Override
-    public void snapshotShard(
-        Store store,
-        MapperService mapperService,
-        SnapshotId snapshotId,
-        IndexId indexId,
-        IndexCommit snapshotIndexCommit,
-        String shardStateIdentifier,
-        IndexShardSnapshotStatus snapshotStatus,
-        Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
-        ActionListener<String> listener
-    ) {
-        try {
-            validateLocalRepositorySecret(userMetadata);
-        } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
-            return;
-        }
-        super.snapshotShard(
-            store,
-            mapperService,
-            snapshotId,
-            indexId,
-            snapshotIndexCommit,
-            shardStateIdentifier,
-            snapshotStatus,
-            repositoryMetaVersion,
-            userMetadata,
-            listener
-        );
     }
 
     @Override
@@ -286,8 +348,13 @@ public class EncryptedRepository extends BlobStoreRepository {
         } else {
             blobStoreDEKGenerator = this.dekGenerator;
         }
+
+        boolean hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(metadata);
+        if (false == hashesVerified) {
+            throw new IllegalStateException("The repository passwords on the local node are different");
+        }
         return new EncryptedBlobStore(
-            delegatedRepository.blobStore(),
+                delegatedRepository.blobStore(),
             delegatedRepository.basePath(),
             metadata.name(),
             this::generateKEK,
@@ -332,51 +399,42 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     // pkg-private for tests
     Tuple<String, SecretKey> generateKEK(String dekId) {
+        final RepositoryMetadata latestRepositoryMetadata = metadata;
         try {
+            boolean hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(latestRepositoryMetadata);
+            if (false == hashesVerified) {
+                throw new IllegalStateException("The repository passwords on the local node are different");
+            }
+            SecureString secureString = repositoryPasswords.currentLocalPassword(latestRepositoryMetadata);
             // we rely on the DEK Id being generated randomly so it can be used as a salt
-            final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(repositoryPassword, dekId);
+            final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(secureString, dekId);
             final String kekId = AESKeyUtils.computeId(kek);
-            logger.debug("Repository [{}] computed KEK [{}] for DEK [{}]", metadata.name(), kekId, dekId);
+            logger.debug("Repository [{}] computed KEK [{}] for DEK [{}]", latestRepositoryMetadata.name(), kekId, dekId);
             return new Tuple<>(kekId, kek);
-        } catch (GeneralSecurityException e) {
-            throw new RepositoryException(metadata.name(), "Failure to generate KEK to wrap the DEK [" + dekId + "]", e);
+        } catch (Exception e) {
+            throw new RepositoryException(latestRepositoryMetadata.name(), "Failure to generate KEK to wrap the DEK [" + dekId + "]", e);
         }
     }
 
-    /**
-     * Called before the shard snapshot and finalize operations, on the data and master nodes. This validates that the repository
-     * password on the master node that started the snapshot operation is identical to the repository password on the local node.
-     *
-     * @param snapshotUserMetadata the snapshot metadata containing the repository password hash to assert
-     * @throws RepositoryException if the repository password hash on the local node mismatches the master's
-     */
-    private void validateLocalRepositorySecret(Map<String, Object> snapshotUserMetadata) throws RepositoryException {
-        assert snapshotUserMetadata != null;
-        assert snapshotUserMetadata.get(PASSWORD_HASH_USER_METADATA_KEY) instanceof String;
-        final String masterRepositoryPasswordId = (String) snapshotUserMetadata.get(PASSWORD_HASH_USER_METADATA_KEY);
-        if (false == masterRepositoryPasswordId.equals(validatedLocalRepositoryPasswordHash)) {
-            assert snapshotUserMetadata.get(PASSWORD_SALT_USER_METADATA_KEY) instanceof String;
-            final String masterRepositoryPasswordIdSalt = (String) snapshotUserMetadata.get(PASSWORD_SALT_USER_METADATA_KEY);
-            final String computedRepositoryPasswordId;
-            try {
-                computedRepositoryPasswordId = AESKeyUtils.computeId(
-                    AESKeyUtils.generatePasswordBasedKey(repositoryPassword, masterRepositoryPasswordIdSalt)
-                );
-            } catch (Exception e) {
-                throw new RepositoryException(metadata.name(), "Unexpected fatal internal error", e);
+    private void verifyPublishedPasswordHashes() throws RepositoryException {
+        final RepositoryMetadata latestRepositoryMetadata = metadata;
+        final boolean hashesVerified;
+        try {
+            hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(latestRepositoryMetadata);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RepositoryException(latestRepositoryMetadata.name(), "Interrupted while verifying password hashes", e);
+        } catch (Exception e) {
+            throw new RepositoryException(latestRepositoryMetadata.name(), "Unexpected exception while veryfing password hashes", e);
+        }
+        if (false == hashesVerified) {
+            if (false == repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
+                throw new RepositoryException(latestRepositoryMetadata.name(), "No password hashes published");
             }
-            if (computedRepositoryPasswordId.equals(masterRepositoryPasswordId)) {
-                this.validatedLocalRepositoryPasswordHash = computedRepositoryPasswordId;
-            } else {
-                throw new RepositoryException(
-                    metadata.name(),
-                    "Repository password mismatch. The local node's repository password, from the keystore setting ["
-                        + EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(
-                            RepositoryPasswords.PASSWORD_NAME_SETTING.get(metadata.settings())
-                        ).getKey()
-                        + "], is different compared to the elected master node's which started the snapshot operation"
-                );
+            if (false == repositoryPasswords.containsRequiredPasswordHashes(latestRepositoryMetadata)) {
+                throw new RepositoryException(latestRepositoryMetadata.name(), "Password hashes missing for some passwords");
             }
+            throw new RepositoryException(latestRepositoryMetadata.name(), "The repository passwords on the local node are different");
         }
     }
 
@@ -485,6 +543,11 @@ public class EncryptedRepository extends BlobStoreRepository {
             logger.trace("Repository [{}] using KEK [{}] to wrap DEK [{}]", repositoryName, kek.v1(), dekId);
             final byte[] encryptedDEKBytes;
             try {
+                // TODO check password hashes here
+                boolean hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(metadata);
+                if (false == hashesVerified) {
+                    throw new IllegalStateException("The repository passwords on the local node are different");
+                }
                 encryptedDEKBytes = AESKeyUtils.wrap(kek.v2(), dek);
                 if (encryptedDEKBytes.length != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
                     throw new RepositoryException(

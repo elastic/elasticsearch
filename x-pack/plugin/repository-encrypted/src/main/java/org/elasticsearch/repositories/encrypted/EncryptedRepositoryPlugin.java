@@ -13,13 +13,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -30,29 +28,23 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
 import org.elasticsearch.repositories.encrypted.action.RestEncryptedRepositoryChangePasswordAction;
 import org.elasticsearch.repositories.encrypted.action.TransportEncryptedRepositoryChangePasswordAction;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
 
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -157,18 +149,6 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                         "Unsupported delegate repository type [" + delegateType + "] for setting [" + DELEGATE_TYPE_SETTING.getKey() + "]"
                     );
                 }
-                final String repositoryPasswordName = RepositoryPasswords.PASSWORD_NAME_SETTING.get(metadata.settings());
-                if (Strings.hasLength(repositoryPasswordName) == false) {
-                    throw new IllegalArgumentException("Repository setting [" + RepositoryPasswords.PASSWORD_NAME_SETTING.getKey() + "] must be set");
-                }
-                final SecureString repositoryPassword = repositoryPasswordsMap.get(repositoryPasswordName);
-                if (repositoryPassword == null) {
-                    throw new IllegalArgumentException(
-                        "Secure setting ["
-                            + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryPasswordName).getKey()
-                            + "] must be set"
-                    );
-                }
                 final Repository delegatedRepository = factory.create(
                     new RepositoryMetadata(metadata.name(), delegateType, metadata.settings())
                 );
@@ -195,7 +175,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                     recoverySettings,
                     (BlobStoreRepository) delegatedRepository,
                     () -> getLicenseState(),
-                    repositoryPassword
+                    repositoryPasswordsMap
                 );
             }
         });
@@ -210,7 +190,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         RecoverySettings recoverySettings,
         BlobStoreRepository delegatedRepository,
         Supplier<XPackLicenseState> licenseStateSupplier,
-        SecureString repoPassword
+        Map<String, SecureString> repositoryPasswordsMap
     ) throws GeneralSecurityException {
         return new EncryptedRepository(
             metadata,
@@ -220,7 +200,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             recoverySettings,
             delegatedRepository,
             licenseStateSupplier,
-            repoPassword
+            repositoryPasswordsMap
         );
     }
 

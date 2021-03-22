@@ -54,10 +54,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
@@ -398,14 +396,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_HASH_USER_METADATA_KEY))
-        );
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_SALT_USER_METADATA_KEY))
-        );
 
         // snapshot is PARTIAL because it includes shards on nodes with a missing repository password
         final String snapshotName2 = snapshotName + "2";
@@ -421,14 +411,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .shardFailures()
                 .stream()
                 .allMatch(shardFailure -> shardFailure.reason().contains("[" + repositoryName + "] missing"))
-        );
-        assertThat(
-            incompleteSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_HASH_USER_METADATA_KEY))
-        );
-        assertThat(
-            incompleteSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_SALT_USER_METADATA_KEY))
         );
         final Set<String> nodesWithFailures = incompleteSnapshotResponse.getSnapshotInfo()
             .shardFailures()
@@ -498,14 +480,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_HASH_USER_METADATA_KEY))
-        );
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_SALT_USER_METADATA_KEY))
-        );
 
         // snapshot is PARTIAL because it includes shards on nodes with a different repository KEK
         final String snapshotName2 = snapshotName + "2";
@@ -559,14 +533,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
         );
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_HASH_USER_METADATA_KEY))
-        );
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().userMetadata(),
-            not(hasKey(EncryptedRepository.PASSWORD_SALT_USER_METADATA_KEY))
-        );
         // restart master node and fill in a wrong password
         secureSettingsWithPassword.setString(
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
@@ -757,8 +723,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
     private void assertSuccessfulSnapshot(CreateSnapshotResponse response) {
         assertThat(response.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(response.getSnapshotInfo().successfulShards(), equalTo(response.getSnapshotInfo().totalShards()));
-        assertThat(response.getSnapshotInfo().userMetadata(), not(hasKey(EncryptedRepository.PASSWORD_HASH_USER_METADATA_KEY)));
-        assertThat(response.getSnapshotInfo().userMetadata(), not(hasKey(EncryptedRepository.PASSWORD_SALT_USER_METADATA_KEY)));
     }
 
     public SnapshotInfo waitForCompletion(String repository, String snapshotName, TimeValue timeout) throws InterruptedException {

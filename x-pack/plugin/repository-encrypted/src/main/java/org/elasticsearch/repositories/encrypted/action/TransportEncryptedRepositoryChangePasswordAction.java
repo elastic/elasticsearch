@@ -27,8 +27,9 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends
         TransportMasterNodeAction<EncryptedRepositoryChangePasswordRequest, EncryptedRepositoryChangePasswordResponse> {
 
     @Inject
-    protected TransportEncryptedRepositoryChangePasswordAction(TransportService transportService,
-                                                               ClusterService clusterService, ThreadPool threadPool,
+    public TransportEncryptedRepositoryChangePasswordAction(TransportService transportService,
+                                                               ClusterService clusterService,
+                                                               ThreadPool threadPool,
                                                                ActionFilters actionFilters,
                                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ChangeEncryptedRepositoryPasswordAction.NAME, transportService, clusterService, threadPool, actionFilters,

@@ -7,13 +7,10 @@
 package org.elasticsearch.xpack.core.security.support;
 
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xpack.core.security.SecurityField;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -24,6 +21,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.util.Base64;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 
 public final class AESKeyUtils {
     public static final int KEY_LENGTH_IN_BYTES = 32; // 256-bit AES key
@@ -70,26 +69,61 @@ public final class AESKeyUtils {
         return new String(Base64.getUrlEncoder().withoutPadding().encode(ciphertextOfKnownPlaintext), StandardCharsets.UTF_8);
     }
 
-    public static SecretKey generatePasswordBasedKey(SecureString password, String salt) throws GeneralSecurityException {
-        return generatePasswordBasedKey(password, salt.getBytes(StandardCharsets.UTF_8));
+    public static SecretKey generatePasswordBasedKey(SecureString password, String salt) throws ExecutionException, InterruptedException {
+        return generatePasswordBasedKey(password, salt, EsExecutors.newDirectExecutorService()).get();
     }
 
-    public static SecretKey generatePasswordBasedKey(SecureString password, byte[] salt) throws GeneralSecurityException {
-        assert Transports.assertNotTransportThread("pbkdf2 hash is slow");
-        assert ThreadPool.assertNotScheduleThread("pbkdf2 hash is slow");
-        assert ClusterApplierService.assertNotClusterStateUpdateThread("pbkdf2 hash is slow");
-        assert MasterService.assertNotMasterUpdateThread("pbkdf2 hash is slow");
-        PBEKeySpec keySpec = new PBEKeySpec(password.getChars(), salt, KDF_ITER, KEY_LENGTH_IN_BYTES * Byte.SIZE);
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
-        SecretKey secretKey = keyFactory.generateSecret(keySpec);
-        SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
-        return secret;
-    }
-
-    public static ListenableFuture<SecretKey> generatePasswordBasedKey(SecureString password, byte[] salt, ThreadPool threadPool) {
+    private static ListenableFuture<SecretKey> generatePasswordBasedKey(SecureString password, String salt,
+                                                                        ExecutorService executorService) {
         final ListenableFuture<SecretKey> listenableFuture = new ListenableFuture<>();
-        threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listenableFuture,
-                () -> generatePasswordBasedKey(password, salt)));
+        executorService.execute(ActionRunnable.supply(listenableFuture,
+                () -> {
+                    PBEKeySpec keySpec = new PBEKeySpec(password.getChars(), salt.getBytes(StandardCharsets.UTF_8), KDF_ITER,
+                            KEY_LENGTH_IN_BYTES * Byte.SIZE);
+                    SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
+                    SecretKey secretKey = keyFactory.generateSecret(keySpec);
+                    SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
+                    return secret;
+                }));
+        return listenableFuture;
+    }
+
+    public static ListenableFuture<String> computeSaltedPasswordHash(SecureString password, ExecutorService executorService) {
+        return computeSaltedPasswordHash(password, UUIDs.randomBase64UUID(), executorService);
+    }
+
+    public static boolean verifySaltedPasswordHash(SecureString password, String saltedHash)
+            throws ExecutionException, InterruptedException {
+        return verifySaltedPasswordHash(password, saltedHash, EsExecutors.newDirectExecutorService()).get();
+    }
+
+    public static ListenableFuture<Boolean> verifySaltedPasswordHash(SecureString password, String saltedHash, ExecutorService executorService) {
+        final ListenableFuture<Boolean> listenableFuture = new ListenableFuture<>();
+        if (password == null) {
+            listenableFuture.onFailure(new IllegalArgumentException("Unexpected null password used for hash verify"));
+        } else if (saltedHash == null) {
+            listenableFuture.onFailure(new IllegalArgumentException("Unexpected null hash to verify"));
+        } else {
+            String[] saltAndHash = saltedHash.split(":");
+            if (saltAndHash == null || saltAndHash.length != 2) {
+                listenableFuture.onFailure(new IllegalArgumentException("Invalid salted hash format"));
+            } else {
+                // hash computation is always performed by the passed-in executor argument
+                computeSaltedPasswordHash(password, saltAndHash[0], executorService)
+                        .addListener(listenableFuture.map(computedSaltedHash ->
+                                computedSaltedHash.equals(saltedHash)), EsExecutors.newDirectExecutorService());
+            }
+        }
+        return listenableFuture;
+    }
+
+    private static ListenableFuture<String> computeSaltedPasswordHash(SecureString password, String salt,
+                                                                      ExecutorService executorService) {
+        final ListenableFuture<String> listenableFuture = new ListenableFuture<>();
+        generatePasswordBasedKey(password, salt, executorService).addListener(listenableFuture.map(secretKey -> {
+            String keyId = AESKeyUtils.computeId(secretKey);
+            return salt + ":" + keyId;
+        }), EsExecutors.newDirectExecutorService());
         return listenableFuture;
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -69,10 +70,15 @@ public class EncryptedRepositoryTests extends ESTestCase {
         this.delegatedRepository = mock(BlobStoreRepository.class);
         when(delegatedRepository.blobStore()).thenReturn(delegatedBlobStore);
         when(delegatedRepository.basePath()).thenReturn(delegatedPath);
+        String repoPasswordName = randomAlphaOfLength(6);
+        Settings.Builder settings = Settings.builder();
+        settings.put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repoPasswordName);
+        settings.put(RepositoryPasswords.PASSWORD_HASH_SETTING.getConcreteSettingForNamespace(repoPasswordName).getKey(),
+                AESKeyUtils.computeSaltedPasswordHash(repoPassword, EsExecutors.newDirectExecutorService()).get());
         this.repositoryMetadata = new RepositoryMetadata(
             randomAlphaOfLength(4),
             EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME,
-            Settings.EMPTY
+            settings.build()
         );
         ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterApplierService.threadPool()).thenReturn(mock(ThreadPool.class));
@@ -86,7 +92,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
             mock(RecoverySettings.class),
             delegatedRepository,
             () -> mock(XPackLicenseState.class),
-            repoPassword
+            Map.of(repoPasswordName, repoPassword)
         );
         this.encryptedBlobStore = (EncryptedRepository.EncryptedBlobStore) encryptedRepository.createBlobStore();
         this.blobsMap = new HashMap<>();

@@ -58,7 +58,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
                 RecoverySettings recoverySettings,
                 BlobStoreRepository delegatedRepository,
                 Supplier<XPackLicenseState> licenseStateSupplier,
-                SecureString repoPassword
+                Map<String, SecureString> repoPasswords
             ) throws GeneralSecurityException {
                 return new TestEncryptedRepository(
                     metadata,
@@ -68,7 +68,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
                     recoverySettings,
                     delegatedRepository,
                     licenseStateSupplier,
-                    repoPassword
+                    repoPasswords
                 );
             }
         };
@@ -88,9 +88,10 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
             RecoverySettings recoverySettings,
             BlobStoreRepository delegatedRepository,
             Supplier<XPackLicenseState> licenseStateSupplier,
-            SecureString repoPassword
+            Map<String, SecureString> repoPasswords
         ) throws GeneralSecurityException {
-            super(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository, licenseStateSupplier, repoPassword);
+            super(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository, licenseStateSupplier,
+                    repoPasswords);
         }
 
         @Override

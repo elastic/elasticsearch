@@ -44,7 +44,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsScripts() {
+    protected boolean allowsIndexTimeScript() {
         return true;
     }
 

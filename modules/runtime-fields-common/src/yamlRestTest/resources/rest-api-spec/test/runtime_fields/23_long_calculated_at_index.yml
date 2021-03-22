@@ -94,7 +94,7 @@ setup:
             - temperature_digits
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
-  - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
+  - match: {hits.hits.0.fields.temperature_digits: [2, 0, 2] }
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
   - match: {hits.hits.0.fields.voltage_times_ten_no_dv: [40] }
   - match: {hits.hits.1.fields.voltage_times_ten: [42] }

@@ -493,7 +493,7 @@ public class NodeStatsTests extends ESTestCase {
         if (frequently()) {
             int numPipelines = randomIntBetween(0, 10);
             int numProcessors = randomIntBetween(0, 10);
-            long maxStatValue = Long.MAX_VALUE / numPipelines / numProcessors;
+            long maxStatValue = Long.MAX_VALUE / Math.max(1, numPipelines) / Math.max(1, numProcessors);
             IngestStats.Stats totalStats = new IngestStats.Stats(
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),

@@ -39,8 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RestIndexActionTests extends RestActionTestCase {
 
-    final List<String> contentTypeHeader =
-        Collections.singletonList("application/vnd.elasticsearch+json;compatible-with="+ RestApiVersion.V_7.major);
+    final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
 

@@ -18,7 +18,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,8 +41,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
-    private static final String TYPE_FIELD_NAME = "_type";
-    private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";
@@ -288,7 +285,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         builder.startObject();
         builder.field(_INDEX, index);
         if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(TYPE_FIELD_NAME, SINGLE_MAPPING_TYPE);
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         builder.field(_ID, id);
         if (isExists()) {

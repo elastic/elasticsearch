@@ -115,7 +115,7 @@ public class DocWriteResponseTests extends ESTestCase {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), hasEntry(DocWriteResponse.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME));
+                assertThat(parser.map(), hasEntry(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME));
             }
         }
 
@@ -124,7 +124,7 @@ public class DocWriteResponseTests extends ESTestCase {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), not(hasKey(DocWriteResponse.TYPE_FIELD_NAME)));
+                assertThat(parser.map(), not(hasKey(MapperService.TYPE_FIELD_NAME)));
             }
         }
     }

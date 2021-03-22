@@ -343,13 +343,13 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
-    eclipse.classpath.defaultOutputDir = file('build-eclipse')
+    eclipse.classpath.defaultOutputDir = file('build/eclipse/default')
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
-        folder.output = "build-eclipse/" + i
+        folder.output = "build/eclipse/" + i
       }
 
       // Starting with Gradle 6.7 test dependencies are not exposed by eclipse

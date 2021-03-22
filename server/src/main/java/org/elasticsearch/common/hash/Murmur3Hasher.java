@@ -20,7 +20,7 @@ import org.elasticsearch.common.Numbers;
  */
 public class Murmur3Hasher {
 
-    public static final String METHOD = "MurmurHash3_x64_128";
+    public static final String METHOD = "MurmurHash3";
 
     private final long seed;
     private final byte[] remainder = new byte[16];

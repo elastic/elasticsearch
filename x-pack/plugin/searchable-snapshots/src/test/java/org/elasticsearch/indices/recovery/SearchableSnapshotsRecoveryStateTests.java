@@ -128,6 +128,19 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         assertThat(recoveryState.getIndex().getFileDetails("non_pre_warmed_file"), is(nullValue()));
     }
 
+    public void testResetAfterRemoteTranslogIsSetResetsFlag() {
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+        recoveryState.getIndex().setFileDetailsComplete();
+
+        recoveryState.setStage(RecoveryState.Stage.INDEX).setStage(RecoveryState.Stage.VERIFY_INDEX).setRemoteTranslogStage();
+
+        assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE));
+        assertThat(recoveryState.isRemoteTranslogSet(), equalTo(true));
+
+        recoveryState.setStage(RecoveryState.Stage.INIT);
+        assertThat(recoveryState.isRemoteTranslogSet(), equalTo(false));
+    }
+
     private SearchableSnapshotRecoveryState createRecoveryState() {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             randomAlphaOfLength(10),

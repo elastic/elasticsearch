@@ -144,7 +144,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             numericType = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             format = in.readOptionalString();
         }
     }
@@ -164,7 +164,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeOptionalString(numericType);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeOptionalString(format);
         } else {
             if (format != null) {

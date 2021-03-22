@@ -57,8 +57,12 @@ public class NodeShutdownMetadata implements Metadata.Custom {
         );
     }
 
-    public static NodeShutdownMetadata parse(XContentParser parser) {
+    public static NodeShutdownMetadata fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return new NodeShutdownMetadataDiff(in);
     }
 
     private final Map<String, SingleNodeShutdownMetadata> nodes;

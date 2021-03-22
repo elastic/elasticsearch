@@ -27,7 +27,7 @@ public class NodeShutdownMetadataTests extends AbstractDiffableSerializationTest
 
     @Override
     protected NodeShutdownMetadata doParseInstance(XContentParser parser) throws IOException {
-        return NodeShutdownMetadata.parse(parser);
+        return NodeShutdownMetadata.fromXContent(parser);
     }
 
     @Override

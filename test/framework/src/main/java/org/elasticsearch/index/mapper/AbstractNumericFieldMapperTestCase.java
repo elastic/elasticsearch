@@ -7,14 +7,10 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.HalfFloatPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.hasItem;
 

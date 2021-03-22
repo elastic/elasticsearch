@@ -96,7 +96,8 @@ streams].
 Collection of <<glossary-node,nodes>> with the same {ref}/modules-node.html[data
 role] that typically share the same hardware profile. Data tiers include the
 <<glossary-content-tier, content tier>>, <<glossary-hot-tier, hot tier>>,
-<<glossary-warm-tier, warm tier>>, and <<glossary-cold-tier, cold tier>>. See
+<<glossary-warm-tier, warm tier>>, <<glossary-cold-tier, cold tier>>, and
+{ref}/glossary.html#glossary-frozen-tier[frozen tier]. See
 {ref}/data-tiers.html[Data tiers].
 // end::data-tier-def[]
 
@@ -170,6 +171,22 @@ occasional searches.
 See the {ref}/freeze-index-api.html[freeze API].
 // end::frozen-index-def[]
 
+[[glossary-frozen-phase]] frozen phase::
+// tag::frozen-phase-def[]
+Fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>. In
+the frozen phase, an <<glossary-index,index>> is no longer updated and
+<<glossary-query,queried>> rarely. The information still needs to be searchable,
+but it’s okay if those queries are extremely slow. See
+{ref}/ilm-index-lifecycle.html[Index lifecycle].
+// end::frozen-phase-def[]
+
+[[glossary-frozen-tier]] frozen tier::
+// tag::frozen-tier-def[]
+<<glossary-data-tier,Data tier>> that contains <<glossary-node,nodes>> that
+hold time series data that is accessed rarely and not normally updated. See
+{ref}/data-tiers.html[Data tiers].
+// end::frozen-tier-def[]
+
 [[glossary-hidden-index]] hidden data stream or index::
 // tag::hidden-index-def[]
 <<glossary-data-stream,Data stream>> or <<glossary-index,index>> excluded from
@@ -216,10 +233,11 @@ an index alias in place of an index name. See the
 
 [[glossary-index-lifecycle]] index lifecycle::
 // tag::index-lifecycle-def[]
-Four phases an <<glossary-index,index>> can transition through:
+Five phases an <<glossary-index,index>> can transition through:
 <<glossary-hot-phase,hot>>, <<glossary-warm-phase,warm>>,
-<<glossary-cold-phase,cold>>, and <<glossary-delete-phase,delete>>. See
-{ref}/ilm-policy-definition.html[Index lifecycle].
+<<glossary-cold-phase,cold>>, {ref}/glossary.html#glossary-frozen-phase[frozen],
+and <<glossary-delete-phase,delete>>. See {ref}/ilm-policy-definition.html[Index
+lifecycle].
 // end::index-lifecycle-def[]
 
 [[glossary-index-lifecycle-policy]] index lifecycle policy::

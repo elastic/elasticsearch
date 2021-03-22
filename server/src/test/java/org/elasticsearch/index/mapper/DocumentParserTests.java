@@ -1041,7 +1041,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
     }
 
-    public void testDynamicTemplateNameHint() throws Exception {
+    public void testWithDynamicTemplates() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1127,7 +1127,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
     }
 
-    public void testDynamicTemplateNameHintNotFound() throws Exception {
+    public void testDynamicTemplatesNotFound() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1158,7 +1158,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperParsingException error = expectThrows(MapperParsingException.class, () ->
             mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "foo_bar"))));
         assertThat(error.getMessage(),
-            containsString("Can't find dynamic template for dynamic template name hint [foo_bar] of field [" + field + "]"));
+            containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [" + field + "]"));
     }
 
 

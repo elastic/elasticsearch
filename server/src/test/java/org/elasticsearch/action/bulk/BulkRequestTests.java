@@ -322,55 +322,55 @@ public class BulkRequestTests extends ESTestCase {
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
     }
 
-    public void testDynamicMappingTemplateHints() throws Exception {
+    public void testDynamicTemplates() throws Exception {
         BytesArray data = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"dynamic_template_hints\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
             "{ \"field1\" : \"value1\" }\n" +
 
             "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n" +
 
-            "{ \"create\" : {\"_index\":\"test\",\"dynamic_template_hints\":{\"bar\":\"t1\"}}}\n" +
+            "{ \"create\" : {\"_index\":\"test\",\"dynamic_templates\":{\"bar\":\"t1\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n" +
 
-            "{ \"create\" : {\"dynamic_template_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
+            "{ \"create\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n" +
 
-            "{ \"index\" : {\"dynamic_template_hints\":{}}\n" +
+            "{ \"index\" : {\"dynamic_templates\":{}}\n" +
             "{ \"field1\" : \"value3\" }\n"
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
-        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplateHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(),
             equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplateHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplates(),
             equalTo(Map.of("bar", "t1")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplateHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplates(),
             equalTo(Map.of("foo.bar", "xyz")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplateHints(),
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(),
             equalTo(Map.of()));
     }
 
-    public void testInvalidDynamicTemplateHint() {
-        BytesArray deleteWithMappingHint = new BytesArray(
-            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_template_hints\":{\"baz\":\"t1\"}} }\n");
+    public void testInvalidDynamicTemplates() {
+        BytesArray deleteWithDynamicTemplates = new BytesArray(
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_templates\":{\"baz\":\"t1\"}} }\n");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> new BulkRequest().add(deleteWithMappingHint, null, XContentType.JSON));
-        assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_template_hints"));
+            () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_templates"));
 
-        BytesArray updateWithMappingHint = new BytesArray(
-            "{ \"update\" : {\"dynamic_template_hints\":{\"foo.bar\":\"xyz\"}}}\n" +
+        BytesArray updateWithDynamicTemplates = new BytesArray(
+            "{ \"update\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n");
         error = expectThrows(IllegalArgumentException.class,
-            () -> new BulkRequest().add(updateWithMappingHint, null, XContentType.JSON));
-        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_template_hints"));
+            () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON));
+        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_templates"));
 
-        BytesArray invalidMappingHint = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"dynamic_template_hints\":[]}\n" +
+        BytesArray invalidDynamicTemplates = new BytesArray(
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":[]}\n" +
             "{ \"field1\" : \"value1\" }\n"
         );
         error = expectThrows(IllegalArgumentException.class,
-            () -> new BulkRequest().add(invalidMappingHint, null, XContentType.JSON));
+            () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON));
         assertThat(error.getMessage(), equalTo("Malformed action/metadata line [1], " +
-            "expected a simple value for field [dynamic_template_hints] but found [START_ARRAY]"));
+            "expected a simple value for field [dynamic_templates] but found [START_ARRAY]"));
     }
 }

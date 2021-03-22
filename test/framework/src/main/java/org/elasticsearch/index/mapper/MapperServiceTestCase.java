@@ -239,11 +239,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
-                                         @Nullable String routing, Map<String, String> dynamicMappingHints) throws IOException {
+                                         @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicMappingHints);
+        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {

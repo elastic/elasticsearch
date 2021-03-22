@@ -172,7 +172,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 
-    public void testDynamicTemplateNameHints() throws Exception {
+    public void testBulkRequestWithDynamicTemplates() throws Exception {
         final XContentBuilder mappings = XContentFactory.jsonBuilder();
         mappings.startObject();
         {
@@ -202,17 +202,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mappings));
         List<IndexRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("1").source("location", "41.12,-71.34")
-            .setDynamicTemplateHints(Map.of("location", "location")));
+            .setDynamicTemplates(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("2").source(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("location").field("lat", 41.12).field("lon", -71.34).endObject()
                 .endObject())
-            .setDynamicTemplateHints(Map.of("location", "location")));
+            .setDynamicTemplates(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("3").source("address.location", "41.12,-71.34")
-            .setDynamicTemplateHints(Map.of("address.location", "location")));
+            .setDynamicTemplates(Map.of("address.location", "location")));
         requests.add(new IndexRequest("test").id("4").source("location", new double[]{-71.34, 41.12})
-            .setDynamicTemplateHints(Map.of("location", "location")));
+            .setDynamicTemplates(Map.of("location", "location")));
         requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[]{-71.34, 41.12}));
 
         Randomness.shuffle(requests);
@@ -231,7 +231,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "3");
     }
 
-    public void testDynamicTemplateNameHintNotMatched() throws Exception {
+    public void testBulkRequestWithNotFoundDynamicTemplate() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test"));
         final XContentBuilder mappings = XContentFactory.jsonBuilder();
         mappings.startObject();
@@ -269,21 +269,21 @@ public class DynamicMappingIT extends ESIntegTestCase {
                     .startObject()
                     .field("my_location", "41.12,-71.34")
                     .endObject())
-                .setDynamicTemplateHints(Map.of("my_location", "foo_bar")),
+                .setDynamicTemplates(Map.of("my_location", "foo_bar")),
             new IndexRequest("test").id("2").source(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .field("address.location", "41.12,-71.34")
                     .endObject())
-                .setDynamicTemplateHints(Map.of("address.location", "bar_foo"))
+                .setDynamicTemplates(Map.of("address.location", "bar_foo"))
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());
         assertThat(bulkItemResponses.getItems()[0].getFailure().getCause(), instanceOf(MapperParsingException.class));
         assertThat(bulkItemResponses.getItems()[0].getFailureMessage(),
-            containsString("Can't find dynamic template for dynamic template name hint [foo_bar] of field [my_location]"));
+            containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [my_location]"));
         assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(MapperParsingException.class));
         assertThat(bulkItemResponses.getItems()[1].getFailureMessage(),
-            containsString("Can't find dynamic template for dynamic template name hint [bar_foo] of field [address.location]"));
+            containsString("Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]"));
     }
 }

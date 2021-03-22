@@ -150,11 +150,11 @@ public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestXContentSerialization() throws IOException {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         boolean isRequireAlias = randomBoolean();
-        Map<String, String> dynamicMappingHints = IntStream.range(0, randomIntBetween(0, 10))
+        Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
             .boxed()
-            .collect(Collectors.toMap(n -> "field-" + n, n -> "hint-" + n));
+            .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
         indexRequest.source("{}", XContentType.JSON);
-        indexRequest.setDynamicTemplateHints(dynamicMappingHints);
+        indexRequest.setDynamicTemplates(dynamicTemplates);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -165,7 +165,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
         assertEquals(isRequireAlias, serialized.isRequireAlias());
-        assertThat(serialized.getDynamicTemplateHints(), equalTo(dynamicMappingHints));
+        assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -184,13 +184,13 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testSerializeMappingHints() throws Exception {
+    public void testSerializeDynamicTemplates() throws Exception {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         indexRequest.source("{}", XContentType.JSON);
-        Map<String, String> dynamicMappingHints = IntStream.range(0, randomIntBetween(0, 10))
+        Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
             .boxed()
-            .collect(Collectors.toMap(n -> "field-" + n, n -> "hint-" + n));
-        indexRequest.setDynamicTemplateHints(dynamicMappingHints);
+            .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+        indexRequest.setDynamicTemplates(dynamicTemplates);
         // old version
         {
             Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
@@ -200,7 +200,7 @@ public class IndexRequestTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
             in.setVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
-            assertThat(serialized.getDynamicTemplateHints(), anEmptyMap());
+            assertThat(serialized.getDynamicTemplates(), anEmptyMap());
         }
         // new version
         {
@@ -211,7 +211,7 @@ public class IndexRequestTests extends ESTestCase {
             StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
             in.setVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
-            assertThat(serialized.getDynamicTemplateHints(), equalTo(dynamicMappingHints));
+            assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
         }
     }
 

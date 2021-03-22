@@ -173,7 +173,10 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         }
 
         private double getThreshold(int index) {
-            return percentiles[index];
+            // We subtract the minimum value possible here in order to
+            // ensure no point has a threshold of 1.0 as we are adding
+            // that point separately so that fpr = tpr = 0.
+            return Math.max(0, percentiles[index] - Math.ulp(percentiles[index]));
         }
 
         private double interpolateRate(double threshold) {

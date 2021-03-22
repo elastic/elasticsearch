@@ -6,7 +6,10 @@
 
 Creates or updates an index alias.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+//tag::index-alias-desc[]
+An index alias is a secondary name for one or more indices. Most {es} APIs
+accept an index alias in place of an index name.
+//end::index-alias-desc[]
 
 [source,console]
 ----

@@ -713,11 +713,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(T... array) {
         return randomFrom(random(), array);
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(Random random, T... array) {
         return RandomPicks.randomFrom(random, array);
     }

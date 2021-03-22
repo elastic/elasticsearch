@@ -378,10 +378,10 @@ public class DynamicTemplate implements ToXContentObject {
         if (pathUnmatch != null) {
             builder.field("path_unmatch", pathUnmatch);
         }
-        // We have more than one types when (1) `match_mapping_type` is "*", and (2) match and/or path_match are defined but not
-        // `match_mapping_type`, which implicitly means we accepts all match_mapping_type. We can also use "*" for the later case.
-        // TODO: Should we support a list of types in `match_mapping_type`?
-        if (xContentFieldTypes.length > 1) {
+        // We have more than one types when (1) `match_mapping_type` is "*", and (2) match and/or path_match are defined but
+        // not `match_mapping_type`. In the latter the template implicitly accepts all types and we don't need to serialize
+        // the `match_mapping_type` values.
+        if (xContentFieldTypes.length > 1 && match == null && pathMatch == null) {
             builder.field("match_mapping_type", "*");
         } else if (xContentFieldTypes.length == 1) {
             builder.field("match_mapping_type", xContentFieldTypes[0]);

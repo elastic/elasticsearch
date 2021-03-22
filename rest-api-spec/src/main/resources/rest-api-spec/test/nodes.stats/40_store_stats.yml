@@ -18,3 +18,6 @@
   - is_true:  nodes.$master.indices.store
   - gte: { nodes.$master.indices.store.size_in_bytes: 0 }
   - gte: { nodes.$master.indices.store.reserved_in_bytes: -1 }
+  - set:
+      nodes.$master.indices.store.size_in_bytes: size_in_bytes
+  - match: { nodes.$master.indices.store.local_size_in_bytes: $size_in_bytes }

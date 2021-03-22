@@ -92,6 +92,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -372,7 +373,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         long sum = 0;
         int count = 0;
         for (IndexShard indexShard : this) {
-            sum += indexShard.store().stats(0L).sizeInBytes();
+            sum += indexShard.store().stats(0L, LongUnaryOperator.identity()).sizeInBytes();
             count++;
         }
         if (count == 0) {

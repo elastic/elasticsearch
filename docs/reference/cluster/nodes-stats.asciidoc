@@ -256,6 +256,16 @@ Total size of all shards assigned to the node.
 (integer)
 Total size, in bytes, of all shards assigned to the node.
 
+`local_size`::
+(<<byte-units,byte value>>)
+Total local size of all shards assigned to the node. Only dedicated node local
+storage counts towards this metric.
+
+`local_size_in_bytes`::
+(integer)
+Total local size, in bytes, of all shards assigned to the node. Only dedicated
+node local storage counts towards this metric.
+
 `reserved`::
 (<<byte-units,byte value>>)
 A prediction of how much larger the shard stores on this node will eventually

@@ -27,8 +27,10 @@ public class StoreStats implements Writeable, ToXContentFragment {
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
     public static final Version RESERVED_BYTES_VERSION = Version.V_7_9_0;
+    public static final Version LOCAL_SIZE_VERSION = Version.V_8_0_0; // todo: Version.V_7_13_0;
 
     private long sizeInBytes;
+    private long localSizeInBytes;
     private long reservedSize;
 
     public StoreStats() {
@@ -37,6 +39,11 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
+        if (in.getVersion().onOrAfter(LOCAL_SIZE_VERSION)) {
+            localSizeInBytes = in.readVLong();
+        } else {
+            localSizeInBytes = sizeInBytes;
+        }
         if (in.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
             reservedSize = in.readZLong();
         } else {
@@ -46,19 +53,21 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     /**
      * @param sizeInBytes the size of the store in bytes
+     * @param localSizeInBytes the local size of the store in bytes, can differ from sizeInBytes for shards using a shared cache storage
      * @param reservedSize a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
      */
-    public StoreStats(long sizeInBytes, long reservedSize) {
+    public StoreStats(long sizeInBytes, long localSizeInBytes, long reservedSize) {
         assert reservedSize == UNKNOWN_RESERVED_BYTES || reservedSize >= 0 : reservedSize;
         this.sizeInBytes = sizeInBytes;
+        this.localSizeInBytes = localSizeInBytes;
         this.reservedSize = reservedSize;
     }
-
     public void add(StoreStats stats) {
         if (stats == null) {
             return;
         }
         sizeInBytes += stats.sizeInBytes;
+        localSizeInBytes += stats.localSizeInBytes;
         reservedSize = ignoreIfUnknown(reservedSize) + ignoreIfUnknown(stats.reservedSize);
     }
 
@@ -82,6 +91,14 @@ public class StoreStats implements Writeable, ToXContentFragment {
         return size();
     }
 
+    public ByteSizeValue localSize() {
+        return new ByteSizeValue(localSizeInBytes);
+    }
+
+    public ByteSizeValue getLocalSize() {
+        return localSize();
+    }
+
     /**
      * A prediction of how much larger this store will eventually grow. For instance, if we are currently doing a peer recovery or restoring
      * a snapshot into this store then we can account for the rest of the recovery using this field. A value of {@code -1B} indicates that
@@ -94,6 +111,9 @@ public class StoreStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
+        if (out.getVersion().onOrAfter(LOCAL_SIZE_VERSION)) {
+            out.writeVLong(localSizeInBytes);
+        }
         if (out.getVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
             out.writeZLong(reservedSize);
         }
@@ -103,6 +123,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.STORE);
         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, size());
+        builder.humanReadableField(Fields.LOCAL_SIZE_IN_BYTES, Fields.LOCAL_SIZE, localSize());
         builder.humanReadableField(Fields.RESERVED_IN_BYTES, Fields.RESERVED, getReservedSize());
         builder.endObject();
         return builder;
@@ -112,6 +133,8 @@ public class StoreStats implements Writeable, ToXContentFragment {
         static final String STORE = "store";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String LOCAL_SIZE = "local_size";
+        static final String LOCAL_SIZE_IN_BYTES = "local_size_in_bytes";
         static final String RESERVED = "reserved";
         static final String RESERVED_IN_BYTES = "reserved_in_bytes";
     }

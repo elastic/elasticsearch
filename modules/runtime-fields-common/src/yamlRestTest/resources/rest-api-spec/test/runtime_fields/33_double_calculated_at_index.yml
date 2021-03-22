@@ -91,8 +91,8 @@ setup:
           fields: [voltage_percent, voltage_percent_no_dv, voltage_sqrts]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
-  # Scripts that scripts that emit multiple values are supported and their results are sorted
-  - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
+  # Scripts that scripts that emit multiple values are supported
+  - match: {hits.hits.0.fields.voltage_sqrts: [4.0, 2.0, 1.4142135623730951] }
   - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
   - match: {hits.hits.1.fields.voltage_percent_no_dv: [0.7241379310344828] }
   - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }

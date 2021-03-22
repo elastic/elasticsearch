@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -729,8 +728,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             DataStream datastream = originalIndex.getParentDataStream() != null
                 ? originalIndex.getParentDataStream().getDataStream() : null;
             IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-            if (datastream != null && indexMetadata.getCustomData(RollupIndexMetadata.TYPE) != null
-                && requestIndicesSet.contains(index) == false) {
+            if (datastream != null && indexMetadata.isRollupIndex() && requestIndicesSet.contains(index) == false) {
                 return true;
             }
         }

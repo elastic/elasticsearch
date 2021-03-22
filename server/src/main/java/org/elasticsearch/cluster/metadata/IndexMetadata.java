@@ -577,6 +577,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(INDEX_ROLLUP_SOURCE_NAME_KEY,
         Property.IndexScope, Property.PrivateIndex);
 
+    public boolean isRollupIndex() {
+        return INDEX_ROLLUP_SOURCE_UUID.exists(settings);
+    }
+
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
         return this.customData;
     }

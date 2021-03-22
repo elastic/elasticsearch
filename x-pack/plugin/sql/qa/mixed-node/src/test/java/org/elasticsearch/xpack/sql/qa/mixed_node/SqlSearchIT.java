@@ -120,7 +120,7 @@ public class SqlSearchIT extends ESRestTestCase {
                 }
             }
         );
-        assertAllTypesWithNodes(expectedResponse, bwcNodes, false);
+        assertAllTypesWithNodes(expectedResponse, bwcNodes);
     }
 
     public void testAllTypesWithRequestToUpgradedNodes() throws Exception {
@@ -149,7 +149,7 @@ public class SqlSearchIT extends ESRestTestCase {
                 }
             }
         );
-        assertAllTypesWithNodes(expectedResponse, newNodes, true);
+        assertAllTypesWithNodes(expectedResponse, newNodes);
     }
 
     @SuppressWarnings("unchecked")
@@ -226,21 +226,15 @@ public class SqlSearchIT extends ESRestTestCase {
         Map<String, Object> column = new HashMap<>();
         column.put("name", name);
         column.put("type", type);
-        column.put("display_size", SqlDataTypes.displaySize(SqlDataTypes.fromTypeName(type)));
         return unmodifiableMap(column);
     }
 
-    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList, boolean asDriver)
+    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList)
         throws Exception {
         try (
             RestClient client = buildClient(restClientSettings(),
                 nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
-            Request request = new Request("POST", "_sql");
-            String mode = "\"mode\":" + (asDriver ? "\"jdbc\"" : "\"plain\"");
-            String version = ",\"version\":\"" + newVersion.toString() + "\"";
-            String binaryFormat = ",\"binary_format\":\"false\"";
-
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
             String intervalYearMonth = "INTERVAL '150' YEAR AS interval_year, ";
@@ -251,9 +245,8 @@ public class SqlSearchIT extends ESRestTestCase {
             String fieldsList = columns.stream().map(m -> (String) m.get("name")).filter(str -> str.startsWith("interval") == false)
                 .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
-            request.setJsonEntity(
-                "{" + mode + version + binaryFormat + ",\"query\":\"" + query + "\"}"
-            );
+            Request request = new Request("POST", "_sql");
+            request.setJsonEntity("{\"query\":\"" + query + "\"}");
             assertBusy(() -> { assertResponse(expectedResponse, runSql(client, request)); });
         }
     }

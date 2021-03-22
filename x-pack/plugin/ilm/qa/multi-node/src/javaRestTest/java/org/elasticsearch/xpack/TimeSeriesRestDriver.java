@@ -42,13 +42,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.waitUntil;
 import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
 import static org.elasticsearch.test.rest.ESRestTestCase.ensureHealth;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -327,5 +330,50 @@ public final class TimeSeriesRestDriver {
         Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Nullable
+    public static String waitAndGetShrinkIndexName(RestClient client, String originalIndex) throws InterruptedException {
+        String[] shrunkenIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                // we're including here the case where the original index was already deleted and we have to look for the shrunken index
+                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
+                    + "/_ilm/explain");
+                explainRequest.addParameter("only_errors", Boolean.toString(false));
+                explainRequest.addParameter("only_managed", Boolean.toString(false));
+                Response response = client.performRequest(explainRequest);
+                Map<String, Object> responseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+
+                Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
+                Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
+                if(explainIndexResponse == null) {
+                    // maybe we swapped the alias from the original index to the shrunken one already
+                    for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
+                        // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
+                        String indexName = indexToExplainMap.getKey();
+                        if (indexName.startsWith(SHRUNKEN_INDEX_PREFIX) && indexName.contains(originalIndex)) {
+                            explainIndexResponse = indexToExplainMap.getValue();
+                            break;
+                        }
+                    }
+                }
+
+                logger.info("--> index {}, explain {}", originalIndex, indexResponse);
+                if (explainIndexResponse == null) {
+                    return false;
+                }
+                shrunkenIndexName[0] = (String) explainIndexResponse.get("shrink_index_name");
+                return shrunkenIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS);
+        logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
+        return shrunkenIndexName[0];
     }
 }

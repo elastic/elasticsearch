@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DocValueFormatTests extends ESTestCase {
 
@@ -63,6 +64,17 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
+
+        dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
+        out = new BytesStreamOutput();
+        out.writeNamedWriteable(dateFormat);
+        in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        vf = in.readNamedWriteable(DocValueFormat.class);
+        assertEquals(DocValueFormat.DateTime.class, vf.getClass());
+        assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
+        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
+        assertTrue(dateFormat.formatSortValues);
 
         DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1),Resolution.NANOSECONDS);
         out = new BytesStreamOutput();
@@ -203,5 +215,13 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(859802.354d, parser.parseDouble("859,802.354", true, null), 0.0d);
         assertEquals(0.859d, parser.parseDouble("0.859", true, null), 0.0d);
         assertEquals(0.8598023539251286d, parser.parseDouble("0.8598023539251286", true, null), 0.0d);
+    }
+
+    public void testFormatSortFieldOutput() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss");
+        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.MILLISECONDS);
+        assertThat(dateFormat.formatSortValue(1415580798601L), equalTo(1415580798601L));
+        dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
+        assertThat(dateFormat.formatSortValue(1415580798601L), equalTo("2014-11-10 01:53:18"));
     }
 }

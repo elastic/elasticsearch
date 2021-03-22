@@ -52,16 +52,6 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                 " [" + configPwdHashAlgo + "] is configured."));
             return;
         }
-        nativeUsersStore.changePassword(request, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void v) {
-                listener.onResponse(ActionResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        nativeUsersStore.changePassword(request, listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
     }
 }

@@ -29,12 +29,23 @@ public class InjectWarnings extends FeatureInjector implements RestTestTransform
 
     private final List<String> warnings;
     private final String testName;
+    private final boolean isRegex;
 
     /**
      * @param warnings The warnings to inject
      * @param testName The testName to inject
      */
     public InjectWarnings(List<String> warnings, String testName) {
+        this(false, warnings, testName);
+    }
+
+    /**
+     * @param isRegex true is should inject the regex variant of warning
+     * @param warnings The warnings to inject
+     * @param testName The testName to inject
+     */
+    public InjectWarnings(boolean isRegex, List<String> warnings, String testName) {
+        this.isRegex = isRegex;
         this.warnings = warnings;
         this.testName = Objects.requireNonNull(testName, "inject warnings is only supported for named tests");
     }
@@ -42,10 +53,10 @@ public class InjectWarnings extends FeatureInjector implements RestTestTransform
     @Override
     public void transformTest(ObjectNode doNodeParent) {
         ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
-        ArrayNode arrayWarnings = (ArrayNode) doNodeValue.get("warnings");
+        ArrayNode arrayWarnings = (ArrayNode) doNodeValue.get(getSkipFeatureName());
         if (arrayWarnings == null) {
             arrayWarnings = new ArrayNode(jsonNodeFactory);
-            doNodeValue.set("warnings", arrayWarnings);
+            doNodeValue.set(getSkipFeatureName(), arrayWarnings);
         }
         warnings.forEach(arrayWarnings::add);
     }
@@ -57,9 +68,9 @@ public class InjectWarnings extends FeatureInjector implements RestTestTransform
     }
 
     @Override
-    @Internal
+    @Input
     public String getSkipFeatureName() {
-        return "warnings";
+        return isRegex ? "warnings_regex" : "warnings";
     }
 
     @Override

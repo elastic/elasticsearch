@@ -254,11 +254,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
             }
             ThreadLocal<Hasher> threadLocalHasher = ThreadLocal.withInitial(() -> {
                 try {
-                    if (method.equalsIgnoreCase(MurmurHasher.METHOD)) {
-                        return MurmurHasher.getInstance(method);
-                    } else {
-                        return MessageDigestHasher.getInstance(method);
-                    }
+                    return MessageDigestHasher.getInstance(method);
                 } catch (NoSuchAlgorithmException e) {
                     throw new IllegalStateException("unexpected exception creating MessageDigest instance for [" + method + "]", e);
                 }
@@ -289,9 +285,13 @@ public final class FingerprintProcessor extends AbstractProcessor {
             this.md = md;
         }
 
-        static MessageDigestHasher getInstance(String method) throws NoSuchAlgorithmException {
-            MessageDigest md = MessageDigest.getInstance(method);
-            return new MessageDigestHasher(md);
+        static Hasher getInstance(String method) throws NoSuchAlgorithmException {
+            if (method.equalsIgnoreCase(MurmurHasher.METHOD)) {
+                return MurmurHasher.getInstance(method);
+            } else {
+                MessageDigest md = MessageDigest.getInstance(method);
+                return new MessageDigestHasher(md);
+            }
         }
 
         @Override
@@ -324,7 +324,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
             this.mh = new Murmur3Hasher(0);
         }
 
-        static MurmurHasher getInstance(String method) throws NoSuchAlgorithmException {
+        static Hasher getInstance(String method) throws NoSuchAlgorithmException {
             if (method.equalsIgnoreCase(METHOD) == false) {
                 throw new NoSuchAlgorithmException("supports only [" + METHOD + "] as method");
             }

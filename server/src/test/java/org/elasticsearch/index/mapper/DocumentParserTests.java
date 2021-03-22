@@ -1161,6 +1161,40 @@ public class DocumentParserTests extends MapperServiceTestCase {
             containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [" + field + "]"));
     }
 
+    public void testWrongTypeDynamicTemplate() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("booleans");
+                    {
+                        b.field("match", "none");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "boolean");
+                            b.field("store", false);
+                            b.field("doc_values", false);
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        String field = randomFrom("foo.bar", "foo.bar.baz");
+        MapperParsingException error = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of("foo", "booleans"))));
+        assertThat(error.getMessage(),
+            containsString("Field [foo] must be an object; but it's configured as [boolean] in dynamic template [booleans]"));
+
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(1));
+        assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
+    }
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "object")));

@@ -194,8 +194,13 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
     }
 
     private static String hexToUnicode(Source source, String hex) {
+        int code = Integer.parseInt(hex, 16);
+        // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
+        if (code >= 55296 && code <= 57343) {
+            throw new ParsingException(source, "Invalid unicode character code, [{}] is a surrogate code", hex);
+        }
         try {
-            return String.valueOf(Character.toChars(Integer.parseInt(hex, 16)));
+            return String.valueOf(Character.toChars(code));
         } catch (IllegalArgumentException e) {
             throw new ParsingException(source, "Invalid unicode character code [{}]", hex);
         }

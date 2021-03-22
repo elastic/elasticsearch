@@ -229,6 +229,12 @@ public class ExpressionTests extends ESTestCase {
         e = expectThrows(ParsingException.class, "Expected syntax error",
                 () -> expr("\"\\u{10000000}\""));
         assertEquals("line 1:2: Invalid unicode character code [10000000]", e.getMessage());
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{d800}\""));
+        assertEquals("line 1:2: Invalid unicode character code, [d800] is a surrogate code", e.getMessage());
+        e = expectThrows(ParsingException.class, "Expected syntax error",
+                () -> expr("\"\\u{dfff}\""));
+        assertEquals("line 1:2: Invalid unicode character code, [dfff] is a surrogate code", e.getMessage());
     }
 
     public void testStringWithUnicodeEscapedChars() {
@@ -256,6 +262,8 @@ public class ExpressionTests extends ESTestCase {
             { "\\u{1680b}", "𖠋" },
             { "\\u{01f4a9}", "💩" },
             { "\\u{0010989}", "\uD802\uDD89"},
+            { "\\u{d7FF}", "\uD7FF"},
+            { "\\u{e000}", "\uE000"},
             { "\\u{00}", "\u0000"},
             { "\\u{0000}", "\u0000"},
             { "\\u{000000}", "\u0000"},

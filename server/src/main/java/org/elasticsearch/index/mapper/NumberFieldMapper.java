@@ -1058,10 +1058,6 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.script != null) {
-                // values don't live in source - either pull from dv, or re-calculate
-                if (hasDocValues()) {
-                    return new DocValueFetcher(DocValueFormat.RAW, context.getForField(this));
-                }
                 return new ValueFetcher() {
                     LeafReaderContext ctx;
 
@@ -1073,7 +1069,12 @@ public class NumberFieldMapper extends FieldMapper {
                     @Override
                     public List<Object> fetchValues(SourceLookup lookup) {
                         List<Object> values = new ArrayList<>();
-                        script.executeAndEmit(context.lookup(), ctx, lookup.docId(), values::add);
+                        try {
+                            script.executeAndEmit(context.lookup(), ctx, lookup.docId(), values::add);
+                        } catch (Exception e) {
+                            // ignore errors - if they exist here then they existed at index time
+                            // and were ignored, so we ignore here too
+                        }
                         return values;
                     }
                 };

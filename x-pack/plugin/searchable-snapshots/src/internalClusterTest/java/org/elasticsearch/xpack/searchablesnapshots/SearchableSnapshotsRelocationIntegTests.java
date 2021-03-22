@@ -90,7 +90,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
         });
 
-        assertBusy(() -> assertSame(RecoveryState.Stage.TRANSLOG, getActiveRelocations(restoredIndex).get(0).getStage()));
+        assertBusy(() -> assertSame(RecoveryState.Stage.FINALIZE, getActiveRelocations(restoredIndex).get(0).getStage()));
         final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
@@ -126,7 +126,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .stream()
             // filter for relocations that are not in stage FINALIZE (they could end up in this stage without progress for good if the
             // target node does not have enough cache space available to hold the primary completely
-            .filter(recoveryState -> recoveryState.getSourceNode() != null && recoveryState.getStage() != RecoveryState.Stage.FINALIZE)
+            .filter(recoveryState -> recoveryState.getSourceNode() != null)
             .collect(Collectors.toList());
     }
 }

@@ -35,7 +35,7 @@ with the `ingest` role. For heavy ingest loads, we recommend creating
 
 [discrete]
 [[create-manage-ingest-pipelines]]
-== Create and manage pipelines
+=== Create and manage pipelines
 
 In {kib}, open the main menu and click **Stack Management** > **Ingest Node
 Pipelines**. From the list view, you can:
@@ -397,7 +397,7 @@ PUT _ingest/pipeline/my-pipeline
 
 Use the `on_failure` parameter to specify a list of processors to run
 immediately after a processor failure. If `on_failure` is specified, {es}
-afterward runs the pipeline's remaining processors , even if the `on_failure`
+afterward runs the pipeline's remaining processors, even if the `on_failure`
 configuration is empty.
 
 [source,console]

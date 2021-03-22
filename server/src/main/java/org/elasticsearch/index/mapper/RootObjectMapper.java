@@ -400,7 +400,6 @@ public class RootObjectMapper extends ObjectMapper {
         final XContentFieldType[] types = template.getXContentFieldTypes();
 
         Exception lastError = null;
-        boolean dynamicTemplateInvalid = types.length > 0;
 
         for (XContentFieldType fieldType : types) {
             String dynamicType = template.isRuntimeMapping() ? fieldType.defaultRuntimeMappingType() : fieldType.defaultMappingType();
@@ -409,42 +408,34 @@ public class RootObjectMapper extends ObjectMapper {
                 if (template.isRuntimeMapping()) {
                     RuntimeFieldType.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
                     if (parser == null) {
-                        lastError = new IllegalArgumentException("No runtime field found for type [" + mappingType + "]");
-                        continue;
+                        throw new IllegalArgumentException("No runtime field found for type [" + mappingType + "]");
                     }
                     validate(template, dynamicType, (name, mapping) -> parser.parse(name, mapping, parserContext));
                 } else {
                     Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
                     if (typeParser == null) {
-                        lastError = new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
-                        continue;
+                        throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
                     validate(template, dynamicType,
                         (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(new ContentPath(1)));
                 }
-                dynamicTemplateInvalid = false;
+                lastError = null; // ok, the template is valid for at least one type
                 break;
-            } catch(Exception e) {
+            } catch (Exception e) {
                 lastError = e;
             }
         }
-
-        final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
-        if (dynamicTemplateInvalid) {
+        if (lastError != null) {
             String format = "dynamic template [%s] has invalid content [%s], " +
                 "attempted to validate it with the following match_mapping_type: %s";
             String message = String.format(Locale.ROOT, format, template.getName(), Strings.toString(template),
                 Arrays.toString(types));
+            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {
-                final String deprecationMessage;
-                if (lastError != null) {
-                     deprecationMessage = String.format(Locale.ROOT, "%s, last error: [%s]", message, lastError.getMessage());
-                } else {
-                    deprecationMessage = message;
-                }
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", deprecationMessage);
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template",
+                    "{}, last error: [{}]", message, lastError.getMessage());
             }
         }
     }

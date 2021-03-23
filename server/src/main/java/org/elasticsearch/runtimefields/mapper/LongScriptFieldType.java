@@ -11,10 +11,9 @@ package org.elasticsearch.runtimefields.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -27,7 +26,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,21 +36,17 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
+        protected RuntimeFieldType buildFieldType() {
             if (script.get() == null) {
-                return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, this);
+                return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
             LongFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), LongFieldScript.CONTEXT);
-            return new LongScriptFieldType(name, factory, this);
+            return new LongScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });
 
     public LongScriptFieldType(String name) {
-        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
-    }
-
-    private LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Builder builder) {
-        super(name, scriptFactory::newFactory, builder);
+        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     LongScriptFieldType(
@@ -60,7 +54,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         LongFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, scriptFactory::newFactory, script, meta, toXContent);
     }

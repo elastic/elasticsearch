@@ -12,14 +12,13 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -32,7 +31,6 @@ import org.elasticsearch.runtimefields.query.GeoPointScriptFieldGeoShapeQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Map;
@@ -42,25 +40,21 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
+        protected RuntimeFieldType buildFieldType() {
             if (script.get() == null) {
-                return new GeoPointScriptFieldType(name, GeoPointFieldScript.PARSE_FROM_SOURCE, this);
+                return new GeoPointScriptFieldType(name, GeoPointFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
             GeoPointFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), GeoPointFieldScript.CONTEXT);
-            return new GeoPointScriptFieldType(name, factory, this);
+            return new GeoPointScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });
-
-    private GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Builder builder) {
-        super(name, scriptFactory::newFactory, builder);
-    }
 
     GeoPointScriptFieldType(
         String name,
         GeoPointFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, scriptFactory::newFactory, script, meta, toXContent);
     }

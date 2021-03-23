@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 
@@ -339,7 +340,8 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
             RangeFieldMapper mapper = (RangeFieldMapper) docMapper.mapping().getRoot().getMapper("field");
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            mapper.doXContentBody(builder, params);
             String got = Strings.toString(builder.endObject());
 
             // if type is date_range we check that the mapper contains the default format and locale

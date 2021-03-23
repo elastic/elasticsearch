@@ -49,7 +49,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             if (script.get() == null) {
                 return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
-            IpFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), IpFieldScript.CONTEXT);
+            IpFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), IpFieldScript.CONTEXT);
             return new IpScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });

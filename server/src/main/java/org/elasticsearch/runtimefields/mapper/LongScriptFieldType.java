@@ -40,7 +40,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             if (script.get() == null) {
                 return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
-            LongFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), LongFieldScript.CONTEXT);
+            LongFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), LongFieldScript.CONTEXT);
             return new LongScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });

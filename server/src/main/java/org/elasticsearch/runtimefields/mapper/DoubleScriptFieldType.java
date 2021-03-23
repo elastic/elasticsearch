@@ -40,7 +40,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             if (script.get() == null) {
                 return new DoubleScriptFieldType(name, DoubleFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
-            DoubleFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DoubleFieldScript.CONTEXT);
+            DoubleFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), DoubleFieldScript.CONTEXT);
             return new DoubleScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });

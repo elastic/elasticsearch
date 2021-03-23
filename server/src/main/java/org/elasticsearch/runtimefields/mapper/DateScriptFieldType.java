@@ -86,7 +86,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             if (script.get() == null) {
                 return new DateScriptFieldType(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, getScript(), meta(), this);
             }
-            DateFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), DateFieldScript.CONTEXT);
+            DateFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), DateFieldScript.CONTEXT);
             return new DateScriptFieldType(name, factory, dateTimeFormatter, getScript(), meta(), this);
         }
     });

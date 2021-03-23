@@ -26,6 +26,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.XContentBuilderFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -179,10 +180,14 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onFailure(authnException);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(request), any(ActionListener.class));
+
+        final XContentBuilderFactory factory = mock(XContentBuilderFactory.class);
+        when(factory.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
+
         RestChannel channel = mock(RestChannel.class);
         when(channel.detailedErrorsEnabled()).thenReturn(detailedErrorsEnabled);
         when(channel.request()).thenReturn(request);
-        when(channel.xContentBuilderFactory().newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
+        when(channel.xContentBuilderFactory()).thenReturn(factory);
         filter.handleRequest(request, channel, null);
         ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
         verify(channel).sendResponse(response.capture());

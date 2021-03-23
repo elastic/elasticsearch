@@ -6,9 +6,9 @@
     "provider": "maxmind"
   },
   {
-    "md5_hash": "f452b1aece8dc6137485ddbb0401d6fe",
-    "name": "GeoLite2-ASN.mmdb.gz",
-    "url": "endpoint/db/GeoLite2-ASN.mmdb.gz",
+    "md5_hash": "61c38f0fcec4a7b0b359201f124004df",
+    "name": "GeoLite2-ASN.tgz",
+    "url": "endpoint/db/GeoLite2-ASN.tgz",
     "provider": "maxmind"
   },
   {

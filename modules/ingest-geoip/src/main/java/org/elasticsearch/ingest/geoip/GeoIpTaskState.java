@@ -14,6 +14,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,6 +30,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
 class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
@@ -60,8 +62,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString,
-            in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString())));
+        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString, Metadata::new));
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -121,31 +122,28 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(databases, StreamOutput::writeString, (o, v) -> {
-            o.writeLong(v.lastUpdate);
-            o.writeVInt(v.firstChunk);
-            o.writeVInt(v.lastChunk);
-            o.writeString(v.md5);
-        });
+        out.writeMap(databases, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
-    static class Metadata implements ToXContentObject {
+    static class Metadata implements ToXContentObject, Writeable {
 
         static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_UPDATE = new ParseField("last_update");
         private static final ParseField FIRST_CHUNK = new ParseField("first_chunk");
         private static final ParseField LAST_CHUNK = new ParseField("last_chunk");
         private static final ParseField MD5 = new ParseField("md5");
+        private static final ParseField TAR = new ParseField("tar");
 
         private static final ConstructingObjectParser<Metadata, Void> PARSER =
             new ConstructingObjectParser<>(NAME, true,
-                args -> new Metadata((long) args[0], (int) args[1], (int) args[2], (String) args[3]));
+                args -> new Metadata((long) args[0], (int) args[1], (int) args[2], (String) args[3], args[4] != null && (boolean) args[4]));
 
         static {
             PARSER.declareLong(constructorArg(), LAST_UPDATE);
             PARSER.declareInt(constructorArg(), FIRST_CHUNK);
             PARSER.declareInt(constructorArg(), LAST_CHUNK);
             PARSER.declareString(constructorArg(), MD5);
+            PARSER.declareBoolean(optionalConstructorArg(), TAR);
         }
 
         public static Metadata fromXContent(XContentParser parser) {
@@ -160,12 +158,18 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         private final int firstChunk;
         private final int lastChunk;
         private final String md5;
+        private final boolean tar;
 
-        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5) {
+        Metadata(StreamInput in) throws IOException {
+            this(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readBoolean());
+        }
+
+        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, boolean tar) {
             this.lastUpdate = lastUpdate;
             this.firstChunk = firstChunk;
             this.lastChunk = lastChunk;
             this.md5 = Objects.requireNonNull(md5);
+            this.tar = tar;
         }
 
         public long getLastUpdate() {
@@ -184,6 +188,10 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return md5;
         }
 
+        public boolean isTar() {
+            return tar;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -192,12 +200,13 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return lastUpdate == metadata.lastUpdate
                 && firstChunk == metadata.firstChunk
                 && lastChunk == metadata.lastChunk
-                && md5.equals(metadata.md5);
+                && md5.equals(metadata.md5)
+                && tar == metadata.tar;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5);
+            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5, tar);
         }
 
         @Override
@@ -208,9 +217,19 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
                 builder.field(FIRST_CHUNK.getPreferredName(), firstChunk);
                 builder.field(LAST_CHUNK.getPreferredName(), lastChunk);
                 builder.field(MD5.getPreferredName(), md5);
+                builder.field(TAR.getPreferredName(), tar);
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(lastUpdate);
+            out.writeVInt(firstChunk);
+            out.writeVInt(lastChunk);
+            out.writeString(md5);
+            out.writeBoolean(tar);
         }
     }
 }

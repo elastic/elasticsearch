@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -44,6 +45,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 
 /**
  * Main component responsible for downloading new GeoIP databases.
@@ -81,7 +84,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
                     Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
-        this.client = client;
+        this.client = new OriginSettingClient(client, INGEST_ORIGIN);
         this.threadPool = threadPool;
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
@@ -117,7 +120,8 @@ class GeoIpDownloader extends AllocatedPersistentTask {
 
     //visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
-        String name = databaseInfo.get("name").toString().replace(".gz", "");
+        String originalName = databaseInfo.get("name").toString();
+        String name = originalName.replace(".mmdb.gz", "").replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
         if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
             updateTimestamp(name, state.get(name));
@@ -129,7 +133,8 @@ class GeoIpDownloader extends AllocatedPersistentTask {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5);
             if (lastChunk > firstChunk) {
-                state = state.put(name, new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5));
+                Metadata metadata = new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5, originalName.endsWith(".tgz"));
+                state = state.put(name, metadata);
                 updateTaskState();
                 logger.info("updated geoip database [" + name + "]");
                 deleteOldChunks(name, firstChunk);
@@ -154,7 +159,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
+        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(), false));
         updateTaskState();
     }
 

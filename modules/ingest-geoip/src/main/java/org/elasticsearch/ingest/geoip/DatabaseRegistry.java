@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.TarEntry;
+import org.elasticsearch.common.io.TarInputStream;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -30,6 +32,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -51,6 +54,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.zip.GZIPInputStream;
+
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
@@ -87,7 +93,7 @@ final class DatabaseRegistry implements Closeable {
     DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
             environment.tmpFile(),
-            new OriginSettingClient(client, "geoip"),
+            new OriginSettingClient(client, INGEST_ORIGIN),
             cache,
             new LocalDatabases(environment, cache),
             genericExecutor
@@ -128,7 +134,7 @@ final class DatabaseRegistry implements Closeable {
 
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
-                if(e instanceof NoSuchFileException == false) {
+                if (e instanceof NoSuchFileException == false) {
                     LOGGER.warn("can't delete stale file [" + file + "]", e);
                 }
                 return FileVisitResult.CONTINUE;
@@ -257,8 +263,25 @@ final class DatabaseRegistry implements Closeable {
                 decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+                if (metadata.isTar()) {
+                    try (TarInputStream is = new TarInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpFile)))) {
+                        TarEntry entry;
+                        while ((entry = is.getNextEntry()) != null) {
+                            if (entry.getType() != TarEntry.Type.FILE) {
+                                continue;
+                            }
+                            String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                            if (name.startsWith(databaseName)) {
+                                Files.copy(is, databaseTmpFile, REPLACE_EXISTING);
+                            } else {
+                                Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), REPLACE_EXISTING);
+                            }
+                        }
+                    }
+                }
+
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
-                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, REPLACE_EXISTING);
                 updateDatabase(databaseName, recordedMd5, databaseFile);
                 Files.delete(databaseTmpGzFile);
             },
@@ -349,7 +372,7 @@ final class DatabaseRegistry implements Closeable {
 
     static void decompress(Path source, Path target) throws IOException {
         try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(source), 8192)) {
-            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(in, target, REPLACE_EXISTING);
         }
     }
 

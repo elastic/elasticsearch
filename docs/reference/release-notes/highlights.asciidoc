@@ -41,15 +41,23 @@ The key advantage of the frozen tier is an experimental new option for mounting
 snapshot caches]. Rather than loading a full copy of a snapshotted index into
 your cluster, this option uses a small local cache containing only recently
 searched parts of the index’s data. If a search requires data that's not in the
-cache, {es} fetches the missing data from the snapshot repository. With a
-smaller size, these caches can significantly reduce your {es} storage and
-compute costs. {ilm-init} uses shared snapshot caches by default in the frozen
-phase and corresponding frozen tier.
+cache, {es} fetches the missing data from the snapshot repository. These caches
+have a fixed size and can significantly reduce your {es} storage costs.
+{ilm-init} uses shared snapshot caches by default in the frozen phase and
+corresponding frozen tier.
 
 The frozen tier is not yet available on {ess}. However, you can recreate a
 frozen tier on {ess} using shared snapshot caches. See
 {ref}/searchable-snapshots.html#searchable-snapshots-frozen-tier-on-cloud[Configure
 a frozen tier on the {ess}].
+
+To add a node to the frozen tier on an on-premise cluster, assign it the
+{ref}/modules-node.html#data-frozen-node[`data_frozen`] node role and set
+{ref}/searchable-snapshots.html#searchable-snapshots-shared-cache[`xpack.searchable.snapshot.shared_cache.size`]
+in `elasticsearch.yml`. See the {ref}/data-tiers.html#frozen-tier[Data tiers]
+and
+{ref}/searchable-snapshots.html#searchable-snapshot-mount-storage-options[{search-snap}]
+documentation.
 
 [discrete]
 [[test-snapshot-repositories]]

@@ -16,7 +16,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.Map;
 import java.util.Objects;
@@ -52,7 +52,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             private final Version indexVersionCreated;
             private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
             private final DateFormatter dateFormatter;
-            private final ScriptService scriptService;
+            private final ScriptCompiler scriptCompiler;
             private final IndexAnalyzers indexAnalyzers;
             private final IndexSettings indexSettings;
             private final BooleanSupplier idFieldDataEnabled;
@@ -63,7 +63,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                                  Version indexVersionCreated,
                                  Supplier<SearchExecutionContext> searchExecutionContextSupplier,
                                  DateFormatter dateFormatter,
-                                 ScriptService scriptService,
+                                 ScriptCompiler scriptCompiler,
                                  IndexAnalyzers indexAnalyzers,
                                  IndexSettings indexSettings,
                                  BooleanSupplier idFieldDataEnabled) {
@@ -73,7 +73,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.indexVersionCreated = indexVersionCreated;
                 this.searchExecutionContextSupplier = searchExecutionContextSupplier;
                 this.dateFormatter = dateFormatter;
-                this.scriptService = scriptService;
+                this.scriptCompiler = scriptCompiler;
                 this.indexAnalyzers = indexAnalyzers;
                 this.indexSettings = indexSettings;
                 this.idFieldDataEnabled = idFieldDataEnabled;
@@ -134,10 +134,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
             /**
-             * The {@linkplain ScriptService} to compile scripts needed by the {@linkplain Mapper}.
+             * The {@linkplain ScriptCompiler} to compile scripts needed by the {@linkplain Mapper}.
              */
-            public ScriptService scriptService() {
-                return scriptService;
+            public ScriptCompiler scriptCompiler() {
+                return scriptCompiler;
             }
 
             ParserContext createMultiFieldContext(ParserContext in) {
@@ -151,7 +151,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             private static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
-                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
                         in.idFieldDataEnabled);
                 }
 
@@ -162,7 +162,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             private static class DynamicTemplateParserContext extends ParserContext {
                 DynamicTemplateParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
-                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
                         in.idFieldDataEnabled);
                 }
 

@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 public class RuleScope implements ToXContentObject, Writeable {
 
+    @SuppressWarnings("unchecked")
     public static ContextParser<Void, RuleScope> parser(boolean ignoreUnknownFields) {
         return (p, c) -> {
             Map<String, Object> unparsedScope = p.map();

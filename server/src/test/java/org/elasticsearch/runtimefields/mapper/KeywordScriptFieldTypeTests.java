@@ -27,31 +27,23 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.runtimefields.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.runtimefields.fielddata.StringScriptFieldData;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -361,12 +353,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected KeywordScriptFieldType simpleMappedFieldType() throws IOException {
+    protected KeywordScriptFieldType simpleMappedFieldType() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected KeywordScriptFieldType loopFieldType() throws IOException {
+    protected KeywordScriptFieldType loopFieldType() {
         return build("loop", Map.of());
     }
 
@@ -375,74 +367,42 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return "keyword";
     }
 
-    private static KeywordScriptFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static KeywordScriptFieldType build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static KeywordScriptFieldType build(Script script) throws IOException {
-        ScriptPlugin scriptPlugin = new ScriptPlugin() {
-            @Override
-            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new ScriptEngine() {
+    private static StringFieldScript.Factory factory(Script script) {
+        switch (script.getIdOrCode()) {
+            case "read_foo":
+                return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                     @Override
-                    public String getType() {
-                        return "test";
-                    }
-
-                    @Override
-                    public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of();
-                    }
-
-                    @Override
-                    public <FactoryType> FactoryType compile(
-                        String name,
-                        String code,
-                        ScriptContext<FactoryType> context,
-                        Map<String, String> params
-                    ) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType factory = (FactoryType) factory(code);
-                        return factory;
-                    }
-
-                    private StringFieldScript.Factory factory(String code) {
-                        switch (code) {
-                            case "read_foo":
-                                return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit(foo.toString());
-                                        }
-                                    }
-                                };
-                            case "append_param":
-                                return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit(foo.toString() + getParams().get("param").toString());
-                                        }
-                                    }
-                                };
-                            case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
-                                };
-                            default:
-                                throw new IllegalArgumentException("unsupported script [" + code + "]");
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit(foo.toString());
                         }
                     }
                 };
-            }
-        };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin));
-        try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            StringFieldScript.Factory factory = scriptService.compile(script, StringFieldScript.CONTEXT);
-            return new KeywordScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            case "append_param":
+                return (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit(foo.toString() + getParams().get("param").toString());
+                        }
+                    }
+                };
+            case "loop":
+                return (fieldName, params, lookup) -> {
+                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                    lookup.forkAndTrackFieldReferences("test");
+                    throw new IllegalStateException("shoud have thrown on the line above");
+                };
+            default:
+                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         }
+    }
+
+    private static KeywordScriptFieldType build(Script script) {
+        return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), (b, d) -> {});
     }
 }

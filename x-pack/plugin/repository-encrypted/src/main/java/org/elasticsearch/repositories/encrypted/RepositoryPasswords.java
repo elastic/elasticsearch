@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -99,6 +100,21 @@ public final class RepositoryPasswords {
 
     public SecureString currentLocalPassword(RepositoryMetadata repositoryMetadata) {
         return localPasswords(repositoryMetadata).get(PASSWORD_NAME_SETTING.get(repositoryMetadata.settings()));
+    }
+
+    public List<SecureString> passwordsForDekWrapping(RepositoryMetadata repositoryMetadata) {
+        Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
+        String currentPasswordName = PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
+        SecureString currentPassword = localPasswords.get(currentPasswordName);
+        String fromPasswordName = PASSWORD_CHANGE_FROM_NAME_SETTING.get(repositoryMetadata.settings());
+        if (currentPasswordName.equals(fromPasswordName)) {
+            // in-progress password change away from the current password
+            String toPasswordName = PASSWORD_CHANGE_TO_NAME_SETTING.get(repositoryMetadata.settings());
+            SecureString toPassword = localPasswords.get(toPasswordName);
+            return List.of(currentPassword, toPassword);
+        } else {
+            return List.of(currentPassword);
+        }
     }
 
     // password verification is not forked on a different thread because it is currently only called on IO threads

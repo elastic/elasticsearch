@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.TriConsumer;
@@ -60,10 +62,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class EncryptedRepository extends BlobStoreRepository {
@@ -138,77 +138,6 @@ public class EncryptedRepository extends BlobStoreRepository {
             );
         }
     }
-
-//    @Override
-//    public void getRepositoryData(ActionListener<RepositoryData> listener) {
-//        super.getRepositoryData(listener.delegateFailure((l1, repositoryData) -> {
-//            // only publish hashes if on master node and they've not been published yet
-//            // assumes this is always called on the master node
-//            if (false == repositoryPasswords.containsPasswordHashes(metadata)) {
-//                executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
-//                    // compute password hashes for task, given repository metadata
-//                    repositoryPasswords.computePasswordHashes(latestRepositoryMetadata,
-//                            l1.delegateFailure((l2, localPasswordHashes) -> {
-//                                updateTaskListener.onResponse(new ClusterStateUpdateTask() {
-//                                    @Override
-//                                    public ClusterState execute(ClusterState currentState) {
-//                                        // don't ever overwrite hashes
-//                                        if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
-//                                            logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains password " +
-//                                                    "hashes");
-//                                            return currentState;
-//                                        }
-//                                        // TODO throw if password hashes invalid?
-//                                        final RepositoryMetadata newRepositoryMetadata =
-//                                                repositoryPasswords.withPasswordHashes(latestRepositoryMetadata,
-//                                                localPasswordHashes);
-//                                        final RepositoriesMetadata repositories = currentState.metadata().custom(RepositoriesMetadata.TYPE,
-//                                                RepositoriesMetadata.EMPTY);
-//                                        final List<RepositoryMetadata> newRepositoriesMetadata =
-//                                                new ArrayList<>(repositories.repositories().size());
-//                                        boolean found = false;
-//                                        for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-//                                            if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-//                                                if (found) {
-//                                                    throw new IllegalStateException("Internal consistency error when updating repository " +
-//                                                            "[" +
-//                                                            latestRepositoryMetadata.name() + "] password hashes");
-//                                                }
-//                                                found = true;
-//                                                newRepositoriesMetadata.add(newRepositoryMetadata);
-//                                            } else {
-//                                                newRepositoriesMetadata.add(repositoryMetadata);
-//                                            }
-//                                        }
-//                                        if (found == false) {
-//                                            throw new IllegalStateException("Internal consistency error when updating repository [" +
-//                                                    latestRepositoryMetadata.name() + "] password hashes");
-//                                        }
-//                                        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-//                                        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
-//                                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
-//                                    }
-//
-//                                    @Override
-//                                    public void onFailure(String source, Exception e) {
-//                                        logger.warn("failed to " + source, e);
-//                                        l2.onFailure(e);
-//                                    }
-//
-//                                    @Override
-//                                    public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-//                                        logger.info("Published password hashes for repository [" + latestRepositoryMetadata.name() + "]");
-//                                        l2.onResponse(latestRepositoryData);
-//                                    }
-//                                });
-//                            }));
-//                }, "update encrypted repository password hashes [" + metadata.name() + "]", listener::onFailure);
-//            } else {
-//                // nothing to publish if hashes already published
-//                l1.onResponse(repositoryData);
-//            }
-//        }));
-//    }
 
     @Override
     protected void executeConsistentStateUpdate(TriConsumer<RepositoryData, RepositoryMetadata,
@@ -287,29 +216,6 @@ public class EncryptedRepository extends BlobStoreRepository {
                 source, onFailure), onFailure);
     }
 
-        //
-//    @Override
-//    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-//                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-//                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
-//        if (false == repositoryPasswords.containsPasswordHashes(metadata)) {
-//            listener.onFailure(new IllegalStateException("Repository metadata does not contain password hashes but should"));
-//            return;
-//        }
-//        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier, snapshotStatus,
-//                repositoryMetaVersion, userMetadata, listener);
-//    }
-//
-//    @Override
-//    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata, SnapshotInfo snapshotInfo, Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
-//        if (false == repositoryPasswords.containsPasswordHashes(metadata)) {
-//            listener.onFailure(new IllegalStateException("Repository metadata does not contain password hashes but should"));
-//            return;
-//        }
-//        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion,
-//                stateTransformer, listener);
-//    }
-
     @Override
     public String startVerification() {
         // verification bypasses the encrypted blobstore because it must work without published hashes
@@ -348,18 +254,14 @@ public class EncryptedRepository extends BlobStoreRepository {
         } else {
             blobStoreDEKGenerator = this.dekGenerator;
         }
-
-        boolean hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(metadata);
-        if (false == hashesVerified) {
-            throw new IllegalStateException("The repository passwords on the local node are different");
-        }
         return new EncryptedBlobStore(
                 delegatedRepository.blobStore(),
-            delegatedRepository.basePath(),
-            metadata.name(),
-            this::generateKEK,
-            blobStoreDEKGenerator,
-            dekCache
+                delegatedRepository.basePath(),
+                metadata.name(),
+                this::wrapDek,
+                this::unWrapDek,
+                blobStoreDEKGenerator,
+                dekCache
         );
     }
 
@@ -397,44 +299,60 @@ public class EncryptedRepository extends BlobStoreRepository {
         };
     }
 
-    // pkg-private for tests
-    Tuple<String, SecretKey> generateKEK(String dekId) {
-        final RepositoryMetadata latestRepositoryMetadata = metadata;
+    List<Tuple<String, byte[]>> wrapDek(String dekId, SecretKey dek) throws RepositoryException {
+        final RepositoryMetadata repositoryMetadata = metadata;
+        // check that the local passwords that are used to wrap the DEKs match the repository's
+        verifyPublishedPasswordHashes(repositoryPasswords, repositoryMetadata);
+        final List<SecureString> passwords = repositoryPasswords.passwordsForDekWrapping(repositoryMetadata);
+        final List<Tuple<String, byte[]>> wrappedDeks = new ArrayList<>(passwords.size());
         try {
-            boolean hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(latestRepositoryMetadata);
-            if (false == hashesVerified) {
-                throw new IllegalStateException("The repository passwords on the local node are different");
+            for (SecureString password : passwords) {
+                // we rely on the DEK Id being generated randomly so it can be used as a salt
+                SecretKey kek = AESKeyUtils.generatePasswordBasedKey(password, dekId);
+                String kekId = AESKeyUtils.computeId(kek);
+                logger.debug("Repository [{}] computed KEK [{}] for DEK [{}] for wrapping", repositoryMetadata.name(), kekId, dekId);
+                byte[] encryptedDEKBytes = AESKeyUtils.wrap(kek, dek);
+                logger.trace("Repository [{}] successfully wrapped DEK [{}] using KEK [{}]", repositoryMetadata.name(), dekId, kekId);
+                if (encryptedDEKBytes.length != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
+                    throw new IllegalStateException("Wrapped DEK [" + dekId + "] has unexpected length [" + encryptedDEKBytes.length + "]");
+                }
+                wrappedDeks.add(new Tuple<>(kekId, encryptedDEKBytes));
             }
-            SecureString secureString = repositoryPasswords.currentLocalPassword(latestRepositoryMetadata);
-            // we rely on the DEK Id being generated randomly so it can be used as a salt
-            final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(secureString, dekId);
-            final String kekId = AESKeyUtils.computeId(kek);
-            logger.debug("Repository [{}] computed KEK [{}] for DEK [{}]", latestRepositoryMetadata.name(), kekId, dekId);
-            return new Tuple<>(kekId, kek);
-        } catch (Exception e) {
-            throw new RepositoryException(latestRepositoryMetadata.name(), "Failure to generate KEK to wrap the DEK [" + dekId + "]", e);
-        }
-    }
-
-    private void verifyPublishedPasswordHashes() throws RepositoryException {
-        final RepositoryMetadata latestRepositoryMetadata = metadata;
-        final boolean hashesVerified;
-        try {
-            hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(latestRepositoryMetadata);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RepositoryException(latestRepositoryMetadata.name(), "Interrupted while verifying password hashes", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while wrapping DEK [" + dekId + "]", e);
         } catch (Exception e) {
-            throw new RepositoryException(latestRepositoryMetadata.name(), "Unexpected exception while veryfing password hashes", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while wrapping DEK [" + dekId + "]", e);
         }
-        if (false == hashesVerified) {
-            if (false == repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
-                throw new RepositoryException(latestRepositoryMetadata.name(), "No password hashes published");
-            }
-            if (false == repositoryPasswords.containsRequiredPasswordHashes(latestRepositoryMetadata)) {
-                throw new RepositoryException(latestRepositoryMetadata.name(), "Password hashes missing for some passwords");
-            }
-            throw new RepositoryException(latestRepositoryMetadata.name(), "The repository passwords on the local node are different");
+        return wrappedDeks;
+    }
+
+    Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unWrapDek(String dekId) throws RepositoryException {
+        final RepositoryMetadata repositoryMetadata = metadata;
+        final SecureString currentPassword = repositoryPasswords.currentLocalPassword(repositoryMetadata);
+        try {
+            final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(currentPassword, dekId);
+            final String kekId = AESKeyUtils.computeId(kek);
+            logger.debug("Repository [{}] computed KEK [{}] for DEK [{}] for unwrapping", repositoryMetadata.name(), kekId, dekId);
+            return new Tuple<>(kekId, (encryptedDEKBytes) -> {
+                try {
+                    if (encryptedDEKBytes.length != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
+                        throw new IllegalStateException("Wrapped DEK [" + dekId + "] has unexpected length [" +
+                                encryptedDEKBytes.length + "]");
+                    }
+                    SecretKey dek = AESKeyUtils.unwrap(kek, encryptedDEKBytes);
+                    logger.trace("Repository [{}] successfully unwrapped DEK [{}] using KEK [{}]", repositoryMetadata.name(), dekId, kekId);
+                    return dek;
+                } catch (Exception e) {
+                    throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while unwrapping DEK [" + dekId + "]. " +
+                            "Most likely the encryption metadata in the repository has been corrupted.", e);
+                }
+            });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while unwrapping DEK [" + dekId + "]", e);
+        } catch (Exception e) {
+            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while unwrapping DEK [" + dekId + "]", e);
         }
     }
 
@@ -443,7 +361,9 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final String repositoryName;
-        private final Function<String, Tuple<String, SecretKey>> getKEKforDEK;
+        private final CheckedBiFunction<String, SecretKey, List<Tuple<String, byte[]>>, RepositoryException> dekWrapper;
+        private final CheckedFunction<String, Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>>,
+                RepositoryException> dekUnwrapper;
         private final Cache<String, SecretKey> dekCache;
         private final CheckedSupplier<SingleUseKey, IOException> singleUseDEKSupplier;
 
@@ -451,14 +371,17 @@ public class EncryptedRepository extends BlobStoreRepository {
             BlobStore delegatedBlobStore,
             BlobPath delegatedBasePath,
             String repositoryName,
-            Function<String, Tuple<String, SecretKey>> getKEKforDEK,
+            CheckedBiFunction<String, SecretKey, List<Tuple<String, byte[]>>, RepositoryException> dekWrapper,
+            CheckedFunction<String, Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>>,
+                    RepositoryException> dekUnwrapper,
             Supplier<Tuple<BytesReference, SecretKey>> dekGenerator,
             Cache<String, SecretKey> dekCache
         ) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.delegatedBasePath = delegatedBasePath;
             this.repositoryName = repositoryName;
-            this.getKEKforDEK = getKEKforDEK;
+            this.dekWrapper = dekWrapper;
+            this.dekUnwrapper = dekUnwrapper;
             this.dekCache = dekCache;
             this.singleUseDEKSupplier = SingleUseKey.createSingleUseKeySupplier(() -> {
                 Tuple<BytesReference, SecretKey> newDEK = dekGenerator.get();
@@ -484,16 +407,13 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
-        private SecretKey loadDEK(String dekId) throws IOException {
+        private SecretKey loadDEK(String dekId) throws IOException, RepositoryException {
             final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(dekId);
             logger.debug("Repository [{}] loading wrapped DEK [{}] from blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            final Tuple<String, SecretKey> kekTuple = getKEKforDEK.apply(dekId);
-            final String kekId = kekTuple.v1();
-            final SecretKey kek = kekTuple.v2();
-            logger.trace("Repository [{}] using KEK [{}] to unwrap DEK [{}]", repositoryName, kekId, dekId);
+            final Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unwrapper = dekUnwrapper.apply(dekId);
             final byte[] encryptedDEKBytes = new byte[AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES];
-            try (InputStream encryptedDEKInputStream = dekBlobContainer.readBlob(kekId)) {
+            try (InputStream encryptedDEKInputStream = dekBlobContainer.readBlob(unwrapper.v1())) {
                 final int bytesRead = Streams.readFully(encryptedDEKInputStream, encryptedDEKBytes);
                 if (bytesRead != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
                     throw new RepositoryException(
@@ -507,7 +427,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             } catch (NoSuchFileException e) {
                 // do NOT throw IOException when the DEK does not exist, as this is a decryption problem, and IOExceptions
                 // can move the repository in the corrupted state
-                throw new ElasticsearchException(
+                throw new RepositoryException(repositoryName,
                     "Failure to read and decrypt DEK ["
                         + dekId
                         + "] from "
@@ -517,52 +437,21 @@ public class EncryptedRepository extends BlobStoreRepository {
                     e
                 );
             }
-            logger.trace("Repository [{}] successfully read DEK [{}] from path {} {}", repositoryName, dekId, dekBlobPath, kekId);
-            try {
-                final SecretKey dek = AESKeyUtils.unwrap(kek, encryptedDEKBytes);
-                logger.debug("Repository [{}] successfully loaded DEK [{}] from path {} {}", repositoryName, dekId, dekBlobPath, kekId);
-                return dek;
-            } catch (GeneralSecurityException e) {
-                throw new RepositoryException(
-                    repositoryName,
-                    "Failure to AES unwrap the DEK ["
-                        + dekId
-                        + "]. "
-                        + "Most likely the encryption metadata in the repository has been corrupted",
-                    e
-                );
-            }
+            logger.trace(() -> new ParameterizedMessage("Repository [{}] successfully read DEK [{}] from path {} {}", repositoryName,
+                    dekId, dekBlobPath.add(unwrapper.v1())));
+            return unwrapper.v2().apply(encryptedDEKBytes);
         }
 
         // pkg-private for tests
-        void storeDEK(String dekId, SecretKey dek) throws IOException {
+        void storeDEK(String dekId, SecretKey dek) throws IOException, RepositoryException {
             final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(dekId);
             logger.debug("Repository [{}] storing wrapped DEK [{}] under blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            final Tuple<String, SecretKey> kek = getKEKforDEK.apply(dekId);
-            logger.trace("Repository [{}] using KEK [{}] to wrap DEK [{}]", repositoryName, kek.v1(), dekId);
-            final byte[] encryptedDEKBytes;
-            try {
-                // TODO check password hashes here
-                boolean hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(metadata);
-                if (false == hashesVerified) {
-                    throw new IllegalStateException("The repository passwords on the local node are different");
-                }
-                encryptedDEKBytes = AESKeyUtils.wrap(kek.v2(), dek);
-                if (encryptedDEKBytes.length != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
-                    throw new RepositoryException(
-                        repositoryName,
-                        "Wrapped DEK [" + dekId + "] has unexpected length [" + encryptedDEKBytes.length + "]"
-                    );
-                }
-            } catch (GeneralSecurityException e) {
-                // throw unchecked ElasticsearchException; IOExceptions are interpreted differently and can move the repository in the
-                // corrupted state
-                throw new RepositoryException(repositoryName, "Failure to AES wrap the DEK [" + dekId + "]", e);
+            for (Tuple<String, byte[]> wrappedDek : dekWrapper.apply(dekId, dek)) {
+                dekBlobContainer.writeBlobAtomic(wrappedDek.v1(), new BytesArray(wrappedDek.v2()), true);
+                logger.debug(() -> new ParameterizedMessage("Repository [{}] successfully stored wrapped DEK [{}] under path [{}]",
+                        repositoryName, dekId, dekBlobPath.add(wrappedDek.v1())));
             }
-            logger.trace("Repository [{}] successfully wrapped DEK [{}]", repositoryName, dekId);
-            dekBlobContainer.writeBlobAtomic(kek.v1(), new BytesArray(encryptedDEKBytes), true);
-            logger.debug("Repository [{}] successfully stored DEK [{}] under path {} {}", repositoryName, dekId, dekBlobPath, kek.v1());
         }
 
         @Override
@@ -757,6 +646,28 @@ public class EncryptedRepository extends BlobStoreRepository {
                 );
             }
             return Map.copyOf(resultBuilder);
+        }
+    }
+
+    private static void verifyPublishedPasswordHashes(RepositoryPasswords repositoryPasswords,
+                                                      RepositoryMetadata repositoryMetadata) throws RepositoryException {
+        final boolean hashesVerified;
+        try {
+            hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(repositoryMetadata);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while verifying password hashes", e);
+        } catch (Exception e) {
+            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while veryfing password hashes", e);
+        }
+        if (false == hashesVerified) {
+            if (false == repositoryPasswords.containsPasswordHashes(repositoryMetadata)) {
+                throw new RepositoryException(repositoryMetadata.name(), "No password hashes published");
+            }
+            if (false == repositoryPasswords.containsRequiredPasswordHashes(repositoryMetadata)) {
+                throw new RepositoryException(repositoryMetadata.name(), "Password hashes missing for some passwords");
+            }
+            throw new RepositoryException(repositoryMetadata.name(), "The repository passwords on the local node are different");
         }
     }
 }

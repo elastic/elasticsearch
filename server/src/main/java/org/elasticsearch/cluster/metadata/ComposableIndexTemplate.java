@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
@@ -44,8 +43,6 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField METADATA = new ParseField("_meta");
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
-
-    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_7_11_0;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
@@ -129,16 +126,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
-        } else {
-            this.dataStreamTemplate = null;
-        }
-        if (in.getVersion().onOrAfter(ALLOW_AUTO_CREATE_VERSION)) {
-            this.allowAutoCreate = in.readOptionalBoolean();
-        } else {
-            this.allowAutoCreate = null;
-        }
+        this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
+        this.allowAutoCreate = in.readOptionalBoolean();
     }
 
     public List<String> indexPatterns() {
@@ -202,12 +191,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalWriteable(dataStreamTemplate);
-        }
-        if (out.getVersion().onOrAfter(ALLOW_AUTO_CREATE_VERSION)) {
-            out.writeOptionalBoolean(allowAutoCreate);
-        }
+        out.writeOptionalWriteable(dataStreamTemplate);
+        out.writeOptionalBoolean(allowAutoCreate);
     }
 
     @Override

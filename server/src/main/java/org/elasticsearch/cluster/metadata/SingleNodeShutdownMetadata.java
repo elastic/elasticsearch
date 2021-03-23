@@ -72,17 +72,17 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final Type type;
     private final String reason;
     private final Status status;
-    private final long startedAtDate;
+    private final long startedAtMillis;
     private final ComponentShutdownStatus shardMigrationStatus;
 
 
     public SingleNodeShutdownMetadata(
-        String nodeId, Type type, String reason, Status status, long startedAtDate, ComponentShutdownStatus shardMigrationStatus) {
+        String nodeId, Type type, String reason, Status status, long startedAtMillis, ComponentShutdownStatus shardMigrationStatus) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.status = status;
-        this.startedAtDate = startedAtDate;
+        this.startedAtMillis = startedAtMillis;
         this.shardMigrationStatus = Objects.requireNonNull(shardMigrationStatus, "shard migration status must not be null");
     }
 
@@ -91,7 +91,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.status = in.readEnum(Status.class);
-        this.startedAtDate = in.readVLong();
+        this.startedAtMillis = in.readVLong();
         this.shardMigrationStatus = new ComponentShutdownStatus(in);
     }
 
@@ -126,8 +126,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     /**
      * @return The timestamp that this shutdown procedure was started.
      */
-    public long getStartedAtDate() {
-        return startedAtDate;
+    public long getStartedAtMillis() {
+        return startedAtMillis;
     }
 
     @Override
@@ -136,7 +136,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         out.writeEnum(type);
         out.writeString(reason);
         out.writeEnum(status);
-        out.writeVLong(startedAtDate);
+        out.writeVLong(startedAtMillis);
         shardMigrationStatus.writeTo(out);
     }
 
@@ -148,7 +148,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.field(STATUS_FIELD.getPreferredName(), status);
-            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtDate);
+            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
             builder.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
         }
         builder.endObject();
@@ -162,7 +162,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         if ((o instanceof SingleNodeShutdownMetadata) == false) return false;
         SingleNodeShutdownMetadata that = (SingleNodeShutdownMetadata) o;
         return isStatus() == that.isStatus()
-            && getStartedAtDate() == that.getStartedAtDate()
+            && getStartedAtMillis() == that.getStartedAtMillis()
             && getNodeId().equals(that.getNodeId())
             && getType().equals(that.getType())
             && getReason().equals(that.getReason());
@@ -170,7 +170,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodeId(), getType(), getReason(), isStatus(), getStartedAtDate());
+        return Objects.hash(getNodeId(), getType(), getReason(), isStatus(), getStartedAtMillis());
     }
 
     public enum Type {
@@ -187,7 +187,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
 
     public static class ComponentShutdownStatus extends AbstractDiffable<ComponentShutdownStatus> implements ToXContentFragment {
         private final Status status;
-        @Nullable private final Long startedAtDate;
+        @Nullable private final Long startedAtMillis;
         @Nullable private final String errorMessage;
 
         private static final ParseField STATUS_FIELD = new ParseField("status");
@@ -209,15 +209,15 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return PARSER.apply(parser, null);
         }
 
-        public ComponentShutdownStatus(Status status, Long startedAtDate, String errorMessage) {
+        public ComponentShutdownStatus(Status status, Long startedAtMillis, String errorMessage) {
             this.status = status;
-            this.startedAtDate = startedAtDate;
+            this.startedAtMillis = startedAtMillis;
             this.errorMessage = errorMessage;
         }
 
         public ComponentShutdownStatus(StreamInput in) throws IOException {
             this.status = in.readEnum(Status.class);
-            this.startedAtDate = in.readOptionalVLong();
+            this.startedAtMillis = in.readOptionalVLong();
             this.errorMessage = in.readOptionalString();
         }
 
@@ -225,8 +225,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return status;
         }
 
-        public Long getStartedAtDate() {
-            return startedAtDate;
+        public Long getStartedAtMillis() {
+            return startedAtMillis;
         }
 
         public String getErrorMessage() {
@@ -238,8 +238,8 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.startObject();
             {
                 builder.field(STATUS_FIELD.getPreferredName(), status);
-                if (startedAtDate != null) {
-                    builder.timeField(TIME_STARTED_FIELD.getPreferredName(), "time_started", startedAtDate);
+                if (startedAtMillis != null) {
+                    builder.timeField(TIME_STARTED_FIELD.getPreferredName(), "time_started", startedAtMillis);
                 }
                 if (errorMessage != null) {
                     builder.field(ERROR_FIELD.getPreferredName(), errorMessage);
@@ -252,7 +252,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(status);
-            out.writeOptionalVLong(startedAtDate);
+            out.writeOptionalVLong(startedAtMillis);
             out.writeOptionalString(errorMessage);
         }
 
@@ -262,13 +262,13 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             if ((o instanceof ComponentShutdownStatus) == false) return false;
             ComponentShutdownStatus that = (ComponentShutdownStatus) o;
             return getStatus() == that.getStatus()
-                && Objects.equals(getStartedAtDate(), that.getStartedAtDate())
+                && Objects.equals(getStartedAtMillis(), that.getStartedAtMillis())
                 && Objects.equals(getErrorMessage(), that.getErrorMessage());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getStatus(), getStartedAtDate(), getErrorMessage());
+            return Objects.hash(getStatus(), getStartedAtMillis(), getErrorMessage());
         }
     }
 }

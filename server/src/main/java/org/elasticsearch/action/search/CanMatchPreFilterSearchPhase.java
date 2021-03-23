@@ -111,12 +111,12 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             }
             possibleMatches.set(shardIndexToQuery);
         }
-        SearchSourceBuilder source = getRequest().source();
 
         if (RollupV2.isEnabled()) {
             possibleMatches = chooseOptimalRollupShards(results, shardsIts, possibleMatches);
         }
 
+        SearchSourceBuilder source = getRequest().source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             if (possibleMatches.get(i++)) {
@@ -265,7 +265,6 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;
         private int numPossibleMatches;
-
         private final CanMatchResponse[] results;
 
         CanMatchSearchPhaseResults(int size) {
@@ -300,6 +299,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                 possibleMatches.set(shardIndex);
                 numPossibleMatches++;
             }
+            minAndMaxes[shardIndex] = result.estimatedMinAndMax();
             results[shardIndex] = result;
         }
 

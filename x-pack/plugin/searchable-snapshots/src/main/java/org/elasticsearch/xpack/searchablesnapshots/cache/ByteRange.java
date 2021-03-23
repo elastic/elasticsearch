@@ -69,6 +69,13 @@ public final class ByteRange implements Comparable<ByteRange> {
         return start() <= start && end <= end();
     }
 
+    public ByteRange shift(long delta) {
+        if (this == EMPTY) {
+            return EMPTY;
+        }
+        return ByteRange.of(start + delta, end + delta);
+    }
+
     @Override
     public int hashCode() {
         return 31 * Long.hashCode(start) + Long.hashCode(end);
@@ -94,5 +101,9 @@ public final class ByteRange implements Comparable<ByteRange> {
     @Override
     public int compareTo(ByteRange o) {
         return Long.compare(start, o.start);
+    }
+
+    public boolean isEmpty() {
+        return start == end;
     }
 }

@@ -700,8 +700,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         final String mountedIndex = testPrefix + "-mounted";
         {
             try (var leaderClient = buildLeaderClient()) {
-                final String repositoryPath = System.getProperty("tests.leader_cluster_repository_path") + '/' + testPrefix;
-                assertThat("Missing system property [tests.leader_cluster_repository_path]", repositoryPath, not(emptyOrNullString()));
+                final String systemPropertyRepoPath = System.getProperty("tests.leader_cluster_repository_path");
+                assertThat("Missing system property [tests.leader_cluster_repository_path]",
+                    systemPropertyRepoPath, not(emptyOrNullString()));
+                final String repositoryPath = systemPropertyRepoPath + '/' + testPrefix;
 
                 final String repository = testPrefix + "-repository";
                 registerRepository(leaderClient, repository, "fs", true, Settings.builder().put("location", repositoryPath).build());

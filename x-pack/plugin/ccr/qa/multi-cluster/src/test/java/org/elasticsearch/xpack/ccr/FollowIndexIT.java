@@ -200,8 +200,9 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
         final String mountedIndex = "mounted-" + testPrefix;
         if ("leader".equals(targetCluster)) {
-            final String repositoryPath = System.getProperty("tests.leader_cluster_repository_path") + '/' + testPrefix;
-            assertThat("Missing system property [tests.leader_cluster_repository_path]", repositoryPath, not(emptyOrNullString()));
+            final String systemPropertyRepoPath = System.getProperty("tests.leader_cluster_repository_path");
+            assertThat("Missing system property [tests.leader_cluster_repository_path]", systemPropertyRepoPath, not(emptyOrNullString()));
+            final String repositoryPath = systemPropertyRepoPath + '/' + testPrefix;
 
             final String repository = "repository-" + testPrefix;
             registerRepository(repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());

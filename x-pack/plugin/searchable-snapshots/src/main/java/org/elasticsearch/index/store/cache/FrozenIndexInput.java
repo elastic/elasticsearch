@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -60,13 +59,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
      * compound file within the physical CFS file
      */
     private final long compoundFileOffset;
-
-    /**
-     * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
-     * required for slices of CFS files; regular files already have their footers extracted from the {@link FileInfo} (see method
-     * {@link BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo}).
-     */
-    private final ByteRange footerBlobCacheByteRange;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -116,13 +108,12 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange);
+        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange, footerBlobCacheByteRange);
         this.frozenCacheFile = frozenCacheFile;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
         this.recoveryRangeSize = recoveryRangeSize;
-        this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         this.compoundFileOffset = compoundFileOffset;
         assert offset >= compoundFileOffset;
     }
@@ -452,17 +443,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             }
         }
         throw new IOException("failed to read data from cache", e);
-    }
-
-    @Override
-    protected ByteRange maybeReadFromBlobCache(long position, int length) {
-        final long end = position + length;
-        if (headerBlobCacheByteRange.contains(position, end)) {
-            return headerBlobCacheByteRange;
-        } else if (footerBlobCacheByteRange.contains(position, end)) {
-            return footerBlobCacheByteRange;
-        }
-        return ByteRange.EMPTY;
     }
 
     private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {

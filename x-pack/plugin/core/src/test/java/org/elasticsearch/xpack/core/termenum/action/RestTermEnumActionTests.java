@@ -62,6 +62,7 @@ public class RestTermEnumActionTests extends ESTestCase {
      * This lower level of execution is out of the scope of this test.
      */
     @BeforeClass
+    @SuppressWarnings("rawtypes")
     public static void stubTermEnumAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 

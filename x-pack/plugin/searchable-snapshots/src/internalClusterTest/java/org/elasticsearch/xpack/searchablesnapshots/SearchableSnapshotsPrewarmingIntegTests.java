@@ -399,7 +399,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
                     @Override
                     public void close() throws IOException {
-                        files.put(blobName, bytesRead);
+                        files.merge(blobName, bytesRead, Math::addExact);
                         super.close();
                     }
                 };

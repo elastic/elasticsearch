@@ -200,7 +200,7 @@ final class DocumentParser {
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
     static Mapping createDynamicUpdate(MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
-                                       List<RuntimeFieldType> dynamicRuntimeFields) {
+                                       List<RuntimeField> dynamicRuntimeFields) {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
             return null;
         }
@@ -803,16 +803,16 @@ final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeFieldType runtimeFieldType = context.root().getRuntimeFieldType(fieldPath);
-        if (runtimeFieldType != null) {
-            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeFieldType);
+        RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
+        if (runtimeField != null) {
+            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeField.asMappedFieldType().name());
         }
         return null;
     }
 
     private static class NoOpFieldMapper extends FieldMapper {
-        NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
-            super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        NoOpFieldMapper(String simpleName, String fullName) {
+            super(simpleName, new MappedFieldType(fullName, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();

@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -46,11 +48,13 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -165,6 +169,62 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
                 () -> snapshotShard(shard, snapshotWithSameName, repository));
             assertThat(isfe.getMessage(), containsString("Duplicate snapshot name"));
+        } finally {
+            if (shard != null && shard.state() != IndexShardState.CLOSED) {
+                try {
+                    shard.close("test", false);
+                } finally {
+                    IOUtils.close(shard.store());
+                }
+            }
+        }
+    }
+
+    public void testDuplicateSnapshotNameInIndexShardSnapshots() throws IOException {
+        final IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        final ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 0);
+
+        IndexShard shard = newShard(shardId, true);
+        try {
+            recoverShardFromStore(shard);
+
+            // snapshot the shard
+            final Repository repository = createRepository();
+            final String snapshotName = randomAlphaOfLength(10);
+            final Snapshot snapshot = new Snapshot(
+                    repository.getMetadata().name(),
+                    new SnapshotId(snapshotName, UUIDs.randomBase64UUID()));
+            snapshotShard(shard, snapshot, repository);
+
+            final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+            final BlobPath shardPath = blobStoreRepository.basePath().add("indices").add(indexId.getId()).add("0");
+            final BlobContainer blobContainer = blobStoreRepository.getBlobStore().blobContainer(shardPath);
+            final String snapDatFilename = "snap-" + snapshot.getSnapshotId().getUUID() + ".dat";
+
+            // Duplicate the snap-UUID.dat file so there are two with the same snapshot name
+            try (InputStream inputStream = blobContainer.readBlob(snapDatFilename)) {
+                blobContainer.writeBlob(
+                        "snap-" + UUIDs.randomBase64UUID() + ".dat",
+                        inputStream,
+                        blobContainer.listBlobsByPrefix(snapDatFilename).get(snapDatFilename).length(),
+                        true);
+            }
+
+            // Make the index-N file unreadable
+            blobContainer.deleteBlob("index-0");
+
+            final Snapshot newSnapshot = new Snapshot(
+                    repository.getMetadata().name(),
+                    new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID())
+            );
+            assertThat(
+                expectThrows(
+                    IndexShardSnapshotFailedException.class,
+                    () -> snapshotShard(shard, newSnapshot, repository)).getMessage(),
+                allOf(
+                    containsString("index-N file was not readable"),
+                    containsString("multiple snapshots"),
+                    containsString("[" + snapshotName + "]")));
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {

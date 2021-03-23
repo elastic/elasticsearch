@@ -106,6 +106,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1095,6 +1096,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // We couldn't load the index file - falling back to loading individual snapshots
             List<SnapshotFiles> snapshots = new ArrayList<>();
+            final HashSet<String> snapshotNames = new HashSet<>();
             for (String name : blobKeys) {
                 try {
                     BlobStoreIndexShardSnapshot snapshot = null;
@@ -1102,6 +1104,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshot = indexShardSnapshotFormat.readBlob(blobContainer, name);
                     }
                     if (snapshot != null) {
+                        if (snapshotNames.add(snapshot.snapshot()) == false) {
+                            throw new IndexShardSnapshotFailedException(shardId,
+                                    "index-N file was not readable, and multiple snapshots with name [" + snapshot.snapshot() + "] found");
+                        }
                         snapshots.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
                     }
                 } catch (IOException e) {

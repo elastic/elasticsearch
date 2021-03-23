@@ -12,6 +12,7 @@ import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 public class TarInputStream extends FilterInputStream {
 
@@ -106,7 +107,7 @@ public class TarInputStream extends FilterInputStream {
     }
 
     private String getString(int offset, int maxLen) {
-        return new String(buf, offset, maxLen).trim();
+        return new String(buf, offset, maxLen, StandardCharsets.UTF_8).trim();
     }
 
     private int getInt(int offset) {

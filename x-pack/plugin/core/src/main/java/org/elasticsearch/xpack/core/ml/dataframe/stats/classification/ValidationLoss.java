@@ -30,6 +30,7 @@ public class ValidationLoss implements ToXContentObject, Writeable {
         return createParser(ignoreUnknownFields).apply(parser, null);
     }
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ValidationLoss, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>("classification_validation_loss",
             ignoreUnknownFields,

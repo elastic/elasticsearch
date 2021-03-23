@@ -209,7 +209,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return PARSER.apply(parser, null);
         }
 
-        public ComponentShutdownStatus(Status status, Long startedAtMillis, String errorMessage) {
+        public ComponentShutdownStatus(Status status, @Nullable Long startedAtMillis, @Nullable String errorMessage) {
             this.status = status;
             this.startedAtMillis = startedAtMillis;
             this.errorMessage = errorMessage;
@@ -225,10 +225,12 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return status;
         }
 
+        @Nullable
         public Long getStartedAtMillis() {
             return startedAtMillis;
         }
 
+        @Nullable
         public String getErrorMessage() {
             return errorMessage;
         }

@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,7 +34,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,7 +56,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -518,30 +512,6 @@ public class SecurityTests extends ESTestCase {
         if(completed.get()){
             fail("authentication succeeded but it shouldn't");
         }
-    }
-
-    public void testWarningLoggingSecurityImplicitlyDisabled() throws Exception {
-        MockLogAppender logAppender = new MockLogAppender();
-        logAppender.start();
-        SecurityStatusChangeListener listener = new SecurityStatusChangeListener(licenseState);
-        Logger listenerLogger = LogManager.getLogger(listener.getClass());
-        Loggers.addAppender(listenerLogger, logAppender);
-        Collection<Object> components = createComponentsWithSecurityNotExplicitlyEnabled(Settings.EMPTY);
-        AuthenticationService service = findComponent(AuthenticationService.class, components);
-        assertNotNull(service);
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "built-in security features are not enabled",
-            listener.getClass().getName(),
-            Level.WARN,
-            "Elasticsearch built-in security features are not enabled, your cluster may be accessible without " +
-                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" +
-                Version.CURRENT.major + "." + Version.CURRENT.minor + "/get-started-enable-security.html for more information"
-        ));
-        licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL),
-            true, Long.MAX_VALUE, null);
-
-        logAppender.assertAllExpectationsMatched();
     }
 
     private void logAndFail(Exception e) {

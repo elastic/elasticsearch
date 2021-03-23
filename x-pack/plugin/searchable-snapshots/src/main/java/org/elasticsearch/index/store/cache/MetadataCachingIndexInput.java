@@ -117,11 +117,24 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
 
     private void readWithBlobCache(ByteBuffer b, long position, int length, ByteRange blobCacheByteRange) throws Exception {
+        final CacheFile cacheFile = cacheFileReference.get();
+
+        // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
+        final Future<Integer> waitingForRead = cacheFile.readIfAvailableOrPending(ByteRange.of(position, position + length), chan -> {
+            final int read = readCacheFile(chan, position, b);
+            assert read == length : read + " vs " + length;
+            return read;
+        });
+
+        if (waitingForRead != null) {
+            final Integer read = waitingForRead.get();
+            assert read == length;
+            return;
+        }
+
         final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
         assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
         assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
-
-        final CacheFile cacheFile = cacheFileReference.get();
 
         if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
             // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested

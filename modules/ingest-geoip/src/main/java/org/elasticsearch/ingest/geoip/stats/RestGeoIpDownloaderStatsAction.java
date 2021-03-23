@@ -26,7 +26,7 @@ public class RestGeoIpDownloaderStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_ingest/geoip/stats"));
+        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_ingest/geoip/stats"));
     }
 
     @Override

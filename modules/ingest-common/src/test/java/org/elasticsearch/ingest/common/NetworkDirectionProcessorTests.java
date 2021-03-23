@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_DEST_IP;
-import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_SOURCE_IP;
 import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

@@ -85,6 +85,27 @@ PUT _ingest/pipeline/my-pipeline
 // TESTSETUP
 
 [discrete]
+[[manage-pipeline-versions]]
+=== Manage pipeline versions
+
+When you create or update a pipeline, you can specify an optional `version`
+integer. {es} doesn't use this `version` number internally, but you can use it
+to track changes to a pipeline.
+
+[source,console]
+----
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "version" : 1,
+  "processors": [ ... ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+
+To unset the `version` number using the API, replace or update the pipeline
+without specifying the `version` parameter.
+
+[discrete]
 [[test-pipeline]]
 === Test a pipeline
 
@@ -97,12 +118,44 @@ the pipeline**.
 image::images/ingest/test-a-pipeline.png[Test a pipeline in Kibana,align="center"]
 
 You can also test pipelines using the <<simulate-pipeline-api,simulate pipeline
-API>>.
+API>>. You can specify a configured pipeline in the request path. For example,
+the following request tests `my-pipeline`.
 
 [source,console]
 ----
 POST _ingest/pipeline/my-pipeline/_simulate
 {
+  "docs": [
+    {
+      "_source": {
+        "my-keyword-field": "FOO"
+      }
+    },
+    {
+      "_source": {
+        "my-keyword-field": "BAR"
+      }
+    }
+  ]
+}
+----
+
+Alternatively, you can specify a pipeline and its processors in the request
+body.
+
+[source,console]
+----
+POST _ingest/pipeline/_simulate
+{
+  "pipeline" : {
+    "processors": [
+      {
+        "lowercase": {
+          "field": "my-keyword-field"
+        }
+      }
+    ]
+  },
   "docs": [
     {
       "_source": {
@@ -129,8 +182,6 @@ The API returns transformed documents:
         "_index": "_index",
         "_id": "_id",
         "_source": {
-          "my-long-field": 10,
-          "my-boolean-field": true,
           "my-keyword-field": "foo"
         },
         "_ingest": {
@@ -143,8 +194,6 @@ The API returns transformed documents:
         "_index": "_index",
         "_id": "_id",
         "_source": {
-          "my-long-field": 10,
-          "my-boolean-field": true,
           "my-keyword-field": "bar"
         },
         "_ingest": {

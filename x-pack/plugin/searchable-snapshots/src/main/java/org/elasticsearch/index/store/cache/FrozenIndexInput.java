@@ -121,7 +121,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
         final AtomicBoolean stopAsyncReads = new AtomicBoolean();
         // Runnable that, when called, ensures that async callbacks (such as those used by readCacheFile) are not
-        // accessing the byte buffer anymore that was passed to doReadNonMetadataInternal
+        // accessing the byte buffer anymore that was passed to readWithoutBlobCache
         // In particular, it's important to call this method before adapting the ByteBuffer's offset
         final Runnable preventAsyncBufferChanges = () -> {
             luceneByteBufLock.writeLock().lock();
@@ -345,8 +345,8 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             remaining -= bytesRead;
         }
         // ensure that last write is aligned on 4k boundaries (= page size)
-        final int off = buf.position() % SharedBytes.BLOCK_SIZE;
-        final int adjustment = off == 0 ? 0 : SharedBytes.BLOCK_SIZE - off;
+        final int off = buf.position() % SharedBytes.PAGE_SIZE;
+        final int adjustment = off == 0 ? 0 : SharedBytes.PAGE_SIZE - off;
         buf.position(buf.position() + adjustment);
         long bytesWritten = positionalWrite(fc, fileChannelPos + bytesCopied, buf);
         bytesCopied += (bytesWritten - adjustment); // adjust to not break RangeFileTracker

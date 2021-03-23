@@ -87,7 +87,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         this.lastReadPosition = offset;
         this.lastSeekPosition = offset;
         assert offset >= compoundFileOffset;
-        assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's wort
+        assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
     }
 
     @Override

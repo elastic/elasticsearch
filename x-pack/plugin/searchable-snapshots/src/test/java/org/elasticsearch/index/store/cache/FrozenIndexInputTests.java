@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -60,16 +61,16 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         if (rarely()) {
             rangeSize = FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
-            rangeSize = new ByteSizeValue(randomIntBetween(1, 16) * CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes());
+            rangeSize = new ByteSizeValue(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
         } else {
-            rangeSize = new ByteSizeValue(randomIntBetween(1, 16000) * CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes());
+            rangeSize = new ByteSizeValue(randomIntBetween(1, 16000) * SharedBytes.PAGE_SIZE);
         }
 
         final ByteSizeValue regionSize;
         if (rarely()) {
             regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
         } else {
-            regionSize = new ByteSizeValue(randomIntBetween(1, 16) * ByteSizeValue.ofKb(4L).getBytes());
+            regionSize = new ByteSizeValue(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
         }
 
         final ByteSizeValue cacheSize;

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTe
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -111,7 +112,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(4096 * randomLongBetween(3, 6), ByteSizeUnit.BYTES);
+        final ByteSizeValue rangeSize = new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES);
         final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
@@ -129,14 +130,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 // cache writes are executed in a different thread pool and can take some time to be processed
                 assertBusy(() -> {
                     assertThat(inputStats.getCachedBytesWritten(), notNullValue());
-                    assertThat(inputStats.getCachedBytesWritten().total(), greaterThanOrEqualTo(length));
+                    assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
+                    final long actualWriteCount = inputStats.getCachedBytesWritten().count();
+                    assertThat(actualWriteCount, lessThanOrEqualTo(cachedBytesWriteCount));
                     assertThat(inputStats.getCachedBytesWritten().min(), greaterThan(0L));
                     assertThat(inputStats.getCachedBytesWritten().max(), lessThanOrEqualTo(length));
-                    final long actualWriteCount = inputStats.getCachedBytesWritten().count();
-                    assertThat(inputStats.getCachedBytesWritten().total(), lessThanOrEqualTo(length + 1000));
-
-                    // for CFS more requests are made (header/footer for each logical file)
-                    assertThat(actualWriteCount, lessThanOrEqualTo(cachedBytesWriteCount));
                     assertThat(
                         inputStats.getCachedBytesWritten().totalNanoseconds(),
                         allOf(
@@ -571,7 +569,10 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             defaultCacheService(),
-            createFrozenCacheService(ByteSizeValue.ofMb(10), new ByteSizeValue(4096 * randomLongBetween(3, 6), ByteSizeUnit.BYTES)),
+            createFrozenCacheService(
+                ByteSizeValue.ofMb(10),
+                new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES)
+            ),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats

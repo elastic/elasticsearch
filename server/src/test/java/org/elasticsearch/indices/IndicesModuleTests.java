@@ -21,7 +21,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -187,8 +187,9 @@ public class IndicesModuleTests extends ESTestCase {
     public void testDuplicateRuntimeFieldPlugin() {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
-            public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-                return Collections.singletonMap("test", new RuntimeFieldType.Parser((s, parserContext) -> null));
+            public Map<String, RuntimeField.Parser> getRuntimeFields() {
+                return Collections.singletonMap("test", new RuntimeField.Parser((s, parserContext) -> null));
+
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
@@ -200,8 +201,8 @@ public class IndicesModuleTests extends ESTestCase {
     public void testRuntimeFieldPluginWithBuiltinFieldType() {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
-            public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
-                return Collections.singletonMap(KeywordFieldMapper.CONTENT_TYPE, new RuntimeFieldType.Parser((s, parserContext) -> null));
+            public Map<String, RuntimeField.Parser> getRuntimeFields() {
+                return Collections.singletonMap(KeywordFieldMapper.CONTENT_TYPE, new RuntimeField.Parser((s, parserContext) -> null));
             }
         };
         List<MapperPlugin> plugins = Collections.singletonList(plugin);

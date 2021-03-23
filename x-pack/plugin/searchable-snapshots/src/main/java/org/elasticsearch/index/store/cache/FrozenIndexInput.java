@@ -139,6 +139,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getAbsolutePosition() - compoundFileOffset;
         final int length = b.remaining();
+        final int originalByteBufPosition = b.position();
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
         final AtomicBoolean stopAsyncReads = new AtomicBoolean();
@@ -174,7 +175,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                 assert read == length;
                 assert luceneByteBufLock.getReadHoldCount() == 0;
                 preventAsyncBufferChanges.run();
-                b.position(read); // mark all bytes as accounted for
+                b.position(originalByteBufPosition + read); // mark all bytes as accounted for
                 readComplete(position, length);
                 return;
             }
@@ -310,7 +311,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             assert luceneByteBufLock.getReadHoldCount() == 0;
 
             preventAsyncBufferChanges.run();
-            b.position(bytesRead); // mark all bytes as accounted for
+            b.position(originalByteBufPosition + bytesRead); // mark all bytes as accounted for
         } catch (final Exception e) {
             preventAsyncBufferChanges.run();
 

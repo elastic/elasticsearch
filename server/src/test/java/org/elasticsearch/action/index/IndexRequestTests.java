@@ -187,13 +187,12 @@ public class IndexRequestTests extends ESTestCase {
     public void testSerializeDynamicTemplates() throws Exception {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         indexRequest.source("{}", XContentType.JSON);
-        Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
-            .boxed()
-            .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
-        indexRequest.setDynamicTemplates(dynamicTemplates);
-        // old version
+        // Empty dynamic templates
         {
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+            if (randomBoolean()) {
+                indexRequest.setDynamicTemplates(Map.of());
+            }
+            Version ver = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(ver);
             indexRequest.writeTo(out);
@@ -202,8 +201,22 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), anEmptyMap());
         }
+        // old version
+        {
+            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
+                .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+            indexRequest.setDynamicTemplates(dynamicTemplates);
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
+            assertThat(error.getMessage(), containsString("[dynamic_templates] parameter requires all nodes on 8.0 or later"));
+        }
         // new version
         {
+            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
+                .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+            indexRequest.setDynamicTemplates(dynamicTemplates);
             Version ver = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(ver);

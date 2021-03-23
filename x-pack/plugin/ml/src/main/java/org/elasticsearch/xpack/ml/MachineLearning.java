@@ -1197,7 +1197,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             StartDataFrameAnalyticsAction.TaskParams::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             SnapshotUpgradeTaskParams::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME,
+        namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
             StartTrainedModelDeploymentAction.TaskParams::new));
 
         // Persistent task states

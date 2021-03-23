@@ -39,17 +39,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
+import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
@@ -115,8 +115,8 @@ public class TransportStartTrainedModelDeploymentAction
                     return;
                 }
                 persistentTasksService.sendStartRequest(
-                    MlTasks.deployTrainedModelTaskId(request.getModelId()),
-                    MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME,
+                    MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
+                    MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
                     new TaskParams(request.getModelId()),
                     waitForDeploymentToStart
                 );
@@ -137,7 +137,7 @@ public class TransportStartTrainedModelDeploymentAction
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (predicate.exception != null) {
-
+                        cancelDeploymentStart(task, predicate.exception, listener);
                     } else {
                         listener.onResponse(new NodeAcknowledgedResponse(true, predicate.node));
                     }
@@ -148,6 +148,23 @@ public class TransportStartTrainedModelDeploymentAction
                     listener.onFailure(e);
                 }
             });
+    }
+
+    private void cancelDeploymentStart(
+        PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask, Exception exception,
+        ActionListener<NodeAcknowledgedResponse> listener) {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(
+            pTask -> listener.onFailure(exception),
+            e -> {
+                logger.error(
+                    new ParameterizedMessage("[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                        persistentTask.getParams().getModelId(), exception.getMessage()),
+                    e
+                );
+                listener.onFailure(exception);
+            }
+        ));
+
     }
 
     @Override
@@ -210,7 +227,7 @@ public class TransportStartTrainedModelDeploymentAction
 
         public TaskExecutor(Settings settings, ClusterService clusterService, IndexNameExpressionResolver expressionResolver,
                                MlMemoryTracker memoryTracker, DeploymentManager manager) {
-            super(MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME,
+            super(MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
                 MachineLearning.UTILITY_THREAD_POOL_NAME,
                 settings,
                 clusterService,
@@ -233,7 +250,7 @@ public class TransportStartTrainedModelDeploymentAction
                 new JobNodeSelector(
                     clusterState,
                     params.getModelId(),
-                    MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                    MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
                     memoryTracker,
                     0,
                     node -> nodeFilter(node, params));

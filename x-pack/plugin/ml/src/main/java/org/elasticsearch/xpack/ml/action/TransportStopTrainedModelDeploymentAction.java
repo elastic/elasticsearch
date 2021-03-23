@@ -144,7 +144,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                             StopTrainedModelDeploymentAction.Response response,
                             ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasks ->
-                persistentTasks.findTasks(MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME, t -> taskIds.contains(t.getId())).isEmpty(),
+                persistentTasks.findTasks(MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME, t -> taskIds.contains(t.getId())).isEmpty(),
             request.getTimeout(), ActionListener.wrap(
                 booleanResponse -> {
                     listener.onResponse(response);

@@ -135,7 +135,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
         @Override
         public String getWriteableName() {
-            return MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME;
+            return MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME;
         }
 
         @Override
@@ -178,7 +178,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = MlTasks.DEPLOY_TRAINED_MODEL_TASK_ID_PREFIX + expectedId;
+                String expectedDescription = MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + expectedId;
                 return expectedDescription.equals(task.getDescription());
             }
             return false;

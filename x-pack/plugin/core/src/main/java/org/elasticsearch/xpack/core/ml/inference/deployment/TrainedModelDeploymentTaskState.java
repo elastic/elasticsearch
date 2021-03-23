@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class TrainedModelDeploymentTaskState implements PersistentTaskState {
 
-    public static final String NAME = MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME;
+    public static final String NAME = MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME;
 
     private static ParseField STATE = new ParseField("state");
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");

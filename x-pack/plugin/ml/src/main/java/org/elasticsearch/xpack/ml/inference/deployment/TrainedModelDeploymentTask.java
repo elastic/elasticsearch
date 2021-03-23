@@ -27,7 +27,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
 
     public TrainedModelDeploymentTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                       TaskParams taskParams) {
-        super(id, type, action, MlTasks.DEPLOY_TRAINED_MODEL_TASK_ID_PREFIX + taskParams.getModelId(), parentTask, headers);
+        super(id, type, action, MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + taskParams.getModelId(), parentTask, headers);
         this.params = taskParams;
     }
 

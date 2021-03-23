@@ -40,6 +40,7 @@ configuration files. If you installed {es} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
 
+[[security-create-builtin-users]]
 ==== Create passwords for built-in users
 
 To communicate with the cluster, you must configure a username for the built-in

@@ -205,8 +205,10 @@ connect to {kib} in your browser, which is likely the FQDN.
 
 The following instructions create a Certificate Signing Request (CSR) for {kib}.
 A CSR contains information that a CA uses to generate and sign a security
-certificate. A CSR is acceptable for development environments and building a
-proof of concept, but should not be used in a production environment.
+certificate. The certificate can be trusted (signed by a public, trusted CA)
+or untrusted (signed by an internal CA). A self-signed or internally-signed
+certificate is acceptable for development environments and building a proof of
+concept, but should not be used in a production environment.
 
 WARNING: Before going to production, use a trusted CA such as https://letsencrypt.org/[Let's
 Encrypt] or your organization's internal CA to sign the certificate. Using a

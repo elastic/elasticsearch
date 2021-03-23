@@ -5,6 +5,11 @@ The following pages have moved or been deleted.
 
 // [START] Security redirects
 
+[role="exclude",id="get-started-users"]
+=== Create users
+
+See <<security-create-builtin-users,Create passwords for built-in users>>.
+
 [role="exclude",id="encrypting-communications-certificates"]
 === Generate certificates
 

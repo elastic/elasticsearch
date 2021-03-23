@@ -14,8 +14,29 @@ cannot join the cluster and exchange data with other nodes. While implementing
 username and password authentication at the HTTP layer is useful for securing a
 local cluster, the security of communication between nodes requires TLS.
 
-Configuring TLS between nodes is the basic security setup to prevent unauthorized nodes from
-accessing to your cluster.
+Configuring TLS between nodes is the basic security setup to prevent
+unauthorized nodes from accessing to your cluster.
+
+.Understanding transport contexts
+****
+Transport Layer Security (TLS) is the name of an industry standard protocol for
+applying security controls (such as encryption) to network communications. TLS
+is the modern name for what used to be called Secure Sockets Layer (SSL). The
+{es} documentation uses the terms TLS and SSL interchangeably.
+
+Transport Protocol is the name of the protocol that {es} nodes use to
+communicate with one another. This name is specific to {es} and distinguishes
+the transport port (default `9300`) from the HTTP port (default `9200`). Nodes
+communicate with one another using the transport port, and REST clients
+communicate with {es} using the HTTP port.
+
+Although the word _transport_ appears in both contexts, they mean different
+things. It's possible to apply TLS to both the {es} transport port and the HTTP
+port. We know that these overlapping terms can be confusing, so to clarify, in
+this scenario we're applying TLS to the {es} transport port. In
+<<security-basic-setup-https,the next scenario>>, we'll apply TLS to the {es}
+HTTP port.
+****
 
 [[basic-setup-prerequisites]]
 ==== Prerequisites
@@ -29,7 +50,11 @@ entire cluster.
 [[generate-certificates]]
 ==== Generate the certificate authority
 
-You can add as many nodes as you want in a cluster but they must be able to communicate with each other. The communication between nodes in a cluster is handled by the transport module. To secure your cluster, you must ensure that the internode communications are encrypted and verified which is achieved with mutual TLS.
+You can add as many nodes as you want in a cluster but they must be able to
+communicate with each other. The communication between nodes in a cluster is
+handled by the transport module. To secure your cluster, you must ensure that
+internode communications are encrypted and verified, which is achieved with
+mutual TLS.
 
 In a secured cluster, {es} nodes use certificates to identify
 themselves when communicating with other nodes.
@@ -42,10 +67,6 @@ CA.
 For the transport layer, we recommend using a separate, dedicated CA instead
 of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
-
-NOTE: To generate certificates for a multi-node cluster, jump to
-<<multi-node-certs,Generate certificates for a multi-node cluster>> and use
-that method of generating a CA and certificates.
 
 . Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
 +
@@ -73,75 +94,12 @@ that method of generating a CA and certificates.
 +
 The output file is a keystore named `elastic-certificates.p12`. This file
 contains a node certificate, node key, and CA certificate.
-
-. Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
-   directory.
-
-*Next*: <<encrypt-internode-communication>>
-
-[[multi-node-certs]]
-===== Generate certificates for a multi-node cluster
-
-If you're running a multi-node cluster, this method of generating certificates
-is simpler than generating one certificate at a time.
-You run the `elasticsearch-certutil` tool in
-<<certutil-silent,`--silent` mode>> to create a single CA, plus a security
-certificate for each node in your cluster.
-
-. Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
 +
-[source,shell]
-----
-./bin/elasticsearch-certutil ca
-----
-
-   a. When prompted, accept the default file name, which is `elastic-stack-ca.p12`. This file contains the public certificate for your CA and the private key used to sign certificates for each node.
-
-   b. Enter a password for your CA.
-
-. In the installation directory on one your {es} nodes, create a
-`certificates.yaml` file to contain information about each node.
-+
-Enter a `name` value for each node in your cluster, which can be a simple string value or a Distinguished Name (DN). This is the only required field.
-+
-[source,yaml]
-----
-instances:
- - name: "node-1"
- - name: "node-2"
- - name: "node-3"
-----
-
-. Run the `elasticsearch-certutil` tool in `--silent` mode with the `cert`
-parameter and the following options:
-+
-[source,shell]
-----
-./bin/elasticsearch-certutil cert --ca elastic-certificates.p12 --silent --in certificates.yaml --out node-certs.zip --pass <password>
-----
-+
-This command generates a compressed `node-certs.zip` file.
-
    `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
    default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
 
-   `--in <input_file>`:: Name of the file that is used to run in `--silent` mode. The input file must be a YAML file. This parameter cannot be used with the `ca` parameter.
-
-   `--out <file_path>`:: Path and file name for the output files.
-
-   `--pass <password>`:: Password for the generated private keys.
-
-. Enter the password for your CA when prompted.
-
-. Unzip the `node-certs.zip` output file, which results in one directory for each node that was included in the `certificates.yaml` file.
-+
-Each node directory contains a single `<node-name>.p12` certificate file, which contains the node certificate, instance private key, and CA certificate.
-
-. Copy the appropriate `<node-name>.p12` certificate file to the
-   `ES_PATH_CONF` directory on each node.
-+
-WARNING: This file must reside in the `ES_PATH_CONF` directory or {es}
-will not start.
+. Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
+   directory on every node in your cluster.
 
 *Next*: <<encrypt-internode-communication>>
 

@@ -23,7 +23,8 @@ image::images/elastic-security-overview.png[Elastic Security layers]
 
 If you want to set up {es} on your laptop and start developing, this scenario
 is for you. This configuration prevents unauthorized access to your local
-cluster by setting up passwords for the built-in users.
+cluster by setting up passwords for the built-in users. You also configure
+password authentication for {kib}.
 
 IMPORTANT: Only use this security configuration for local development.
 
@@ -38,9 +39,8 @@ Layer Security (TLS) for communication between nodes. This additional layer
 requires that nodes verify security certificates, which prevents unauthorized
 nodes from joining your {es} cluster.
 
-You also configure password authentication for {kib}. Your external HTTP
-traffic between {es} and {kib} won't be encrypted, but internode communication
-will be secured.
+Your external HTTP traffic between {es} and {kib} won't be encrypted, but
+internode communication will be secured.
 
 <<security-basic-setup,Set up basic security>>
 

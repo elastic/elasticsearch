@@ -178,20 +178,27 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
         scope.field(Fields.NODE, "for");
         scope.field(Fields.LOCATION, userForNode.getLocation().getOffset());
 
+        // TODO(stu): why is initializerNode ANode instead of an expression
         ANode initializerNode = userForNode.getInitializerNode();
+        scope.startArray("initializer");
         if (initializerNode != null) {
             initializerNode.visit(this, scope);
         }
+        scope.endArray();
 
+        scope.startArray("condition");
         AExpression conditionNode = userForNode.getConditionNode();
         if (conditionNode != null) {
             conditionNode.visit(this, scope);
         }
+        scope.endArray();
 
+        scope.startArray("afterthought");
         AExpression afterthoughtNode = userForNode.getAfterthoughtNode();
         if (afterthoughtNode != null) {
             afterthoughtNode.visit(this, scope);
         }
+        scope.endArray();
 
         block(userForNode.getBlockNode(), scope);
 

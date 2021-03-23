@@ -38,6 +38,7 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -452,7 +453,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67756")
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.ml.action:TRACE,"
+            + "org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager:TRACE"
+            + "org.elasticsearch.xpack.ml.datafeed:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/67756"
+    )
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

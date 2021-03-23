@@ -7,7 +7,7 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 [[security-updates-6-8-15]]
 === Security updates
 
-* A document disclosure flaw was found in the {es}  suggester and
+* A document disclosure flaw was found in the {es} suggester and
 profile API when Document and Field Level Security are enabled.
 The suggester and profile API are normally disabled for an index when document
 level security is enabled on the index. Certain queries are able to enable the

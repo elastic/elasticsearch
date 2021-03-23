@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -83,14 +84,14 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
                 )
         );
         assertBusy(() -> {
-            final List<RecoveryState> recoveryStates = getActiveRelocations(restoredIndex);
+            final List<RecoveryState> recoveryStates = getRelocations(restoredIndex);
             assertThat(recoveryStates, Matchers.hasSize(1));
             final RecoveryState shardRecoveryState = recoveryStates.get(0);
             assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
             assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
         });
 
-        assertBusy(() -> assertSame(RecoveryState.Stage.FINALIZE, getActiveRelocations(restoredIndex).get(0).getStage()));
+        assertBusy(() -> assertSame(RecoveryState.Stage.FINALIZE, getRelocations(restoredIndex).get(0).getStage()));
         final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
@@ -114,7 +115,19 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         assertBusy(() -> assertThat(getActiveRelocations(restoredIndex), Matchers.empty()));
     }
 
+    private static List<RecoveryState> getRelocations(String restoredIndex) {
+        return getRelocationsStream(restoredIndex).collect(Collectors.toList());
+    }
+
     private static List<RecoveryState> getActiveRelocations(String restoredIndex) {
+        return getRelocationsStream(restoredIndex)
+            // filter for relocations that are not in stage FINALIZE (they could end up in this stage without progress for good if the
+            // target node does not have enough cache space available to hold the primary completely
+            .filter(recoveryState -> recoveryState.getStage() != RecoveryState.Stage.FINALIZE)
+            .collect(Collectors.toList());
+    }
+
+    private static Stream<RecoveryState> getRelocationsStream(String restoredIndex) {
         return client().admin()
             .indices()
             .prepareRecoveries(restoredIndex)
@@ -124,9 +137,6 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .shardRecoveryStates()
             .get(restoredIndex)
             .stream()
-            // filter for relocations that are not in stage FINALIZE (they could end up in this stage without progress for good if the
-            // target node does not have enough cache space available to hold the primary completely
-            .filter(recoveryState -> recoveryState.getSourceNode() != null)
-            .collect(Collectors.toList());
+            .filter(recoveryState -> recoveryState.getSourceNode() != null);
     }
 }

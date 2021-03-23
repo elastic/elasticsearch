@@ -11,12 +11,11 @@ package org.elasticsearch.runtimefields.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.runtimefields.query.DoubleScriptFieldExistsQuery;
@@ -27,7 +26,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,23 +34,19 @@ import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
+        protected RuntimeField buildFieldType() {
             if (script.get() == null) {
-                return new DoubleScriptFieldType(name, DoubleFieldScript.PARSE_FROM_SOURCE, this);
+                return new DoubleScriptFieldType(name, DoubleFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
             DoubleFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), DoubleFieldScript.CONTEXT);
-            return new DoubleScriptFieldType(name, factory, this);
+            return new DoubleScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });
 
-    private DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Builder builder) {
-        super(name, scriptFactory::newFactory, builder);
-    }
-
     public DoubleScriptFieldType(String name) {
-        this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
+        this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     DoubleScriptFieldType(
@@ -60,7 +54,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         DoubleFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, scriptFactory::newFactory, script, meta, toXContent);
     }

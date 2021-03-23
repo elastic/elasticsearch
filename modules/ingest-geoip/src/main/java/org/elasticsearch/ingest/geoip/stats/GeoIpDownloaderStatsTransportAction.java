@@ -28,8 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Request,
-    Response, NodeRequest, NodeResponse> {
+public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
     private final TransportService transportService;
     private final DatabaseRegistry registry;
@@ -62,7 +61,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     }
 
     @Override
-    protected NodeResponse nodeOperation(NodeRequest request, Task task) {
+    protected NodeResponse nodeOperation(NodeRequest request) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
         return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp());

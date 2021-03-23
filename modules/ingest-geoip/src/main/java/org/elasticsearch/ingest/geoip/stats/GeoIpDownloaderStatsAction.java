@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip.stats;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -72,7 +73,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends BaseNodeRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
@@ -124,7 +125,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
                     builder.endArray();
                 }
                 if (response.filesInTemp.isEmpty() == false) {
-                    builder.array("files_in_temp", response.filesInTemp.toArray(String[]::new));
+                    builder.array("files_in_temp", response.filesInTemp.toArray(new String[0]));
                 }
                 builder.endObject();
             }

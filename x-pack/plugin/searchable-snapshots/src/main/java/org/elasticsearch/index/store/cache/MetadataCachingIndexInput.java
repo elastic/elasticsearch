@@ -102,7 +102,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             if (blobCacheByteRange.isEmpty()) {
                 readWithoutBlobCache(b);
             } else {
-                readWithBlobCache(b, position, length, blobCacheByteRange);
+                readWithBlobCache(b, blobCacheByteRange);
             }
         } catch (final Exception e) {
             // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.
@@ -116,7 +116,10 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
     protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
 
-    private void readWithBlobCache(ByteBuffer b, long position, int length, ByteRange blobCacheByteRange) throws Exception {
+    private void readWithBlobCache(ByteBuffer b, ByteRange blobCacheByteRange) throws Exception {
+        final long position = getAbsolutePosition();
+        final int length = b.remaining();
+
         final CacheFile cacheFile = cacheFileReference.get();
 
         // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
@@ -220,7 +223,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         }
     }
 
-    protected void readComplete(long position, int length) {
+    private void readComplete(long position, int length) {
         stats.incrementBytesRead(lastReadPosition, position, length);
         lastReadPosition = position + length;
         lastSeekPosition = lastReadPosition;
@@ -268,7 +271,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         }
     }
 
-    protected void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {
+    private void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {
         final Releasable onCacheFillComplete = stats.addIndexCacheFill();
         final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
             final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());

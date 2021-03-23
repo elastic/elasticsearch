@@ -112,7 +112,7 @@ public class TarInputStream extends FilterInputStream {
 
     private int getInt(int offset) {
         String s = getString(offset, 8);
-        return s.isEmpty() ? 0 : Integer.parseInt(s, 8);GeoIpDownloaderIT
+        return s.isEmpty() ? 0 : Integer.parseInt(s, 8);
     }
 
     private long getLong(int offset) {

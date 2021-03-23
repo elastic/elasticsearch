@@ -358,7 +358,7 @@ public final class DatabaseRegistry implements Closeable {
     }
 
     public Set<String> getAvailableDatabases() {
-        return Set.copyOf(databases.keySet());
+        return org.elasticsearch.common.collect.Set.copyOf(databases.keySet());
     }
 
     public Set<String> getFilesInTemp() {

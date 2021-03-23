@@ -288,7 +288,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).filter(p->p.endsWith(".mmdb")).collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
                     assertThat(files, empty());
                 }
             }

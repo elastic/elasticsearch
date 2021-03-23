@@ -19,8 +19,10 @@ artifacts {
 }
 
 testClusters.all {
+  "yamlRestCompatTest" {
+    setting 'xpack.security.enabled', 'false'
+  }
   module ':modules:mapper-extras'
-  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("test").configure {enabled = false }

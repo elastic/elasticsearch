@@ -411,9 +411,9 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |====
 
 You can escape Unicode characters using a case-insensitive hexadecimal
-`\u{XXXXXXXX}` escape sequence. You can use these escape sequences to include
-non-printable or right-to-left (RTL) characters in your strings. Hexadecimal
-values shorter than 8 characters are zero-padded. For example, you can escape a
+`\u{XXXXXXXX}` escape sequence. Hexadecimal values shorter than 8 characters are
+zero-padded. You can use these escape sequences to include non-printable or
+right-to-left (RTL) characters in your strings. For example, you can escape a
 {wikipedia}/Right-to-left_mark[right-to-left mark (RLM)] as `\u{200f}`,
 `\u{200F}`, or `\u{0000200f}`.
 

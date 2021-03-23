@@ -159,12 +159,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     /**
      * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createMapperService(Version version,
+    protected final MapperService createMapperService(Version indexVersionCreated,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled,
                                                       XContentBuilder mapping) throws IOException {
 
-        MapperService mapperService = createMapperService(version, settings, idFieldDataEnabled);
+        MapperService mapperService = createMapperService(indexVersionCreated, settings, idFieldDataEnabled, Version.CURRENT);
         merge(mapperService, mapping);
         return mapperService;
     }
@@ -173,10 +173,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
     }
 
-    protected final MapperService createMapperService(Version version,
-                                                      Settings settings,
-                                                      BooleanSupplier idFieldDataEnabled) {
-        IndexSettings indexSettings = createIndexSettings(version, settings);
+    protected final MapperService createMapperService(Version indexVersionCreated, Settings settings,
+                                                      BooleanSupplier idFieldDataEnabled, Version minNodeVersion) {
+        IndexSettings indexSettings = createIndexSettings(indexVersionCreated, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
@@ -191,7 +190,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
             idFieldDataEnabled,
-            this::compileScript
+            this::compileScript,
+            () -> minNodeVersion
         );
     }
 

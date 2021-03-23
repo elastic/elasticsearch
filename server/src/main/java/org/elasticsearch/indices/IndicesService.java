@@ -723,7 +723,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
             directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, recoveryStateFactories);
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService, clusterService);
     }
 
     /**

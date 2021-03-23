@@ -507,10 +507,11 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-            ScriptService scriptService) throws IOException {
+                                               ScriptService scriptService, ClusterService clusterService) throws IOException {
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings), xContentRegistry,
             new SimilarityService(indexSettings, scriptService, similarities), mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false, scriptService);
+            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false, scriptService,
+            () -> clusterService.state().nodes().getMinNodeVersion());
     }
 
     /**

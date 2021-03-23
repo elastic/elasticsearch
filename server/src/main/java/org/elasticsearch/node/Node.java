@@ -572,7 +572,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(settings, xContentRegistry,
-                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), scriptService);
+                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), scriptService, clusterService);
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }

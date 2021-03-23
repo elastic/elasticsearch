@@ -73,7 +73,7 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null,
             olderVersion, null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        });
+        }, () -> Version.CURRENT);
 
         TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
@@ -90,7 +90,7 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null, version,
             null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        });
+        }, () -> Version.CURRENT);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context);

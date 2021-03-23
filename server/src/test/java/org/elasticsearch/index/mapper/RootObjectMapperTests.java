@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
 import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
 import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -186,7 +188,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endArray()
         .endObject());
-        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> true);
+        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> true, randomVersion(random()));
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.
@@ -708,13 +710,25 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        Version notAllowedVersion = randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
-        MapperParsingException error = expectThrows(MapperParsingException.class, () -> createMapperService(notAllowedVersion, mapping));
+        Version minNodeVersion = randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+        final MapperService oldMapperService = createMapperService(
+            VersionUtils.randomVersion(random()),
+            Settings.EMPTY,
+            ESTestCase::randomBoolean,
+            minNodeVersion);
+        MapperParsingException error = expectThrows(MapperParsingException.class, () -> merge(oldMapperService, mapping));
         assertThat(error.getMessage(),
-            containsString("template [geo_point does not have [match] nor [path_match] nor [match_mapping_type] defined"));
-        Version allowedVersion = randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-        MapperService mapperService = createMapperService(allowedVersion, mapping);
-        ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",
+            containsString("template [geo_point] does not have [match] nor [path_match] nor [match_mapping_type] defined"));
+
+        minNodeVersion = randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+        MapperService newMapperService = createMapperService(
+            VersionUtils.randomVersion(random()),
+            Settings.EMPTY,
+            ESTestCase::randomBoolean,
+            minNodeVersion);
+        merge(newMapperService, mapping);
+
+        ParsedDocument doc = newMapperService.documentMapper().parse(new SourceToParse("test", "1",
             new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"), XContentType.JSON, null, Map.of("foo", "geo_point")));
         assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("bar"), arrayWithSize(1));

@@ -390,10 +390,10 @@ public class RootObjectMapper extends ObjectMapper {
             return;
         }
 
-        if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-            if (template.pathMatch() == null && template.match() == null && template.getXContentFieldTypes().length == 0) {
-                throw new MapperParsingException("template [" + template.name() +
-                    " does not have [match] nor [path_match] nor [match_mapping_type] defined");
+        if (template.pathMatch() == null && template.match() == null && template.getXContentFieldTypes().length == 0) {
+            if (parserContext.getMinNodeVersion().get().before(Version.V_8_0_0)) {
+                throw new MapperParsingException("dynamic template [" + template.name() + "] " +
+                    "does not have [match] nor [path_match] nor [match_mapping_type] defined");
             }
         }
 

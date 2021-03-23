@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -56,6 +57,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             private final IndexAnalyzers indexAnalyzers;
             private final IndexSettings indexSettings;
             private final BooleanSupplier idFieldDataEnabled;
+            private final Supplier<Version> minNodeVersion;
 
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  Function<String, TypeParser> typeParsers,
@@ -66,7 +68,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                                  ScriptCompiler scriptCompiler,
                                  IndexAnalyzers indexAnalyzers,
                                  IndexSettings indexSettings,
-                                 BooleanSupplier idFieldDataEnabled) {
+                                 BooleanSupplier idFieldDataEnabled,
+                                 Supplier<Version> minNodeVersion) {
                 this.similarityLookupService = similarityLookupService;
                 this.typeParsers = typeParsers;
                 this.runtimeFieldParsers = runtimeFieldParsers;
@@ -77,6 +80,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.indexAnalyzers = indexAnalyzers;
                 this.indexSettings = indexSettings;
                 this.idFieldDataEnabled = idFieldDataEnabled;
+                this.minNodeVersion = minNodeVersion;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -109,6 +113,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public Version indexVersionCreated() {
                 return indexVersionCreated;
+            }
+
+            /**
+             * Returns the minimum node version in the cluster
+             *
+             * @see DiscoveryNodes#getMinNodeVersion()
+             */
+            public Supplier<Version> getMinNodeVersion() {
+                return minNodeVersion;
             }
 
             public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -152,7 +165,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
                         in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                        in.idFieldDataEnabled);
+                        in.idFieldDataEnabled, in.minNodeVersion);
                 }
 
                 @Override
@@ -163,7 +176,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 DynamicTemplateParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
                         in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                        in.idFieldDataEnabled);
+                        in.idFieldDataEnabled, in.minNodeVersion);
                 }
 
                 @Override

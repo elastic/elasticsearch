@@ -55,6 +55,6 @@ public class MapperTestUtils {
             xContentRegistry,
             similarityService,
             mapperRegistry,
-            () -> null, () -> false, null);
+            () -> null, () -> false, null, () -> Version.CURRENT);
     }
 }

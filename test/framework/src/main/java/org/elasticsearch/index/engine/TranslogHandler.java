@@ -55,7 +55,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                () -> null, () -> false, null);
+                () -> null, () -> false, null, () -> Version.CURRENT);
     }
 
     private DocumentMapperForType docMapper(String type) {

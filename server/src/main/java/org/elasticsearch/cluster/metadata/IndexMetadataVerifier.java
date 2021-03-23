@@ -14,7 +14,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,14 +53,16 @@ public class IndexMetadataVerifier {
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
     public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                 IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
+                                 IndexScopedSettings indexScopedSettings, ScriptService scriptService, ClusterService clusterService) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -160,7 +164,7 @@ public class IndexMetadataVerifier {
             try (IndexAnalyzers fakeIndexAnalzyers =
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false, scriptService);
+                        mapperRegistry, () -> null, () -> false, scriptService, () -> clusterService.state().nodes().getMinNodeVersion());
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

@@ -21,7 +21,6 @@ import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.NodeReque
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.NodeResponse;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.Request;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.Response;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

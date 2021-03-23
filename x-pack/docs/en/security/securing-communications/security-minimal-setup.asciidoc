@@ -57,8 +57,10 @@ when enabling minimal or basic security.
 ./bin/elasticsearch
 ----
 
-. Set the passwords for the built-in users by running the `elasticsearch-setup-passwords` utility. Using the `auto` parameter outputs randomly-generated
-passwords to the console that you can change later if necessary:
+. In another terminal window, set the passwords for the built-in users by
+running the `elasticsearch-setup-passwords` utility. Using the `auto` parameter
+outputs randomly-generated passwords to the console that you can change later
+if necessary:
 +
 [source,shell]
 ----
@@ -74,10 +76,66 @@ steps you through password configuration for all of the built-in users.
 ./bin/elasticsearch-setup-passwords interactive
 ----
 
-. Save the generated passwords. You'll need them later when adding the built-in user to Kibana.
+. Save the generated passwords. You'll need them to add the built-in user to
+{kib}.
 
 WARNING: After you set a password for the `elastic` user, you cannot run the
 `elasticsearch-setup-passwords` command a second time.
+
+*Next*: <<add-built-in-users,Configure {kib} to connect to {es} with a password>>
+
+[[add-built-in-users]]
+==== Configure {kib} to connect to {es} with a password
+
+When the {es} security features are enabled, users must log in to {kib} with a
+valid username and password.
+
+{kib} also performs some background tasks that require use of the built-in
+`elastic` user.
+
+You'll configure {kib} to use the built-in `elastic` user and the
+password that you created earlier.
+
+. Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
+file and set the value to the `elastic` user:
++
+[source,yaml]
+----
+elasticsearch.username: "elastic"
+----
++
+NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
+configuration files. If you installed {kib} using archive distributions
+(`zip` or `tar.gz`), the variable defaults to `KIB_HOME/config`. If you used
+package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.
+
+. From the directory where you installed {kib}, run the following commands
+to create the {kib} keystore and add the secure settings:
+
+   a. Create the {kib} keystore:
++
+[source,shell]
+----
+./bin/kibana-keystore create
+----
+
+   b. Add the password for the `elastic` user to the {kib} keystore:
++
+[source,shell]
+----
+./bin/kibana-keystore add elasticsearch.password
+----
++
+When prompted, enter the password for the `elastic` user.
+
+. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
++
+[source,shell]
+----
+./bin/kibana
+----
+
+. Log in to {kib} as the `elastic` user.
 
 [[minimal-security-whatsnext]]
 ==== What's next?

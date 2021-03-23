@@ -9,10 +9,10 @@ After adding password protection in the <<security-minimal-setup,minimal securit
 your cluster.
 
 The transport layer relies on mutual TLS for both encryption and
-authentication of nodes. Applying TLS ensures that a malicious node cannot join the
-cluster and exchange data with other nodes. While implementing username and
-password authentication at the HTTP layer is useful for securing a local
-cluster, the security of communication between nodes requires TLS.
+authentication of nodes. Correctly applying TLS ensures that a malicious node
+cannot join the cluster and exchange data with other nodes. While implementing
+username and password authentication at the HTTP layer is useful for securing a
+local cluster, the security of communication between nodes requires TLS.
 
 Configuring TLS between nodes is the basic security setup to prevent unauthorized nodes from
 accessing to your cluster.
@@ -213,57 +213,6 @@ For example, if you installed {es} with an archive distribution
 +
 WARNING: You must perform a full cluster restart. Nodes that are configured to
 use TLS for transport cannot communicate with nodes that use unencrypted transport connection (and vice-versa).
-
-*Next*: <<add-built-in-users,Add the built-in users to {kib}>>
-
-[[add-built-in-users]]
-==== Configure {kib} to connect to {es} with a password
-
-When the {es} security features are enabled, users must log in to
-{kib} with a valid username and password.
-
-{kib} also performs some background tasks that require use of the built-in
-`kibana_system` user.
-
-You'll configure {kib} to use the built-in `kibana_system` user and the
-password that you created earlier.
-
-1. From the directory where you installed {kib}, run the following commands
-   to create the {kib} keystore and add the secure settings:
-
-   a. Create the {kib} keystore:
-+
-[source,shell]
-----
-./bin/kibana-keystore create
-----
-
-   b. Add the {es} user to the {kib} keystore:
-+
-[source,shell]
-----
-./bin/kibana-keystore add elasticsearch.username
-----
-+
-When prompted, specify the `kibana_system` user.
-
-   c. Add the password for the {es} user to the {kib} keystore:
-+
-[source,shell]
-----
-./bin/kibana-keystore add elasticsearch.password
-----
-+
-When prompted, enter the password for the `kibana_system` user.
-
-2. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
-+
-[source,shell]
-----
-./bin/kibana
-----
-
-3. Log in to {kib} as the `elastic` user.
 
 [[encrypting-internode-whatsnext]]
 ==== What's next?

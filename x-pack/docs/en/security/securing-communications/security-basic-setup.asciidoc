@@ -9,7 +9,7 @@ After adding password protection in the <<security-minimal-setup,minimal securit
 your cluster.
 
 The transport layer relies on mutual TLS for both encryption and
-authentication. Applying TLS ensures that a malicious node cannot join the
+authentication of nodes. Applying TLS ensures that a malicious node cannot join the
 cluster and exchange data with other nodes. While implementing username and
 password authentication at the HTTP layer is useful for securing a local
 cluster, there is no internode security without configuring TLS.

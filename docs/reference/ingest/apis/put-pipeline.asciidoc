@@ -57,6 +57,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Optional, string)
 Description of the ingest pipeline.
 
+`on_failure`::
+(Optional, array of <<processors,processor>> objects)
+Processors to run immediately after a processor failure.
++
+Each processor supports a processor-level `on_failure` value. If a processor
+without an `on_failure` value fails, {es} uses this pipeline-level parameter as
+a fallback. The processors in this parameter run sequentially in the order
+specified. {es} will not attempt to run the pipeline's remaining processors.
+
 `processors`::
 (Required, array of <<processors,processor>> objects)
 Processors used to preform transformations on documents before indexing.

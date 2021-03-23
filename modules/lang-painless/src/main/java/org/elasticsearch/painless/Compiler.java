@@ -9,6 +9,10 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -21,14 +25,21 @@ import org.elasticsearch.painless.phase.DocFieldsPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.PainlessUserTreeToIRTreePhase;
+import org.elasticsearch.painless.printer.PrintScope;
+import org.elasticsearch.painless.printer.UserTreePrinter;
+import org.elasticsearch.painless.printer.UserTreePrinterScope;
+import org.elasticsearch.painless.printer.UserTreeToXContent;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
@@ -210,7 +221,19 @@ final class Compiler {
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        //new UserTreePrinter().visitClass(root, new PrintScope());
+
+        try {
+            XContentBuilder xcontent = XContentFactory.jsonBuilder().prettyPrint();
+            new UserTreeToXContent().visitClass(root, new UserTreePrinterScope(xcontent, scriptScope));
+            xcontent.close();
+            System.out.println(((ByteArrayOutputStream)xcontent.getOutputStream()).toString(Charset.defaultCharset()));
+        } catch (IOException io) {
+            throw new RuntimeException(io);
+        }
+
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        //new UserTreePrinter().visitClass(root, new PrintScope());
         // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);

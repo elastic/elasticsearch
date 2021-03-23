@@ -62,8 +62,8 @@ public class UserTreeBaseVisitor<Scope> implements UserTreeVisitor<Scope> {
     }
 
     @Override
-    public void visitFunction(SFunction userClassNode, Scope scope) {
-        userClassNode.visitChildren(this, scope);
+    public void visitFunction(SFunction userFunctionNode, Scope scope) {
+        userFunctionNode.visitChildren(this, scope);
     }
 
     @Override

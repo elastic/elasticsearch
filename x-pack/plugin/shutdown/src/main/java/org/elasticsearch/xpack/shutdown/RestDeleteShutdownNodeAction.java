@@ -23,12 +23,12 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{name}/shutdown"));
+        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/shutdown"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String nodeId = request.param("name");
+        String nodeId = request.param("nodeId");
         return channel -> client.execute(
             DeleteShutdownNodeAction.INSTANCE,
             new DeleteShutdownNodeAction.Request(nodeId),

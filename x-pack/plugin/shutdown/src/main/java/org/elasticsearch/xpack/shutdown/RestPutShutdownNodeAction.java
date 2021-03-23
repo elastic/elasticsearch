@@ -23,12 +23,12 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "/_nodes/{name}/shutdown"));
+        return List.of(new Route(RestRequest.Method.PUT, "/_nodes/{nodeId}/shutdown"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String nodeId = request.param("name");
+        String nodeId = request.param("nodeId");
         return channel -> client.execute(
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(nodeId),

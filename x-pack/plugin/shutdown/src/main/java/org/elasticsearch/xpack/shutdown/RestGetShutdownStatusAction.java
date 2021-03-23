@@ -24,12 +24,15 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_nodes/{name}/shutdown"), new Route(RestRequest.Method.GET, "/_nodes/shutdown"));
+        return List.of(
+            new Route(RestRequest.Method.GET, "/_nodes/{nodeId}/shutdown"),
+            new Route(RestRequest.Method.GET, "/_nodes/shutdown")
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String[] nodeIds = Strings.commaDelimitedListToStringArray(request.param("name"));
+        String[] nodeIds = Strings.commaDelimitedListToStringArray(request.param("nodeId"));
         return channel -> client.execute(
             GetShutdownStatusAction.INSTANCE,
             new GetShutdownStatusAction.Request(nodeIds),

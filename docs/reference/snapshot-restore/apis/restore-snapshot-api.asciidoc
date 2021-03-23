@@ -102,7 +102,7 @@ Name of the repository to restore a snapshot from.
 (Required, string)
 Name of the snapshot to restore.
 
-[role="child-attributes"]
+[role="child_attributes"]
 [[restore-snapshot-api-request-body]]
 ==== {api-request-body-title}
 

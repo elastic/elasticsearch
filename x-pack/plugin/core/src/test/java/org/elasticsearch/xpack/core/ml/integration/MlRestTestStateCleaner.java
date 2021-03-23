@@ -119,6 +119,7 @@ public class MlRestTestStateCleaner {
         }
     }
 
+    @SuppressWarnings({"unchecked"})
     private void deleteAllDataFrameAnalytics() throws IOException {
         stopAllDataFrameAnalytics();
 

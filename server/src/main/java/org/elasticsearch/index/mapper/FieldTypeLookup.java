@@ -69,7 +69,8 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
         }
 
-        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
+        for (RuntimeFieldType runtimeField : runtimeFieldTypes) {
+            MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
             //this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }

@@ -24,6 +24,48 @@ Other versions:
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
 // tag::notable-highlights[]
+
+[discrete]
+[[frozen-tier-shared-snapshot-cache]]
+=== Frozen tier and shared snapshot caches
+
+With 7.12, we're adding a {ref}/ilm-index-lifecycle.html[frozen phase] to
+{ilm-init} along with a corresponding {ref}/data-tiers.html#frozen-tier[frozen
+data tier] as experimental features. You can use the new frozen phase and frozen
+tier to archive rarely searched data as {search-snaps} for long-term storage and
+maximum cost savings.
+
+The key advantage of the frozen tier is an experimental new option for mounting
+{search-snaps}:
+{ref}/searchable-snapshots.html#searchable-snapshot-mount-storage-options[shared
+snapshot caches]. Rather than loading a full copy of a snapshotted index into
+your cluster, this option uses a small local cache containing only recently
+searched parts of the index’s data. If a search requires data that's not in the
+cache, {es} fetches the missing data from the snapshot repository. With a
+smaller size, these caches can significantly reduce your {es} storage and
+compute costs. {ilm-init} uses shared snapshot caches by default in the frozen
+phase and corresponding frozen tier.
+
+The frozen tier is not yet available on {ess}. However, you can recreate a
+frozen tier on {ess} using shared snapshot caches. See
+{ref}/searchable-snapshots.html#searchable-snapshots-frozen-tier-on-cloud[Configure
+a frozen tier on the {ess}].
+
+[discrete]
+[[test-snapshot-repositories]]
+=== Test snapshot repositories
+
+While there are many third-party storage systems, not all of them work well as
+snapshot repositories. Some systems perform poorly or behave incorrectly as a
+repository, especially when multiple {es} nodes access them concurrently.
+
+To avoid these problems, you can now use the
+{ref}/repo-analysis-api.html[repository analysis API] to test a repository's
+storage system before using it in production. The API performs a collection of
+read and write operations on the repository. These operations are designed to
+detect incorrect behavior and measure the performance characteristics of a
+system.
+
 [discrete]
 [[eql-case-insensitivity]]
 === EQL: Case-insensitive `in` lookups and functions
@@ -53,31 +95,31 @@ keywords] section of the {ref}/eql-syntax.html[EQL syntax documentation].
 [[retention-policy-transforms]]
 === Retention policy for transforms
 
-{ctransforms-cap} add new data to the destination index as new entities are 
-encountered. 7.12 introduces a data retention policy for {transforms} that 
-enables you to delete old data. This is especially useful for the `latest` 
-{transform} that has been added in 7.11. For example, if you collect the latest 
-host information you might want to assume hosts have been decommissioned if they 
-have not appeared in the logs for more than 30 days. At each checkpoint, 
+{ctransforms-cap} add new data to the destination index as new entities are
+encountered. 7.12 introduces a data retention policy for {transforms} that
+enables you to delete old data. This is especially useful for the `latest`
+{transform} that has been added in 7.11. For example, if you collect the latest
+host information you might want to assume hosts have been decommissioned if they
+have not appeared in the logs for more than 30 days. At each checkpoint,
 transformed documents whose age is greater than a configured value are deleted.
 
 [discrete]
 [[hyperparameter-importance]]
 === Hyperparameter importance
 
-{dfanalytics-cap} training is influenced by settings called hyperparameters. One 
-of the training outputs is now hyperparameter importance. This value shows which 
-hyperparameter had the most impact on the training, and what the optimum values 
-were for each one. You can use this information to speed up the training process 
-as the hyperparameter optimization process can be stopped when you see that 
+{dfanalytics-cap} training is influenced by settings called hyperparameters. One
+of the training outputs is now hyperparameter importance. This value shows which
+hyperparameter had the most impact on the training, and what the optimum values
+were for each one. You can use this information to speed up the training process
+as the hyperparameter optimization process can be stopped when you see that
 gains in accuracy flatten.
 
 [discrete]
 [[search-time-runtime-support-transform]]
 === Search-time runtime fields support for {transforms}
 
-You can now use `runtime_mappings` in {transforms} to support search-time 
-runtime fields in searches of the source index. The syntax is the same as for a 
-standard search. After specifying them, the runtime fields can be used in the 
+You can now use `runtime_mappings` in {transforms} to support search-time
+runtime fields in searches of the source index. The syntax is the same as for a
+standard search. After specifying them, the runtime fields can be used in the
 rest of the {transform} configuration.
 // end::notable-highlights[]

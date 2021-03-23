@@ -90,7 +90,7 @@ public class ServiceAccountToken implements Closeable {
         return Objects.hash(accountId, tokenName, secret);
     }
 
-    public static ServiceAccountToken of(ServiceAccountId accountId, String tokenName) {
+    public static ServiceAccountToken newToken(ServiceAccountId accountId, String tokenName) {
         return new ServiceAccountToken(accountId, tokenName, UUIDs.randomBase64UUIDSecureString());
     }
 }

@@ -75,7 +75,7 @@ PUT _ilm/policy/my_policy
 
 The following policy uses the `max_primary_shard_size` parameter to
 automatically calculate the new shrunken index's primary shard count based on
-source index's storage size.
+the source index's storage size.
 
 [source,console]
 --------------------------------------------------

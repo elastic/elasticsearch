@@ -13,8 +13,8 @@ The suggester and profile API are normally disabled for an index when document
 level security is enabled on the index. Certain queries are able to enable the
 profiler and suggester which could lead to disclosing the existence of documents
 and fields the attacker should not be able to view.
-All versions of {es} before 6.8.15 and 7.12.0 are affected by this flaw.
-You must upgrade to 6.8.15 or 7.12.0 to obtain the fix.
+All versions of {es} before 6.8.15 and 7.11.2 are affected by this flaw.
+You must upgrade to 6.8.15 or 7.11.2 to obtain the fix.
 https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22135[CVE-2021-22135]
 
 

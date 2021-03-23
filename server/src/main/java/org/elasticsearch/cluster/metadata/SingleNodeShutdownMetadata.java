@@ -41,8 +41,14 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
-        a -> new SingleNodeShutdownMetadata((String) a[0], (String) a[1], (String) a[2], Status.valueOf((String) a[3]), (long) a[4],
-            (ComponentShutdownStatus) a[5])
+        a -> new SingleNodeShutdownMetadata(
+            (String) a[0],
+            Type.valueOf((String) a[1]),
+            (String) a[2],
+            Status.valueOf((String) a[3]),
+            (long) a[4],
+            (ComponentShutdownStatus) a[5]
+        )
     );
 
     static {
@@ -63,7 +69,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     private final String nodeId;
-    private final String type;
+    private final Type type;
     private final String reason;
     private final Status status;
     private final long startedAtDate;
@@ -71,7 +77,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
 
 
     public SingleNodeShutdownMetadata(
-        String nodeId, String type, String reason, Status status, long startedAtDate, ComponentShutdownStatus shardMigrationStatus) {
+        String nodeId, Type type, String reason, Status status, long startedAtDate, ComponentShutdownStatus shardMigrationStatus) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
@@ -82,7 +88,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
-        this.type = in.readString();
+        this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.status = in.readEnum(Status.class);
         this.startedAtDate = in.readVLong();
@@ -99,7 +105,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     /**
      * @return The type of shutdown this is (shutdown vs. permanent).
      */
-    public String getType() {
+    public Type getType() {
         return type;
     }
 
@@ -127,7 +133,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        out.writeString(type);
+        out.writeEnum(type);
         out.writeString(reason);
         out.writeEnum(status);
         out.writeVLong(startedAtDate);

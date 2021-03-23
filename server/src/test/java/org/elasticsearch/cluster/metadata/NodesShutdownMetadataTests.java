@@ -47,7 +47,7 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
         return new SingleNodeShutdownMetadata(
             randomAlphaOfLength(5),
-            randomAlphaOfLength(5),
+            randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART,
             randomAlphaOfLength(5),
             randomStatus(),
             randomNonNegativeLong(),

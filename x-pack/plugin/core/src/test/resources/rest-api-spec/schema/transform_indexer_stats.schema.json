@@ -1,0 +1,81 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_stats.schema.json",
+  "description": "schema definition for a transform indexer stats",
+  "additionalProperties": false,
+  "title": "Root",
+  "type": "object",
+  "required": [
+    "pages_processed",
+    "documents_processed",
+    "documents_indexed",
+    "documents_deleted",
+    "trigger_count",
+    "index_time_in_ms",
+    "search_time_in_ms",
+    "processing_time_in_ms",
+    "delete_time_in_ms",
+    "index_total",
+    "search_total",
+    "processing_total",
+    "search_failures",
+    "index_failures",
+    "exponential_avg_checkpoint_duration_ms",
+    "exponential_avg_documents_indexed",
+    "exponential_avg_documents_processed"
+  ],
+  "properties": {
+    "pages_processed": {
+      "type": "integer"
+    },
+    "documents_processed": {
+      "type": "integer"
+    },
+    "documents_indexed": {
+      "type": "integer"
+    },
+    "documents_deleted": {
+      "type": "integer"
+    },
+    "trigger_count": {
+      "type": "integer"
+    },
+    "index_time_in_ms": {
+      "type": "integer"
+    },
+    "search_time_in_ms": {
+      "type": "integer"
+    },
+    "processing_time_in_ms": {
+      "type": "integer"
+    },
+    "delete_time_in_ms": {
+      "type": "integer"
+    },
+    "index_total": {
+      "type": "integer"
+    },
+    "search_total": {
+      "type": "integer"
+    },
+    "processing_total": {
+      "type": "integer"
+    },
+    "search_failures": {
+      "type": "integer"
+    },
+    "index_failures": {
+      "type": "integer"
+    },
+    "exponential_avg_checkpoint_duration_ms": {
+      "type": "number"
+    },
+    "exponential_avg_documents_indexed": {
+      "type": "number"
+    },
+    "exponential_avg_documents_processed": {
+      "type": "number"
+    }
+  }
+}

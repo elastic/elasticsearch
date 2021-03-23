@@ -11,29 +11,28 @@ distributes these calculations across your cluster. You can then feed this
 aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
-TIP: If you use a terms aggregation and the cardinality of a term is high, 
-use composite aggregations instead.
+TIP: If you use a terms aggregation and the cardinality of a term is high but
+still significantly less than your total number of documents, use composite
+aggregations
+experimental:[support for composite aggregations inside datafeeds is currently experimental].
 
 [discrete]
 [[aggs-limits-dfeeds]]
 == Requirements and limitations
 
-There are some limitations to using aggregations in {dfeeds}. Your aggregation
-must include a `date_histogram` aggregation or a top level `composite` aggregation,
+There are some limitations to using aggregations in {dfeeds}.
+
+Your aggregation must include a `date_histogram` aggregation or a top level `composite` aggregation,
 which in turn must contain a `max` aggregation on the time field.
 This requirement ensures that the aggregated data is a time series and the timestamp
 of each bucket is the time of the last record in the bucket.
-
-For `composite` aggregation support, there must be exactly one `date_histogram` value
-source. That value source must not be sorted in descending order. Additional
-`composite` aggregation value sources are allowed, such as `terms`.
 
 IMPORTANT: The name of the aggregation and the name of the field that the agg
 operates on need to match, otherwise the aggregation doesn't work. For example,
 if you use a `max` aggregation on a time field called `responsetime`, the name
 of the aggregation must be also `responsetime`.
 
-You must also consider the interval of the `date_histogram` or `composite`
+You must consider the interval of the `date_histogram` or `composite`
 aggregation carefully. The bucket span of your {anomaly-job} must be divisible
 by the value of the `calendar_interval` or `fixed_interval` in your aggregation
 (with no remainder). If you specify a `frequency` for your {dfeed},
@@ -61,10 +60,12 @@ To avoid this behavior, make sure that the aggregation interval in the {dfeed}
 configuration and the bucket span in the {anomaly-job} configuration have the
 same values.
 
+Your {dfeed} can contain multiple aggregations, but only the ones with names
+that match values in the job configuration are fed to the job.
 
 [discrete]
-[[aggs-include-jobs]]
-== Including aggregations in {anomaly-jobs}
+[[aggs-using-date-histogram]]
+=== Including aggregations in {anomaly-jobs}
 
 When you create or update an {anomaly-job}, you can include the names of
 aggregations, for example:
@@ -149,13 +150,20 @@ detector field information, consider using a `composite` aggregation. It perform
 better than a `date_histogram` with a nested `term` aggregation and also includes
 all the values of the field instead of the top values per bucket.
 
-NOTE: `composite` aggregations may not be as performant as a scrolling or 
+[discrete]
+[[aggs-using-composite]]
+=== Using composite aggregations in {anomaly-jobs}
+
+experimental::[]
+
+For `composite` aggregation support, there must be exactly one `date_histogram` value
+source. That value source must not be sorted in descending order. Additional
+`composite` aggregation value sources are allowed, such as `terms`.
+
+NOTE: `composite` aggregations may not be as performant as a scrolling or
 `date_histogram` oriented {dfeed}. `composite` aggregations are optimized
 for queries that are either `match_all` or `range` filters. Other types of
 queries may cause the `composite` aggregation to be ineffecient.
-
-Your {dfeed} can contain multiple aggregations, but only the ones with names
-that match values in the job configuration are fed to the job.
 
 Here is an example utilizing a `composite` aggregation instead of a
 `date_histogram`.
@@ -254,6 +262,9 @@ job analysis config.
 {dfeeds-cap} support complex nested aggregations. This example uses the
 `derivative` pipeline aggregation to find the first order derivative of the
 counter `system.network.out.bytes` for each value of the field `beat.name`.
+
+NOTE: `derivative` or other pipeline aggregations may not work within `composite`
+aggregations.
 
 [source,js]
 ----------------------------------
@@ -441,12 +452,10 @@ the time of the latest record within a bucket.
 You can optionally specify a terms aggregation, which creates buckets for
 different values of a field.
 
-TIP: Instead of nesting a `term` aggregation, use `composite` aggs when you
-have many terms and a simple range query.
-
 IMPORTANT: If you use a terms aggregation, by default it returns buckets for
 the top ten terms. Thus if the cardinality of the term is greater than 10, not
-all terms are analyzed.
+all terms are analyzed. In this case, consider using `composite` aggs
+experimental:[composite agg support in datafeeds is currently experimental]
 
 You can change this behavior by setting the `size` parameter. To
 determine the cardinality of your data, you can run searches such as:

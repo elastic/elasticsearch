@@ -50,7 +50,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             if (script.get() == null) {
                 return new KeywordScriptFieldType(name, StringFieldScript.PARSE_FROM_SOURCE, this);
             }
-            StringFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), StringFieldScript.CONTEXT);
+            StringFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), StringFieldScript.CONTEXT);
             return new KeywordScriptFieldType(name, factory, this);
         }
     });

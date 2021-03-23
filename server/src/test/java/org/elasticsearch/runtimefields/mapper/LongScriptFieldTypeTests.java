@@ -29,29 +29,21 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.runtimefields.fielddata.LongScriptFieldData;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -263,12 +255,12 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected LongScriptFieldType simpleMappedFieldType() throws IOException {
+    protected LongScriptFieldType simpleMappedFieldType() {
         return build("read_foo", Map.of());
     }
 
     @Override
-    protected LongScriptFieldType loopFieldType() throws IOException {
+    protected LongScriptFieldType loopFieldType() {
         return build("loop", Map.of());
     }
 
@@ -277,85 +269,53 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return "long";
     }
 
-    private static LongScriptFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static LongScriptFieldType build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static LongScriptFieldType build(Script script) throws IOException {
-        ScriptPlugin scriptPlugin = new ScriptPlugin() {
-            @Override
-            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new ScriptEngine() {
+    private static LongFieldScript.Factory factory(Script script) {
+        switch (script.getIdOrCode()) {
+            case "read_foo":
+                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
                     @Override
-                    public String getType() {
-                        return "test";
-                    }
-
-                    @Override
-                    public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of();
-                    }
-
-                    @Override
-                    public <FactoryType> FactoryType compile(
-                        String name,
-                        String code,
-                        ScriptContext<FactoryType> context,
-                        Map<String, String> params
-                    ) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType factory = (FactoryType) factory(code);
-                        return factory;
-                    }
-
-                    private LongFieldScript.Factory factory(String code) {
-                        switch (code) {
-                            case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit(((Number) foo).longValue());
-                                        }
-                                    }
-                                };
-                            case "add_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
-                                        }
-                                    }
-                                };
-                            case "millis_ago":
-                                // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
-                                long now = System.currentTimeMillis();
-                                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
-                                            emit(now - ((Number) timestamp).longValue());
-                                        }
-                                    }
-                                };
-                            case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
-                                };
-                            default:
-                                throw new IllegalArgumentException("unsupported script [" + code + "]");
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit(((Number) foo).longValue());
                         }
                     }
                 };
-            }
-        };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin));
-        try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            LongFieldScript.Factory factory = scriptService.compile(script, LongFieldScript.CONTEXT);
-            return new LongScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            case "add_param":
+                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit(((Number) foo).longValue() + ((Number) getParams().get("param")).longValue());
+                        }
+                    }
+                };
+            case "millis_ago":
+                // Painless actually call System.currentTimeMillis. We could mock the time but this works fine too.
+                long now = System.currentTimeMillis();
+                return (fieldName, params, lookup) -> (ctx) -> new LongFieldScript(fieldName, params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                            emit(now - ((Number) timestamp).longValue());
+                        }
+                    }
+                };
+            case "loop":
+                return (fieldName, params, lookup) -> {
+                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                    lookup.forkAndTrackFieldReferences("test");
+                    throw new IllegalStateException("shoud have thrown on the line above");
+                };
+            default:
+                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         }
+    }
+
+    private static LongScriptFieldType build(Script script) {
+        return new LongScriptFieldType("test", factory(script), script, emptyMap(), (b, d) -> {});
     }
 }

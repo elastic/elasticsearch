@@ -12,7 +12,7 @@ The transport layer relies on mutual TLS for both encryption and
 authentication of nodes. Applying TLS ensures that a malicious node cannot join the
 cluster and exchange data with other nodes. While implementing username and
 password authentication at the HTTP layer is useful for securing a local
-cluster, there is no internode security without configuring TLS.
+cluster, the security of communication between nodes requires TLS.
 
 Configuring TLS is the basic security setup to prevent unauthorized nodes from
 accessing to your cluster.

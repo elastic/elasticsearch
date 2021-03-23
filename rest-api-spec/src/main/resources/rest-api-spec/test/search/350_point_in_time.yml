@@ -37,8 +37,8 @@ setup:
 ---
 "basic":
   - skip:
-      version: " - 7.9.99"
-      reason: "point in time is introduced in 7.10"
+      version: " - 7.99.99"
+      reason: "point in time is introduced in server in 8.0"
   - do:
       open_point_in_time:
         index: test

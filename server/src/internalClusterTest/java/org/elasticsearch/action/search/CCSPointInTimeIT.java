@@ -1,25 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.search;
+package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,12 +36,6 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         return List.of("remote_cluster");
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(LocalStateCompositeXPackPlugin.class);
-        return plugins;
-    }
 
     void indexDocs(Client client, String index, int numDocs) {
         for (int i = 0; i < numDocs; i++) {

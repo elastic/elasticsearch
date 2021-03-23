@@ -44,17 +44,17 @@ have a fixed size and can significantly reduce your storage costs.
 {ilm-init} uses shared snapshot caches by default in the frozen phase and
 corresponding frozen tier.
 
-The frozen tier is not yet available on {ess}. However, you can recreate a
-frozen tier on {ess} using shared snapshot caches. See
+The frozen tier is not yet available on the {ess}. However, you can recreate a
+frozen tier on the {ess} using shared snapshot caches. See
 {ref}/searchable-snapshots.html#searchable-snapshots-frozen-tier-on-cloud[Configure
 a frozen tier on the {ess}].
 
-To add a node to the frozen tier for an on-premise cluster, assign it the
+To add a node to the frozen tier in an on-premise cluster, assign it the
 {ref}/modules-node.html#data-frozen-node[`data_frozen`] node role and set
 {ref}/searchable-snapshots.html#searchable-snapshots-shared-cache[`xpack.searchable.snapshot.shared_cache.size`]
 in `elasticsearch.yml`. See the {ref}/data-tiers.html#frozen-tier[Data tiers]
 and
-{ref}/searchable-snapshots.html#searchable-snapshot-mount-storage-options[{search-snap}]
+{ref}/searchable-snapshots.html#searchable-snapshot-mount-storage-options[{search-snaps-cap}]
 documentation.
 
 [discrete]

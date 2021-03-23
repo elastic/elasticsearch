@@ -11,36 +11,34 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ml.action.UndeployTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
-public class RestUndeployTrainedModelAction extends BaseRestHandler {
+public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_ml_undeploy_trained_model_action";
+        return "xpack_ml_start_trained_models_deployment_action";
     }
 
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(
-                POST,
-                BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_undeploy")
-        );
+            new Route(POST,
+                MachineLearning.BASE_PATH + "trained_models/deployment/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_start"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
-        UndeployTrainedModelAction.Request request = new UndeployTrainedModelAction.Request(modelId);
-        return channel -> client.execute(UndeployTrainedModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        StartTrainedModelDeploymentAction.Request request = new StartTrainedModelDeploymentAction.Request(modelId);
+        return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

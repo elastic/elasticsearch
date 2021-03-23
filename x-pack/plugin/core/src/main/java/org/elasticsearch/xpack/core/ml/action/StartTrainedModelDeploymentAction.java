@@ -28,14 +28,14 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedResponse> {
+public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledgedResponse> {
 
-    public static final DeployTrainedModelAction INSTANCE = new DeployTrainedModelAction();
-    public static final String NAME = "cluster:admin/xpack/ml/inference/trained_model/deploy";
+    public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
+    public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
-    public DeployTrainedModelAction() {
+    public StartTrainedModelDeploymentAction() {
         super(NAME, NodeAcknowledgedResponse::new);
     }
 

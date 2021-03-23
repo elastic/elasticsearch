@@ -39,16 +39,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction;
-import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
-import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelState;
-import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelTaskState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.deployment.DeployTrainedModelTask;
+import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -59,29 +59,30 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-public class TransportDeployTrainedModelAction
-    extends TransportMasterNodeAction<DeployTrainedModelAction.Request, NodeAcknowledgedResponse> {
+public class TransportStartTrainedModelDeploymentAction
+    extends TransportMasterNodeAction<StartTrainedModelDeploymentAction.Request, NodeAcknowledgedResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportDeployTrainedModelAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportStartTrainedModelDeploymentAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportDeployTrainedModelAction(TransportService transportService, Client client, ClusterService clusterService,
-                                                ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
-                                                IndexNameExpressionResolver indexNameExpressionResolver,
-                                                PersistentTasksService persistentTasksService) {
-        super(DeployTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeployTrainedModelAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
+    public TransportStartTrainedModelDeploymentAction(TransportService transportService, Client client, ClusterService clusterService,
+                                                      ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
+                                                      IndexNameExpressionResolver indexNameExpressionResolver,
+                                                      PersistentTasksService persistentTasksService) {
+        super(StartTrainedModelDeploymentAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            StartTrainedModelDeploymentAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new,
+            ThreadPool.Names.SAME);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = Objects.requireNonNull(client);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
     }
 
     @Override
-    protected void masterOperation(Task task, DeployTrainedModelAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, StartTrainedModelDeploymentAction.Request request, ClusterState state,
                                    ActionListener<NodeAcknowledgedResponse> listener) throws Exception {
         logger.debug(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
         if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
@@ -150,7 +151,7 @@ public class TransportDeployTrainedModelAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeployTrainedModelAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(StartTrainedModelDeploymentAction.Request request, ClusterState state) {
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
@@ -184,16 +185,16 @@ public class TransportDeployTrainedModelAction
                 }
             }
 
-            DeployTrainedModelTaskState taskState = (DeployTrainedModelTaskState) persistentTask.getState();
+            TrainedModelDeploymentTaskState taskState = (TrainedModelDeploymentTaskState) persistentTask.getState();
             reason = taskState != null ? taskState.getReason() : reason;
-            DeployTrainedModelState deploymentState = taskState == null ? DeployTrainedModelState.DEPLOYED : taskState.getState();
+            TrainedModelDeploymentState deploymentState = taskState == null ? TrainedModelDeploymentState.STARTED : taskState.getState();
             switch (deploymentState) {
-                case DEPLOYED:
+                case STARTED:
                     node = persistentTask.getExecutorNode();
                     return true;
-                case DEPLOYING:
-                case UNDEPLOYING:
-                case UNDEPLOYED:
+                case STARTING:
+                case STOPPING:
+                case STOPPED:
                     return false;
                 default:
                     exception = ExceptionsHelper.serverError("Unexpected task state [{}] with reason [{}] while waiting to be started",
@@ -223,7 +224,7 @@ public class TransportDeployTrainedModelAction
             long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
             Map<String, String> headers) {
-            return new DeployTrainedModelTask(id, type, action, parentTaskId, headers, persistentTask.getParams());
+            return new TrainedModelDeploymentTask(id, type, action, parentTaskId, headers, persistentTask.getParams());
         }
 
         @Override
@@ -261,13 +262,13 @@ public class TransportDeployTrainedModelAction
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
-            DeployTrainedModelTask deployTrainedModelTask = (DeployTrainedModelTask) task;
-            deployTrainedModelTask.setDeploymentManager(manager);
+            TrainedModelDeploymentTask trainedModelDeploymentTask = (TrainedModelDeploymentTask) task;
+            trainedModelDeploymentTask.setDeploymentManager(manager);
 
-            DeployTrainedModelTaskState deployingState = new DeployTrainedModelTaskState(
-                DeployTrainedModelState.DEPLOYING, task.getAllocationId(), null);
+            TrainedModelDeploymentTaskState deployingState = new TrainedModelDeploymentTaskState(
+                TrainedModelDeploymentState.STARTING, task.getAllocationId(), null);
             task.updatePersistentTaskState(deployingState, ActionListener.wrap(
-                response -> manager.deployModel(deployTrainedModelTask),
+                response -> manager.deployModel(trainedModelDeploymentTask),
                 task::markAsFailed
             ));
         }

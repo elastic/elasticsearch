@@ -95,7 +95,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -142,7 +142,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.UndeployTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -159,7 +159,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelTaskState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -178,7 +178,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.action.TransportDeployTrainedModelAction;
+import org.elasticsearch.xpack.ml.action.TransportStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
@@ -225,7 +225,7 @@ import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportUndeployTrainedModelAction;
+import org.elasticsearch.xpack.ml.action.TransportStopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateDatafeedAction;
@@ -333,12 +333,12 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestDeployTrainedModelAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestUndeployTrainedModelAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestStopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -893,7 +893,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     memoryTracker.get(),
                     expressionResolver,
                     client),
-                new TransportDeployTrainedModelAction.TaskExecutor(settings,
+                new TransportStartTrainedModelDeploymentAction.TaskExecutor(settings,
                     clusterService,
                     expressionResolver,
                     memoryTracker.get(),
@@ -973,8 +973,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new RestPutTrainedModelAliasAction(),
             new RestDeleteTrainedModelAliasAction(),
             new RestPreviewDataFrameAnalyticsAction(),
-            new RestDeployTrainedModelAction(),
-            new RestUndeployTrainedModelAction(),
+            new RestStartTrainedModelDeploymentAction(),
+            new RestStopTrainedModelDeploymentAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1061,8 +1061,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(PutTrainedModelAliasAction.INSTANCE, TransportPutTrainedModelAliasAction.class),
                 new ActionHandler<>(DeleteTrainedModelAliasAction.INSTANCE, TransportDeleteTrainedModelAliasAction.class),
                 new ActionHandler<>(PreviewDataFrameAnalyticsAction.INSTANCE, TransportPreviewDataFrameAnalyticsAction.class),
-                new ActionHandler<>(DeployTrainedModelAction.INSTANCE, TransportDeployTrainedModelAction.class),
-                new ActionHandler<>(UndeployTrainedModelAction.INSTANCE, TransportUndeployTrainedModelAction.class),
+                new ActionHandler<>(StartTrainedModelDeploymentAction.INSTANCE, TransportStartTrainedModelDeploymentAction.class),
+                new ActionHandler<>(StopTrainedModelDeploymentAction.INSTANCE, TransportStopTrainedModelDeploymentAction.class),
                 usageAction,
                 infoAction);
     }
@@ -1198,7 +1198,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             SnapshotUpgradeTaskParams::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME,
-            DeployTrainedModelAction.TaskParams::new));
+            StartTrainedModelDeploymentAction.TaskParams::new));
 
         // Persistent task states
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
@@ -1209,7 +1209,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             SnapshotUpgradeTaskState.NAME,
             SnapshotUpgradeTaskState::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class,
-            DeployTrainedModelTaskState.NAME, DeployTrainedModelTaskState::new));
+            TrainedModelDeploymentTaskState.NAME, TrainedModelDeploymentTaskState::new));
 
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new AnalysisStatsNamedWriteablesProvider().getNamedWriteables());

@@ -12,21 +12,21 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction;
-import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 
 import java.util.Map;
 
-public class DeployTrainedModelTask extends AllocatedPersistentTask implements DeployTrainedModelAction.TaskMatcher {
+public class TrainedModelDeploymentTask extends AllocatedPersistentTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
-    private static final Logger logger = LogManager.getLogger(DeployTrainedModelTask.class);
+    private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
     private final TaskParams params;
     private volatile boolean isStopping;
     private volatile DeploymentManager manager;
 
-    public DeployTrainedModelTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                                  TaskParams taskParams) {
+    public TrainedModelDeploymentTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
+                                      TaskParams taskParams) {
         super(id, type, action, MlTasks.DEPLOY_TRAINED_MODEL_TASK_ID_PREFIX + taskParams.getModelId(), parentTask, headers);
         this.params = taskParams;
     }

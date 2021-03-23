@@ -11,34 +11,36 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ml.action.DeployTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
-public class RestDeployTrainedModelAction extends BaseRestHandler {
+public class RestStopTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_ml_deploy_trained_model_action";
+        return "xpack_ml_stop_trained_models_deployment_action";
     }
 
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(POST,
-                MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_deploy"));
+            new Route(
+                POST,
+                BASE_PATH + "trained_models/deployment/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stop")
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
-        DeployTrainedModelAction.Request request = new DeployTrainedModelAction.Request(modelId);
-        return channel -> client.execute(DeployTrainedModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        StopTrainedModelDeploymentAction.Request request = new StopTrainedModelDeploymentAction.Request(modelId);
+        return channel -> client.execute(StopTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

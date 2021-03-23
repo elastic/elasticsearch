@@ -31,41 +31,41 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.UndeployTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelState;
-import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelTaskState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.deployment.DeployTrainedModelTask;
+import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-public class TransportUndeployTrainedModelAction extends TransportTasksAction<DeployTrainedModelTask, UndeployTrainedModelAction.Request,
-    UndeployTrainedModelAction.Response, UndeployTrainedModelAction.Response> {
+public class TransportStopTrainedModelDeploymentAction extends TransportTasksAction<TrainedModelDeploymentTask,
+    StopTrainedModelDeploymentAction.Request, StopTrainedModelDeploymentAction.Response, StopTrainedModelDeploymentAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportUndeployTrainedModelAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportStopTrainedModelDeploymentAction.class);
 
     private final Client client;
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportUndeployTrainedModelAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                               ActionFilters actionFilters, Client client, ThreadPool threadPool,
-                                               PersistentTasksService persistentTasksService) {
-        super(actionName, clusterService, transportService, actionFilters, UndeployTrainedModelAction.Request::new,
-            UndeployTrainedModelAction.Response::new, UndeployTrainedModelAction.Response::new, ThreadPool.Names.SAME);
+    public TransportStopTrainedModelDeploymentAction(String actionName, ClusterService clusterService, TransportService transportService,
+                                                     ActionFilters actionFilters, Client client, ThreadPool threadPool,
+                                                     PersistentTasksService persistentTasksService) {
+        super(actionName, clusterService, transportService, actionFilters, StopTrainedModelDeploymentAction.Request::new,
+            StopTrainedModelDeploymentAction.Response::new, StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
-    protected void doExecute(Task task, UndeployTrainedModelAction.Request request,
-                             ActionListener<UndeployTrainedModelAction.Response> listener) {
+    protected void doExecute(Task task, StopTrainedModelDeploymentAction.Request request,
+                             ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         ClusterState state = clusterService.state();
         DiscoveryNodes nodes = state.nodes();
         if (nodes.isLocalNodeElectedMaster() == false) {
@@ -79,7 +79,7 @@ public class TransportUndeployTrainedModelAction extends TransportTasksAction<De
             getModelsResponse -> {
                 List<TrainedModelConfig> models = getModelsResponse.getResources().results();
                 if (models.isEmpty()) {
-                    listener.onResponse(new UndeployTrainedModelAction.Response(true));
+                    listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                     return;
                 }
                 if (models.size() > 1) {
@@ -92,7 +92,7 @@ public class TransportUndeployTrainedModelAction extends TransportTasksAction<De
                 PersistentTasksCustomMetadata.PersistentTask<?> deployTrainedModelTask =
                     MlTasks.getDeployTrainedModelTask(request.getId(), tasks);
                 if (deployTrainedModelTask == null) {
-                    listener.onResponse(new UndeployTrainedModelAction.Response(true));
+                    listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                     return;
                 }
                 normalUndeploy(task, deployTrainedModelTask, request, listener);
@@ -106,21 +106,22 @@ public class TransportUndeployTrainedModelAction extends TransportTasksAction<De
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 
-    private void redirectToMasterNode(DiscoveryNode masterNode, UndeployTrainedModelAction.Request request,
-                                      ActionListener<UndeployTrainedModelAction.Response> listener) {
+    private void redirectToMasterNode(DiscoveryNode masterNode, StopTrainedModelDeploymentAction.Request request,
+                                      ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException());
         } else {
             transportService.sendRequest(masterNode, actionName, request,
-                new ActionListenerResponseHandler<>(listener, UndeployTrainedModelAction.Response::new));
+                new ActionListenerResponseHandler<>(listener, StopTrainedModelDeploymentAction.Response::new));
         }
     }
 
     private void normalUndeploy(Task task, PersistentTasksCustomMetadata.PersistentTask<?> deployTrainedModelTask,
-                                UndeployTrainedModelAction.Request request, ActionListener<UndeployTrainedModelAction.Response> listener) {
+                                StopTrainedModelDeploymentAction.Request request,
+                                ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         request.setNodes(deployTrainedModelTask.getExecutorNode());
 
-        ActionListener<UndeployTrainedModelAction.Response> finalListener = ActionListener.wrap(
+        ActionListener<StopTrainedModelDeploymentAction.Response> finalListener = ActionListener.wrap(
             r -> waitForTaskRemoved(Collections.singleton(deployTrainedModelTask.getId()), request, r, listener),
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
@@ -139,9 +140,9 @@ public class TransportUndeployTrainedModelAction extends TransportTasksAction<De
         super.doExecute(task, request, finalListener);
     }
 
-    void waitForTaskRemoved(Set<String> taskIds, UndeployTrainedModelAction.Request request,
-                            UndeployTrainedModelAction.Response response,
-                            ActionListener<UndeployTrainedModelAction.Response> listener) {
+    void waitForTaskRemoved(Set<String> taskIds, StopTrainedModelDeploymentAction.Request request,
+                            StopTrainedModelDeploymentAction.Response response,
+                            ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasks ->
                 persistentTasks.findTasks(MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME, t -> taskIds.contains(t.getId())).isEmpty(),
             request.getTimeout(), ActionListener.wrap(
@@ -154,24 +155,24 @@ public class TransportUndeployTrainedModelAction extends TransportTasksAction<De
     }
 
     @Override
-    protected UndeployTrainedModelAction.Response newResponse(UndeployTrainedModelAction.Request request,
-                                                              List<UndeployTrainedModelAction.Response> tasks,
-                                                              List<TaskOperationFailure> taskOperationFailures,
-                                                              List<FailedNodeException> failedNodeExceptions) {
+    protected StopTrainedModelDeploymentAction.Response newResponse(StopTrainedModelDeploymentAction.Request request,
+                                                                    List<StopTrainedModelDeploymentAction.Response> tasks,
+                                                                    List<TaskOperationFailure> taskOperationFailures,
+                                                                    List<FailedNodeException> failedNodeExceptions) {
         if (taskOperationFailures.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
         } else {
-            return new UndeployTrainedModelAction.Response(true);
+            return new StopTrainedModelDeploymentAction.Response(true);
         }
     }
 
     @Override
-    protected void taskOperation(UndeployTrainedModelAction.Request request, DeployTrainedModelTask task,
-                                 ActionListener<UndeployTrainedModelAction.Response> listener) {
-        DeployTrainedModelTaskState undeployingState = new DeployTrainedModelTaskState(
-            DeployTrainedModelState.UNDEPLOYING, task.getAllocationId(), "api");
+    protected void taskOperation(StopTrainedModelDeploymentAction.Request request, TrainedModelDeploymentTask task,
+                                 ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
+        TrainedModelDeploymentTaskState undeployingState = new TrainedModelDeploymentTaskState(
+            TrainedModelDeploymentState.STOPPING, task.getAllocationId(), "api");
         task.updatePersistentTaskState(undeployingState, ActionListener.wrap(
             updatedTask -> {
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
@@ -183,14 +184,14 @@ public class TransportUndeployTrainedModelAction extends TransportTasksAction<De
                     @Override
                     protected void doRun() throws Exception {
                         task.stop("undeploy_trained_model (api)");
-                        listener.onResponse(new UndeployTrainedModelAction.Response(true));
+                        listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                     }
                 });
             },
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     // the task has disappeared so must have stopped
-                    listener.onResponse(new UndeployTrainedModelAction.Response(true));
+                    listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                 } else {
                     listener.onFailure(e);
                 }

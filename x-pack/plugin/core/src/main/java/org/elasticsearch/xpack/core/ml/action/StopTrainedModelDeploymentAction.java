@@ -23,13 +23,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UndeployTrainedModelAction extends ActionType<UndeployTrainedModelAction.Response> {
+public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedModelDeploymentAction.Response> {
 
-    public static final UndeployTrainedModelAction INSTANCE = new UndeployTrainedModelAction();
-    public static final String NAME = "cluster:admin/xpack/ml/trained_models/undeploy";
+    public static final StopTrainedModelDeploymentAction INSTANCE = new StopTrainedModelDeploymentAction();
+    public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/stop";
 
-    public UndeployTrainedModelAction() {
-        super(NAME, UndeployTrainedModelAction.Response::new);
+    public StopTrainedModelDeploymentAction() {
+        super(NAME, StopTrainedModelDeploymentAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -78,7 +78,7 @@ public class UndeployTrainedModelAction extends ActionType<UndeployTrainedModelA
 
         @Override
         public boolean match(Task task) {
-            return DeployTrainedModelAction.TaskMatcher.match(task, id);
+            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, id);
         }
 
         @Override
@@ -140,7 +140,7 @@ public class UndeployTrainedModelAction extends ActionType<UndeployTrainedModelA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("undeployed", undeployed);
+            builder.field("stopped", undeployed);
             builder.endObject();
             return builder;
         }

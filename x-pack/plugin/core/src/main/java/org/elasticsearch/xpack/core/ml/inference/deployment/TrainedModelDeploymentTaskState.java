@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeployTrainedModelTaskState implements PersistentTaskState {
+public class TrainedModelDeploymentTaskState implements PersistentTaskState {
 
     public static final String NAME = MlTasks.DEPLOY_TRAINED_MODEL_TASK_NAME;
 
@@ -29,13 +29,13 @@ public class DeployTrainedModelTaskState implements PersistentTaskState {
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
     private static ParseField REASON = new ParseField("reason");
 
-    private final DeployTrainedModelState state;
+    private final TrainedModelDeploymentState state;
     private final long allocationId;
     private final String reason;
 
-    private static final ConstructingObjectParser<DeployTrainedModelTaskState, Void> PARSER =
+    private static final ConstructingObjectParser<TrainedModelDeploymentTaskState, Void> PARSER =
         new ConstructingObjectParser<>(NAME, true,
-            a -> new DeployTrainedModelTaskState((DeployTrainedModelState) a[0], (long) a[1], (String) a[2]));
+            a -> new TrainedModelDeploymentTaskState((TrainedModelDeploymentState) a[0], (long) a[1], (String) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsState::fromString, STATE);
@@ -43,7 +43,7 @@ public class DeployTrainedModelTaskState implements PersistentTaskState {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
 
-    public static DeployTrainedModelTaskState fromXContent(XContentParser parser) {
+    public static TrainedModelDeploymentTaskState fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {
@@ -51,19 +51,19 @@ public class DeployTrainedModelTaskState implements PersistentTaskState {
         }
     }
 
-    public DeployTrainedModelTaskState(DeployTrainedModelState state, long allocationId, @Nullable String reason) {
+    public TrainedModelDeploymentTaskState(TrainedModelDeploymentState state, long allocationId, @Nullable String reason) {
         this.state = Objects.requireNonNull(state);
         this.allocationId = allocationId;
         this.reason = reason;
     }
 
-    public DeployTrainedModelTaskState(StreamInput in) throws IOException {
-        this.state = DeployTrainedModelState.fromStream(in);
+    public TrainedModelDeploymentTaskState(StreamInput in) throws IOException {
+        this.state = TrainedModelDeploymentState.fromStream(in);
         this.allocationId = in.readLong();
         this.reason = in.readOptionalString();
     }
 
-    public DeployTrainedModelState getState() {
+    public TrainedModelDeploymentState getState() {
         return state;
     }
 
@@ -99,7 +99,7 @@ public class DeployTrainedModelTaskState implements PersistentTaskState {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DeployTrainedModelTaskState that = (DeployTrainedModelTaskState) o;
+        TrainedModelDeploymentTaskState that = (TrainedModelDeploymentTaskState) o;
         return allocationId == that.allocationId &&
             state == that.state &&
             Objects.equals(reason, that.reason);

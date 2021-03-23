@@ -14,16 +14,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum DeployTrainedModelState implements Writeable {
+public enum TrainedModelDeploymentState implements Writeable {
 
-    DEPLOYING, DEPLOYED, UNDEPLOYING, UNDEPLOYED;
+    STARTING, STARTED, STOPPING, STOPPED;
 
-    public static DeployTrainedModelState fromString(String name) {
+    public static TrainedModelDeploymentState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static DeployTrainedModelState fromStream(StreamInput in) throws IOException {
-        return in.readEnum(DeployTrainedModelState.class);
+    public static TrainedModelDeploymentState fromStream(StreamInput in) throws IOException {
+        return in.readEnum(TrainedModelDeploymentState.class);
     }
 
     @Override

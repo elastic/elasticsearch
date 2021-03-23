@@ -36,6 +36,10 @@
         "type":"boolean",
         "description":"Return detailed task information (default: false)"
       },
+      "descriptions":{
+        "type":"list",
+        "description":"A comma-separate list of descriptions that should match the task description. Leave empty to not match on description. `detailed` must be true if this is set."
+      },
       "parent_task_id":{
         "type":"string",
         "description":"Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."

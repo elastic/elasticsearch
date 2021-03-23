@@ -54,6 +54,19 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `false`.
     
+`descriptions`::
+(Optional, string) Comma-separated list or wildcard expression
+of descriptions used to limit the request. Other matching criteria such as
+`actions` and `parent_task_id` are applied as well.
+
+This option can only be used if `detailed=true`.
+
+Omit this parameter to not filter tasks by their description.
+
+Note: Descriptions are usually dynamically generated given the original
+task parameters. Be sure your description filter is accurate for what
+you want to match against.
+
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 

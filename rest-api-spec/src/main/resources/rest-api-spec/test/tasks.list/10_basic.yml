@@ -33,4 +33,32 @@
 
   - is_true: tasks
   - match: { tasks.0.headers.X-Opaque-Id: "That is me" }
+---
+"tasks_list on description":
+  - skip:
+      # change after backport
+      version: " - 7.99.99"
+      reason: support for listing tasks via description was not added until 7.13.0
+
+  - do:
+      tasks.list:
+        actions: "cluster:monitor/tasks/lists"
+        detailed: true
+        descriptions: "anything*"
+
+  - length: { tasks: 0 }
+
+  - do:
+      tasks.list:
+        actions: "cluster:monitor/tasks/lists"
+        detailed: true
+        descriptions: "*"
+
+  - length: { tasks: 1 }
+
+  - do:
+      catch: /matching on descriptions is not available when \[detailed\] is false/
+      tasks.list:
+        actions: "cluster:monitor/tasks/lists"
+        descriptions: "*"
 

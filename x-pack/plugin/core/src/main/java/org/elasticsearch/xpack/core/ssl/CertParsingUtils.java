@@ -86,7 +86,7 @@ public class CertParsingUtils {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll((Collection<Certificate>) certFactory.generateCertificates(input));
+                certificates.addAll(certFactory.generateCertificates(input));
                 if (certificates.isEmpty()) {
                     throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
                 }
@@ -95,6 +95,7 @@ public class CertParsingUtils {
         return certificates.toArray(new Certificate[0]);
     }
 
+    @SuppressWarnings("unchecked")
     public static X509Certificate[] readX509Certificates(List<Path> certPaths) throws CertificateException, IOException {
         Collection<X509Certificate> certificates = new ArrayList<>();
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
@@ -108,7 +109,7 @@ public class CertParsingUtils {
 
     public static List<Certificate> readCertificates(InputStream input) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        Collection<Certificate> certificates = (Collection<Certificate>) certFactory.generateCertificates(input);
+        Collection<? extends Certificate> certificates = certFactory.generateCertificates(input);
         return new ArrayList<>(certificates);
     }
 

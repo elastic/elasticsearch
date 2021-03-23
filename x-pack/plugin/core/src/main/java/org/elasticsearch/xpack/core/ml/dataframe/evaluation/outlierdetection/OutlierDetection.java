@@ -38,6 +38,7 @@ public class OutlierDetection implements Evaluation {
 
     private static final ParseField METRICS = new ParseField("metrics");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(), a -> new OutlierDetection((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 

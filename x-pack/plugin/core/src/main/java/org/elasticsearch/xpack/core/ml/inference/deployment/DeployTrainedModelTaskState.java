@@ -63,6 +63,14 @@ public class DeployTrainedModelTaskState implements PersistentTaskState {
         this.reason = in.readOptionalString();
     }
 
+    public DeployTrainedModelState getState() {
+        return state;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

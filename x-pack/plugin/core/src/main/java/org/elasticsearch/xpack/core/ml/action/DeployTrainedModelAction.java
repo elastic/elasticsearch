@@ -15,6 +15,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -25,11 +26,14 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final DeployTrainedModelAction INSTANCE = new DeployTrainedModelAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/trained_model/deploy";
+
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
     public DeployTrainedModelAction() {
         super(NAME, NodeAcknowledgedResponse::new);
@@ -38,8 +42,10 @@ public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedRespons
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
         private static final ParseField MODEL_ID = new ParseField("model_id");
+        private static final ParseField TIMEOUT = new ParseField("timeout");
 
         private String modelId;
+        private TimeValue timeout = DEFAULT_TIMEOUT;
 
         public Request(String modelId) {
             setModelId(modelId);
@@ -48,6 +54,7 @@ public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedRespons
         public Request(StreamInput in) throws IOException {
             super(in);
             modelId = in.readString();
+            timeout = in.readTimeValue();
         }
 
         public final void setModelId(String modelId) {
@@ -58,15 +65,25 @@ public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedRespons
             return modelId;
         }
 
+        public void setTimeout(TimeValue timeout) {
+            this.timeout = timeout;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
+            out.writeTimeValue(timeout);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MODEL_ID.getPreferredName(), modelId);
+            builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             return builder;
         }
 
@@ -77,7 +94,7 @@ public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedRespons
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId);
+            return Objects.hash(modelId, timeout);
         }
 
         @Override
@@ -89,7 +106,7 @@ public class DeployTrainedModelAction extends ActionType<NodeAcknowledgedRespons
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(modelId, other.modelId);
+            return Objects.equals(modelId, other.modelId) && Objects.equals(timeout, other.timeout);
         }
 
         @Override

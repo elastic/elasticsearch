@@ -11,7 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelState;
+import org.elasticsearch.xpack.core.ml.inference.deployment.DeployTrainedModelTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
@@ -47,6 +50,13 @@ public class DeploymentManager {
         }
 
         processContext.startProcess();
+
+        DeployTrainedModelTaskState startedState = new DeployTrainedModelTaskState(
+            DeployTrainedModelState.DEPLOYED, task.getAllocationId(), null);
+        task.updatePersistentTaskState(startedState, ActionListener.wrap(
+            response -> logger.info("[{}] trained model deployment started", task.getModelId()),
+            task::markAsFailed
+        ));
     }
 
     public void undeployModel(DeployTrainedModelTask task) {

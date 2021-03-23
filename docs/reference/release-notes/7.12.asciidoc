@@ -3,6 +3,21 @@
 
 Also see <<breaking-changes-7.12,Breaking changes in 7.12>>.
 
+[discrete]
+[[security-updates-7.12.0]]
+=== Security updates
+
+* A document disclosure flaw was found in the {es}  suggester and
+profile API when Document and Field Level Security are enabled.
+The suggester and profile API are normally disabled for an index when document
+level security is enabled on the index. Certain queries are able to enable the
+profiler and suggester which could lead to disclosing the existence of documents
+and fields the attacker should not be able to view.
+All versions of {es} before 6.8.15 and 7.12.0 are affected by this flaw.
+You must upgrade to 6.8.15 or 7.12.0 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22135[CVE-2021-22135]
+
+
 [[breaking-7.12.0]]
 [float]
 === Breaking changes
@@ -296,6 +311,3 @@ Search::
 
 Snapshot/Restore::
 * Make `RepositoryData` Parsing Stricter {es-pull}67699[#67699] (issue: {es-issue}67696[#67696])
-
-
-

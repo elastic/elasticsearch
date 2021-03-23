@@ -53,6 +53,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[put-pipeline-api-request-body]]
 ==== {api-request-body-title}
 
+// tag::pipeline-object[]
 `description`::
 (Optional, string)
 Description of the ingest pipeline.
@@ -77,3 +78,4 @@ Version number used by external systems to track ingest pipelines.
 +
 This parameter is intended for external systems only. {es} does not use or
 validate pipeline version numbers.
+// end::pipeline-object[]

@@ -77,7 +77,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
             final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
 
-            try (ServiceAccountToken token = ServiceAccountToken.of(ServiceAccountId.fromPrincipal(principal), tokenName)) {
+            try (ServiceAccountToken token = ServiceAccountToken.newToken(ServiceAccountId.fromPrincipal(principal), tokenName)) {
                 if (tokenHashes.containsKey(token.getQualifiedName())) {
                     throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + token.getQualifiedName() + "] already exists");
                 }

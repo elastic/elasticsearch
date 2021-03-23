@@ -10,12 +10,10 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,7 +45,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (String) a[2],
             Status.valueOf((String) a[3]),
             (long) a[4],
-            (ComponentShutdownStatus) a[5]
+            (NodeShutdownComponentStatus) a[5]
         )
     );
 
@@ -59,7 +57,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
-            (parser, context) -> ComponentShutdownStatus.parse(parser),
+            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
             SHARD_MIGRATION_FIELD
         );
     }
@@ -73,11 +71,11 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final String reason;
     private final Status status;
     private final long startedAtMillis;
-    private final ComponentShutdownStatus shardMigrationStatus;
+    private final NodeShutdownComponentStatus shardMigrationStatus;
 
 
     public SingleNodeShutdownMetadata(
-        String nodeId, Type type, String reason, Status status, long startedAtMillis, ComponentShutdownStatus shardMigrationStatus) {
+        String nodeId, Type type, String reason, Status status, long startedAtMillis, NodeShutdownComponentStatus shardMigrationStatus) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
@@ -92,7 +90,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.reason = in.readString();
         this.status = in.readEnum(Status.class);
         this.startedAtMillis = in.readVLong();
-        this.shardMigrationStatus = new ComponentShutdownStatus(in);
+        this.shardMigrationStatus = new NodeShutdownComponentStatus(in);
     }
 
     /**
@@ -185,92 +183,4 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         COMPLETE
     }
 
-    public static class ComponentShutdownStatus extends AbstractDiffable<ComponentShutdownStatus> implements ToXContentFragment {
-        private final Status status;
-        @Nullable private final Long startedAtMillis;
-        @Nullable private final String errorMessage;
-
-        private static final ParseField STATUS_FIELD = new ParseField("status");
-
-        private static final ParseField TIME_STARTED_FIELD = new ParseField("time_started_millis");
-        private static final ParseField ERROR_FIELD = new ParseField("error");
-        private static final ConstructingObjectParser<ComponentShutdownStatus, Void> PARSER = new ConstructingObjectParser<>(
-            "node_shutdown_component",
-            a -> new ComponentShutdownStatus(Status.valueOf((String) a[0]), (Long) a[1], (String) a[2])
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
-            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_STARTED_FIELD);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ERROR_FIELD);
-        }
-
-        public static ComponentShutdownStatus parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
-        public ComponentShutdownStatus(Status status, @Nullable Long startedAtMillis, @Nullable String errorMessage) {
-            this.status = status;
-            this.startedAtMillis = startedAtMillis;
-            this.errorMessage = errorMessage;
-        }
-
-        public ComponentShutdownStatus(StreamInput in) throws IOException {
-            this.status = in.readEnum(Status.class);
-            this.startedAtMillis = in.readOptionalVLong();
-            this.errorMessage = in.readOptionalString();
-        }
-
-        public Status getStatus() {
-            return status;
-        }
-
-        @Nullable
-        public Long getStartedAtMillis() {
-            return startedAtMillis;
-        }
-
-        @Nullable
-        public String getErrorMessage() {
-            return errorMessage;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field(STATUS_FIELD.getPreferredName(), status);
-                if (startedAtMillis != null) {
-                    builder.timeField(TIME_STARTED_FIELD.getPreferredName(), "time_started", startedAtMillis);
-                }
-                if (errorMessage != null) {
-                    builder.field(ERROR_FIELD.getPreferredName(), errorMessage);
-                }
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(status);
-            out.writeOptionalVLong(startedAtMillis);
-            out.writeOptionalString(errorMessage);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof ComponentShutdownStatus) == false) return false;
-            ComponentShutdownStatus that = (ComponentShutdownStatus) o;
-            return getStatus() == that.getStatus()
-                && Objects.equals(getStartedAtMillis(), that.getStartedAtMillis())
-                && Objects.equals(getErrorMessage(), that.getErrorMessage());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(getStatus(), getStartedAtMillis(), getErrorMessage());
-        }
-    }
 }

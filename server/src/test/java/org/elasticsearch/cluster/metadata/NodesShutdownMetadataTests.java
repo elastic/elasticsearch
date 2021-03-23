@@ -59,8 +59,8 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
         return randomFrom(new ArrayList<>(EnumSet.allOf(SingleNodeShutdownMetadata.Status.class)));
     }
 
-    private SingleNodeShutdownMetadata.ComponentShutdownStatus randomComponentStatus() {
-        return new SingleNodeShutdownMetadata.ComponentShutdownStatus(
+    private NodeShutdownComponentStatus randomComponentStatus() {
+        return new NodeShutdownComponentStatus(
             randomStatus(),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(4, 10)

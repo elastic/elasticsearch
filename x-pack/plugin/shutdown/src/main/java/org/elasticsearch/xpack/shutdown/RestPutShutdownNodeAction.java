@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.util.Collections;
 import java.util.List;
 
 public class RestPutShutdownNodeAction extends BaseRestHandler {
@@ -23,7 +24,7 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "/_nodes/{nodeId}/shutdown"));
+        return Collections.singletonList(new Route(RestRequest.Method.PUT, "/_nodes/{nodeId}/shutdown"));
     }
 
     @Override

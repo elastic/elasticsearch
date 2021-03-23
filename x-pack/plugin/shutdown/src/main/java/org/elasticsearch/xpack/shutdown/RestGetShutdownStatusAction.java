@@ -13,6 +13,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class RestGetShutdownStatusAction extends BaseRestHandler {
@@ -24,7 +25,7 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return Arrays.asList(
             new Route(RestRequest.Method.GET, "/_nodes/{nodeId}/shutdown"),
             new Route(RestRequest.Method.GET, "/_nodes/shutdown")
         );

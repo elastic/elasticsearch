@@ -36,6 +36,7 @@ public final class ChainTransformFactory extends TransformFactory<ChainTransform
     }
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public ExecutableChainTransform createExecutable(ChainTransform chainTransform) {
         ArrayList<ExecutableTransform> executables = new ArrayList<>();
         for (Transform transform : chainTransform.getTransforms()) {

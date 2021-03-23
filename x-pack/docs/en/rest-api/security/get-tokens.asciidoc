@@ -147,8 +147,8 @@ seconds) that the token expires in, and the type:
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 
-The token returned by this API can be used by sending a request with a
-`Authorization` header with a value having the prefix `Bearer ` followed
+The token returned by this API can be used by sending a request with an
+`Authorization` header with a value having the prefix "Bearer " followed
 by the value of the `access_token`.
 
 [source,shell]

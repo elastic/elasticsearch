@@ -10,6 +10,8 @@ package org.elasticsearch.index.store.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -60,6 +62,12 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private final int defaultRangeSize;
     private final int recoveryRangeSize;
 
+    /**
+     * If > 0, represents a logical file within a compound (CFS) file or is a slice thereof represents the offset of the logical
+     * compound file within the physical CFS file
+     */
+    private final long compoundFileOffset;
+
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
     // last seek position is kept around in order to detect forward/backward seeks for stats
@@ -81,11 +89,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             context,
             stats,
             0L,
+            0L,
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
             recoveryRangeSize,
-            directory.getBlobCacheByteRange(name, fileInfo.length())
+            directory.getBlobCacheByteRange(name, fileInfo.length()),
+            ByteRange.EMPTY
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -98,18 +108,21 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         IOContext context,
         IndexInputStats stats,
         long offset,
+        long compoundFileOffset,
         long length,
         CacheFileReference cacheFileReference,
         int rangeSize,
         int recoveryRangeSize,
-        ByteRange headerBlobCacheByteRange
+        ByteRange headerBlobCacheByteRange,
+        ByteRange footerBlobCacheByteRange
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange);
+        super(logger, name, directory, fileInfo, context, stats, offset, length, headerBlobCacheByteRange, footerBlobCacheByteRange);
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
         this.recoveryRangeSize = recoveryRangeSize;
+        this.compoundFileOffset = compoundFileOffset;
     }
 
     @Override
@@ -161,7 +174,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final ByteRange indexCacheMiss; // null if not a miss
 
             final ByteRange blobCacheByteRange = maybeReadFromBlobCache(position, length);
-            if (blobCacheByteRange != ByteRange.EMPTY) {
+            if (blobCacheByteRange.isEmpty() == false) {
                 final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
                 assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
                 assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
@@ -245,7 +258,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             final ByteRange startRangeToWrite = computeRange(position);
             final ByteRange endRangeToWrite = computeRange(position + length - 1);
             assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
-            final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite).minEnvelope(indexCacheMiss);
+
+            // only request what's needed to fill the cache to make sure the cache is always fully populated during recovery
+            final ByteRange rangeToWrite = indexCacheMiss != null && directory.isRecoveryFinalized() == false
+                ? indexCacheMiss
+                : startRangeToWrite.minEnvelope(endRangeToWrite);
 
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
             assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
@@ -260,39 +277,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             );
 
             if (indexCacheMiss != null) {
-                final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
-                    final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
-
-                    // We assume that we only cache small portions of blobs so that we do not need to:
-                    // - use a BigArrays for allocation
-                    // - use an intermediate copy buffer to read the file in sensibly-sized chunks
-                    // - release the buffer once the indexing operation is complete
-
-                    final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
-                    Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);
-                    // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
-                    byteBuffer.flip();
-                    final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-                    directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void response) {
-                            onCacheFillComplete.close();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e1) {
-                            onCacheFillComplete.close();
-                        }
-                    });
-                    return indexCacheMissLength;
-                });
-
-                if (readFuture == null) {
-                    // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
-                    // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
-                    // case, simply move on.
-                    onCacheFillComplete.close();
+                fillIndexCache(cacheFile, indexCacheMiss);
+                if (compoundFileOffset > 0L
+                    && indexCacheMiss.equals(headerBlobCacheByteRange)
+                    && footerBlobCacheByteRange.isEmpty() == false) {
+                    fillIndexCache(cacheFile, footerBlobCacheByteRange);
                 }
             }
 
@@ -309,6 +298,43 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         }
 
         readComplete(position, length);
+    }
+
+    private void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {
+        final Releasable onCacheFillComplete = stats.addIndexCacheFill();
+        final Future<Integer> readFuture = cacheFile.readIfAvailableOrPending(indexCacheMiss, channel -> {
+            final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
+
+            // We assume that we only cache small portions of blobs so that we do not need to:
+            // - use a BigArrays for allocation
+            // - use an intermediate copy buffer to read the file in sensibly-sized chunks
+            // - release the buffer once the indexing operation is complete
+
+            final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
+            Channels.readFromFileChannelWithEofException(channel, indexCacheMiss.start(), byteBuffer);
+            // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
+            byteBuffer.flip();
+            final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
+            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void response) {
+                    onCacheFillComplete.close();
+                }
+
+                @Override
+                public void onFailure(Exception e1) {
+                    onCacheFillComplete.close();
+                }
+            });
+            return indexCacheMissLength;
+        });
+
+        if (readFuture == null) {
+            // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
+            // possible in the case that the real populateAndRead call already failed to obtain this range of the file. In that
+            // case, simply move on.
+            onCacheFillComplete.close();
+        }
     }
 
     private void readComplete(long position, int length) {
@@ -579,6 +605,31 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     + this
             );
         }
+
+        // Are we creating a slice from a CFS file?
+        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
+            && IndexFileNames.getExtension(sliceName) != null
+            && compoundFileOffset == 0L // not already a compound file
+            && isClone == false; // tests aggressively clone and slice
+
+        final ByteRange sliceHeaderByteRange;
+        final ByteRange sliceFooterByteRange;
+        final long sliceCompoundFileOffset;
+
+        if (sliceCompoundFile) {
+            sliceCompoundFileOffset = this.offset + sliceOffset;
+            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
+            if (sliceHeaderByteRange.length() < sliceLength) {
+                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
+            } else {
+                sliceFooterByteRange = ByteRange.EMPTY;
+            }
+        } else {
+            sliceCompoundFileOffset = this.compoundFileOffset;
+            sliceHeaderByteRange = ByteRange.EMPTY;
+            sliceFooterByteRange = ByteRange.EMPTY;
+        }
+
         final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(
             sliceName,
             directory,
@@ -586,11 +637,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             context,
             stats,
             this.offset + sliceOffset,
+            sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,
             defaultRangeSize,
             recoveryRangeSize,
-            headerBlobCacheByteRange
+            sliceHeaderByteRange,
+            sliceFooterByteRange
         );
         slice.isClone = true;
         return slice;

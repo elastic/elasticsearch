@@ -40,7 +40,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
 import org.elasticsearch.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -158,7 +158,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -275,7 +275,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -369,7 +369,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (script, service) -> new MapperScript<>(script) {
 
                     final DoubleFieldScript.Factory scriptFactory = service.compile(script, DoubleFieldScript.CONTEXT);
@@ -464,7 +464,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -537,7 +537,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -601,7 +601,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -713,7 +713,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
                 return (script, service) -> new MapperScript<>(script) {
 
                     final LongFieldScript.Factory scriptFactory = service.compile(script, LongFieldScript.CONTEXT);
@@ -816,7 +816,7 @@ public class NumberFieldMapper extends FieldMapper {
         public final TypeParser parser() {
             return parser;
         }
-        public abstract BiFunction<Script, ScriptService, MapperScript<Number>> compiler(String fieldName);
+        public abstract BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName);
         public abstract Query termQuery(String field, Object value);
         public abstract Query termsQuery(String field, Collection<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,

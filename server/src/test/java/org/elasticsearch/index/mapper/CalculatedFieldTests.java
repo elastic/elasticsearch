@@ -11,21 +11,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
 import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -33,11 +28,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CalculatedFieldTests extends MapperServiceTestCase {
-
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return Set.of(new TestScriptPlugin());
-    }
 
     public void testCalculatedFieldLength() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
@@ -226,6 +216,22 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertThat(e.getCause().getCause().getMessage(), equalTo("Oops!"));
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context.factoryClazz == LongFieldScript.Factory.class) {
+            return (T) (LongFieldScript.Factory) (n, p, l) -> ctx -> new TestLongFieldScript(
+                n, p, l, ctx, getLongScript(script.getIdOrCode())
+            );
+        }
+        if (context.factoryClazz == DoubleFieldScript.Factory.class) {
+            return (T) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new TestDoubleFieldScript(
+                n, p, l, ctx, getDoubleScript(script.getIdOrCode())
+            );
+        }
+        throw new IllegalArgumentException("Unknown factory type " + context.factoryClazz + " for code " + script.getIdOrCode());
+    }
+
     private static Consumer<TestLongFieldScript> getLongScript(String name) {
         if ("refer-to-runtime".equals(name)) {
             return s -> {
@@ -319,45 +325,6 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
 
         public List<Object> extractValuesFromSource(String path) {
             return super.extractFromSource(path);
-        }
-    }
-
-    public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-                public String getType() {
-                    return "painless";
-                }
-
-                @Override
-                @SuppressWarnings("unchecked")
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> params
-                ) {
-                    if (context.factoryClazz == LongFieldScript.Factory.class) {
-                        return (FactoryType) (LongFieldScript.Factory) (n, p, l) -> ctx -> new TestLongFieldScript(
-                            n, p, l, ctx, getLongScript(name)
-                        );
-                    }
-                    if (context.factoryClazz == DoubleFieldScript.Factory.class) {
-                        return (FactoryType) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new TestDoubleFieldScript(
-                            n, p, l, ctx, getDoubleScript(name)
-                        );
-                    }
-                    throw new IllegalArgumentException("Unknown factory type " + context.factoryClazz + " for code " + code);
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT, DoubleFieldScript.CONTEXT);
-                }
-            };
         }
     }
 

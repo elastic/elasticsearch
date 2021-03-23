@@ -403,11 +403,11 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 [options="header"]
 |====
 | Escape sequence | Literal character
-|`\n`             | A newline (linefeed) character
-|`\r`             | A carriage return character
-|`\t`             | A tab character
-|`\\`             | A backslash (`\`) character
-|`\"`             | A double quote (`"`) character
+|`\n`             | Newline (linefeed)
+|`\r`             | Carriage return
+|`\t`             | Tab
+|`\\`             | Backslash (`\`)
+|`\"`             | Double quote (`"`)
 |====
 
 IMPORTANT: The single quote (`'`) character is reserved for future use. You

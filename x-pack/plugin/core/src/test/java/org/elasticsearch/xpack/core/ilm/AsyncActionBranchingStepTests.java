@@ -54,6 +54,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
     public void testBranchStepKeyIsTheWrappedStepKey() {
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
             @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
+            @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {
             }
@@ -65,6 +70,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
     public void testBranchStepNextKeyOnCompleteResponse() {
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {
@@ -91,6 +101,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
     public void testBranchStepNextKeyOnInCompleteResponse() {
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {
@@ -120,6 +135,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
     public void testBranchStepPropagatesFailure() {
         NullPointerException failException = new NullPointerException("fail");
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {

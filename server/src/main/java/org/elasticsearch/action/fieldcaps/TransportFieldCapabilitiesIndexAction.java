@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,7 +20,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -60,7 +58,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -77,20 +74,17 @@ public class TransportFieldCapabilitiesIndexAction
 
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final SearchService searchService;
     private final IndicesService indicesService;
-    private final Executor executor;
 
     @Inject
-    public TransportFieldCapabilitiesIndexAction(ClusterService clusterService, TransportService transportService,
-                                                 IndicesService indicesService, SearchService searchService, ThreadPool threadPool,
-                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportFieldCapabilitiesIndexAction(ClusterService clusterService,
+                                                 TransportService transportService,
+                                                 IndicesService indicesService,
+                                                 ActionFilters actionFilters) {
         super(ACTION_NAME, transportService, actionFilters, FieldCapabilitiesIndexRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.searchService = searchService;
         this.indicesService = indicesService;
-        this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(ACTION_SHARD_NAME, ThreadPool.Names.SAME,
             FieldCapabilitiesIndexRequest::new, new ShardTransportHandler());
     }
@@ -305,7 +299,14 @@ public class TransportFieldCapabilitiesIndexAction
                 logger.trace("executing [{}]", request);
             }
             ActionListener<FieldCapabilitiesIndexResponse> listener = new ChannelActionListener<>(channel, ACTION_SHARD_NAME, request);
-            executor.execute(ActionRunnable.supply(listener, () -> shardOperation(request)));
+            final FieldCapabilitiesIndexResponse resp;
+            try {
+                resp = shardOperation(request);
+            } catch (Exception exc) {
+                listener.onFailure(exc);
+                return;
+            }
+            listener.onResponse(resp);
         }
     }
 }

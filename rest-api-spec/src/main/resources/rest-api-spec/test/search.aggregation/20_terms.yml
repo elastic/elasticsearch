@@ -1281,3 +1281,46 @@ setup:
   - match: { aggregations.str_terms.buckets.0.key: cow }
   - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
   - match: { aggregations.str_terms.buckets.0.filter.max_number.value: 7.0 }
+
+---
+precise size:
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "a" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "b" }
+          { "index": {} }
+          { "str": "c" }
+          { "index": {} }
+          { "str": "c" }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            terms:
+              str:
+                - b
+                - c
+          aggs:
+            str_terms:
+              terms:
+                size: 2
+                field: str
+                order:
+                  - _key : asc
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: b }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.1.key: c }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 3 }

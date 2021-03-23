@@ -460,23 +460,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeSizeErrors() throws IOException {
-        int randomSize = randomIntBetween(-100000, -2);
+        int randomSize = randomIntBetween(-100000, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
                 () -> new SearchSourceBuilder().size(randomSize));
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
 
-        // we don't want to error on -1 for bwc reasons, this is treated as if the value is unset later
-        String restContent = "{\"size\" : -1}";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
-            assertEquals(-1, searchSourceBuilder.size());
-        }
-        assertWarnings("Using search size of -1 is deprecated and will be removed in future versions. Instead, don't use the `size` "
-            + "parameter if you don't want to set it explicitely.");
-
-        restContent = "{\"size\" : " + randomSize + "}";
+        String restContent = "{\"size\" : " + randomSize + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));

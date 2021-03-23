@@ -217,7 +217,7 @@ use TLS for transport cannot communicate with nodes that use unencrypted transpo
 *Next*: <<add-built-in-users,Add the built-in users to {kib}>>
 
 [[add-built-in-users]]
-==== Add the built-in users to {kib}
+==== Configure {kib} to connect to {es} with a password
 
 When the {es} security features are enabled, users must log in to
 {kib} with a valid username and password.

@@ -352,16 +352,11 @@ Select `timestamp` as the date field that sorts the data chronologically. For
 continuous mode, specify a date field that is used to identify new documents, 
 and an interval between checks for changes in the source index.
 
- Let's assume that we're interested in retaining documents only for IP addresses that appeared recently in the log. You can define a retention policy and specify a date field that is used to calculate 
-the age of a document. This example uses the same date field that is used to 
-sort the data. Then set the maximum age of a document; documents that are older 
-than the value you set will be removed from the destination index.
+ Let's assume that we're interested in retaining documents only for IP addresses that appeared recently in the log.
 
 This {transform} creates the destination index that contains the latest login 
 date for each client IP. As the {transform} runs in continuous mode, the 
 destination index will be updated as new data that comes into the source index. 
-Finally, every document that is older than 30 days will be removed from the 
-destination index due to the applied retention policy.
 
 [source,console]
 ----------------------------------
@@ -388,12 +383,6 @@ PUT _transform/last-log-from-clientip
       "delay": "60s"
     }
   },
-  "retention_policy": { <5>
-    "time": {
-      "field": "timestamp",
-      "max_age": "30d"
-    }
-  },
   "settings": {
     "max_page_search_size": 500
   }
@@ -408,8 +397,6 @@ PUT _transform/last-log-from-clientip
 index.
 <4> Contains the time field and delay settings used to synchronize the source 
 and destination indices.
-<5> Specifies the retention policy for the transform. Documents that are older 
-than the configured value will be removed from the destination index. 
 
 
 After you create the {transform}, start it:

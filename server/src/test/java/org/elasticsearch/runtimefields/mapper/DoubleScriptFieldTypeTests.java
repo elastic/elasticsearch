@@ -26,29 +26,21 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.runtimefields.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -248,13 +240,13 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected DoubleScriptFieldType simpleMappedFieldType() throws IOException {
-        return build("read_foo", org.elasticsearch.common.collect.Map.of());
+    protected DoubleScriptFieldType simpleMappedFieldType() {
+        return build("read_foo", Collections.emptyMap());
     }
 
     @Override
-    protected MappedFieldType loopFieldType() throws IOException {
-        return build("loop", org.elasticsearch.common.collect.Map.of());
+    protected MappedFieldType loopFieldType() {
+        return build("loop", Collections.emptyMap());
     }
 
     @Override
@@ -262,74 +254,42 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return "double";
     }
 
-    private static DoubleScriptFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static DoubleScriptFieldType build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static DoubleScriptFieldType build(Script script) throws IOException {
-        ScriptPlugin scriptPlugin = new ScriptPlugin() {
-            @Override
-            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new ScriptEngine() {
+    private static DoubleFieldScript.Factory factory(Script script) {
+        switch (script.getIdOrCode()) {
+            case "read_foo":
+                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                     @Override
-                    public String getType() {
-                        return "test";
-                    }
-
-                    @Override
-                    public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Collections.emptySet();
-                    }
-
-                    @Override
-                    public <FactoryType> FactoryType compile(
-                        String name,
-                        String code,
-                        ScriptContext<FactoryType> context,
-                        Map<String, String> params
-                    ) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType factory = (FactoryType) factory(code);
-                        return factory;
-                    }
-
-                    private DoubleFieldScript.Factory factory(String code) {
-                        switch (code) {
-                            case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit(((Number) foo).doubleValue());
-                                        }
-                                    }
-                                };
-                            case "add_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
-                                        }
-                                    }
-                                };
-                            case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
-                                };
-                            default:
-                                throw new IllegalArgumentException("unsupported script [" + code + "]");
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit(((Number) foo).doubleValue());
                         }
                     }
                 };
-            }
-        };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, Collections.singletonList(scriptPlugin));
-        try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
-            return new DoubleScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            case "add_param":
+                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
+                        }
+                    }
+                };
+            case "loop":
+                return (fieldName, params, lookup) -> {
+                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                    lookup.forkAndTrackFieldReferences("test");
+                    throw new IllegalStateException("should have thrown on the line above");
+                };
+            default:
+                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         }
+    }
+
+    private static DoubleScriptFieldType build(Script script) {
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), (b, d) -> {});
     }
 }

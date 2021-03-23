@@ -41,7 +41,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -126,7 +126,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
                          Supplier<SearchExecutionContext> searchExecutionContextSupplier, BooleanSupplier idFieldDataEnabled,
-                         ScriptService scriptService) {
+                         ScriptCompiler scriptCompiler) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
@@ -134,7 +134,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
-                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
+                scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());

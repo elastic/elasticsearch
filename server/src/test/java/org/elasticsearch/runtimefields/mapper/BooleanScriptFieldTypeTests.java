@@ -29,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -40,25 +39,18 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.runtimefields.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -342,7 +334,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         }
     }
 
-    public void testEmptyTermsQueryDegeneratesIntoMatchNone() throws IOException {
+    public void testEmptyTermsQueryDegeneratesIntoMatchNone() {
         assertThat(
             simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(), mockContext()),
             instanceOf(MatchNoDocsQuery.class)
@@ -437,13 +429,13 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     @Override
-    protected BooleanScriptFieldType simpleMappedFieldType() throws IOException {
-        return build("read_foo", org.elasticsearch.common.collect.Map.of());
+    protected BooleanScriptFieldType simpleMappedFieldType() {
+        return build("read_foo", Collections.emptyMap());
     }
 
     @Override
-    protected MappedFieldType loopFieldType() throws IOException {
-        return build("loop", org.elasticsearch.common.collect.Map.of());
+    protected MappedFieldType loopFieldType() {
+        return build("loop", Collections.emptyMap());
     }
 
     @Override
@@ -451,74 +443,42 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         return "boolean";
     }
 
-    private static BooleanScriptFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static BooleanScriptFieldType build(String code, Map<String, Object> params) {
         return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
-    private static BooleanScriptFieldType build(Script script) throws IOException {
-        ScriptPlugin scriptPlugin = new ScriptPlugin() {
-            @Override
-            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new ScriptEngine() {
+    private static BooleanFieldScript.Factory factory(Script script) {
+        switch (script.getIdOrCode()) {
+            case "read_foo":
+                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                     @Override
-                    public String getType() {
-                        return "test";
-                    }
-
-                    @Override
-                    public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Collections.emptySet();
-                    }
-
-                    @Override
-                    public <FactoryType> FactoryType compile(
-                        String name,
-                        String code,
-                        ScriptContext<FactoryType> context,
-                        Map<String, String> params
-                    ) {
-                        @SuppressWarnings("unchecked")
-                        FactoryType factory = (FactoryType) factory(code);
-                        return factory;
-                    }
-
-                    private BooleanFieldScript.Factory factory(String code) {
-                        switch (code) {
-                            case "read_foo":
-                                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit((Boolean) foo);
-                                        }
-                                    }
-                                };
-                            case "xor_param":
-                                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
-                                    @Override
-                                    public void execute() {
-                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                                            emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
-                                        }
-                                    }
-                                };
-                            case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("should have thrown on the line above");
-                                };
-                            default:
-                                throw new IllegalArgumentException("unsupported script [" + code + "]");
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit((Boolean) foo);
                         }
                     }
                 };
-            }
-        };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, Collections.singletonList(scriptPlugin));
-        try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            BooleanFieldScript.Factory factory = scriptService.compile(script, BooleanFieldScript.CONTEXT);
-            return new BooleanScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
+            case "xor_param":
+                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+                    @Override
+                    public void execute() {
+                        for (Object foo : (List<?>) lookup.source().get("foo")) {
+                            emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
+                        }
+                    }
+                };
+            case "loop":
+                return (fieldName, params, lookup) -> {
+                    // Indicate that this script wants the field call "test", which *is* the name of this field
+                    lookup.forkAndTrackFieldReferences("test");
+                    throw new IllegalStateException("should have thrown on the line above");
+                };
+            default:
+                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         }
+    }
+
+    private static BooleanScriptFieldType build(Script script) {
+        return new BooleanScriptFieldType("test", factory(script), script, emptyMap(), (b, d) -> {});
     }
 }

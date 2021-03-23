@@ -19,7 +19,6 @@ import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -100,17 +99,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         );
     }
 
-    private long getDefaultRangeSize() {
+    @Override
+    protected long getDefaultRangeSize() {
         return (context != CACHE_WARMING_CONTEXT)
             ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
             : fileInfo.partSize().getBytes();
-    }
-
-    private ByteRange computeRange(long position) {
-        final long rangeSize = getDefaultRangeSize();
-        long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, fileInfo.length());
-        return ByteRange.of(start, end);
     }
 
     @Override
@@ -239,18 +232,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 + "] is not aligned with part end or with file length";
         }
         return true;
-    }
-
-    @Override
-    protected void seekInternal(long pos) throws IOException {
-        if (pos > length()) {
-            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
-        } else if (pos < 0L) {
-            throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
-        }
-        final long position = pos + this.offset;
-        stats.incrementSeeks(lastSeekPosition, position);
-        lastSeekPosition = position;
     }
 
     @Override

@@ -410,6 +410,27 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         throw new IOException("failed to read data from cache", e);
     }
 
+    protected abstract long getDefaultRangeSize();
+
+    protected ByteRange computeRange(long position) {
+        final long rangeSize = getDefaultRangeSize();
+        long start = (position / rangeSize) * rangeSize;
+        long end = Math.min(start + rangeSize, fileInfo.length());
+        return ByteRange.of(start, end);
+    }
+
+    @Override
+    protected void seekInternal(long pos) throws IOException {
+        if (pos > length()) {
+            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
+        } else if (pos < 0L) {
+            throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
+        }
+        final long position = pos + this.offset;
+        stats.incrementSeeks(lastSeekPosition, position);
+        lastSeekPosition = position;
+    }
+
     @Override
     public void doClose() {
         if (isClone == false) {

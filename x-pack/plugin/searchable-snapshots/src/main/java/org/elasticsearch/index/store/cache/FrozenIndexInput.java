@@ -102,20 +102,14 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         this.frozenCacheFile = frozenCacheFile;
     }
 
-    private long getDefaultRangeSize() {
+    @Override
+    protected long getDefaultRangeSize() {
         return directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize;
-    }
-
-    private ByteRange computeRange(long position) {
-        final long rangeSize = getDefaultRangeSize();
-        long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, frozenCacheFile.getLength());
-        return ByteRange.of(start, end);
     }
 
     @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
-        final long position = getAbsolutePosition() - compoundFileOffset;
+        final long position = getAbsolutePosition();
         final int length = b.remaining();
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
@@ -164,7 +158,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                 ),
                 (channel, channelPos, relativePos, len, progressUpdater) -> {
                     final long startTimeNanos = stats.currentTimeNanos();
-                    final long streamStartPosition = rangeToWrite.start() + relativePos + compoundFileOffset;
+                    final long streamStartPosition = rangeToWrite.start() + relativePos;
 
                     try (InputStream input = openInputStreamFromBlobStore(streamStartPosition, len)) {
                         this.writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
@@ -357,18 +351,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected void seekInternal(long pos) throws IOException {
-        if (pos > length()) {
-            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
-        } else if (pos < 0L) {
-            throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
-        }
-        final long position = pos + this.offset - compoundFileOffset;
-        stats.incrementSeeks(lastSeekPosition, position);
-        lastSeekPosition = position;
-    }
-
-    @Override
     public FrozenIndexInput clone() {
         return (FrozenIndexInput) super.clone();
     }
@@ -396,14 +378,12 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             && compoundFileOffset == 0L // not already a compound file
             && isClone == false; // tests aggressively clone and slice
 
-        final FrozenCacheFile sliceFrozenCacheFile;
         final ByteRange sliceHeaderByteRange;
         final ByteRange sliceFooterByteRange;
         final long sliceCompoundFileOffset;
 
         if (sliceCompoundFile) {
             sliceCompoundFileOffset = this.offset + sliceOffset;
-            sliceFrozenCacheFile = directory.getFrozenCacheFile(sliceName, sliceLength);
             sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
             if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
                 sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
@@ -412,7 +392,6 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             }
         } else {
             sliceCompoundFileOffset = this.compoundFileOffset;
-            sliceFrozenCacheFile = this.frozenCacheFile;
             sliceHeaderByteRange = ByteRange.EMPTY;
             sliceFooterByteRange = ByteRange.EMPTY;
         }
@@ -427,7 +406,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,
-            sliceFrozenCacheFile,
+            frozenCacheFile,
             defaultRangeSize,
             recoveryRangeSize,
             sliceHeaderByteRange,

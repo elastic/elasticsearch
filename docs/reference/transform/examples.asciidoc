@@ -352,8 +352,6 @@ Select `timestamp` as the date field that sorts the data chronologically. For
 continuous mode, specify a date field that is used to identify new documents, 
 and an interval between checks for changes in the source index.
 
- Let's assume that we're interested in retaining documents only for IP addresses that appeared recently in the log.
-
 This {transform} creates the destination index that contains the latest login 
 date for each client IP. As the {transform} runs in continuous mode, the 
 destination index will be updated as new data that comes into the source index. 

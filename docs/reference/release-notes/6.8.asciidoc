@@ -5,6 +5,20 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 coming::[6.8.15]
 
+[[enhancement-6.8.15]]
+[discrete]
+=== Enhancements
+
+Authorization::
+* Improve shard-level request cache efficiency {es-pull}69505[#69505]
+
+[[upgrade-6.8.15]]
+[discrete]
+=== Upgrades
+
+Packaging::
+* Upgrade to Java Native Access (JNA) 5.7.0-1 {es-pull}69653[#69653]
+
 [[release-notes-6.8.14]]
 == {es} version 6.8.14
 

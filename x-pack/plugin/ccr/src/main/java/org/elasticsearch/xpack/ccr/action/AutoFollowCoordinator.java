@@ -526,7 +526,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",
                             indexToFollow.getName()
                         );
-                        LOGGER.warn(message);
+                        LOGGER.debug(message);
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
                             ElasticsearchException failure = new ElasticsearchException(message);
                             if (error != null) {

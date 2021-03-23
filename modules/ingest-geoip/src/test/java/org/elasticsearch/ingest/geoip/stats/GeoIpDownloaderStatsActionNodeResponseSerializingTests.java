@@ -30,8 +30,8 @@ public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends
 
     static GeoIpDownloaderStatsAction.NodeResponse createRandomInstance() {
         DiscoveryNode node = new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT);
-        Set<String> databases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
-        Set<String> files = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
+        Set<String> databases = org.elasticsearch.common.collect.Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
+        Set<String> files = org.elasticsearch.common.collect.Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         return new GeoIpDownloaderStatsAction.NodeResponse(node, GeoIpDownloaderStatsSerializingTests.createRandomInstance(), databases,
             files);
     }

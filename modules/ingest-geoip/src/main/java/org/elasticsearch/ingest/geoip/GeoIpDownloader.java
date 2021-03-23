@@ -122,7 +122,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
         String originalName = databaseInfo.get("name").toString();
-        String name = originalName.replace(".mmdb.gz", "").replace(".tgz", "") + ".mmdb";
+        String name = originalName
+            .replace(".mmdb.gz", "")
+            .replace(".gz", "")
+            .replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
         if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
             updateTimestamp(name, state.get(name));

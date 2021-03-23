@@ -3,6 +3,20 @@
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
+[discrete]
+[[security-updates-6-8-15]]
+=== Security updates
+
+* A document disclosure flaw was found in the {es}  suggester and
+profile API when Document and Field Level Security are enabled.
+The suggester and profile API are normally disabled for an index when document
+level security is enabled on the index. Certain queries are able to enable the
+profiler and suggester which could lead to disclosing the existence of documents
+and fields the attacker should not be able to view.
+All versions of {es} before 6.8.15 and 7.11.2 are affected by this flaw.
+You must upgrade to 6.8.15 or 7.11.2 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22135[CVE-2021-22135]
+
 [[enhancement-6.8.15]]
 [discrete]
 === Enhancements
@@ -456,8 +470,8 @@ Infra/Settings::
 Machine Learning::
 * The {ml} native processes are now arranged in a `.app` directory structure on
   macOS to allow for notarization on macOS Catalina {ml-pull}593[#593]
-  
-  
+
+
 [[bug-6.8.5]]
 [float]
 === Bug fixes
@@ -583,7 +597,7 @@ CCR::
 * Include leases in error message when operations no longer available {es-pull}45681[#45681]
 
 Infra/Core::
-* Add OCI annotations and adjust existing annotations {es-pull}45167[#45167] 
+* Add OCI annotations and adjust existing annotations {es-pull}45167[#45167]
 
 Infra/Settings::
 * Normalize environment paths {es-pull}45179[#45179] (issue: {es-issue}45176[#45176])
@@ -610,7 +624,7 @@ Distributed::
 * Ensure AsyncTask#isScheduled remain false after close {es-pull}45687[#45687] (issue: {es-issue}45576[#45576])
 
 Engine::
-* Handle delete document level failures {es-pull}46100[#46100] 
+* Handle delete document level failures {es-pull}46100[#46100]
 * Handle no-op document level failures {es-pull}46083[#46083]
 
 Features/Indices APIs::

@@ -23,7 +23,7 @@ public class RestDeleteShutdownNodeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_node/{name}/shutdown"));
+        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{name}/shutdown"));
     }
 
     @Override

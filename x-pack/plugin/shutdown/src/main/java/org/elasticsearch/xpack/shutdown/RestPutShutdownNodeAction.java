@@ -23,7 +23,7 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "/_node/{name}/shutdown"));
+        return List.of(new Route(RestRequest.Method.PUT, "/_nodes/{name}/shutdown"));
     }
 
     @Override

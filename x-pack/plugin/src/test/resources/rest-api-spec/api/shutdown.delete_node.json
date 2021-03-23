@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_node/{node_id}/shutdown",
+          "path":"/_nodes/{node_id}/shutdown",
           "methods":[
             "DELETE"
           ],

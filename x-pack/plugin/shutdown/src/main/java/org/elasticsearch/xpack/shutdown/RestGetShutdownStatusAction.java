@@ -24,7 +24,7 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_node/{name}/shutdown"), new Route(RestRequest.Method.GET, "/_node/shutdown"));
+        return List.of(new Route(RestRequest.Method.GET, "/_nodes/{name}/shutdown"), new Route(RestRequest.Method.GET, "/_nodes/shutdown"));
     }
 
     @Override

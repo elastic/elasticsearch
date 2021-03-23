@@ -13,12 +13,12 @@
     "url":{
       "paths":[
         {
-          "path":"/_node/shutdown",
+          "path":"/_nodes/shutdown",
           "methods":["GET"],
           "parts":{}
         },
         {
-          "path":"/_node/{node_id}/shutdown",
+          "path":"/_nodes/{node_id}/shutdown",
           "methods":["GET"],
           "parts":{
             "node_id":{

@@ -42,7 +42,7 @@ snapshot caches]. Rather than loading a full copy of a snapshotted index into
 your cluster, this option uses a small local cache containing only recently
 searched parts of the index’s data. If a search requires data that's not in the
 cache, {es} fetches the missing data from the snapshot repository. These caches
-have a fixed size and can significantly reduce your {es} storage costs.
+have a fixed size and can significantly reduce your storage costs.
 {ilm-init} uses shared snapshot caches by default in the frozen phase and
 corresponding frozen tier.
 

@@ -28,12 +28,11 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
-import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -400,25 +399,38 @@ public class Docker {
 
     /**
      * Checks that the specified path's permissions and ownership match those specified.
-     * @param path the path to check
+     * <p>
+     * The implementation supports multiple files being matched by the path, via bash expansion, although
+     * it is expected that only the final part of the path will contain expansions.
+     *
+     * @param path the path to check, possibly with e.g. a wildcard (<code>*</code>)
      * @param expectedPermissions the unix permissions that the path ought to have
      */
     public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
         logger.debug("Checking permissions and ownership of [" + path + "]");
 
-        final String[] components = dockerShell.run("stat -c \"%U %G %A\" " + path).stdout.split("\\s+");
+        final Shell.Result result = dockerShell.run("bash -c 'stat -c \"%n %U %G %A\" " + path + "'");
 
-        final String username = components[0];
-        final String group = components[1];
-        final String permissions = components[2];
+        final Path parent = path.getParent();
 
-        // The final substring() is because we don't check the directory bit, and we
-        // also don't want any SELinux security context indicator.
-        Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
+        result.stdout.lines().forEach(line -> {
+            final String[] components = line.split("\\s+");
 
-        assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
-        assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
-        assertThat("File group of " + path + " is wrong", group, equalTo("root"));
+            final String filename = components[0];
+            final String username = components[1];
+            final String group = components[2];
+            final String permissions = components[3];
+
+            // The final substring() is because we don't check the directory bit, and we
+            // also don't want any SELinux security context indicator.
+            Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
+
+            String fullPath = parent + "/" + filename;
+
+            assertEquals("Permissions of " + fullPath + " are wrong", expectedPermissions, actualPermissions);
+            assertThat("File owner of " + fullPath + " is wrong", username, equalTo("elasticsearch"));
+            assertThat("File group of " + fullPath + " is wrong", group, equalTo("root"));
+        });
     }
 
     /**
@@ -440,42 +452,32 @@ public class Docker {
     }
 
     /**
-     * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
-     * @param installation the installation to verify
+     * Perform a variety of checks on an installation.
+     * @param es the installation to verify
      */
-    public static void verifyContainerInstallation(Installation installation) {
-        verifyOssInstallation(installation);
-        verifyDefaultInstallation(installation);
-    }
-
-    private static void verifyOssInstallation(Installation es) {
+    public static void verifyContainerInstallation(Installation es) {
         dockerShell.run("id elasticsearch");
         dockerShell.run("getent group elasticsearch");
 
         final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
-        assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
+        assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
+        Stream.of(es.home, es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p555));
 
-        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p555));
+        Stream.of(es.data, es.logs, es.config, es.plugins, es.config.resolve("jvm.options.d"))
+            .forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
+        for (Path binariesPath : List.of(es.bin, es.bundledJdk.resolve("bin"))) {
+            assertPermissionsAndOwnership(binariesPath.resolve("*"), p555);
+        }
+
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
 
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p444));
+
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
-
-        Stream.of(
-            "elasticsearch",
-            "elasticsearch-cli",
-            "elasticsearch-env",
-            "elasticsearch-keystore",
-            "elasticsearch-node",
-            "elasticsearch-plugin",
-            "elasticsearch-shard"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p555));
-
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
 
         // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
@@ -486,30 +488,6 @@ public class Docker {
                     dockerShell.runIgnoreExitCode("hash " + cliBinary).isSuccess()
                 )
             );
-    }
-
-    private static void verifyDefaultInstallation(Installation es) {
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users",
-            "elasticsearch-service-tokens",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p555));
-
-        // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
-        // the version through here
-        assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p555);
-
-        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

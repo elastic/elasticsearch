@@ -233,26 +233,21 @@ COPY ${bin_dir}/transform-log4j-config-${version}.jar /tmp/
 
 #  1. Configure the distribution for Docker
 #  2. Ensure directories are created. Most already are, but make sure
-#  3. Apply correct permissions
-#  4. Move the distribution's default logging config aside
-#  5. Generate a docker logging config, to be used by default
-#  6. Apply more correct permissions
-#  7. The JDK's directories' permissions don't allow `java` to be executed under a different
-#     group to the default. Fix this.
-#  8. Remove write permissions from all files under `lib`, `bin`, `jdk` and `modules`
-#  9. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 10. Ensure all files are world-readable by default. It should be possible to
-#     examine the contents of the image under any UID:GID
+#  3. Move the distribution's default logging config aside
+#  4. Generate a docker logging config, to be used by default
+#  5. Ensure directories have the correct permissions
+#  6. Ensure files have the correct permissions. This also clears the setuid and setgid bit,
+#     in order to mitigate "stackclash" attacks.
+#  7. Ensure binaries are executable
+#  8. Allow write access on specific directories
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir -p config/jvm.options.d data logs plugins && \\
-    chmod 0775 config config/jvm.options.d data logs plugins && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
     jdk/bin/java -jar /tmp/transform-log4j-config-${version}.jar config/log4j2.file.properties > config/log4j2.properties && \\
-    chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
-    find ./jdk -type d -exec chmod 0755 {} + && \\
-    chmod -R a-w lib bin jdk modules && \\
-    find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    find . -type f -exec chmod o+r {} +
+    find . -type d -exec chmod 0555 {} + && \\
+    find . -type f -exec chmod 0444 {} + && \\
+    chmod +x bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/*/bin/* && \\
+    chmod -R ug+w config data logs plugins
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
@@ -332,10 +327,12 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # 4. Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 #    vendor. The latter is superior in several ways.
 #    REF: https://github.com/elastic/elasticsearch-docker/issues/171
+# 5. Tighten up permissions on the ES home dir (the permissions of the contents are handled earlier)
 RUN chmod g=u /etc/passwd && \\
     chmod 0775 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+    ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
+    chmod 555 /usr/share/elasticsearch
 
 EXPOSE 9200 9300
 

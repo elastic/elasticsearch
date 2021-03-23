@@ -145,7 +145,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            return List.of(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE, GeoIpDownloaderStatsTransportAction.class));
+            return Collections.singletonList(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE,
+                GeoIpDownloaderStatsTransportAction.class));
         }
         return Collections.emptyList();
     }
@@ -156,7 +157,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            return List.of(new RestGeoIpDownloaderStatsAction());
+            return Collections.singletonList(new RestGeoIpDownloaderStatsAction());
         }
         return Collections.emptyList();
     }

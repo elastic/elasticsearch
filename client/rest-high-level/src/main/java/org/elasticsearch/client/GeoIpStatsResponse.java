@@ -141,8 +141,8 @@ public class GeoIpStatsResponse implements ToXContentObject {
         private final Map<String, DatabaseInfo> databases;
 
         public NodeInfo(Collection<String> filesInTemp, Map<String, DatabaseInfo> databases) {
-            this.filesInTemp = List.copyOf(filesInTemp);
-            this.databases = Map.copyOf(databases);
+            this.filesInTemp = org.elasticsearch.common.collect.List.copyOf(filesInTemp);
+            this.databases = org.elasticsearch.common.collect.Map.copyOf(databases);
         }
 
         public List<String> getFilesInTemp() {

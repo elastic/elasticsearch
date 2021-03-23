@@ -31,7 +31,9 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
@@ -46,15 +48,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
-
 /**
  * Main component responsible for downloading new GeoIP databases.
  * New databases are downloaded in chunks and stored in .geoip_databases index
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-class GeoIpDownloader extends AllocatedPersistentTask {
+public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -78,13 +78,14 @@ class GeoIpDownloader extends AllocatedPersistentTask {
     protected volatile GeoIpTaskState state;
     private volatile TimeValue pollInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
+    private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
 
     GeoIpDownloader(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool, Settings settings,
                     long id, String type, String action, String description, TaskId parentTask,
                     Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
-        this.client = new OriginSettingClient(client, INGEST_ORIGIN);
+        this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
         this.threadPool = threadPool;
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
@@ -129,6 +130,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
         }
         logger.info("updating geoip database [" + name + "]");
         String url = databaseInfo.get("url").toString();
+        long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5);
@@ -136,10 +138,12 @@ class GeoIpDownloader extends AllocatedPersistentTask {
                 Metadata metadata = new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5, originalName.endsWith(".tgz"));
                 state = state.put(name, metadata);
                 updateTaskState();
+                stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("error updating geoip database [" + name + "]", e);
         }
     }
@@ -159,7 +163,8 @@ class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(), false));
+        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(),
+            old.isTar()));
         updateTaskState();
     }
 
@@ -227,6 +232,11 @@ class GeoIpDownloader extends AllocatedPersistentTask {
         if (scheduled != null) {
             scheduled.cancel();
         }
+    }
+
+    @Override
+    public GeoIpDownloaderStats getStatus() {
+        return isCancelled() || isCompleted() ? null: stats;
     }
 
     private void scheduleNextRun(TimeValue time) {

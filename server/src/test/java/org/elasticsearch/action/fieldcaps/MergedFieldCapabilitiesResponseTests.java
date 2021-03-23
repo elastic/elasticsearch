@@ -20,6 +20,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -86,7 +87,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                 break;
         }
         // TODO pass real list
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyMap());
+        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
     }
 
     @Override
@@ -138,11 +139,6 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "}").replaceAll("\\s+", ""), generatedResponse);
     }
 
-    public void testEmptyResponse() throws IOException {
-        FieldCapabilitiesResponse testInstance = new FieldCapabilitiesResponse();
-        assertSerialization(testInstance);
-    }
-
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
         titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false, null, null, null, Collections.emptyMap()));
@@ -163,7 +159,9 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         responses.put("title", titleCapabilities);
         responses.put("rating", ratingCapabilities);
 
-        Map<String, Exception> failureMap = Collections.singletonMap("errorindex", new IllegalArgumentException("test"));
+        List<FieldCapabilitiesFailure> failureMap = List.of(
+            new FieldCapabilitiesFailure(List.of("errorindex"), new IllegalArgumentException("test"))
+        );
         return new FieldCapabilitiesResponse(new String[] {"index1", "index2", "index3", "index4"}, responses, failureMap);
     }
 }

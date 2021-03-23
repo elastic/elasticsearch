@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.tasks.Task;
@@ -77,14 +78,26 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final Map<String, Exception> indexFailures = Collections.synchronizedMap(new HashMap<>());
+        final Map<Tuple<String, Class<? extends Exception>>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
+            new HashMap<>()
+        );
 
         final Runnable countDown = () -> {
             if (completionCounter.countDown()) {
-                if (request.isMergeResults()) {
-                    listener.onResponse(merge(indexResponses, request.includeUnmapped(), indexFailures));
+                if (indexResponses.size() > 0) {
+                    if (request.isMergeResults()) {
+                        listener.onResponse(merge(indexResponses, request.includeUnmapped(), indexFailures));
+                    } else {
+                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(indexFailures.values())));
+                    }
                 } else {
-                    listener.onResponse(new FieldCapabilitiesResponse(indexResponses, indexFailures));
+                    // we have no responses at all, maybe because of errors
+                    if (indexFailures.size() > 0) {
+                        // throw back the first exception
+                        listener.onFailure(indexFailures.values().iterator().next().getException());
+                    } else {
+                        listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
+                    }
                 }
             }
         };
@@ -111,7 +124,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
                     @Override
                     public void onFailure(Exception e) {
-                        indexFailures.put(index, e);
+                        Tuple<String, Class<? extends Exception>> groupingKey = new Tuple<String, Class<? extends Exception>>(
+                            e.getMessage(),
+                            e.getClass()
+                        );
+                        indexFailures.compute(
+                            groupingKey,
+                            (k, v) -> v == null ? new FieldCapabilitiesFailure(new ArrayList<>(List.of(index)), e) : v.addIndex(index)
+                        );
                         countDown.run();
                     }
                 }
@@ -133,7 +153,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteRequest.indexFilter(request.indexFilter());
             remoteRequest.nowInMillis(nowInMillis);
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
-                List<FieldCapabilitiesIndexResponse> remotes = new ArrayList<>();
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                     indexResponses.add(
                         new FieldCapabilitiesIndexResponse(
@@ -143,22 +162,46 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         )
                     );
                 }
-                for (Map.Entry<String, Exception> entry : response.getFailures().entrySet()) {
-                    indexFailures.put(RemoteClusterAware.buildRemoteIndexName(clusterAlias, entry.getKey()), entry.getValue());
+                for (FieldCapabilitiesFailure failure : response.getFailures()) {
+                    Exception ex = failure.getException();
+                    handleRemoteException(ex, clusterAlias, failure.getIndices().toArray(String[]::new), indexFailures);
                 }
                 countDown.run();
-            }, e -> {
-                // individual index failures should show up as remote responses containing an exception
+            }, ex -> {
+//                if (ex instanceof RemoteTransportException) {
+//                    ex = new ElasticsearchException(ex.getCause());
+//                }
+                handleRemoteException(ex, clusterAlias, originalIndices.indices(), indexFailures);
                 countDown.run();
                 }
             ));
         }
     }
 
+    private void handleRemoteException(
+        Exception ex,
+        String clusterAlias,
+        String[] remoteIndices,
+        Map<Tuple<String, Class<? extends Exception>>, FieldCapabilitiesFailure> indexFailures
+    ) {
+        Tuple<String, Class<? extends Exception>> groupingKey = new Tuple<String, Class<? extends Exception>>(
+            ex.getMessage(),
+            ex.getClass()
+        );
+        List<String> remoteIndexNames = new ArrayList<>();
+        for (String failedIndex : remoteIndices) {
+            remoteIndexNames.add(RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex));
+        }
+        indexFailures.compute(
+            groupingKey,
+            (k, v) -> v == null ? new FieldCapabilitiesFailure(remoteIndexNames, ex) : v.addIndices(remoteIndexNames)
+        );
+    }
+
     private FieldCapabilitiesResponse merge(
         List<FieldCapabilitiesIndexResponse> indexResponses,
         boolean includeUnmapped,
-        Map<String, Exception> failureMap
+        Map<Tuple<String, Class<? extends Exception>>, FieldCapabilitiesFailure> failureMap
     ) {
         String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).sorted().toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
@@ -178,7 +221,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
             responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), Collections.unmodifiableMap(failureMap));
+        // de-dup failures
+        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), new ArrayList<>(failureMap.values()));
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {

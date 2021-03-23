@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -44,31 +43,31 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
 
     private final String[] indices;
     private final Map<String, Map<String, FieldCapabilities>> responseMap;
-    private final Map<String, Exception> failureMap;
+    private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
     public FieldCapabilitiesResponse(
         String[] indices,
         Map<String, Map<String, FieldCapabilities>> responseMap,
-        Map<String, Exception> failureMap
+        List<FieldCapabilitiesFailure> failures
     ) {
-        this(indices, responseMap, Collections.emptyList(), failureMap);
+        this(indices, responseMap, Collections.emptyList(), failures);
     }
 
     public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
-        this(indices, responseMap, Collections.emptyList(), Collections.emptyMap());
+        this(indices, responseMap, Collections.emptyList(), Collections.emptyList());
     }
 
-    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, Map<String, Exception> failureMap) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failureMap);
+    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
     }
 
     private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,
-                                      List<FieldCapabilitiesIndexResponse> indexResponses, Map<String, Exception> failureMap) {
+                                      List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
-        this.failureMap = failureMap;
+        this.failures = failures;
     }
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
@@ -81,22 +80,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
         indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            int failuresSize = in.readVInt();
-            failureMap = new HashMap<>(failuresSize);
-            for (int i = 0; i < failuresSize; i++) {
-                String index = in.readString();
-                failureMap.put(index, in.readException());
-            }
+            this.failures = in.readList(FieldCapabilitiesFailure::new);
         } else {
-            this.failureMap = Collections.emptyMap();
+            this.failures = Collections.emptyList();
         }
-    }
-
-    /**
-     * Used for serialization
-     */
-    FieldCapabilitiesResponse() {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());
     }
 
     /**
@@ -110,7 +97,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
      * Get the concrete list of indices that failed
      */
     public String[] getFailedIndices() {
-        return this.failureMap.keySet().toArray(size -> new String[size]);
+        return this.failures.stream().map(FieldCapabilitiesFailure::getIndices).flatMap(s -> s.stream()).toArray(String[]::new);
     }
 
     /**
@@ -123,8 +110,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
     /**
      * Get possible request failures keyed by index name
      */
-    public Map<String, Exception> getFailures() {
-        return failureMap;
+    public List<FieldCapabilitiesFailure> getFailures() {
+        return failures;
     }
 
     /**
@@ -154,11 +141,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         out.writeList(indexResponses);
         if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeVInt(failureMap.size());
-            for (String queryId : failureMap.keySet()) {
-                out.writeString(queryId);
-                out.writeException(failureMap.get(queryId));
-            }
+            out.writeList(failures);
         }
     }
 
@@ -174,15 +157,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
         builder.startObject();
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
-        if (this.failureMap.size() > 0) {
-            builder.field(FAILED_INDICES_FIELD.getPreferredName(), failureMap.size());
-            builder.startObject(FAILURES_FIELD.getPreferredName());
-            for (String key : failureMap.keySet()) {
-                builder.startObject(key);
-                ElasticsearchException.generateFailureXContent(builder, params, failureMap.get(key), true);
-                builder.endObject();
-            }
-            builder.endObject();
+        if (this.failures.size() > 0) {
+            builder.field(FAILED_INDICES_FIELD.getPreferredName(), failures.size());
+            builder.field(FAILURES_FIELD.getPreferredName(), failures);
         }
         builder.endObject();
         return builder;
@@ -198,9 +175,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
             Map<String, Map<String, FieldCapabilities>> responseMap = ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
-            Map<String, Exception> failures = a[2] == null
-                ? Collections.emptyMap()
-                : ((List<Tuple<String, Exception>>) a[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            List<FieldCapabilitiesFailure> failures = a[2] == null
+                ? Collections.emptyList()
+                : (List<FieldCapabilitiesFailure>) a[2];
             return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new), responseMap, failures);
         });
 
@@ -210,13 +187,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
             return new Tuple<>(n, typeToCapabilities);
         }, FIELDS_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
-            Tuple<String, ElasticsearchException> tuple = new Tuple<>(n, ElasticsearchException.failureFromXContent(p));
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
-            return tuple;
-        }, FAILURES_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> FieldCapabilitiesFailure.fromXContent(p),
+            FAILURES_FIELD
+        );
     }
 
     private static Map<String, FieldCapabilities> parseTypeToCapabilities(XContentParser parser, String name) throws IOException {
@@ -241,12 +216,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
         return Arrays.equals(indices, that.indices) &&
             Objects.equals(responseMap, that.responseMap) &&
             Objects.equals(indexResponses, that.indexResponses) &&
-            Objects.equals(failureMap, that.failureMap);
+            Objects.equals(failures, that.failures);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(responseMap, indexResponses, failureMap);
+        int result = Objects.hash(responseMap, indexResponses, failures);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
@@ -259,8 +234,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
     @Override
     public RestStatus status() {
         RestStatus status = RestStatus.OK;
-        if (indices.length == 0 && failureMap.size() > 0) {
-            for (Exception failure : failureMap.values()) {
+        if (indices.length == 0 && failures.size() > 0) {
+            for (Exception failure : failures.stream().map(FieldCapabilitiesFailure::getException).toArray(Exception[]::new)) {
                 RestStatus failureStatus = ExceptionsHelper.status(failure);
                 if (failureStatus.getStatus() >= status.getStatus()) {
                     status = failureStatus;

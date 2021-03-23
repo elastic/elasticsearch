@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.fieldcaps;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.plugins.Plugin;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -47,14 +50,14 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         localClient.prepareIndex(localIndex).setId("1").setSource("foo", "bar").get();
         localClient.admin().indices().prepareRefresh(localIndex).get();
 
-        String remoteIndex = "remote_test_error";
-        assertAcked(remoteClient.admin().indices().prepareCreate(remoteIndex));
-        remoteClient.prepareIndex(remoteIndex).setId("2").setSource("foo", "bar").get();
-        remoteClient.admin().indices().prepareRefresh(remoteIndex).get();
+        String remoteErrorIndex = "remote_test_error";
+        assertAcked(remoteClient.admin().indices().prepareCreate(remoteErrorIndex));
+        remoteClient.prepareIndex(remoteErrorIndex).setId("2").setSource("foo", "bar").get();
+        remoteClient.admin().indices().prepareRefresh(remoteErrorIndex).get();
 
         // regular field_caps across clusters
         FieldCapabilitiesResponse response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
-        assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:" + remoteIndex));
+        assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:" + remoteErrorIndex));
 
         // adding an index filter so remote call should fail
         response = client().prepareFieldCaps("*", "remote_cluster:*")
@@ -62,10 +65,43 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertThat(response.getIndices()[0], equalTo(localIndex));
-        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:" + remoteIndex));
-        Exception failure = response.getFailures().get("remote_cluster:" + remoteIndex);
+        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:*"));
+        List<FieldCapabilitiesFailure> failures = response.getFailures()
+            .stream()
+            .collect(Collectors.filtering(f -> f.getIndices().contains("remote_cluster:*"), Collectors.toList()));
+        Exception failure = failures.get(0).getException();
         assertEquals(RemoteTransportException.class, failure.getClass());
-        assertEquals(IllegalArgumentException.class, failure.getCause().getClass());
-        assertEquals("I throw because I choose to.", failure.getCause().getMessage());
+        Throwable cause = ExceptionsHelper.unwrapCause(failure);
+        assertEquals(IllegalArgumentException.class, cause.getClass());
+        assertEquals("I throw because I choose to.", cause.getMessage());
+
+        // if we only query the remote we should get back an exception only
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareFieldCaps("remote_cluster:*")
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get());
+        assertEquals("I throw because I choose to.", ex.getMessage());
+
+        // add an index that doesn't fail to the remote
+        assertAcked(remoteClient.admin().indices().prepareCreate("okay_remote_index"));
+        remoteClient.prepareIndex("okay_remote_index").setId("2").setSource("foo", "bar").get();
+        remoteClient.admin().indices().prepareRefresh("okay_remote_index").get();
+
+        response = client().prepareFieldCaps("*", "remote_cluster:*")
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get();
+        assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:okay_remote_index"));
+        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:" + remoteErrorIndex));
+        failures = response.getFailures()
+            .stream()
+            .collect(Collectors.filtering(f -> f.getIndices().contains("remote_cluster:" + remoteErrorIndex), Collectors.toList()));
+        failure = failures.get(0).getException();
+        assertEquals(RemoteTransportException.class, failure.getClass());
+        cause = ExceptionsHelper.unwrapCause(failure);
+        assertEquals(IllegalArgumentException.class, cause.getClass());
+        assertEquals("I throw because I choose to.", cause.getMessage());
     }
 }

@@ -19,14 +19,12 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestCase<FieldCapabilitiesResponse> {
 
@@ -39,7 +37,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         for (int i = 0; i < numResponse; i++) {
             responses.add(createRandomIndexResponse());
         }
-        randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyMap());
+        randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
         return randomResponse;
     }
 
@@ -102,30 +100,26 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                     FieldCapabilitiesTests.randomFieldCaps(toReplace)));
                 break;
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyMap());
+        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
     }
 
     public void testFailureSerialization() throws IOException {
-        String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
-        Map<String, Exception> failures = new HashMap<>();
-        for (String index : indices) {
-            failures.put(index, (Exception) ElasticsearchExceptionTests.randomExceptions().v1());
-        }
-        FieldCapabilitiesResponse randomResponse = new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
+        FieldCapabilitiesResponse randomResponse = createResponseWithFailures();
         FieldCapabilitiesResponse deserialized = copyInstance(randomResponse);
         assertThat(deserialized.getIndices(), Matchers.equalTo(randomResponse.getIndices()));
-        // only match keys, exception equality is difficult to assert
-        assertThat(deserialized.getFailures().keySet(), Matchers.equalTo(randomResponse.getFailures().keySet()));
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        List<FieldCapabilitiesFailure> deserializedFailures = deserialized.getFailures();
+        assertEquals(deserializedFailures.size(), randomResponse.getFailures().size());
+        int i = 0;
+        for (FieldCapabilitiesFailure originalFailure : randomResponse.getFailures()) {
+            FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
+            assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
+            i++;
+        }
     }
 
     public void testFailureParsing() throws IOException {
-        String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
-        Map<String, Exception> failures = new HashMap<>();
-        for (String index : indices) {
-            failures.put(index, (Exception) ElasticsearchExceptionTests.randomExceptions().v1());
-        }
-        FieldCapabilitiesResponse randomResponse = new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
-
+        FieldCapabilitiesResponse randomResponse = createResponseWithFailures();
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(randomResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -136,8 +130,29 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         }
         assertNotSame(parsedResponse, randomResponse);
         assertThat(parsedResponse.getIndices(), Matchers.equalTo(randomResponse.getIndices()));
-        // only match keys, exception equality is difficult to assert
-        assertThat(parsedResponse.getFailures().keySet(), Matchers.equalTo(randomResponse.getFailures().keySet()));
-        assertThat(Arrays.asList(parsedResponse.getFailedIndices()), containsInAnyOrder(indices));
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        List<FieldCapabilitiesFailure> deserializedFailures = parsedResponse.getFailures();
+        assertEquals(deserializedFailures.size(), randomResponse.getFailures().size());
+        int i = 0;
+        for (FieldCapabilitiesFailure originalFailure : randomResponse.getFailures()) {
+            FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
+            assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
+            i++;
+        }
+    }
+
+    private FieldCapabilitiesResponse createResponseWithFailures() {
+        String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
+        List<FieldCapabilitiesFailure> failures = new ArrayList<>();
+        for (String index : indices) {
+            if (randomBoolean() || failures.size() == 0) {
+                List<String> indexNames = new ArrayList<>();
+                indexNames.add(index);
+                failures.add(new FieldCapabilitiesFailure(indexNames, ElasticsearchExceptionTests.randomExceptions().v2()));
+            } else {
+                failures.get(failures.size() - 1).addIndex(index);
+            }
+        }
+        return new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
     }
 }

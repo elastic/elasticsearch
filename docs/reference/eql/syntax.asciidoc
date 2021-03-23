@@ -410,11 +410,12 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |`\"`             | Double quote (`"`)
 |====
 
-You can escape Unicode characters using a `\u{XXXXXXXX}` case-insensitive
-hexadecimal escape sequence. You can use these escape sequences to include
-non-printable or right-to-left (RTL) characters in your strings. For example,
-you can escape a {wikipedia}/Right-to-left_mark[right-to-left mark (RLM)] as
-`\u{200f}`, `\u{200F}`, or `\u{0000200f}`.
+You can escape Unicode characters using a case-insensitive hexadecimal
+`\u{XXXXXXXX}` escape sequence. You can use these escape sequences to include
+non-printable or right-to-left (RTL) characters in your strings. Hexadecimal
+values shorter than 8 characters are zero-padded. For example, you can escape a
+{wikipedia}/Right-to-left_mark[right-to-left mark (RLM)] as `\u{200f}`,
+`\u{200F}`, or `\u{0000200f}`.
 
 IMPORTANT: The single quote (`'`) character is reserved for future use. You
 cannot use an escaped single quote (`\'`) for literal strings. Use an escaped

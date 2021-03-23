@@ -14,11 +14,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
+import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -49,6 +54,22 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             m -> assertFalse(((NumberFieldMapper) m).coerce()));
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
             m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+
+        if (allowsIndexTimeScript()) {
+            checker.registerConflictCheck("script", b -> b.field("script", "foo"));
+            checker.registerUpdateCheck(
+                b -> {
+                    minimalMapping(b);
+                    b.field("script", "test");
+                    b.field("on_script_error", "reject");
+                },
+                b -> {
+                    minimalMapping(b);
+                    b.field("script", "test");
+                    b.field("on_script_error", "ignore");
+                },
+                m -> assertThat(((NumberFieldMapper)m).onScriptError(), equalTo("ignore")));
+        }
     }
 
     @Override
@@ -228,15 +249,24 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     }
 
-    public void testScriptableTypes() {
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context == LongFieldScript.CONTEXT) {
+            return (T) LongFieldScript.PARSE_FROM_SOURCE;
+        }
+        if (context == DoubleFieldScript.CONTEXT) {
+            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+        }
+        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+    }
+
+    public void testScriptableTypes() throws IOException {
         if (allowsIndexTimeScript()) {
-            // won't actually compile because we don't have painless in unit tests, but we can
-            // check that it gets as far as trying to compile it
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("script", "foo");
-            })));
-            assertEquals("Failed to parse mapping: script_lang not supported [painless]", e.getMessage());
+            }));
         } else {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);

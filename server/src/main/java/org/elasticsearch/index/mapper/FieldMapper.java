@@ -520,6 +520,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
+        private List<Parameter<?>> requires = new ArrayList<>();
+        private List<Parameter<?>> precludes = new ArrayList<>();
 
         /**
          * Creates a new Parameter
@@ -650,9 +652,31 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
+        public Parameter<T> requiresParameters(Parameter<?>... ps) {
+            this.requires.addAll(Arrays.asList(ps));
+            return this;
+        }
+
+        public Parameter<T> precludesParameters(Parameter<?>... ps) {
+            this.precludes.addAll(Arrays.asList(ps));
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
+            }
+            if (this.isConfigured()) {
+                for (Parameter<?> p : requires) {
+                    if (p.isConfigured() == false) {
+                        throw new IllegalArgumentException("Field [" + name + "] requires field [" + p.name + "] to be configured");
+                    }
+                }
+                for (Parameter<?> p : precludes) {
+                    if (p.isConfigured()) {
+                        throw new IllegalArgumentException("Field [" + p.name + "] cannot be set in conjunction with field [" + name + "]");
+                    }
+                }
             }
         }
 

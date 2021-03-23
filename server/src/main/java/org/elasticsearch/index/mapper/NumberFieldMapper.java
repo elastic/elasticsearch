@@ -83,7 +83,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<MapperScript<Number>> script;
         private final Parameter<String> onScriptError = Parameter.restrictedStringParam(
             "on_script_error",
-            false,
+            true,
             m -> toType(m).onScriptError,
             "reject", "ignore"
         );
@@ -115,6 +115,8 @@ public class NumberFieldMapper extends FieldMapper {
                 type.compiler(name),
                 m -> toType(m).script
             );
+            this.onScriptError.requiresParameters(this.script);
+            this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
         }
 
         Builder nullValue(Number number) {
@@ -1154,6 +1156,10 @@ public class NumberFieldMapper extends FieldMapper {
 
     boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    String onScriptError() {
+        return onScriptError;
     }
 
     @Override

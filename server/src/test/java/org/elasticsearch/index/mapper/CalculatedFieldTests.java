@@ -169,6 +169,15 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals("No field found for [runtime-field] in mapping", e.getCause().getCause().getMessage());
     }
 
+    public void testScriptErrorParameterRequiresScript() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "long");
+            b.field("on_script_error", "ignore");
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping: Field [on_script_error] requires field [script] to be configured"));
+    }
+
     public void testIgnoreScriptErrors() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("message").field("type", "keyword").endObject();

@@ -26,6 +26,9 @@ When audit logging is enabled, <<audit-event-types, security events>> are persis
 a dedicated `<clustername>_audit.json` file on the host's file system, on every cluster node.
 For more information, see <<audit-log-output>>.
 
+NOTE: the official Elasticsearch Docker image outputs security events on the standard
+output (`stdout`) by default, instead of using a dedicated `<clustername>_audit.json` file.
+
 You can configure additional options to control what events are logged and 
 what information is included in the audit log. 
 For more information, see <<auditing-settings>>.

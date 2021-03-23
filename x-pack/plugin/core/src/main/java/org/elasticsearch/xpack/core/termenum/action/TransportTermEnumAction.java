@@ -196,7 +196,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
-    protected TermEnumResponse newResponse(TermEnumRequest request, AtomicReferenceArray nodesResponses,
+    protected TermEnumResponse newResponse(TermEnumRequest request, AtomicReferenceArray<?> nodesResponses,
         ClusterState clusterState, boolean complete, Map<String, Set<ShardId>> nodeBundles) {
         int successfulShards = 0;
         int failedShards = 0;
@@ -459,7 +459,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         private final DiscoveryNodes nodes;
         private final int expectedOps;
         private final AtomicInteger counterOps = new AtomicInteger();
-        private final AtomicReferenceArray nodesResponses;
+        private final AtomicReferenceArray<NodeTermEnumResponse> nodesResponses;
         private Map<String, Set<ShardId>> nodeBundles;
 
         protected AsyncBroadcastAction(Task task, TermEnumRequest request, ActionListener<TermEnumResponse> listener) {
@@ -492,7 +492,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             if (nodeBundles.size() == 0) {
                 // no shards
                 try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState, true, nodeBundles));
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray<>(0), clusterState, true, nodeBundles));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -570,7 +570,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             }
         }
 
-        @SuppressWarnings({ "unchecked" })
         protected void onOperation(String nodeId, int nodeIndex, NodeTermEnumResponse response) {
             logger.trace("received response for node {}", nodeId);
             nodesResponses.set(nodeIndex, response);

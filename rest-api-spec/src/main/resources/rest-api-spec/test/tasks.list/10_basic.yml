@@ -44,6 +44,7 @@
       tasks.list:
         actions: "cluster:monitor/tasks/lists"
         detailed: true
+        group_by: none
         descriptions: "anything*"
 
   - length: { tasks: 0 }
@@ -52,6 +53,7 @@
       tasks.list:
         actions: "cluster:monitor/tasks/lists"
         detailed: true
+        group_by: none
         descriptions: "*"
 
   - length: { tasks: 1 }

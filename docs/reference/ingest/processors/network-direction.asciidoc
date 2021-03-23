@@ -22,7 +22,7 @@ only the `internal_networks` option must be specified.
 | `destination_ip`   | no       | `destination.ip` | Field containing the destination IP address.
 | `target_field`     | no       | `network.direction` | Output field for the network direction.
 | `internal_networks`| no      |               | List of internal networks. Supports IPv4 and
-IPv6 addresses and ranges in CIDR notation. Also supports the named ranges listed below. These may be constructed with <<accessing-template-fields,template snippets>>.
+IPv6 addresses and ranges in CIDR notation. Also supports the named ranges listed below. These may be constructed with <<template-snippets,template snippets>>.
 | `internal_networks_field`| no      |               | A field on the given document to read the `internal_networks` configuration from.
 | `ignore_missing`   | no       | `true`        | If `true` and any required fields are missing,
 the processor quietly exits without modifying the document.

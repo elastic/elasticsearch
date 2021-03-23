@@ -42,7 +42,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             if (script.get() == null) {
                 return new BooleanScriptFieldType(name, BooleanFieldScript.PARSE_FROM_SOURCE, this);
             }
-            BooleanFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), BooleanFieldScript.CONTEXT);
+            BooleanFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), BooleanFieldScript.CONTEXT);
             return new BooleanScriptFieldType(name, factory, this);
         }
     });

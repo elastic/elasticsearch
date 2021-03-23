@@ -20,7 +20,6 @@ import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 

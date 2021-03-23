@@ -40,7 +40,7 @@ public interface MapperPlugin {
      * as the mapping {@code type}, and the value is a {@link RuntimeField.Parser} to parse the
      * field type settings into a {@link RuntimeField}.
      */
-    default Map<String, RuntimeField.Parser> getRuntimeFieldTypes() {
+    default Map<String, RuntimeField.Parser> getRuntimeFields() {
         return Collections.emptyMap();
     }
 

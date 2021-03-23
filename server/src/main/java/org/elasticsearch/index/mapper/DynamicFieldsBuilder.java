@@ -198,7 +198,7 @@ final class DynamicFieldsBuilder {
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
         if (dynamicTemplate.isRuntimeMapping()) {
             Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
-            RuntimeField.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
+            RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
             String fullName = context.path().pathAsText(name);
             if (parser == null) {
                 throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + fullName + "]");

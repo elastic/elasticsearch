@@ -159,7 +159,7 @@ public interface RuntimeField extends ToXContentFragment {
                 } else {
                     type = typeNode.toString();
                 }
-                Parser typeParser = parserContext.runtimeFieldTypeParser(type);
+                Parser typeParser = parserContext.runtimeFieldParser(type);
                 if (typeParser == null) {
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");

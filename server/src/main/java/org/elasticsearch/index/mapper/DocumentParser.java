@@ -799,7 +799,7 @@ final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeField runtimeField = context.root().getRuntimeFieldType(fieldPath);
+        RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
         if (runtimeField != null) {
             return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeField.asMappedFieldType().name());
         }

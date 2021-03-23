@@ -138,7 +138,7 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(randomFloat));
-                    builder.append("\"half_float_field\":123.456");
+                    builder.append("\"half_float_field\":123.4375");
                     fieldValues.put("half_float_field", 123.45600128173828d);
                 } else {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");

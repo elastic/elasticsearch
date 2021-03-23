@@ -40,8 +40,8 @@ public class DeploymentManager {
         this.executorServiceForProcess = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
     }
 
-    public void deployModel(TrainedModelDeploymentTask task) {
-        logger.info("[{}] Deploying model", task.getModelId());
+    public void startDeployment(TrainedModelDeploymentTask task) {
+        logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task.getModelId());
 
@@ -59,13 +59,13 @@ public class DeploymentManager {
         ));
     }
 
-    public void undeployModel(TrainedModelDeploymentTask task) {
+    public void stopDeployment(TrainedModelDeploymentTask task) {
         ProcessContext processContext;
         synchronized (processContextByAllocation) {
             processContext = processContextByAllocation.get(task.getAllocationId());
         }
         if (processContext != null) {
-            logger.debug("[{}] Undeploying model", task.getModelId());
+            logger.debug("[{}] Stopping deployment", task.getModelId());
             processContext.killProcess();
         } else {
             logger.debug("[{}] No process context to stop", task.getModelId());

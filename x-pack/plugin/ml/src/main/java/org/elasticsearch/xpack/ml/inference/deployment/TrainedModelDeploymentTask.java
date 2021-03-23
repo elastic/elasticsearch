@@ -40,7 +40,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
 
         assert manager != null : "manager should not be unset when stop is called";
-        manager.undeployModel(this);
+        manager.stopDeployment(this);
         markAsCompleted();
     }
 

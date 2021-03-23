@@ -285,7 +285,7 @@ public class TransportStartTrainedModelDeploymentAction
             TrainedModelDeploymentTaskState deployingState = new TrainedModelDeploymentTaskState(
                 TrainedModelDeploymentState.STARTING, task.getAllocationId(), null);
             task.updatePersistentTaskState(deployingState, ActionListener.wrap(
-                response -> manager.deployModel(trainedModelDeploymentTask),
+                response -> manager.startDeployment(trainedModelDeploymentTask),
                 task::markAsFailed
             ));
         }

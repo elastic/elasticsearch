@@ -114,7 +114,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected void doReadNonMetadata(ByteBuffer b) throws Exception {
+    protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
         final long position = getAbsolutePosition();
         final int length = b.remaining();

@@ -98,11 +98,11 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
         try {
-            final ByteRange blobCacheByteRange = maybeReadFromBlobCache(position, length);
+            final ByteRange blobCacheByteRange = rangeToReadFromBlobCache(position, length);
             if (blobCacheByteRange.isEmpty()) {
-                doReadNonMetadata(b);
+                readWithoutBlobCache(b);
             } else {
-                readFromBlobCache(b, position, length, blobCacheByteRange);
+                readWithBlobCache(b, position, length, blobCacheByteRange);
             }
         } catch (final Exception e) {
             // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.
@@ -114,15 +114,12 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
         readComplete(position, length);
     }
 
-    protected abstract void doReadNonMetadata(ByteBuffer b) throws Exception;
+    protected abstract void readWithoutBlobCache(ByteBuffer b) throws Exception;
 
-    private void readFromBlobCache(ByteBuffer b, long position, int length, ByteRange blobCacheByteRange) throws Exception {
+    private void readWithBlobCache(ByteBuffer b, long position, int length, ByteRange blobCacheByteRange) throws Exception {
         final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
         assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || cachedBlob.from() <= position;
         assert cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY || length <= cachedBlob.length();
-
-        // Requested data is not on disk, so try the cache index next.
-        final ByteRange indexCacheMiss; // null if not a miss
 
         final CacheFile cacheFile = cacheFileReference.get();
 
@@ -130,24 +127,45 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
             // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
             // {start, end} where positions are relative to the whole file.
-            indexCacheMiss = blobCacheByteRange;
 
             // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
             // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
+            final ByteRange rangeToWrite = blobCacheByteRange;
+            final ByteRange rangeToRead = ByteRange.of(position, position + length);
+            assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
+            assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
+                channel -> readCacheFile(channel, position, b),
+                this::writeCacheFile,
+                directory.cacheFetchAsyncExecutor()
+            );
+
+            fillIndexCache(cacheFile, blobCacheByteRange);
+            if (compoundFileOffset > 0L
+                && blobCacheByteRange.equals(headerBlobCacheByteRange)
+                && footerBlobCacheByteRange.isEmpty() == false) {
+                fillIndexCache(cacheFile, footerBlobCacheByteRange);
+            }
+
+            final int bytesRead = populateCacheFuture.get();
+            assert bytesRead == length : bytesRead + " vs " + length;
         } else {
             logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
+            final int sliceOffset = toIntBytes(position - cachedBlob.from());
+            final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
+            BytesRef bytesRef;
+            int copiedBytes = 0;
+            while ((bytesRef = cachedBytesIterator.next()) != null) {
+                b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                copiedBytes += bytesRef.length;
+            }
+            assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
             stats.addIndexCacheBytesRead(cachedBlob.length());
-            try {
-                final int sliceOffset = toIntBytes(position - cachedBlob.from());
-                final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
-                BytesRef bytesRef;
-                int copiedBytes = 0;
-                while ((bytesRef = cachedBytesIterator.next()) != null) {
-                    b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                    copiedBytes += bytesRef.length;
-                }
-                assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
 
+            try {
                 final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
                 cacheFile.populateAndRead(
                     cachedRange,
@@ -186,34 +204,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 );
                 // oh well, no big deal, at least we can return them to the caller.
             }
-
-            readComplete(position, length);
-
-            return;
         }
-
-        final ByteRange rangeToWrite = indexCacheMiss;
-        final ByteRange rangeToRead = ByteRange.of(position, position + length);
-        assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
-        assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
-
-        final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
-            rangeToWrite,
-            rangeToRead,
-            channel -> readCacheFile(channel, position, b),
-            this::writeCacheFile,
-            directory.cacheFetchAsyncExecutor()
-        );
-
-        if (indexCacheMiss != null) {
-            fillIndexCache(cacheFile, indexCacheMiss);
-            if (compoundFileOffset > 0L && indexCacheMiss.equals(headerBlobCacheByteRange) && footerBlobCacheByteRange.isEmpty() == false) {
-                fillIndexCache(cacheFile, footerBlobCacheByteRange);
-            }
-        }
-
-        final int bytesRead = populateCacheFuture.get();
-        assert bytesRead == length : bytesRead + " vs " + length;
     }
 
     protected void readComplete(long position, int length) {

@@ -114,7 +114,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected void doReadNonMetadata(ByteBuffer b) throws Exception {
+    protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition() - compoundFileOffset;
         final int length = b.remaining();
 

@@ -135,7 +135,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
             listener.onResponse(null);
             return null;
-        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
             tokenService, apiKeyService, serviceAccountService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);

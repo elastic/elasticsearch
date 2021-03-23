@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 
@@ -28,7 +29,7 @@ import java.util.Objects;
  *   <li>The {@link #getSecret() secret credential} for that token</li>
  * </ol>
  */
-public class ServiceAccountToken implements Closeable {
+public class ServiceAccountToken implements AuthenticationToken, Closeable {
     private final ServiceAccountId accountId;
     private final String tokenName;
     private final SecureString secret;
@@ -71,7 +72,7 @@ public class ServiceAccountToken implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         secret.close();
     }
 
@@ -92,5 +93,20 @@ public class ServiceAccountToken implements Closeable {
 
     public static ServiceAccountToken newToken(ServiceAccountId accountId, String tokenName) {
         return new ServiceAccountToken(accountId, tokenName, UUIDs.randomBase64UUIDSecureString());
+    }
+
+    @Override
+    public String principal() {
+        return accountId.asPrincipal();
+    }
+
+    @Override
+    public Object credentials() {
+        return secret;
+    }
+
+    @Override
+    public void clearCredentials() {
+        close();
     }
 }

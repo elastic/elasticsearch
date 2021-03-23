@@ -269,7 +269,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
             listener.onResponse(null);
             return null;
-        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
 
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         service = new AuthenticationService(settings, realms, auditTrailService,
@@ -1916,7 +1916,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
             listener.onResponse(authentication);
             return null;
-        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         service.authenticate("_action", transportRequest, false, future);
         assertThat(future.get(), is(authentication));
@@ -1930,7 +1930,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
             listener.onFailure(bailOut);
             return null;
-        }).when(serviceAccountService).tryAuthenticateBearerToken(any(), any(), any());
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         service.authenticate("_action", transportRequest, false, future);
         final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());

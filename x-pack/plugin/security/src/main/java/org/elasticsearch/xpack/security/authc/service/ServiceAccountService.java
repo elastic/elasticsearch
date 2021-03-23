@@ -85,19 +85,7 @@ public class ServiceAccountService {
         }
     }
 
-    public void tryAuthenticateBearerToken(SecureString bearerToken, String nodeName, ActionListener<Authentication> listener) {
-        final ServiceAccountToken serviceAccountToken = ServiceAccountService.tryParseToken(bearerToken);
-        if (serviceAccountToken == null) {
-            // This should be the only situation where a null is returned to mean the authentication should continue.
-            // For all other situations, it should be either onResponse(authentication) for success or onFailure for any error.
-            listener.onResponse(null);
-        } else {
-            authenticateToken(serviceAccountToken, nodeName, listener);
-        }
-    }
-
-    // package private for testing
-    void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
+    public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
 
         if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
             final ParameterizedMessage message = new ParameterizedMessage(

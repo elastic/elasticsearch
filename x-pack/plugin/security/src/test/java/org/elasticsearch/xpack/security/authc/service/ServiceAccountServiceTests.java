@@ -21,6 +21,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 import org.junit.Before;
 
@@ -33,7 +34,6 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -82,8 +82,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         // Null for null
         assertNull(ServiceAccountService.tryParseToken(null));
 
-        final ServiceAccount.ServiceAccountId accountId =
-            new ServiceAccount.ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final ServiceAccountId accountId =
+            new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final String tokenName = randomAlphaOfLengthBetween(3, 8);
         final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
 
@@ -110,6 +110,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertNull(ServiceAccountService.tryParseToken(new SecureString(base64.toCharArray())));
         }
 
+        // Invalid version again
+        assertNull(ServiceAccountService.tryParseToken(
+            new SecureString("0/uxAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWS2xScU9xdDdUSktTNWt3X1hKV0k0QQAAAAAAAAA".toCharArray())));
+
+        // Wrong token type again
+        assertNull(ServiceAccountService.tryParseToken(
+            new SecureString("46ToAwAHZWxhc3RpYwVmbGVldAZ0b2tlbjEWUmpXRVp1Q3hTVS1lZTJoMFJoYVFqUQAAAAAAAAA".toCharArray())));
+
         // Serialise and de-serialise service account token
         final ServiceAccountToken serviceAccountToken = new ServiceAccountToken(accountId, tokenName, secret);
         final ServiceAccountToken parsedToken = ServiceAccountService.tryParseToken(serviceAccountToken.asBearerString());
@@ -123,31 +131,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
-        // null token
-        final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
-        serviceAccountService.tryAuthenticateBearerToken(null, randomAlphaOfLengthBetween(3, 8), future1);
-        assertThat(future1.get(), nullValue());
-
-        // garbage token
-        final PlainActionFuture<Authentication> future2 = new PlainActionFuture<>();
-        serviceAccountService.tryAuthenticateBearerToken(new SecureString(randomAlphaOfLength(75).toCharArray()),
-            randomAlphaOfLengthBetween(3, 8), future2);
-        assertThat(future2.get(), nullValue());
-
-        // Wrong version
-        final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
-        serviceAccountService.tryAuthenticateBearerToken(
-            new SecureString("0/uxAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWS2xScU9xdDdUSktTNWt3X1hKV0k0QQAAAAAAAAA".toCharArray()),
-            randomAlphaOfLengthBetween(3, 8), future3);
-        assertThat(future3.get(), nullValue());
-
-        // Wrong token type
-        final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
-        serviceAccountService.tryAuthenticateBearerToken(
-            new SecureString("46ToAwAHZWxhc3RpYwVmbGVldAZ0b2tlbjEWUmpXRVp1Q3hTVS1lZTJoMFJoYVFqUQAAAAAAAAA".toCharArray()),
-            randomAlphaOfLengthBetween(3, 8), future4);
-        assertThat(future4.get(), nullValue());
-
         // Valid token
         final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
         doAnswer(invocationOnMock -> {
@@ -157,8 +140,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             return null;
         }).when(serviceAccountsTokenStore).authenticate(any(), any());
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
-        serviceAccountService.tryAuthenticateBearerToken(
-            new SecureString("46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWY1hoZExGb2RUZVd4WVU1My02TVBtZwAAAAAAAAA".toCharArray()),
+        serviceAccountService.authenticateToken(
+            new ServiceAccountToken(new ServiceAccountId("elastic", "fleet"), "token1",
+                new SecureString("super-secret-value".toCharArray())),
             nodeName, future5);
         assertThat(future5.get(), equalTo(
             new Authentication(
@@ -173,7 +157,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testAuthenticateWithToken() throws ExecutionException, InterruptedException {
         // Null for non-elastic service account
-        final ServiceAccount.ServiceAccountId accountId1 = new ServiceAccount.ServiceAccountId(
+        final ServiceAccountId accountId1 = new ServiceAccountId(
             randomValueOtherThan(ElasticServiceAccounts.NAMESPACE, () -> randomAlphaOfLengthBetween(3, 8)),
             randomAlphaOfLengthBetween(3, 8));
         final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
@@ -187,7 +171,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "but received [" + accountId1.asPrincipal() + "]"));
 
         // Null for unknown elastic service name
-        final ServiceAccount.ServiceAccountId accountId2 = new ServiceAccount.ServiceAccountId(
+        final ServiceAccountId accountId2 = new ServiceAccountId(
             ElasticServiceAccounts.NAMESPACE,
             randomValueOtherThan("fleet", () -> randomAlphaOfLengthBetween(3, 8)));
         final ServiceAccountToken token2 = new ServiceAccountToken(accountId2, randomAlphaOfLengthBetween(3, 8), secret);
@@ -199,7 +183,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             "the [" + accountId2.asPrincipal() + "] service account does not exist"));
 
         // Success based on credential store
-        final ServiceAccount.ServiceAccountId accountId3 = new ServiceAccount.ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet");
+        final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet");
         final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret);
         final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
             new SecureString(randomAlphaOfLength(20).toCharArray()));

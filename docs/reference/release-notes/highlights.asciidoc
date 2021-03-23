@@ -60,15 +60,15 @@ and
 documentation.
 
 [discrete]
-[[test-snapshot-repositories]]
-=== Test snapshot repositories
+[[analyze-snapshot-repositories]]
+=== Analyze snapshot repositories
 
 While there are many third-party storage systems, not all of them work well as
 snapshot repositories. Some systems perform poorly or behave incorrectly as a
 repository, especially when multiple {es} nodes access them concurrently.
 
-To avoid these problems, you can now use the
-{ref}/repo-analysis-api.html[repository analysis API] to test a repository's
+To detect and avoid these problems, you can now use the
+{ref}/repo-analysis-api.html[repository analysis API] to analyze a repository's
 storage system before using it in production. The API performs a collection of
 read and write operations on the repository. These operations are designed to
 detect incorrect behavior and measure the performance characteristics of a

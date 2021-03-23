@@ -14,7 +14,7 @@ cluster and exchange data with other nodes. While implementing username and
 password authentication at the HTTP layer is useful for securing a local
 cluster, the security of communication between nodes requires TLS.
 
-Configuring TLS is the basic security setup to prevent unauthorized nodes from
+Configuring TLS between nodes is the basic security setup to prevent unauthorized nodes from
 accessing to your cluster.
 
 [[basic-setup-prerequisites]]

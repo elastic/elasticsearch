@@ -64,7 +64,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DA
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -262,7 +261,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
-        checkNoBlobStoreAccess(useSoftDeletes, storage);
+        checkNoBlobStoreAccess(useSoftDeletes);
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
@@ -299,7 +298,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
-        checkNoBlobStoreAccess(useSoftDeletes, storage);
+        checkNoBlobStoreAccess(useSoftDeletes);
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(
@@ -324,7 +323,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         // TODO also test when prewarming is enabled
     }
 
-    private void checkNoBlobStoreAccess(boolean useSoftDeletes, Storage storage) {
+    private void checkNoBlobStoreAccess(boolean useSoftDeletes) {
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
@@ -333,13 +332,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 if (useSoftDeletes == false && indexInputStats.getFileExt().equals("liv")) {
                     continue;
                 }
-                assertThat(
-                    Strings.toString(indexInputStats),
-                    indexInputStats.getBlobStoreBytesRequested().getCount(),
-                    storage == Storage.SHARED_CACHE ? equalTo(0L)
-                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
-                        : equalTo(0L)
-                );
+                assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
             }
         }
     }

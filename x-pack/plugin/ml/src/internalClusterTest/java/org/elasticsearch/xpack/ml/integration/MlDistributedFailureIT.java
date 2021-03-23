@@ -455,7 +455,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67756")
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.ml.action:TRACE,"
+            + "org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager:TRACE,"
+            + "org.elasticsearch.xpack.ml.datafeed:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/67756"
+    )
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

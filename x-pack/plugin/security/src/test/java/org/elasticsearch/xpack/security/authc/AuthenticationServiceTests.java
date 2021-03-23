@@ -1911,30 +1911,36 @@ public class AuthenticationServiceTests extends ESTestCase {
         final Authentication authentication = new Authentication(
             new User("elastic/fleet"),
             new RealmRef("service_account", "service_account", "foo"), null);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
-            listener.onResponse(authentication);
-            return null;
-        }).when(serviceAccountService).authenticateToken(any(), any(), any());
-        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        service.authenticate("_action", transportRequest, false, future);
-        assertThat(future.get(), is(authentication));
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+            threadContext.putHeader("Authorization", "Bearer 46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWME1TT0ZobXVRTENIaTNQUGJ4VXQ5ZwAAAAAAAAA");
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+                listener.onResponse(authentication);
+                return null;
+            }).when(serviceAccountService).authenticateToken(any(), any(), any());
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            service.authenticate("_action", transportRequest, false, future);
+            assertThat(future.get(), is(authentication));
+        }
     }
 
     public void testServiceAccountFailureWillNotFallthrough() {
         Mockito.reset(serviceAccountService);
         final RuntimeException bailOut = new RuntimeException("bail out");
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
-            listener.onFailure(bailOut);
-            return null;
-        }).when(serviceAccountService).authenticateToken(any(), any(), any());
-        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        service.authenticate("_action", transportRequest, false, future);
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
-        assertThat(e.getCause().getCause(), is(bailOut));
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+            threadContext.putHeader("Authorization", "Bearer 46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWME1TT0ZobXVRTENIaTNQUGJ4VXQ5ZwAAAAAAAAA");
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+                listener.onFailure(bailOut);
+                return null;
+            }).when(serviceAccountService).authenticateToken(any(), any(), any());
+            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+            service.authenticate("_action", transportRequest, false, future);
+            final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
+            assertThat(e.getCause().getCause(), is(bailOut));
+        }
     }
 
     private static class InternalRequest extends TransportRequest {

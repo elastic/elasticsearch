@@ -818,7 +818,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // end::clone-snapshot-request-masterTimeout
 
         // tag::clone-snapshot-request-index-settings
-        request.indicesOptions(new IndicesOptions( // <1>
+        request.indicesOptions(new IndicesOptions(
             EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE),  // <1>
             EnumSet.of(
                 IndicesOptions.WildcardStates.OPEN,

@@ -213,7 +213,7 @@ non-existent index or data stream rather than an explicit
 auto-update of mappings on indices and data streams if they do not contradict
 existing mappings. An auto-update mapping action is the result of an index or
 bulk request on an index or data stream that contains new fields that may
-be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
+be mapped rather than an explicit <<indices-put-mapping,update mapping>> request.
 
 `create`::
 Privilege to index documents. Also grants access to the update mapping

@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -62,7 +61,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DA
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -81,10 +79,10 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         builder.put(CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
 
         // Frozen (shared cache) cache should be large enough to not cause direct reads
-        builder.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128));
+        builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128));
         // Align ranges to match the blob cache max length
-        builder.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), blobCacheMaxLength);
-        builder.put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
+        builder.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), blobCacheMaxLength);
+        builder.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
         builder.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
         cacheSettings = builder.build();
     }
@@ -259,7 +257,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
-        checkNoBlobStoreAccess(storage);
+        checkNoBlobStoreAccess();
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
@@ -296,7 +294,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
-        checkNoBlobStoreAccess(storage);
+        checkNoBlobStoreAccess();
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(
@@ -321,19 +319,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         // TODO also test when prewarming is enabled
     }
 
-    private void checkNoBlobStoreAccess(Storage storage) {
+    private void checkNoBlobStoreAccess() {
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                assertThat(
-                    Strings.toString(indexInputStats),
-                    indexInputStats.getBlobStoreBytesRequested().getCount(),
-                    storage == Storage.SHARED_CACHE ? equalTo(0L)
-                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
-                        : equalTo(0L)
-                );
+                assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
             }
         }
     }

@@ -863,8 +863,8 @@ An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
 +
 --
-NOTE: If any indices are in remote clusters then `node.remote_cluster_client`
-must not be set to `false` on any {ml} nodes.
+NOTE: If any indices are in remote clusters then the {ml} nodes need to have the 
+`remote_cluster_client` role.
 
 --
 end::indices[]
@@ -1321,11 +1321,12 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::out-of-order-timestamp-count[]
-The number of input documents that are out of time sequence and outside
-of the latency window. This information is applicable only when you provide data
-to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
-order documents are  discarded, since jobs require time series data to be in
-ascending chronological order.
+The number of input documents that have a timestamp chronologically
+preceding the start of the current anomaly detection bucket offset by 
+the latency window. This information is applicable only when you provide 
+data to the {anomaly-job} by using the <<ml-post-data,post data API>>. 
+These out of order documents are discarded, since jobs require time 
+series data to be in ascending chronological order.
 end::out-of-order-timestamp-count[]
 
 tag::outlier-fraction[]

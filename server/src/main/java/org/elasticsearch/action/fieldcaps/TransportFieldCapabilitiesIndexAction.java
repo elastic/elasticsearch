@@ -128,6 +128,7 @@ public class TransportFieldCapabilitiesIndexAction
 
                     // Check the ancestor of the field to find nested and object fields.
                     // Runtime fields are excluded since they can override any path.
+                    //TODO find a way to do this that does not require an instanceof check
                     if (ft instanceof RuntimeFieldType == false) {
                         int dotIndex = ft.name().lastIndexOf('.');
                         while (dotIndex > -1) {

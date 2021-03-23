@@ -13,14 +13,13 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -33,7 +32,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -47,25 +45,21 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
+        protected RuntimeFieldType buildFieldType() {
             if (script.get() == null) {
-                return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, this);
+                return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
             IpFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), IpFieldScript.CONTEXT);
-            return new IpScriptFieldType(name, factory, this);
+            return new IpScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });
-
-    private IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Builder builder) {
-        super(name, scriptFactory::newFactory, builder);
-    }
 
     IpScriptFieldType(
         String name,
         IpFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, scriptFactory::newFactory, script, meta, toXContent);
     }

@@ -220,7 +220,7 @@ class RetryingHttpInputStream extends InputStream {
                             " Status code: [" + statusCode + "] - Body: " + body));
                     }
 
-                    currentStreamLastOffset = getStreamLength(response);
+                    currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
 
                     return response.getInputStream();
                 } catch (URLHttpClientException e) {

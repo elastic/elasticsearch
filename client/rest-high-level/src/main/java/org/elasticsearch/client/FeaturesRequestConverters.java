@@ -9,7 +9,9 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.client.snapshots.GetFeaturesRequest;
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.client.feature.GetFeaturesRequest;
+import org.elasticsearch.client.feature.ResetFeaturesRequest;
 
 public class FeaturesRequestConverters {
 
@@ -22,5 +24,10 @@ public class FeaturesRequestConverters {
         parameters.withMasterTimeout(getFeaturesRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
+    }
+
+    static Request resetFeatures(ResetFeaturesRequest resetFeaturesRequest) {
+        String endpoint = "/_features/_reset";
+        return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 }

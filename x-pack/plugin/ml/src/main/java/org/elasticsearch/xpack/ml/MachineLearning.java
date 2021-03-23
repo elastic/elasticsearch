@@ -10,8 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -364,8 +366,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -1243,6 +1247,62 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public String getFeatureDescription() {
         return "Provides anomaly detection and forecasting functionality";
+    }
+
+    @Override public void cleanUpFeature(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
+
+        Map<String, Boolean> results = new ConcurrentHashMap<>();
+
+        ActionListener<StopDataFrameAnalyticsAction.Response> afterDataframesStopped = ActionListener.wrap(dataFrameStopResponse -> {
+            // Handle the response
+            results.put("data_frame/analytics", dataFrameStopResponse.isStopped());
+
+            if (results.values().stream().allMatch(b -> b)) {
+                // Call into the original listener to clean up the indices
+                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+            } else {
+                final List<String> failedComponents = results.entrySet().stream()
+                    .filter(result -> result.getValue() == false)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+                listener.onFailure(new RuntimeException("Some components failed to reset: " + failedComponents));
+            }
+        }, listener::onFailure);
+
+
+        ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
+            // Handle the response
+            results.put("anomaly_detectors", closeJobResponse.isClosed());
+
+            // Stop data frame analytics
+            StopDataFrameAnalyticsAction.Request  stopDataFramesReq = new StopDataFrameAnalyticsAction.Request("_all");
+            stopDataFramesReq.setForce(true);
+            stopDataFramesReq.setAllowNoMatch(true);
+            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, afterDataframesStopped);
+        }, listener::onFailure);
+
+        // Close anomaly detection jobs
+        ActionListener<StopDatafeedAction.Response> afterDataFeedsStopped = ActionListener.wrap(datafeedResponse -> {
+            // Handle the response
+            results.put("datafeeds", datafeedResponse.isStopped());
+
+            // Close anomaly detection jobs
+            CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request();
+            closeJobsRequest.setForce(true);
+            closeJobsRequest.setAllowNoMatch(true);
+            closeJobsRequest.setJobId("_all");
+            client.execute(CloseJobAction.INSTANCE, closeJobsRequest, afterAnomalyDetectionClosed);
+        }, listener::onFailure);
+
+        // Stop data feeds
+        StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all");
+        stopDatafeedsReq.setAllowNoMatch(true);
+        stopDatafeedsReq.setForce(true);
+        client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq,
+            afterDataFeedsStopped);
     }
 
     @Override

@@ -46,7 +46,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             if (script.get() == null) {
                 return new GeoPointScriptFieldType(name, GeoPointFieldScript.PARSE_FROM_SOURCE, this);
             }
-            GeoPointFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), GeoPointFieldScript.CONTEXT);
+            GeoPointFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), GeoPointFieldScript.CONTEXT);
             return new GeoPointScriptFieldType(name, factory, this);
         }
     });

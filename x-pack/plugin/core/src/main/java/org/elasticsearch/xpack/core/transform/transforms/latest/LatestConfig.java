@@ -44,6 +44,7 @@ public class LatestConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<LatestConfig, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<LatestConfig, Void> LENIENT_PARSER = createParser(true);
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<LatestConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<LatestConfig, Void> parser =
             new ConstructingObjectParser<>(NAME, lenient, args -> new LatestConfig((List<String>) args[0], (String) args[1]));

@@ -20,6 +20,7 @@ import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -44,6 +45,8 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     public final void testSchema() throws IOException {
+        assumeFalse("Test is currently failing on windows: see https://github.com/elastic/elasticsearch/issues/70532", Constants.WINDOWS);
+
         ObjectMapper mapper = new ObjectMapper();
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = initializeSchemaFactory();

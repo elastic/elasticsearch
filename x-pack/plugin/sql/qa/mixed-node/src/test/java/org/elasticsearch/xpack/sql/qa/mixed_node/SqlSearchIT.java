@@ -71,7 +71,7 @@ public class SqlSearchIT extends ESRestTestCase {
         newVersion = nodes.getNewNodes().get(0).getVersion();
         isBwcNodeBeforeFieldsApiInQL = bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
         isBwcNodeBeforeFieldsApiInES = bwcVersion.before(SWITCH_TO_FIELDS_API_VERSION);
-        
+
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(
             index,
@@ -90,6 +90,7 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70630")
     public void testAllTypesWithRequestToOldNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(
             columns -> {
@@ -173,7 +174,7 @@ public class SqlSearchIT extends ESRestTestCase {
         columns.add(columnInfo("geo_point_no_dv_field", "geo_point"));
         columns.add(columnInfo("geo_shape_field", "geo_shape"));
         columns.add(columnInfo("shape_field", "shape"));
-        
+
         expectedResponse.put("columns", columns);
         additionalColumns.accept(columns);
         List<List<Object>> rows = new ArrayList<>(numDocs);
@@ -196,7 +197,7 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"double_field\":" + fieldValues.computeIfAbsent("double_field", v -> randomDouble()) + ",");
             builder.append("\"scaled_float_field\":" + fieldValues.computeIfAbsent("scaled_float_field", v -> 123.5d) + ",");
             builder.append("\"boolean_field\":" + fieldValues.computeIfAbsent("boolean_field", v -> randomBoolean()) + ",");
-            builder.append("\"ip_field\":\"" + fieldValues.computeIfAbsent("ip_field", v -> "123.123.123.123") + "\",");            
+            builder.append("\"ip_field\":\"" + fieldValues.computeIfAbsent("ip_field", v -> "123.123.123.123") + "\",");
             builder.append("\"text_field\": \"" + fieldValues.computeIfAbsent("text_field", v -> randomAlphaOfLength(5)) + "\",");
             builder.append("\"keyword_field\": \"" + fieldValues.computeIfAbsent("keyword_field", v -> randomAlphaOfLength(5)) + "\",");
             builder.append("\"constant_keyword_field\": \"" + fieldValues.computeIfAbsent("constant_keyword_field",
@@ -210,7 +211,7 @@ public class SqlSearchIT extends ESRestTestCase {
             fieldValues.put("shape_field", "POINT (-122.083843 37.386483 30.0)");
             additionalValues.accept(builder, fieldValues);
             builder.append("}");
-            
+
             Request request = new Request("PUT", index + "/_doc/" + i);
             request.setJsonEntity(builder.toString());
             assertOK(client().performRequest(request));

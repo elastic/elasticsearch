@@ -106,7 +106,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, RuntimeFieldType> runtimeMappings;
+    private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -199,7 +199,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, RuntimeFieldType> runtimeMappings) {
+                                   Map<String, MappedFieldType> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -608,11 +608,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, RuntimeFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        return RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
+        Map<String, RuntimeFieldType> runtimeFields = RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false);
+        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
+        for (RuntimeFieldType runtimeFieldType : runtimeFields.values()) {
+            MappedFieldType fieldType = runtimeFieldType.asMappedFieldType();
+            runtimeFieldTypes.put(fieldType.name(), fieldType);
+        }
+        return Collections.unmodifiableMap(runtimeFieldTypes);
     }
 
     /**

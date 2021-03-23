@@ -9,18 +9,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.time.ZoneId;
+import java.io.IOException;
 import java.util.Collections;
 
-public class TestRuntimeField extends RuntimeFieldType {
+public class TestRuntimeField extends MappedFieldType implements RuntimeFieldType {
 
     private final String type;
 
     public TestRuntimeField(String name, String type) {
-        super(name, Collections.emptyMap(), null);
+        super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         this.type = type;
     }
 
@@ -30,13 +30,22 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
+    public MappedFieldType asMappedFieldType() {
+        return this;
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
         return null;
     }
 
     @Override
-    protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                               ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
-        throw new UnsupportedOperationException();
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+
     }
 }

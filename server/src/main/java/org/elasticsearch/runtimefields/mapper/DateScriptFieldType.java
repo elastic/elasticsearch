@@ -11,14 +11,13 @@ package org.elasticsearch.runtimefields.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -35,7 +34,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -81,32 +79,27 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
 
         @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
+        protected RuntimeFieldType buildFieldType() {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
             if (script.get() == null) {
-                return new DateScriptFieldType(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, this);
+                return new DateScriptFieldType(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, getScript(), meta(), this);
             }
             DateFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), DateFieldScript.CONTEXT);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, this);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, getScript(), meta(), this);
         }
     });
 
     private final DateFormatter dateTimeFormatter;
     private final DateMathParser dateMathParser;
 
-    private DateScriptFieldType(String name, DateFieldScript.Factory scriptFactory, DateFormatter dateTimeFormatter, Builder builder) {
-        super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), builder);
-        this.dateTimeFormatter = dateTimeFormatter;
-        this.dateMathParser = dateTimeFormatter.toDateMathParser();
-    }
-
     public DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
-        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, includeDefaults) -> {
+        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
             if (DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern().equals(dateTimeFormatter.pattern()) == false) {
                 builder.field("format", dateTimeFormatter.pattern());
             }
+            return builder;
         });
     }
 
@@ -116,7 +109,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFormatter dateTimeFormatter,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), script, meta, toXContent);
         this.dateTimeFormatter = dateTimeFormatter;

@@ -23,14 +23,6 @@ categories:
 == Configuration limitations
 
 [discrete]
-[[transform-datatype-limitations]]
-=== {dataframe-cap} data type limitation
-
-{dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
-the API. If you try to create one, the UI will fail to show the source index 
-table.
-
-[discrete]
 [[transforms-ccs-limitation]]
 === {transforms-cap} support {ccs} if the remote cluster is configured properly
 
@@ -300,9 +292,6 @@ nodes have been upgraded to the newer version before using the {transforms} UI.
 
 [discrete]
 [[transform-kibana-limitations]]
-=== Up to 1,000 {transforms} are supported
+=== Up to 1,000 {transforms} are listed in {kib}
 
-A single cluster will support up to 1,000 {transforms}. When using the 
-<<get-transform,GET {transforms} API>> a total `count` of {transforms} 
-is returned. Use the `size` and `from` parameters to enumerate through the full 
-list.
+The {transforms} management page in {kib} lists up to 1000 {transforms}.

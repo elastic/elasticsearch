@@ -348,7 +348,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         assert adjustedBytesCopied == length;
         progressUpdater.accept(adjustedBytesCopied);
         final long endTimeNanos = stats.currentTimeNanos();
-        stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
+        stats.addCachedBytesWritten(adjustedBytesCopied, endTimeNanos - startTimeNanos);
     }
 
     @Override

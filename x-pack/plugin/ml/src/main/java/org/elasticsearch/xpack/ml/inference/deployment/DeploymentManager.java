@@ -12,6 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -31,16 +35,24 @@ public class DeploymentManager {
 
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
 
+    private final Client client;
     private final PyTorchProcessFactory pyTorchProcessFactory;
+    private final ExecutorService executorServiceForDeployment;
     private final ExecutorService executorServiceForProcess;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
 
-    public DeploymentManager(ThreadPool threadPool, PyTorchProcessFactory pyTorchProcessFactory) {
+    public DeploymentManager(Client client, ThreadPool threadPool, PyTorchProcessFactory pyTorchProcessFactory) {
+        this.client = Objects.requireNonNull(client);
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
+        this.executorServiceForDeployment = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
     }
 
     public void startDeployment(TrainedModelDeploymentTask task) {
+        executorServiceForDeployment.execute(() -> doStartDeployment(task));
+    }
+
+    private void doStartDeployment(TrainedModelDeploymentTask task) {
         logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task.getModelId());
@@ -50,6 +62,12 @@ public class DeploymentManager {
         }
 
         processContext.startProcess();
+
+        try {
+            processContext.loadModel();
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] error loading model", task.getModelId()), e);
+        }
 
         TrainedModelDeploymentTaskState startedState = new TrainedModelDeploymentTaskState(
             TrainedModelDeploymentState.STARTED, task.getAllocationId(), null);
@@ -101,5 +119,22 @@ public class DeploymentManager {
                 logger.error("[{}] process crashed due to reason [{}]", modelId, reason);
             };
         }
+
+        void loadModel() throws IOException {
+            // Here we should be reading the model location from the deployment config.
+            // Hardcoding this for the prototype.
+            String index = "test-models";
+            String docId = "simple-model";
+
+            GetResponse modelGetResponse = client.get(new GetRequest(index, docId)).actionGet();
+            if (modelGetResponse.isExists() == false) {
+                throw ExceptionsHelper.badRequestException("[{}] no model was found", modelId);
+            }
+            Map<String, Object> sourceAsMap = modelGetResponse.getSourceAsMap();
+            int modelSizeAfterUnbase64 = (int) sourceAsMap.get("size");
+            String modelBase64 = (String) sourceAsMap.get("model");
+            process.get().loadModel(modelBase64, modelSizeAfterUnbase64);
+        }
     }
+
 }

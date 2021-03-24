@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
+import java.io.IOException;
+
 public interface PyTorchProcess extends NativeProcess {
 
+    void loadModel(String modelBase64, int modelSizeAfterUnbase64) throws IOException;
 }

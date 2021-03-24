@@ -30,6 +30,9 @@ testClusters.all {
   module ':modules:lang-painless'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+testClusters.matching { it.name == "yamlRestCompatTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 

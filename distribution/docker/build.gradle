@@ -28,6 +28,10 @@ dependencies {
   transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'default')
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
   String classifier
   if (local) {

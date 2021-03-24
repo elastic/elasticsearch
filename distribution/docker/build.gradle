@@ -198,12 +198,13 @@ tasks.named("composePull").configure {
 
 void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   String binDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'bin'
+  String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
 
   final TaskProvider<DockerBuildTask> buildContextTask =
     tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
       archiveExtension = 'tar.gz'
       compression = Compression.GZIP
-      archiveClassifier = "docker-build-context"
+      archiveClassifier = "docker-build-context${arch}"
       archiveBaseName = "elasticsearch${base.suffix}"
       with dockerBuildContext(architecture, base)
 
@@ -220,7 +221,8 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
-    String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context"
+    String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+    String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
     String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
@@ -248,6 +250,8 @@ void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
+
+    onlyIf { Architecture.current() == architecture }
   }
 }
 

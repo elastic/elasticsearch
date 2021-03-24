@@ -227,7 +227,7 @@ WORKDIR /usr/share/elasticsearch
   Keep this command on one line - it is replaced with a `COPY` during local builds.
   It uses the `arch` command to fetch the correct distro for the build machine.
 */ %>
-RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linix-\$(arch).tar.gz
+RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 

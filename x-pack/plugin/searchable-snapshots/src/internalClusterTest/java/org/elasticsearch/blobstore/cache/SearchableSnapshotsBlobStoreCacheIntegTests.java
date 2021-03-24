@@ -61,7 +61,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DA
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -154,11 +153,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
-        final Storage storage = randomFrom(Storage.values());
+        final Storage storage1 = randomFrom(Storage.values());
         logger.info(
             "--> mount snapshot [{}] as an index for the first time [storage={}, max length={}]",
             snapshot,
-            storage,
+            storage1,
             blobCacheMaxLength.getStringRep()
         );
         final String restoredIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -172,7 +171,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                 .put(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH, blobCacheMaxLength)
                 .build(),
-            storage
+            storage1
         );
         ensureGreen(restoredIndex);
 
@@ -241,7 +240,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             );
         });
 
-        logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage);
+        final Storage storage2 = randomFrom(Storage.values());
+        logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage2);
         final String restoredAgainIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         mountSnapshot(
             repositoryName,
@@ -253,12 +253,12 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                 .put(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH, blobCacheMaxLength)
                 .build(),
-            storage
+            storage2
         );
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> verifying shards of [{}] were started without using the blob store more than necessary", restoredAgainIndex);
-        checkNoBlobStoreAccess(storage);
+        checkNoBlobStoreAccess();
 
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
@@ -295,7 +295,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ensureGreen(restoredAgainIndex);
 
         logger.info("--> shards of [{}] should start without downloading bytes from the blob store", restoredAgainIndex);
-        checkNoBlobStoreAccess(storage);
+        checkNoBlobStoreAccess();
 
         logger.info("--> verifying that no cached blobs were indexed in system index [{}] after restart", SNAPSHOT_BLOB_CACHE_INDEX);
         assertHitCount(
@@ -320,19 +320,13 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         // TODO also test when prewarming is enabled
     }
 
-    private void checkNoBlobStoreAccess(Storage storage) {
+    private void checkNoBlobStoreAccess() {
         for (final SearchableSnapshotShardStats shardStats : client().execute(
             SearchableSnapshotsStatsAction.INSTANCE,
             new SearchableSnapshotsStatsRequest()
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
-                assertThat(
-                    Strings.toString(indexInputStats),
-                    indexInputStats.getBlobStoreBytesRequested().getCount(),
-                    storage == Storage.SHARED_CACHE ? equalTo(0L)
-                        : indexInputStats.getFileExt().equals("cfs") ? greaterThanOrEqualTo(0L)
-                        : equalTo(0L)
-                );
+                assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
             }
         }
     }

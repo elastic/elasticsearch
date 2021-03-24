@@ -51,6 +51,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         private static final ParseField QUERY = new ParseField("query");
         private static final ParseField EVALUATION = new ParseField("evaluation");
 
+        @SuppressWarnings({ "unchecked"})
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
             a -> new Request((List<String>) a[0], (QueryProvider) a[1], (Evaluation) a[2]));

@@ -36,6 +36,10 @@ dependencies {
   api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("compileJava").configure { options.compilerArgs << '-Xlint:-cast,-unchecked' }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

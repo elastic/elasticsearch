@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'x-pack-shutdown'
+    description 'Elasticsearch Expanded Pack Plugin - Shutdown'
+    classname 'org.elasticsearch.xpack.shutdown.ShutdownPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-shutdown'
+
+dependencies {
+    compileOnly project(path: xpackModule('core'))
+    testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies()

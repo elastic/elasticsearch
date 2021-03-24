@@ -13,6 +13,7 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -27,7 +28,9 @@ import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -93,6 +96,28 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsMeta() {
         return false;
+    }
+
+    public void testLegacySwitches() throws IOException {
+        // if one of the legacy parameters is added to a 'type':'geo_shape' config then
+        // that will select the legacy field mapper
+        testLegacySwitch("strategy", b -> b.field("strategy", "term"));
+        testLegacySwitch("tree", b -> b.field("tree", "geohash"));
+        testLegacySwitch("tree_levels", b -> b.field("tree_levels", 5));
+        testLegacySwitch("precision", b -> b.field("precision", 10));
+        testLegacySwitch("points_only", b -> b.field("points_only", true));
+        testLegacySwitch("distance_error_pct", b -> b.field("distance_error_pct", 0.8));
+    }
+
+    private void testLegacySwitch(String field, CheckedConsumer<XContentBuilder, IOException> config) throws IOException {
+        createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            config.accept(b);
+        }));
+        Set<String> warnings = new HashSet<>();
+        warnings.add(field);
+        warnings.add("strategy");
+        assertFieldWarnings(warnings.toArray(String[]::new));
     }
 
     public void testDefaultConfiguration() throws IOException {

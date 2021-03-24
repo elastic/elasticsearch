@@ -212,7 +212,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
             this.blobStoreBytesRequested = new Counter(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 this.luceneBytesRead = new Counter(in);
             } else {
                 this.luceneBytesRead = new Counter(0, 0, 0, 0);
@@ -283,7 +283,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
             blobStoreBytesRequested.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 luceneBytesRead.writeTo(out);
             }
             out.writeVLong(currentIndexCacheFills);

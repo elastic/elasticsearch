@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING;
 import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.logger;
@@ -68,6 +69,19 @@ public final class RepositoryPasswords {
 
     public boolean containsPasswordHashes(RepositoryMetadata repositoryMetadata) {
         return false == getPasswordHashes(repositoryMetadata).isEmpty();
+    }
+
+    public boolean equalsIgnorePasswordSettings(RepositoryMetadata repositoryMetadata1, RepositoryMetadata repositoryMetadata2) {
+        if (false == repositoryMetadata1.type().equals(repositoryMetadata2.type())) {
+            return false;
+        }
+        Predicate<String> passwordSettingsPredicate = settingName ->
+                settingName.equals(PASSWORD_NAME_SETTING.getKey()) ||
+                        settingName.equals(PASSWORD_CHANGE_FROM_NAME_SETTING.getKey()) ||
+                        settingName.equals(PASSWORD_CHANGE_TO_NAME_SETTING.getKey()) ||
+                        PASSWORD_HASH_SETTING.match(settingName);
+        return repositoryMetadata1.settings().filter(passwordSettingsPredicate.negate())
+                .equals(repositoryMetadata2.settings().filter(passwordSettingsPredicate.negate()));
     }
 
     public boolean containsRequiredPasswordHashes(RepositoryMetadata repositoryMetadata) {
@@ -205,7 +219,7 @@ public final class RepositoryPasswords {
         RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(repositoryMetadata.name(),
                 repositoryMetadata.uuid(), repositoryMetadata.type(),
                     newSettingsBuilder.build(), repositoryMetadata.generation(), repositoryMetadata.pendingGeneration());
-        if (getPasswordHashes(repositoryMetadata).isEmpty()) {
+        if (getPasswordHashes(newRepositoryMetadata).isEmpty()) {
             throw new IllegalStateException("Inconsistency error when updating repository password hashes");
         }
         return newRepositoryMetadata;

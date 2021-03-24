@@ -429,9 +429,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 Repository repository = survivors.get(repositoryMetadata.name());
                 if (repository != null) {
                     // Found previous version of this repository
-                    RepositoryMetadata previousMetadata = repository.getMetadata();
-                    if (previousMetadata.type().equals(repositoryMetadata.type()) == false
-                            || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
+                    if (false == repository.isCompatible(repositoryMetadata)) {
                         // Previous version is different from the version in settings
                         logger.debug("updating repository [{}]", repositoryMetadata.name());
                         closeRepository(repository);

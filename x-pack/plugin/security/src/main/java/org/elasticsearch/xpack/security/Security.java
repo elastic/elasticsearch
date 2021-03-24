@@ -1072,10 +1072,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
             return List.of(
                 new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
-                    "xpack.security.authc.token.thread_pool", false),
-                new FixedExecutorBuilder(settings, SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME,
-                    (allocatedProcessors + 1) / 2, 1000,
-                    "xpack.security.crypto.thread_pool", false)
+                    "xpack.security.authc.token.thread_pool", false)
             );
         }
         return Collections.emptyList();

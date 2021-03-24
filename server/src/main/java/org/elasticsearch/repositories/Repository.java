@@ -272,4 +272,10 @@ public interface Repository extends LifecycleComponent {
     default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
     }
+
+    default boolean isCompatible(RepositoryMetadata repositoryMetadata) {
+        RepositoryMetadata currentMetadata = getMetadata();
+        return currentMetadata.type().equals(repositoryMetadata.type()) &&
+                currentMetadata.settings().equals(repositoryMetadata.settings());
+    }
 }

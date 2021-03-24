@@ -217,6 +217,12 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
+    public boolean isCompatible(RepositoryMetadata repositoryMetadata) {
+        // this type of repository is designed to work with the password settings changing on the fly
+        return repositoryPasswords.equalsIgnorePasswordSettings(getMetadata(), repositoryMetadata);
+    }
+
+    @Override
     public String startVerification() {
         // verification bypasses the encrypted blobstore because it must work without published hashes
         return this.delegatedRepository.startVerification();

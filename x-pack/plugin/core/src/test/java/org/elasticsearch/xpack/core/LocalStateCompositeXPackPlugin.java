@@ -351,6 +351,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         List<ExecutorBuilder<?>> builders = new ArrayList<>();
+        builders.addAll(super.getExecutorBuilders(settings));
         filterPlugins(Plugin.class).stream().forEach(p -> builders.addAll(p.getExecutorBuilders(settings)));
         return builders;
     }

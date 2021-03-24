@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -58,6 +59,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -82,6 +85,7 @@ import org.elasticsearch.xpack.core.search.action.RestClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.RestOpenPointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.TransportClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.TransportOpenPointInTimeAction;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
@@ -330,6 +334,16 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         handlers.add(new RestOpenPointInTimeAction());
         handlers.add(new RestClosePointInTimeAction());
         return handlers;
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        return List.of(
+                new FixedExecutorBuilder(settings, SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME,
+                        (allocatedProcessors + 1) / 2, 1000,
+                        "xpack.security.crypto.thread_pool", false)
+        );
     }
 
     public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {

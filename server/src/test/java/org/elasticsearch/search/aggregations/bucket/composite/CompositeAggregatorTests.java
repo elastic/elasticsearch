@@ -939,6 +939,21 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
             }
         );
+
+        Exception exc = expectThrows(ElasticsearchParseException.class,
+            () -> testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date")), Collections.emptyList(),
+                () -> new CompositeAggregationBuilder("test",
+                    Arrays.asList(
+                        new TermsValuesSourceBuilder("keyword").field("keyword"),
+                        new TermsValuesSourceBuilder("long").field("long")
+                    )
+                ).aggregateAfter(createAfterKey("keyword", 0L, "long", 100L)
+                ),
+                (result) -> {
+                }
+            ));
+        assertThat(exc.getMessage(), containsString("Cannot set after key in the composite aggregation [test] - incompatible value in " +
+            "the position 0: invalid value, expected string, got Long"));
     }
 
     public void testWithKeywordAndLongDesc() throws Exception {

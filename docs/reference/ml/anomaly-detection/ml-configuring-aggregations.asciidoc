@@ -12,9 +12,9 @@ aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
 TIP: If you use a terms aggregation and the cardinality of a term is high but
-still significantly less than your total number of documents, use composite
-aggregations
-experimental:[support for composite aggregations inside datafeeds is currently experimental].
+still significantly less than your total number of documents, use <<search-aggregations-bucket-composite-aggregation,composite
+aggregations>>
+experimental:[Support for composite aggregations inside datafeeds is currently experimental].
 
 [discrete]
 [[aggs-limits-dfeeds]]
@@ -27,7 +27,7 @@ which in turn must contain a `max` aggregation on the time field.
 This requirement ensures that the aggregated data is a time series and the timestamp
 of each bucket is the time of the last record in the bucket.
 
-IMPORTANT: The name of the aggregation and the name of the field that the agg
+IMPORTANT: The name of the aggregation and the name of the field that it
 operates on need to match, otherwise the aggregation doesn't work. For example,
 if you use a `max` aggregation on a time field called `responsetime`, the name
 of the aggregation must be also `responsetime`.
@@ -38,7 +38,7 @@ by the value of the `calendar_interval` or `fixed_interval` in your aggregation
 (with no remainder). If you specify a `frequency` for your {dfeed},
 it must also be divisible by this interval. {anomaly-jobs-cap} cannot use
 `date_histogram` or `composite` aggs with an interval measured in months
-because the length of the month is not fixed. {dfeeds-cap} tolerate weeks or smaller units.
+because the length of the month is not fixed; they can use weeks or smaller units.
 
 TIP: As a rule of thumb, if your detectors use <<ml-metric-functions,metric>> or
 <<ml-sum-functions,sum>> analytical functions, set the `date_histogram` or `composite`
@@ -146,7 +146,7 @@ PUT _ml/datafeeds/datafeed-farequote
 `responsetime`.
 
 TIP: If you are utilizing a `term` aggregation to gather influencer or partition
-detector field information, consider using a `composite` aggregation. It performs
+field information, consider using a `composite` aggregation. It performs
 better than a `date_histogram` with a nested `term` aggregation and also includes
 all the values of the field instead of the top values per bucket.
 
@@ -160,12 +160,12 @@ For `composite` aggregation support, there must be exactly one `date_histogram` 
 source. That value source must not be sorted in descending order. Additional
 `composite` aggregation value sources are allowed, such as `terms`.
 
-NOTE: `composite` aggregations may not be as performant as a scrolling or
-`date_histogram` oriented {dfeed}. `composite` aggregations are optimized
+NOTE: A {dfeed} that uses composite aggregations may not be as performant as datafeeds that use scrolling or
+date histogram aggregations. Composite aggregations are optimized
 for queries that are either `match_all` or `range` filters. Other types of
 queries may cause the `composite` aggregation to be ineffecient.
 
-Here is an example utilizing a `composite` aggregation instead of a
+Here is an example that uses a `composite` aggregation instead of a
 `date_histogram`.
 
 Assuming the same job configuration as above.
@@ -243,7 +243,7 @@ PUT _ml/datafeeds/datafeed-farequote-composite
 // TEST[skip:setup:farequote_job]
 
 <1> Provide the `size` to the composite agg to control how many resources
-are used when aggregated the data. A larger `size` means a faster datafeed but
+are used when aggregating the data. A larger `size` means a faster datafeed but
 more cluster resources are utilized when searching.
 <2> The required `date_histogram` composite aggregation source. Make sure it
 is named differently than your desired time field.
@@ -264,7 +264,7 @@ job analysis config.
 counter `system.network.out.bytes` for each value of the field `beat.name`.
 
 NOTE: `derivative` or other pipeline aggregations may not work within `composite`
-aggregations.
+aggregations. See <<composite aggregations and pipeline aggs,search-aggregations-bucket-composite-aggregation.html#_pipeline_aggregations>>
 
 [source,js]
 ----------------------------------
@@ -430,8 +430,8 @@ When using a `composite` aggregation:
 ----------------------------------
 // NOTCONSOLE
 
-The top level aggregation must be either a
-{ref}/search-aggregations-bucket.html[bucket aggregation] containing as single
+The top level aggregation must be one of the following:
+*  A {ref}/search-aggregations-bucket.html[bucket aggregation] containing a single
 sub-aggregation that is a `date_histogram`, the top level aggregation is the
 required `date_histogram`, or the top level aggregation is the required `composite`.
 There must be exactly one `date_histogram` or `composite` aggregation. For more information, see
@@ -455,7 +455,7 @@ different values of a field.
 IMPORTANT: If you use a terms aggregation, by default it returns buckets for
 the top ten terms. Thus if the cardinality of the term is greater than 10, not
 all terms are analyzed. In this case, consider using `composite` aggs
-experimental:[composite agg support in datafeeds is currently experimental]
+experimental:[Support for composite aggregations inside datafeeds is currently experimental].
 
 You can change this behavior by setting the `size` parameter. To
 determine the cardinality of your data, you can run searches such as:

@@ -210,6 +210,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       into (binDirectory) {
         from configurations.transformLog4jJar
       }
+
+      onlyIf { Architecture.current() == architecture }
     }
 }
 
@@ -290,6 +292,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       } else {
         baseImages = [base.image]
       }
+
+      onlyIf { Architecture.current() == architecture }
     }
 
   tasks.named("assemble").configure {

@@ -133,9 +133,12 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "            }" +
             "        }" +
             "    }," +
-            "    \"failed_indices\":1," +
-            "    \"failures\":{\"errorindex\":{\"error\":{\"root_cause\":[{\"type\":\"illegal_argument_exception\"," +
-            "       \"reason\":\"test\"}],\"type\":\"illegal_argument_exception\",\"reason\":\"test\"}}}" +
+            "    \"failed_indices\":2," +
+            "    \"failures\":[" +
+            "        { \"indices\": [\"errorindex\", \"errorindex2\"]," +
+            "          \"failure\" : {\"error\":{\"root_cause\":[{\"type\":\"illegal_argument_exception\"," +
+            "          \"reason\":\"test\"}],\"type\":\"illegal_argument_exception\",\"reason\":\"test\"}}}" +
+            "    ]" +
             "}").replaceAll("\\s+", ""), generatedResponse);
     }
 
@@ -160,7 +163,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         responses.put("rating", ratingCapabilities);
 
         List<FieldCapabilitiesFailure> failureMap = List.of(
-            new FieldCapabilitiesFailure(List.of("errorindex"), new IllegalArgumentException("test"))
+            new FieldCapabilitiesFailure(List.of("errorindex", "errorindex2"), new IllegalArgumentException("test"))
         );
         return new FieldCapabilitiesResponse(new String[] {"index1", "index2", "index3", "index4"}, responses, failureMap);
     }

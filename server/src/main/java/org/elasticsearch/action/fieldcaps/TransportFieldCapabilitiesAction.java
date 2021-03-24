@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -78,23 +80,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final Map<Tuple<String, Class<? extends Exception>>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
+        final Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
             new HashMap<>()
         );
 
         final Runnable countDown = () -> {
             if (completionCounter.countDown()) {
+                Collection<FieldCapabilitiesFailure> failures = indexFailures.values();
                 if (indexResponses.size() > 0) {
                     if (request.isMergeResults()) {
-                        listener.onResponse(merge(indexResponses, request.includeUnmapped(), indexFailures));
+                        listener.onResponse(merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)));
                     } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(indexFailures.values())));
+                        listener.onResponse(new FieldCapabilitiesResponse(indexResponses, new ArrayList<>(failures)));
                     }
                 } else {
                     // we have no responses at all, maybe because of errors
                     if (indexFailures.size() > 0) {
                         // throw back the first exception
-                        listener.onFailure(indexFailures.values().iterator().next().getException());
+                        listener.onFailure(failures.iterator().next().getException());
                     } else {
                         listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
                     }
@@ -124,10 +127,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
                     @Override
                     public void onFailure(Exception e) {
-                        Tuple<String, Class<? extends Exception>> groupingKey = new Tuple<String, Class<? extends Exception>>(
-                            e.getMessage(),
-                            e.getClass()
-                        );
+                        Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        Tuple<String, String> groupingKey = new Tuple<String, String>(cause.getMessage(), cause.getClass().getName());
                         indexFailures.compute(
                             groupingKey,
                             (k, v) -> v == null ? new FieldCapabilitiesFailure(new ArrayList<>(List.of(index)), e) : v.addIndex(index)
@@ -168,9 +169,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
                 countDown.run();
             }, ex -> {
-//                if (ex instanceof RemoteTransportException) {
-//                    ex = new ElasticsearchException(ex.getCause());
-//                }
                 handleRemoteException(ex, clusterAlias, originalIndices.indices(), indexFailures);
                 countDown.run();
                 }
@@ -182,16 +180,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         Exception ex,
         String clusterAlias,
         String[] remoteIndices,
-        Map<Tuple<String, Class<? extends Exception>>, FieldCapabilitiesFailure> indexFailures
+        Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures
     ) {
-        Tuple<String, Class<? extends Exception>> groupingKey = new Tuple<String, Class<? extends Exception>>(
-            ex.getMessage(),
-            ex.getClass()
-        );
         List<String> remoteIndexNames = new ArrayList<>();
         for (String failedIndex : remoteIndices) {
             remoteIndexNames.add(RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex));
         }
+        Throwable cause = ExceptionsHelper.unwrapCause(ex);
+        Tuple<String, String> groupingKey = new Tuple<String, String>(cause.getMessage(), cause.getClass().getName());
         indexFailures.compute(
             groupingKey,
             (k, v) -> v == null ? new FieldCapabilitiesFailure(remoteIndexNames, ex) : v.addIndices(remoteIndexNames)
@@ -201,7 +197,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private FieldCapabilitiesResponse merge(
         List<FieldCapabilitiesIndexResponse> indexResponses,
         boolean includeUnmapped,
-        Map<Tuple<String, Class<? extends Exception>>, FieldCapabilitiesFailure> failureMap
+        List<FieldCapabilitiesFailure> failures
     ) {
         String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).sorted().toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
@@ -222,7 +218,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
         }
         // de-dup failures
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), new ArrayList<>(failureMap.values()));
+        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 
     private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {

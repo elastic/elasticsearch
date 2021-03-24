@@ -158,7 +158,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
         if (this.failures.size() > 0) {
-            builder.field(FAILED_INDICES_FIELD.getPreferredName(), failures.size());
+            builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
             builder.field(FAILURES_FIELD.getPreferredName(), failures);
         }
         builder.endObject();

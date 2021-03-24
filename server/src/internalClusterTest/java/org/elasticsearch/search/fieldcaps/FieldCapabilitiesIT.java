@@ -17,8 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,7 +25,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,6 +43,7 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 
@@ -266,36 +267,30 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
         assertAcked(prepareCreate("index1-error"));
         assertAcked(prepareCreate("index2-error"));
-//        FieldCapabilitiesResponse response = client().prepareFieldCaps()
-//            .setFields("*")
-//            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-//            .get();
-//        assertEquals(1, response.getFailures().size());
-//        assertThat(response.getFailures().get(0).getIndices(), containsInAnyOrder("index1-error", "index2-error"));
-//        Exception failure = response.getFailures().get(0).getException();
-//        assertEquals(RemoteTransportException.class, failure.getClass());
-//        assertEquals(IllegalArgumentException.class, failure.getCause().getClass());
-//        assertEquals("I throw because I choose to.", failure.getCause().getMessage());
-//        // the "indices" section should not include failed ones
-//        assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
-//        assertEquals(RestStatus.OK, response.status());
-//
-//        // if all requested indices failed, we fail the request by throwing the exception
-//        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> client().prepareFieldCaps("index1-error", "index2-error")
-//            .setFields("*")
-//            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
-//            .get());
-//        assertEquals("I throw because I choose to.", ex.getMessage());
-
-        // this should happen also e.g. for script compilation issues in "runtime_mappings"
-
-        String runtimeSection = "\"day_of_week\" : {\"type\": \"keyword\", \"script\": { \"source\": \"bad script\" }}";
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> client().prepareFieldCaps()
+        ensureGreen("index1-error", "index2-error");
+        FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
-            .setRuntimeFields(XContentHelper.convertToMap(XContentType.JSON.xContent(), runtimeSection , true))
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get();
+        System.out.println(response);
+        assertEquals(1, response.getFailures().size());
+        assertEquals(2, response.getFailedIndices().length);
+        assertThat(response.getFailures().get(0).getIndices(), containsInAnyOrder("index1-error", "index2-error"));
+        Exception failure = response.getFailures().get(0).getException();
+        assertEquals(RemoteTransportException.class, failure.getClass());
+        assertEquals(IllegalArgumentException.class, failure.getCause().getClass());
+        assertEquals("I throw because I choose to.", failure.getCause().getMessage());
+
+        // the "indices" section should not include failed ones
+        assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
+        assertEquals(RestStatus.OK, response.status());
+
+        // if all requested indices failed, we fail the request by throwing the exception
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> client().prepareFieldCaps("index1-error", "index2-error")
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get());
         assertEquals("I throw because I choose to.", ex.getMessage());
-
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

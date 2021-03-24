@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
-import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * A decoded credential that may be used to authenticate a {@link ServiceAccount}.
@@ -41,18 +41,11 @@ import java.util.Set;
  */
 public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
-    public static Set<Character> VALID_TOKEN_NAME_CHARS = Set.of(
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        '-', '_'
-    );
-
     public static final String INVALID_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character " +
         "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). " +
         "It must not begin with an underscore (_).";
+
+    private static final Pattern VALID_TOKEN_NAME = Pattern.compile("^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,255}$");
 
     public static final byte MAGIC_BYTE = '\0';
     public static final byte TOKEN_TYPE = '\1';
@@ -173,14 +166,6 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     }
 
     public static boolean isValidTokenName(String name) {
-        if (Strings.isNullOrEmpty(name) || name.length() > 256 || name.startsWith("_")) {
-            return false;
-        }
-        for (char c: name.toCharArray()) {
-            if (false == VALID_TOKEN_NAME_CHARS.contains(c)) {
-                return false;
-            }
-        }
-        return true;
+        return name != null && VALID_TOKEN_NAME.matcher(name).matches();
     }
 }

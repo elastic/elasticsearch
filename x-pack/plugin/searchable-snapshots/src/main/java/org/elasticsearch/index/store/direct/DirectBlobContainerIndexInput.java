@@ -93,7 +93,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long sequentialReadSize,
         int bufferSize
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY); // TODO should use blob cache
+        super(logger, name, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY, ByteRange.EMPTY); // TODO should use blob
+                                                                                                                    // cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTe
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -111,7 +112,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES);
+        final ByteSizeValue rangeSize = new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES);
         final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
@@ -570,7 +571,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             defaultCacheService(),
             createFrozenCacheService(
                 ByteSizeValue.ofMb(10),
-                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
+                new ByteSizeValue(SharedBytes.PAGE_SIZE * randomLongBetween(3, 6), ByteSizeUnit.BYTES)
             ),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)

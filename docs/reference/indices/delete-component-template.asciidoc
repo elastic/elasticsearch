@@ -43,14 +43,14 @@ privilege>> to use this API.
 ==== {api-description-title}
 
 Use the delete component template API to delete one or more component templates
-Component templates are building blocks for constructing <<index-templates,index templates>>  
-that specify index mappings, settings, and aliases. 
+Component templates are building blocks for constructing <<index-templates,index templates>>
+that specify index mappings, settings, and aliases.
 
 [[delete-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=component-template]
-
+The name of the component template to delete. Wildcard (`*`)
+expressions are supported.
 
 [[delete-component-template-api-query-params]]
 ==== {api-query-parms-title}

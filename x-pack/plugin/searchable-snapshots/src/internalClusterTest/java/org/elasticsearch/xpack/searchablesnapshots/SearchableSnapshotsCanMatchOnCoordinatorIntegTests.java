@@ -70,7 +70,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             // Use an unbound cache so we can recover the searchable snapshot completely all the times
             .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES))
             // Have a shared cache of reasonable size available on each node because tests randomize over frozen and cold allocation
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomLongBetween(1, 10)))
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, ByteSizeValue.ofMb(randomLongBetween(1, 10)))
             .build();
     }
 

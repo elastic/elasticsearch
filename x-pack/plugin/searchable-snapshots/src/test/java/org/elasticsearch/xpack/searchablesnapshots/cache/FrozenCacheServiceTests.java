@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,15 +25,20 @@ import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
     public void testBasicEviction() throws IOException {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "500b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
         try (
@@ -73,11 +79,15 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testAutoEviction() throws IOException {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "200b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "200b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
         try (
@@ -109,11 +119,15 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testForceEviction() throws IOException {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "500b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
         try (
@@ -137,11 +151,15 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testDecay() throws IOException {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "500b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
         try (
@@ -195,7 +213,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
         );
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "500b")
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
             .build();
@@ -205,6 +223,28 @@ public class FrozenCacheServiceTests extends ESTestCase {
                 + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
                 + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]"
         );
+    }
+
+    public void testCacheSizeZeroOnNonFrozenNodes() {
+        DiscoveryNode.setAdditionalRoles(
+            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
+        );
+        {
+            final Settings settings = Settings.builder()
+                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "500b")
+                .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
+                .build();
+            assertThat(FrozenCacheService.getSnapshotCacheSize(settings), equalTo(ByteSizeValue.ZERO));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, "500b")
+                .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_FROZEN_NODE_ROLE.roleName())
+                .build();
+            assertThat(FrozenCacheService.getSnapshotCacheSize(settings), equalTo(ByteSizeValue.ofBytes(500)));
+        }
     }
 
     private static CacheKey generateCacheKey() {

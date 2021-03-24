@@ -172,9 +172,9 @@ xpack.searchable.snapshot.shared_cache.size: 4TB
 ----
 
 IMPORTANT: Currently, you can configure
-`xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
-you will only be able to configure this setting on nodes with the
-<<data-frozen-node,`data_frozen`>> role.
+`xpack.searchable.snapshot.shared_cache.size` on any node. However, if the cache size is set on any
+node that does not have the <<data-frozen-node,`data_frozen`>> role, it will be treated as though it
+is set to `0b`.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
 couple of gigabytes up to 90% of available disk space. We only recommend higher

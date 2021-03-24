@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheInfoService;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.SNAPSHOT_CACHE_SIZE;
 
 public class HasFrozenCacheAllocationDecider extends AllocationDecider {
 
@@ -27,7 +27,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     private static final Decision STILL_FETCHING = Decision.single(
         Decision.Type.THROTTLE,
         NAME,
-        "value of [" + SNAPSHOT_CACHE_SIZE_SETTING.getKey() + "] on this node is not known yet"
+        "value of [" + SNAPSHOT_CACHE_SIZE + "] on this node is not known yet"
     );
 
     private static final Decision HAS_FROZEN_CACHE = Decision.single(
@@ -39,9 +39,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     private static final Decision NO_FROZEN_CACHE = Decision.single(
         Decision.Type.NO,
         NAME,
-        "node setting ["
-            + SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-            + "] is set to zero, so frozen searchable snapshot shards cannot be allocated to this node"
+        "node setting [" + SNAPSHOT_CACHE_SIZE + "] is set to zero, so frozen searchable snapshot shards cannot be allocated to this node"
     );
 
     private static final Decision UNKNOWN_FROZEN_CACHE = Decision.single(

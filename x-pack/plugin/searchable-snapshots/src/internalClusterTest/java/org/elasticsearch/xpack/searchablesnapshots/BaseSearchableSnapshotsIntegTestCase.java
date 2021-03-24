@@ -76,7 +76,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         builder.put(
-            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE,
             rarely()
                 ? randomBoolean()
                     ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)

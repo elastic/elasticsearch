@@ -83,7 +83,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE, cacheSize)
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);

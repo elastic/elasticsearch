@@ -76,10 +76,25 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Returns the snapshot cache size to be used for the given settings, however, all non-frozen
+     * nodes (nodes whose node.roles setting does not contain "data_frozen" or "data") will use a
+     * value of 0 for the setting.
+     */
+    public static ByteSizeValue getSnapshotCacheSize(Settings settings) {
+        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
+        if (DataTier.isFrozenNode(Set.of(nodeRoles.toArray(DiscoveryNodeRole[]::new)))) {
+            return SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
+        } else {
+            return ByteSizeValue.ZERO;
+        }
+    }
+
+    public static final String SNAPSHOT_CACHE_SIZE = SHARED_CACHE_SETTINGS_PREFIX + "size";
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
-        SHARED_CACHE_SETTINGS_PREFIX + "size",
+        SNAPSHOT_CACHE_SIZE,
         ByteSizeValue.ZERO.getStringRep(),
-        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        s -> ByteSizeValue.parseBytesSizeValue(s, SNAPSHOT_CACHE_SIZE),
         new Setting.Validator<ByteSizeValue>() {
 
             @Override
@@ -90,7 +105,7 @@ public class FrozenCacheService implements Releasable {
             @Override
             public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings) {
                 if (value.getBytes() == -1) {
-                    throw new SettingsException("setting [{}] must be non-negative", SHARED_CACHE_SETTINGS_PREFIX + "size");
+                    throw new SettingsException("setting [{}] must be non-negative", SNAPSHOT_CACHE_SIZE);
                 }
                 if (value.getBytes() > 0) {
                     @SuppressWarnings("unchecked")
@@ -100,7 +115,7 @@ public class FrozenCacheService implements Releasable {
                             DeprecationCategory.SETTINGS,
                             "shared_cache",
                             "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",
-                            SHARED_CACHE_SETTINGS_PREFIX + "size",
+                            SNAPSHOT_CACHE_SIZE,
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
                         );
@@ -175,7 +190,7 @@ public class FrozenCacheService implements Releasable {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        final long cacheSize = getSnapshotCacheSize(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final int numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();

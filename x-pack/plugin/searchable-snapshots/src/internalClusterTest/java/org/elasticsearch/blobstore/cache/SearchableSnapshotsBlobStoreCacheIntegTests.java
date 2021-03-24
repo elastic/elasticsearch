@@ -153,11 +153,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
-        final Storage storage = randomFrom(Storage.values());
+        final Storage storage1 = randomFrom(Storage.values());
         logger.info(
             "--> mount snapshot [{}] as an index for the first time [storage={}, max length={}]",
             snapshot,
-            storage,
+            storage1,
             blobCacheMaxLength.getStringRep()
         );
         final String restoredIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -171,7 +171,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                 .put(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH, blobCacheMaxLength)
                 .build(),
-            storage
+            storage1
         );
         ensureGreen(restoredIndex);
 
@@ -240,7 +240,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             );
         });
 
-        logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage);
+        final Storage storage2 = randomFrom(Storage.values());
+        logger.info("--> mount snapshot [{}] as an index for the second time [storage={}]", snapshot, storage2);
         final String restoredAgainIndex = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         mountSnapshot(
             repositoryName,
@@ -252,7 +253,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
                 .put(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH, blobCacheMaxLength)
                 .build(),
-            storage
+            storage2
         );
         ensureGreen(restoredAgainIndex);
 

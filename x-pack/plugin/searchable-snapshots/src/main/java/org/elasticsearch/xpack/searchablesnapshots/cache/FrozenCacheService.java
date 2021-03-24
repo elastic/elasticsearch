@@ -14,7 +14,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
@@ -71,6 +69,7 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
+    // TODO: require range size to be multiple of 4kb
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
         SHARED_CACHE_RANGE_SIZE_SETTING,
@@ -685,31 +684,6 @@ public class FrozenCacheService implements Releasable {
             return listener;
         }
 
-        @Nullable
-        public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-            final StepListener<Integer> listener = new StepListener<>();
-            Releasable decrementRef = null;
-            try {
-                ensureOpen();
-                incRef();
-                decrementRef = Releasables.releaseOnce(this::decRef);
-                ensureOpen();
-                final Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
-                if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
-                    return listener;
-                } else {
-                    IOUtils.close(decrementRef, fileChannel::decRef);
-                    return null;
-                }
-            } catch (Exception e) {
-                releaseAndFail(listener, decrementRef, e);
-                return listener;
-            }
-        }
-
         private ActionListener<Void> rangeListener(
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
@@ -816,35 +790,6 @@ public class FrozenCacheService implements Releasable {
                     stepListener = stepListener.thenCombine(lis, Math::addExact);
                 }
 
-            }
-            return stepListener;
-        }
-
-        @Nullable
-        public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-            StepListener<Integer> stepListener = null;
-            final long start = rangeToRead.start();
-            for (int region = getRegion(start); region <= getEndingRegion(rangeToRead.end()); region++) {
-                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
-                final CacheFileRegion fileRegion = get(cacheKey, length, region);
-                final long readOffset = start - getRegionStart(region);
-                final StepListener<Integer> lis = fileRegion.readIfAvailableOrPending(
-                    subRangeToRead,
-                    (channel, channelPos, relativePos, length) -> reader.onRangeAvailable(
-                        channel,
-                        channelPos,
-                        relativePos - readOffset,
-                        length
-                    )
-                );
-                if (lis == null) {
-                    return null;
-                }
-                if (stepListener == null) {
-                    stepListener = lis;
-                } else {
-                    stepListener = stepListener.thenCombine(lis, Math::addExact);
-                }
             }
             return stepListener;
         }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
@@ -306,7 +307,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null, () -> 0L);
         }
 
         @Override
@@ -317,6 +318,11 @@ public final class TestUtils {
         @Override
         protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
             listener.onResponse(CachedBlob.CACHE_NOT_READY);
+        }
+
+        @Override
+        public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+            return ByteRange.EMPTY;
         }
 
         @Override
@@ -337,7 +343,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null, () -> 0L);
         }
 
         @Override

@@ -38,7 +38,7 @@ final class FieldTypeLookup {
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<RuntimeFieldType> runtimeFieldTypes
+        Collection<RuntimeField> runtimeFields
     ) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
@@ -69,7 +69,8 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
         }
 
-        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
+        for (RuntimeField runtimeField : runtimeFields) {
+            MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
             //this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }
@@ -89,6 +90,13 @@ final class FieldTypeLookup {
         // If the mapping contains fields that support dynamic sub-key lookup, check
         // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
         return dynamicKeyLookup.get(field);
+    }
+
+    /**
+     * Returns all the mapped field types.
+     */
+    Collection<MappedFieldType> get() {
+        return fullNameToFieldType.values();
     }
 
     /**

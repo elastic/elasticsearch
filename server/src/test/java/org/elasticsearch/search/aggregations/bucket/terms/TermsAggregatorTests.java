@@ -25,6 +25,8 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -234,7 +236,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSimple() throws Exception {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, null);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
             .executionHint(randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString())
             .field("string")
@@ -261,7 +263,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStringShardMinDocCount() throws IOException {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, null);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, Collections.emptyMap());
         for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
                 .field("string")
@@ -288,7 +290,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testManyTerms() throws Exception {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, null);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
             .executionHint(randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString())
             .field("string");
@@ -327,8 +329,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStringIncludeExclude() throws Exception {
-        MappedFieldType ft1 = new KeywordFieldMapper.KeywordFieldType("mv_field", randomBoolean(), true, null);
-        MappedFieldType ft2 = new KeywordFieldMapper.KeywordFieldType("sv_field", randomBoolean(), true, null);
+        MappedFieldType ft1 = new KeywordFieldMapper.KeywordFieldType("mv_field", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType ft2 = new KeywordFieldMapper.KeywordFieldType("sv_field", randomBoolean(), true, Collections.emptyMap());
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(doc(ft1, ft2, "val000", "val001", "val001"));
             iw.addDocument(doc(ft1, ft2, "val002", "val003", "val003"));
@@ -646,7 +648,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStringTermsAggregator() throws Exception {
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field", randomBoolean(), true, null);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field", randomBoolean(), true, Collections.emptyMap());
         BiFunction<String, Boolean, List<IndexableField>> luceneFieldFactory = (val, mv) -> {
             List<IndexableField> result = new ArrayList<>(2);
             if (mv) {
@@ -1073,7 +1075,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIpField() throws Exception {
-        MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field", randomBoolean(), false, true, null, null);
+        MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field", randomBoolean(), false, true, null, Collections.emptyMap());
         testCase(new TermsAggregationBuilder("_name").field("field"), new MatchAllDocsQuery(), iw -> {
             Document document = new Document();
             InetAddress point = InetAddresses.forString("192.168.100.42");
@@ -1091,8 +1093,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNestedTermsAgg() throws Exception {
-        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("field1", randomBoolean(), true, null);
-        MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("field2", randomBoolean(), true, null);
+        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("field1", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("field2", randomBoolean(), true, Collections.emptyMap());
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 List<IndexableField> document = new ArrayList<>();
@@ -1309,7 +1311,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     public void testHeisenpig() throws IOException {
         MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        KeywordFieldType animalFieldType = new KeywordFieldType("str", randomBoolean(), true, null);
+        KeywordFieldType animalFieldType = new KeywordFieldType("str", randomBoolean(), true, Collections.emptyMap());
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 String[] tags = new String[] {"danger", "fluffiness"};
@@ -1403,9 +1405,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     private void threeLayerStringTestCase(String executionHint) throws IOException {
-        MappedFieldType ift = new KeywordFieldType("i", randomBoolean(), true, null);
-        MappedFieldType jft = new KeywordFieldType("j", randomBoolean(), true, null);
-        MappedFieldType kft = new KeywordFieldType("k", randomBoolean(), true, null);
+        MappedFieldType ift = new KeywordFieldType("i", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType jft = new KeywordFieldType("j", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType kft = new KeywordFieldType("k", randomBoolean(), true, Collections.emptyMap());
 
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -1628,7 +1630,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     public void testAsSubAgg() throws IOException {
         DateFieldType dft = new DateFieldType("d");
-        KeywordFieldType kft = new KeywordFieldType("k", false, true, null);
+        KeywordFieldType kft = new KeywordFieldType("k", false, true, Collections.emptyMap());
         AggregationBuilder builder = new DateHistogramAggregationBuilder("dh").field("d")
             .calendarInterval(DateHistogramInterval.YEAR)
             .subAggregation(new TermsAggregationBuilder("k").field("k"));
@@ -1685,6 +1687,48 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             terms.collectDebugInfo(info::put);
             assertThat(info, hasEntry("collection_strategy", "remap using many bucket ords packed using [2/62] bits"));
         }, dft, kft);
+    }
+
+    public void testWithFilterAndPreciseSize() throws IOException {
+        KeywordFieldType kft = new KeywordFieldType("k", true, true, Collections.emptyMap());
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(
+                List.of(
+                    new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new SortedSetDocValuesField("k", new BytesRef("a"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new SortedSetDocValuesField("k", new BytesRef("b"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new SortedSetDocValuesField("k", new BytesRef("c"))
+                )
+            );
+        };
+        TermsAggregationBuilder builder = new TermsAggregationBuilder("k").field("k");
+        /*
+         * There was a bug where we would accidentally send buckets with 0
+         * docs in them back to the coordinating node which would take up a
+         * slot that a bucket with docs in it deserves. Combination of
+         * ordering by bucket, the precise size, and the top level query
+         * would trigger that bug.
+         */
+        builder.size(2).order(BucketOrder.key(true));
+        Query topLevel = new TermInSetQuery("k", new BytesRef[] {new BytesRef("b"), new BytesRef("c")});
+        testCase(builder, topLevel, buildIndex, (StringTerms terms) -> {
+            assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
+        }, kft);
+        withAggregator(builder, topLevel, buildIndex, (searcher, terms) -> {
+            Map<String, Object> info = new HashMap<>();
+            terms.collectDebugInfo(info::put);
+            assertThat(info, hasEntry("delegate", "FiltersAggregator.FilterByFilter"));
+        }, kft);
     }
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

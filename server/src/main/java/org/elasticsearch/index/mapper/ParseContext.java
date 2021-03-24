@@ -274,12 +274,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             in.addDynamicRuntimeField(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return in.getDynamicRuntimeFields();
         }
 
@@ -305,7 +305,7 @@ public abstract class ParseContext {
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
-        private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
+        private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -437,12 +437,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             dynamicRuntimeFields.add(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return Collections.unmodifiableList(dynamicRuntimeFields);
         }
 
@@ -662,10 +662,10 @@ public abstract class ParseContext {
     /**
      * Add a new runtime field dynamically created while parsing.
      */
-    public abstract void addDynamicRuntimeField(RuntimeFieldType runtimeField);
+    public abstract void addDynamicRuntimeField(RuntimeField runtimeField);
 
     /**
      * Get dynamic runtime fields created while parsing.
      */
-    public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
+    public abstract List<RuntimeField> getDynamicRuntimeFields();
 }

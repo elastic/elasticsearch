@@ -13,11 +13,14 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,18 +28,22 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -45,17 +52,71 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_SETTINGS_PREFIX;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
-import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
+
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "range_size",
+        ByteSizeValue.ofMb(16),                                 // default
+        Setting.Property.NodeScope
+    );
+
+    // TODO: require range size to be multiple of 4kb
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "region_size",
+        SHARED_CACHE_RANGE_SIZE_SETTING,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
+        ByteSizeValue.ZERO.getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        new Setting.Validator<ByteSizeValue>() {
+
+            @Override
+            public void validate(final ByteSizeValue value) {
+
+            }
+
+            @Override
+            public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings) {
+                if (value.getBytes() == -1) {
+                    throw new SettingsException("setting [{}] must be non-negative", SHARED_CACHE_SETTINGS_PREFIX + "size");
+                }
+                if (value.getBytes() > 0) {
+                    @SuppressWarnings("unchecked")
+                    final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
+                    if (DataTier.isFrozenNode(Set.of(roles.toArray(DiscoveryNodeRole[]::new))) == false) {
+                        deprecationLogger.deprecate(
+                            DeprecationCategory.SETTINGS,
+                            "shared_cache",
+                            "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",
+                            SHARED_CACHE_SETTINGS_PREFIX + "size",
+                            value.getStringRep(),
+                            roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(NodeRoleSettings.NODE_ROLES_SETTING);
+                return settings.iterator();
+            }
+
+        },
+        Setting.Property.NodeScope
+    );
 
     public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
@@ -89,6 +150,7 @@ public class FrozenCacheService implements Releasable {
     );
 
     private static final Logger logger = LogManager.getLogger(FrozenCacheService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FrozenCacheService.class);
 
     private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
 
@@ -111,9 +173,8 @@ public class FrozenCacheService implements Releasable {
     private final CacheDecayTask decayTask;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public FrozenCacheService(Environment environment, ThreadPool threadPool) {
+    public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        final Settings settings = environment.settings();
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final int numRegions = Math.toIntExact(cacheSize / regionSize);
@@ -563,13 +624,14 @@ public class FrozenCacheService implements Releasable {
             throw new AlreadyClosedException("File chunk is evicted");
         }
 
-        public StepListener<Integer> populateAndRead(
+        StepListener<Integer> populateAndRead(
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer,
             final Executor executor
         ) {
+            assert rangeToRead.length() > 0;
             final StepListener<Integer> listener = new StepListener<>();
             Releasable decrementRef = null;
             try {
@@ -582,11 +644,6 @@ public class FrozenCacheService implements Releasable {
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
-                if (rangeToRead.length() == 0L) {
-                    // nothing to read, skip
-                    rangeListener.onResponse(null);
-                    return listener;
-                }
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
 
                 for (SparseFileTracker.Gap gap : gaps) {
@@ -625,31 +682,6 @@ public class FrozenCacheService implements Releasable {
                 releaseAndFail(listener, decrementRef, e);
             }
             return listener;
-        }
-
-        @Nullable
-        public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-            final StepListener<Integer> listener = new StepListener<>();
-            Releasable decrementRef = null;
-            try {
-                ensureOpen();
-                incRef();
-                decrementRef = Releasables.releaseOnce(this::decRef);
-                ensureOpen();
-                final Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
-                if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
-                    return listener;
-                } else {
-                    IOUtils.close(decrementRef, fileChannel::decRef);
-                    return null;
-                }
-            } catch (Exception e) {
-                releaseAndFail(listener, decrementRef, e);
-                return listener;
-            }
         }
 
         private ActionListener<Void> rangeListener(
@@ -721,29 +753,33 @@ public class FrozenCacheService implements Releasable {
             StepListener<Integer> stepListener = null;
             final long writeStart = rangeToWrite.start();
             final long readStart = rangeToRead.start();
-            for (int i = getRegion(rangeToWrite.start()); i <= getEndingRegion(rangeToWrite.end()); i++) {
-                final int region = i;
+            for (int region = getRegion(rangeToWrite.start()); region <= getEndingRegion(rangeToWrite.end()); region++) {
                 final ByteRange subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region);
                 final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
+                if (subRangeToRead.length() == 0L) {
+                    // nothing to read, skip
+                    if (stepListener == null) {
+                        stepListener = new StepListener<>();
+                        stepListener.onResponse(0);
+                    }
+                    continue;
+                }
                 final CacheFileRegion fileRegion = get(cacheKey, length, region);
+                final long regionStart = getRegionStart(region);
+                final long writeOffset = writeStart - regionStart;
+                final long readOffset = readStart - regionStart;
                 final StepListener<Integer> lis = fileRegion.populateAndRead(
                     subRangeToWrite,
                     subRangeToRead,
                     (channel, channelPos, relativePos, length) -> {
-                        final long distanceToStart = region == getRegion(readStart)
-                            ? relativePos - getRegionRelativePosition(readStart)
-                            : getRegionStart(region) + relativePos - readStart;
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
                         assert channelPos >= fileRegion.physicalStartOffset() && channelPos + length <= fileRegion.physicalEndOffset();
-                        return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
+                        return reader.onRangeAvailable(channel, channelPos, relativePos - readOffset, length);
                     },
                     (channel, channelPos, relativePos, length, progressUpdater) -> {
-                        final long distanceToStart = region == getRegion(writeStart)
-                            ? relativePos - getRegionRelativePosition(writeStart)
-                            : getRegionStart(region) + relativePos - writeStart;
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
                         assert channelPos >= fileRegion.physicalStartOffset() && channelPos + length <= fileRegion.physicalEndOffset();
-                        writer.fillCacheRange(channel, channelPos, distanceToStart, length, progressUpdater);
+                        writer.fillCacheRange(channel, channelPos, relativePos - writeOffset, length, progressUpdater);
                     },
                     executor
                 );
@@ -754,35 +790,6 @@ public class FrozenCacheService implements Releasable {
                     stepListener = stepListener.thenCombine(lis, Math::addExact);
                 }
 
-            }
-            return stepListener;
-        }
-
-        @Nullable
-        public StepListener<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-            StepListener<Integer> stepListener = null;
-            final long start = rangeToRead.start();
-            for (int i = getRegion(rangeToRead.start()); i <= getEndingRegion(rangeToRead.end()); i++) {
-                final int region = i;
-                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
-                final CacheFileRegion fileRegion = get(cacheKey, length, region);
-                final StepListener<Integer> lis = fileRegion.readIfAvailableOrPending(
-                    subRangeToRead,
-                    (channel, channelPos, relativePos, length) -> {
-                        final long distanceToStart = region == getRegion(start)
-                            ? relativePos - getRegionRelativePosition(start)
-                            : getRegionStart(region) + relativePos - start;
-                        return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
-                    }
-                );
-                if (lis == null) {
-                    return null;
-                }
-                if (stepListener == null) {
-                    stepListener = lis;
-                } else {
-                    stepListener = stepListener.thenCombine(lis, Math::addExact);
-                }
             }
             return stepListener;
         }

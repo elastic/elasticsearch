@@ -11,6 +11,7 @@ package org.elasticsearch.test.rest;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
@@ -97,7 +98,6 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -572,50 +572,87 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                Request request = new Request("GET", "_cat/templates");
-                request.addParameter("h", "name");
-                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                if (false == "".equals(templates)) {
-                    for (String template : templates.split("\n")) {
-                        if (isXPackTemplate(template)) continue;
-                        if ("".equals(template)) {
-                            throw new IllegalStateException("empty template in templates list:\n" + templates);
-                        }
-                        logger.info("Clearing template [{}]", template);
-                        try {
-                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
-                        } catch (ResponseException e) {
-                            // This is fine, it could be a V2 template
-                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
-                            } catch (ResponseException e2) {
-                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
+                // index templates, because these were introduced in 7.7.0:
+                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                    try {
+                        Request getTemplatesRequest = new Request("GET", "_index_template");
+                        Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                            EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()), false);
+                        List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                            .filter(name -> isXPackTemplate(name) == false)
+                            .collect(Collectors.toList());
+                        if (names.isEmpty() == false) {
+                            // Ideally we would want to check the version of the elected master node and
+                            // send the delete request directly to that node.
+                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                                try {
+                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                                } catch (ResponseException e) {
+                                    logger.warn(
+                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
+                                }
+                            } else {
+                                for (String name : names) {
+                                    try {
+                                        adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                                    } catch (ResponseException e) {
+                                        logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                    }
+                                }
                             }
                         }
+                    } catch (Exception e) {
+                        logger.debug("ignoring exception removing all composable index templates", e);
+                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                    }
+                    try {
+                        Request compReq = new Request("GET", "_component_template");
+                        String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                        Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                        List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                            .filter(name -> isXPackTemplate(name) == false)
+                            .collect(Collectors.toList());
+                        if (names.isEmpty() == false) {
+                            // Ideally we would want to check the version of the elected master node and
+                            // send the delete request directly to that node.
+                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                                try {
+                                    adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                                } catch (ResponseException e) {
+                                    logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                }
+                            } else {
+                                for (String componentTemplate : names) {
+                                    try {
+                                        adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                                    } catch (ResponseException e) {
+                                        logger.warn(
+                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.debug("ignoring exception removing all component templates", e);
+                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
                 }
-                try {
-                    Request compReq = new Request("GET", "_component_template");
-                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    @SuppressWarnings("unchecked")
-                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ct.get("name"))
-                        .collect(Collectors.toList());
-                    for (String componentTemplate : names) {
-                        try {
-                            if (isXPackTemplate(componentTemplate)) {
-                                continue;
-                            }
-                            adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                        } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
-                        }
+                // Always check for legacy templates:
+                Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                Map<String, Object> legacyTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                    EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()), false);
+                for (String name : legacyTemplates.keySet()) {
+                    if (isXPackTemplate(name)) {
+                        continue;
                     }
-                } catch (Exception e) {
-                    logger.info("ignoring exception removing all component templates", e);
-                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                    try {
+                        adminClient().performRequest(new Request("DELETE", "_template/" + name));
+                    } catch (ResponseException e) {
+                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                    }
                 }
             } else {
                 logger.debug("Clearing all templates");
@@ -1193,8 +1230,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void deleteIndex(String name) throws IOException {
+        deleteIndex(client(), name);
+    }
+
+    protected static void deleteIndex(RestClient client, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1297,19 +1338,38 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
+        registerRepository(client(), repository, type, verify, settings);
+    }
+
+    protected static void registerRepository(
+        RestClient client,
+        String repository,
+        String type,
+        boolean verify,
+        Settings settings
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
 
-        final Response response = client().performRequest(request);
+        final Response response = client.performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
     protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        createSnapshot(client(), repository, snapshot, waitForCompletion);
+    }
+
+    protected static void createSnapshot(
+        RestClient client,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
-        final Response response = client().performRequest(request);
+        final Response response = client.performRequest(request);
         assertThat(
             "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
             response.getStatusLine().getStatusCode(),
@@ -1327,6 +1387,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
+        deleteSnapshot(client(), repository, snapshot, ignoreMissing);
+    }
+
+    protected static void deleteSnapshot(RestClient client, String repository, String snapshot, boolean ignoreMissing) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        if (ignoreMissing) {
+            request.addParameter("ignore", "404");
+        }
+        final Response response = client.performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(),  ignoreMissing ? anyOf(equalTo(200), equalTo(404)) : equalTo(200));
     }
 
     @SuppressWarnings("unchecked")
@@ -1361,6 +1434,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".transform-")) {
             return true;
         }
+        if (name.startsWith(".deprecation-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
@@ -1377,8 +1453,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
-            case ".deprecation-indexing-template":
             case "ilm-history":
+            case "logstash-index-template":
+            case "security-index-template":
                 return true;
             default:
                 return false;

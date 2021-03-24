@@ -76,5 +76,5 @@ See {defguide}/_index_time_search_as_you_type.html[Index time search-as-you-
 type] for a full explanation of this example.
 
 TIP: The `search_analyzer` setting can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>. Note, that in order to do so,
+using the <<indices-put-mapping,update mapping API>>. Note, that in order to do so,
 any existing "analyzer" setting and "type" need to be repeated in the updated field definition.

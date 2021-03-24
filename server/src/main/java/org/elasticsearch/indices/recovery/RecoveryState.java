@@ -222,6 +222,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this;
     }
 
+    public synchronized RecoveryState setLocalTranslogStage() {
+        return setStage(Stage.TRANSLOG);
+    }
+
+    public synchronized RecoveryState setRemoteTranslogStage() {
+        return setStage(Stage.TRANSLOG);
+    }
+
     public Index getIndex() {
         return index;
     }

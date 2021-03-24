@@ -50,6 +50,9 @@ dependencies {
   testImplementation(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
+  testImplementation(project(':modules:ingest-geoip')) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
   testImplementation(project(':x-pack:plugin:eql'))
 }
 
@@ -84,6 +87,8 @@ tasks.named("check").configure {
 testClusters.all {
   testDistribution = 'DEFAULT'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
+  systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
+  setting 'geoip.downloader.enabled', 'false'
   setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

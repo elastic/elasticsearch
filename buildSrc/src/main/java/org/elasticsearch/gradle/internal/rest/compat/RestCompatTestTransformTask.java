@@ -29,6 +29,7 @@ import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
@@ -65,6 +66,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
+    private final FileSystemOperations fileSystemOperations;
     private final int compatibleVersion;
     private final DirectoryProperty sourceDirectory;
     private final DirectoryProperty outputDirectory;
@@ -72,7 +74,12 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
 
     @Inject
-    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory, ObjectFactory objectFactory) {
+    public RestCompatTestTransformTask(
+        FileSystemOperations fileSystemOperations,
+        Factory<PatternSet> patternSetFactory,
+        ObjectFactory objectFactory
+    ) {
+        this.fileSystemOperations = fileSystemOperations;
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
@@ -194,6 +201,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @TaskAction
     public void transform() throws IOException {
+        // clean the output directory to ensure no stale files persist
+        fileSystemOperations.delete(d -> d.delete(outputDirectory));
+
         RestTestTransformer transformer = new RestTestTransformer();
         // TODO: instead of flattening the FileTree here leverage FileTree.visit() so we can preserve folder hierarchy in a more robust way
         for (File file : getTestFiles().getFiles()) {

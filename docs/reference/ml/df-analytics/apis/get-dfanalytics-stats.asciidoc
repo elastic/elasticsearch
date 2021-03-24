@@ -9,7 +9,6 @@
 
 Retrieves usage information for {dfanalytics-jobs}.
 
-beta::[]
 
 [[ml-get-dfanalytics-stats-request]]
 == {api-request-title}

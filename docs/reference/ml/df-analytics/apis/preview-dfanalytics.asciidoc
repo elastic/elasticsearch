@@ -10,8 +10,6 @@
 
 Previews the features used by a {dataframe-analytics-config}.
 
-beta::[]
-
 
 [[ml-preview-dfanalytics-request]]
 == {api-request-title}

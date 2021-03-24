@@ -287,7 +287,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             Exception e = expectThrows(IllegalStateException.class,
                 () -> mapperService.assertNoUpdateRequired(builder.build()));
 
-            assertThat(e.getMessage(), containsString("expected current mapping["));
+            assertThat(e.getMessage(), containsString("expected current mapping ["));
             assertThat(e.getMessage(), containsString("to be the same as new mapping"));
         }
     }

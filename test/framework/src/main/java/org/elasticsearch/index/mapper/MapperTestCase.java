@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -528,6 +529,61 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
                     // compare index and search time fielddata
                     assertThat(fieldData, equalTo(indexData));
+                }
+
+                @Override
+                public void onError(PostParseContext context, Exception e) throws IOException {
+                    throw new IOException(e);
+                }
+            };
+
+            ParseContext pc = mock(ParseContext.class);
+            when(pc.rootDoc()).thenReturn(doc.rootDoc());
+            when(pc.sourceToParse()).thenReturn(source);
+
+            PostParsePhase postParsePhase = new PostParsePhase(
+                Map.of("test", indexTimeExecutor),
+                mapperService::fieldType,
+                pc);
+            postParsePhase.execute();
+        });
+    }
+
+    public final void testIndexTimeStoredFieldsAccess() throws IOException {
+
+        MapperService mapperService;
+        try {
+            mapperService = createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("store", true);
+            }));
+            assertParseMinimalWarnings();
+        } catch (MapperParsingException e) {
+            assertParseMinimalWarnings();
+            assumeFalse("Field type does not support stored fields", true);
+            return;
+        }
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+            SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> { throw new UnsupportedOperationException(); });
+            LeafStoredFieldsLookup storedFields = lookup.getLeafSearchLookup(ctx).fields();
+            storedFields.setDocument(0);
+
+            PostParseExecutor indexTimeExecutor = new PostParseExecutor() {
+                @Override
+                public void execute(PostParseContext context) {
+                    SearchLookup indexLookup = new SearchLookup(f -> fieldType, (f, s) -> { throw new UnsupportedOperationException(); });
+                    LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(context.leafReaderContext).fields();
+                    indexStoredFields.setDocument(0);
+
+                    // compare index and search time stored fields
+                    assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
                 }
 
                 @Override

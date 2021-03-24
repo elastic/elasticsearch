@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -195,7 +196,35 @@ public class PostParsePhase {
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            visitor.binaryField(SOURCE_FIELD_INFO, sourceBytes.toBytesRef().bytes);
+            List<IndexableField> fields = document.getFields().stream()
+                .filter(f -> f.fieldType().stored())
+                .collect(Collectors.toList());
+            for (IndexableField field : fields) {
+                FieldInfo fieldInfo = fieldInfo(field.name());
+                if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
+                    continue;
+                }
+                if (field.numericValue() != null) {
+                    Number v = field.numericValue();
+                    if (v instanceof Integer) {
+                        visitor.intField(fieldInfo, v.intValue());
+                    } else if (v instanceof Long) {
+                        visitor.longField(fieldInfo, v.longValue());
+                    } else if (v instanceof Float) {
+                        visitor.floatField(fieldInfo, v.floatValue());
+                    } else if (v instanceof Double) {
+                        visitor.doubleField(fieldInfo, v.doubleValue());
+                    }
+                } else if (field.stringValue() != null) {
+                    visitor.stringField(fieldInfo, field.stringValue().getBytes(StandardCharsets.UTF_8));
+                } else if (field.binaryValue() != null) {
+                    // We can't just pass field.binaryValue().bytes here as there may be offset/length
+                    // considerations
+                    byte[] data = new byte[field.binaryValue().length];
+                    System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
+                    visitor.binaryField(fieldInfo, data);
+                }
+            }
         }
 
         @Override
@@ -259,21 +288,23 @@ public class PostParsePhase {
         }
     }
 
-    private static final FieldInfo SOURCE_FIELD_INFO = new FieldInfo(
-        "_source",
-        0,
-        false,
-        false,
-        false,
-        IndexOptions.NONE,
-        DocValuesType.NONE,
-        -1,
-        Collections.emptyMap(),
-        0,
-        0,
-        0,
-        false
-    );
+    private static FieldInfo fieldInfo(String name) {
+        return new FieldInfo(
+            name,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            false
+        );
+    }
 
     private static NumericDocValues numericDocValues(List<Number> values) {
         if (values.size() == 0) {

@@ -1443,3 +1443,8 @@ See <<handling-pipeline-failures>>.
 === Ingest processors
 
 See <<processors>>.
+
+[role="exclude",id="enrich-policy-definition"]
+=== Enrich policy definition
+
+See <<put-enrich-policy-api>>.

@@ -353,8 +353,7 @@ allprojects {
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
-        folder.output = "\${workspace_loc}/${eclipse.project.name}/bin/${i}"
-        System.err.println("ASDFD ${folder.output}")
+        folder.output = 'out/eclipse/' + i
       }
 
       // Starting with Gradle 6.7 test dependencies are not exposed by eclipse

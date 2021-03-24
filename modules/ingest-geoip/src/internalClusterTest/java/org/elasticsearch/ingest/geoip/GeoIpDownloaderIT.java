@@ -237,8 +237,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertThat(Files.exists(geoipBaseTmpDir), is(true));
         final List<Path> geoipTmpDirs;
         try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
-            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString()))
-                .collect(Collectors.toList());
+            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         assertBusy(() -> {

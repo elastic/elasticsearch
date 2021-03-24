@@ -36,8 +36,8 @@ import static org.hamcrest.Matchers.hasEntry;
 
 public class ServiceAccountIT extends ESRestTestCase {
 
-    private static final String VALID_SERVICE_TOKEN = "46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWME1TT0ZobXVRTENIaTNQUGJ4VXQ5ZwAAAAAAAAA";
-    private static final String INVALID_SERVICE_TOKEN = "46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWQ1MxRXZaQk5SWW1FbndZWlc5T2N3dwAAAAAAAAA";
+    private static final String VALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc";
+    private static final String INVALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOjNhSkNMYVFXUk4yc1hsT2R0eEEwU1E";
     private static Path caPath;
 
     private static final String AUTHENTICATE_RESPONSE = ""

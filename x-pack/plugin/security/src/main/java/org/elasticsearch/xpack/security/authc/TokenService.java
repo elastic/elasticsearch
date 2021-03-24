@@ -202,7 +202,6 @@ public final class TokenService {
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
-    static final Version VERSION_TOKEN_TYPE = Version.V_8_0_0;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -519,14 +518,6 @@ public final class TokenService {
                     logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BYTES);
                     listener.onResponse(null);
                     return;
-                }
-                if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
-                    final SecurityTokenType tokenType = SecurityTokenType.read(in);
-                    if (tokenType != SecurityTokenType.ACCESS_TOKEN) {
-                        logger.trace("token is of type {}, but expected {}", tokenType, SecurityTokenType.ACCESS_TOKEN);
-                        listener.onResponse(null);
-                        return;
-                    }
                 }
                 final String accessToken = in.readString();
                 // TODO Remove this conditional after backporting to 7.x
@@ -1722,9 +1713,6 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setVersion(version);
                 Version.writeVersion(version, out);
-                if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
-                    SecurityTokenType.ACCESS_TOKEN.write(out);
-                }
                 out.writeString(accessToken);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
@@ -1757,9 +1745,6 @@ public final class TokenService {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             Version.writeVersion(version, out);
-            if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
-                SecurityTokenType.REFRESH_TOKEN.write(out);
-            }
             out.writeString(payload);
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
 
@@ -1777,12 +1762,6 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
-            if (version.onOrAfter(VERSION_TOKEN_TYPE)) {
-                final SecurityTokenType tokenType = SecurityTokenType.read(in);
-                if (tokenType != SecurityTokenType.REFRESH_TOKEN) {
-                    throw new IllegalArgumentException("expect a token type of [REFRESH_TOKEN], got [" + tokenType.name() + "]");
-                }
-            }
             final String payload = in.readString();
             return new Tuple<Version, String>(version, payload);
         }

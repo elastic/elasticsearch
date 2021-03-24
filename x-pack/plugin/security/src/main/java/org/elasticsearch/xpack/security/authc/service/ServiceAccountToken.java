@@ -7,16 +7,25 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
 
@@ -30,6 +39,14 @@ import java.util.Objects;
  * </ol>
  */
 public class ServiceAccountToken implements AuthenticationToken, Closeable {
+    public static final byte MAGIC_BYTE = '\0';
+    public static final byte TOKEN_TYPE = '\1';
+    public static final byte RESERVED_BYTE = '\0';
+    public static final byte FORMAT_VERSION = '\1';
+    public static final byte[] PREFIX = new byte[] { MAGIC_BYTE, TOKEN_TYPE, RESERVED_BYTE, FORMAT_VERSION };
+
+    private static final Logger logger = LogManager.getLogger(ServiceAccountToken.class);
+
     private final ServiceAccountId accountId;
     private final String tokenName;
     private final SecureString secret;
@@ -37,6 +54,18 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     public ServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
         this.accountId = accountId;
         this.tokenName = tokenName;
+        this.secret = secret;
+    }
+
+    public ServiceAccountToken(String qualifiedName, SecureString secret) {
+        final String[] split = Strings.delimitedListToStringArray(qualifiedName, "/");
+        if (split == null || split.length != 3) {
+            throw new IllegalArgumentException(
+                "The qualified name of a service token should take format of 'namespace/service_name/token_name'," +
+                    " got [" + qualifiedName + "]");
+        }
+        this.accountId = new ServiceAccountId(split[0], split[1]);
+        this.tokenName = split[2];
         this.secret = secret;
     }
 
@@ -57,17 +86,34 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     }
 
     public SecureString asBearerString() throws IOException {
-        try(
-            BytesStreamOutput out = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, out);
-            SecurityTokenType.SERVICE_ACCOUNT.write(out);
-            accountId.write(out);
-            out.writeString(tokenName);
-            out.writeSecureString(secret);
-            out.flush();
-
-            final String base64 = Base64.getEncoder().withoutPadding().encodeToString(out.bytes().toBytesRef().bytes);
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            out.writeBytes(PREFIX);
+            out.write(getQualifiedName().getBytes(StandardCharsets.UTF_8));
+            out.write(':');
+            out.write(secret.toString().getBytes(StandardCharsets.UTF_8));
+            final String base64 = Base64.getEncoder().withoutPadding().encodeToString(out.toByteArray());
             return new SecureString(base64.toCharArray());
+        }
+    }
+
+    public static ServiceAccountToken fromBearerString(SecureString bearerString) throws IOException {
+        final byte[] bytes = CharArrays.toUtf8Bytes(bearerString.getChars());
+        logger.trace("parsing token bytes {}", MessageDigests.toHexString(bytes));
+        try (InputStream in = Base64.getDecoder().wrap(new ByteArrayInputStream(bytes))) {
+            final byte[] prefixBytes = in.readNBytes(4);
+            if (prefixBytes.length != 4 || false == Arrays.equals(prefixBytes, PREFIX)) {
+                logger.trace(() -> new ParameterizedMessage(
+                    "service account token expects the 4 leading bytes of {}, got {}.",
+                    Arrays.toString(PREFIX), Arrays.toString(prefixBytes)));
+                return null;
+            }
+            final char[] content = CharArrays.utf8BytesToChars(in.readAllBytes());
+            final int i = UsernamePasswordToken.indexOfColon(content);
+            if (i < 0) {
+                throw new IllegalArgumentException("failed to extract qualified service token name and secret, missing ':'");
+            }
+            return new ServiceAccountToken(new String(Arrays.copyOfRange(content, 0, i)),
+                new SecureString(Arrays.copyOfRange(content, i + 1, content.length)));
         }
     }
 

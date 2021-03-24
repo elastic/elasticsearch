@@ -24,13 +24,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
-    private static final String BEARER_TOKEN = "46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWME1TT0ZobXVRTENIaTNQUGJ4VXQ5ZwAAAAAAAAA";
+    private static final String BEARER_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc";
 
     @Override
     protected String configServiceTokens() {
         return super.configServiceTokens()
             + "elastic/fleet/token1:"
-            + "{PBKDF2_STRETCH}10000$XHyHETZWckPiHOuplBOnHeHpB41pTO8XkDC5yTujlcw=$691fFB/AwrSnjRhixFR2y9hOhCd5q6/6pDm29c/tsss=";
+            + "{PBKDF2_STRETCH}10000$8QN+eThJEaCd18sCP0nfzxJq2D9yhmSZgI20TDooYcE=$+0ELfqW4D2+/SlHvm/885dzv67qO2SMJg32Mv/9epXk=";
     }
 
     public void testAuthenticateWithServiceFileToken() {

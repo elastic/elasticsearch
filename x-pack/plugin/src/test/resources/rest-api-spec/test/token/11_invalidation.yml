@@ -45,7 +45,7 @@ teardown:
       catch: bad_request
       security.invalidate_token:
         body:
-          token: 46ToAwAWMUVZS0lfWnpSZVdhRkhxSmk0WENQUQAAAAAAAAAAAA==
+          token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
 
   - do:
       security.get_token:
@@ -84,7 +84,7 @@ teardown:
       catch: missing
       security.invalidate_token:
         body:
-          token: 46ToAwAWMUVZS0lfWnpSZVdhRkhxSmk0WENQUQAAAAAAAAAAAA==
+          token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
 
   - match: { invalidated_tokens: 0 }
   - match: { previously_invalidated_tokens: 0 }
@@ -97,7 +97,7 @@ teardown:
       catch: bad_request
       security.invalidate_token:
         body:
-          refresh_token: 46ToAwEWWmIzWTJFMjFRRDJ0czZtVFRyRzB4dwAAAAA=
+          refresh_token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
 
   - do:
       security.get_token:
@@ -136,7 +136,7 @@ teardown:
       catch: missing
       security.invalidate_token:
         body:
-          refresh_token: 46ToAwEWWmIzWTJFMjFRRDJ0czZtVFRyRzB4dwAAAAA=
+          refresh_token: 46ToAxYzNUdPZWdYOFRQcWhjeHR3NWpvTmVB
 
   - match: { invalidated_tokens: 0 }
   - match: { previously_invalidated_tokens: 0 }

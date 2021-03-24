@@ -13,21 +13,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Map;
 
@@ -69,24 +60,23 @@ public class ServiceAccountService {
      * There is no guarantee that the {@link ServiceAccountToken#getSecret() secret} is valid,
      * or even that the {@link ServiceAccountToken#getAccountId() account} exists.
      * </p>
-     * @param token A raw token string (if this is from an HTTP header, then the <code>"Bearer "</code> prefix must be removed before
+     * @param bearerString A raw token string (if this is from an HTTP header, then the <code>"Bearer "</code> prefix must be removed before
      *              calling this method.
      * @return An unvalidated token object.
      */
-    public static ServiceAccountToken tryParseToken(SecureString token) {
+    public static ServiceAccountToken tryParseToken(SecureString bearerString) {
         try {
-            if (token == null) {
+            if (bearerString == null) {
                 return null;
             }
-            return doParseToken(token);
-        } catch (IOException e) {
-            logger.debug("Cannot parse possible service account token", e);
+            return ServiceAccountToken.fromBearerString(bearerString);
+        } catch (Exception e) {
+            logger.trace("Cannot parse possible service account token", e);
             return null;
         }
     }
 
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
-
         if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
             final ParameterizedMessage message = new ParameterizedMessage(
                 "only [{}] service accounts are supported, but received [{}]",
@@ -139,29 +129,4 @@ public class ServiceAccountService {
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
             Map.of("_token_name", token.getTokenName()));
     }
-
-    private static ServiceAccountToken doParseToken(SecureString token) throws IOException {
-        final byte[] bytes = CharArrays.toUtf8Bytes(token.getChars());
-        logger.trace("parsing token bytes {}", MessageDigests.toHexString(bytes));
-        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
-            if (version.before(VERSION_MINIMUM)) {
-                logger.trace("token has version {}, but we need at least {}", version, VERSION_MINIMUM);
-                return null;
-            }
-            final SecurityTokenType tokenType = SecurityTokenType.read(in);
-            if (tokenType != SecurityTokenType.SERVICE_ACCOUNT) {
-                logger.trace("token is of type {}, but we only handle {}", tokenType, SecurityTokenType.SERVICE_ACCOUNT);
-                return null;
-            }
-
-            final ServiceAccountId account = new ServiceAccountId(in);
-            final String tokenName = in.readString();
-            final SecureString secret = in.readSecureString();
-
-            return new ServiceAccountToken(account, tokenName, secret);
-        }
-    }
-
 }

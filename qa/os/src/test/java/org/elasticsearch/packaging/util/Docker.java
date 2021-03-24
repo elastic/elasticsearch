@@ -246,7 +246,7 @@ public class Docker {
             cmd.add("docker");
             cmd.add("exec");
             cmd.add("--user");
-            cmd.add("elasticsearch:root");
+            cmd.add("elasticsearch");
             cmd.add("--tty");
 
             env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));

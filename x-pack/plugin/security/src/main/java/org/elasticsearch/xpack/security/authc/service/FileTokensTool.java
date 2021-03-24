@@ -19,8 +19,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Path;
@@ -70,6 +71,9 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
                 throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
                     + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
+            }
+            if (false == ServiceAccountToken.isValidTokenName(tokenName)) {
+                throw new UserException(ExitCodes.CODE_ERROR, ServiceAccountToken.INVALID_TOKEN_NAME_MESSAGE);
             }
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);

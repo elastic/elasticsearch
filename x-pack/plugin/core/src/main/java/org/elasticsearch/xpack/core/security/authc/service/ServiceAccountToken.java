@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.authc.service;
+package org.elasticsearch.xpack.core.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +17,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A decoded credential that may be used to authenticate a {@link ServiceAccount}.
@@ -39,6 +40,20 @@ import java.util.Objects;
  * </ol>
  */
 public class ServiceAccountToken implements AuthenticationToken, Closeable {
+
+    public static Set<Character> VALID_TOKEN_NAME_CHARS = Set.of(
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        '-', '_'
+    );
+
+    public static final String INVALID_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character " +
+        "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). " +
+        "It must not begin with an underscore (_).";
+
     public static final byte MAGIC_BYTE = '\0';
     public static final byte TOKEN_TYPE = '\1';
     public static final byte RESERVED_BYTE = '\0';
@@ -103,14 +118,15 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
             final byte[] prefixBytes = in.readNBytes(4);
             if (prefixBytes.length != 4 || false == Arrays.equals(prefixBytes, PREFIX)) {
                 logger.trace(() -> new ParameterizedMessage(
-                    "service account token expects the 4 leading bytes of {}, got {}.",
+                    "service account token expects the 4 leading bytes to be {}, got {}.",
                     Arrays.toString(PREFIX), Arrays.toString(prefixBytes)));
                 return null;
             }
             final char[] content = CharArrays.utf8BytesToChars(in.readAllBytes());
             final int i = UsernamePasswordToken.indexOfColon(content);
             if (i < 0) {
-                throw new IllegalArgumentException("failed to extract qualified service token name and secret, missing ':'");
+                logger.trace("failed to extract qualified service token name and secret, missing ':'");
+                return null;
             }
             return new ServiceAccountToken(new String(Arrays.copyOfRange(content, 0, i)),
                 new SecureString(Arrays.copyOfRange(content, i + 1, content.length)));
@@ -154,5 +170,17 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     @Override
     public void clearCredentials() {
         close();
+    }
+
+    public static boolean isValidTokenName(String name) {
+        if (Strings.isNullOrEmpty(name) || name.length() > 256 || name.startsWith("_")) {
+            return false;
+        }
+        for (char c: name.toCharArray()) {
+            if (false == VALID_TOKEN_NAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

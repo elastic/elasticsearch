@@ -546,6 +546,10 @@ public enum RangeType {
         }
     };
 
+    public final String name;
+    private final NumberFieldMapper.NumberType numberType;
+    public final LengthType lengthType;
+
     RangeType(String name, LengthType lengthType) {
         this.name = name;
         this.numberType = null;
@@ -700,9 +704,9 @@ public enum RangeType {
             new RangeFieldMapper.Builder(n, this, RangeFieldMapper.COERCE_SETTING.get(c.getSettings()), c.indexVersionCreated()));
     }
 
-    public final String name;
-    private final NumberFieldMapper.NumberType numberType;
-    public final LengthType lengthType;
+    NumberFieldMapper.NumberType numberType() {
+        return numberType;
+    }
 
     public enum LengthType {
         FIXED_4 {

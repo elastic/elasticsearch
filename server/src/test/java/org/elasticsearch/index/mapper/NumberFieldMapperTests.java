@@ -218,6 +218,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     e.getCause().getMessage(), containsString(item.message));
             }
         }
-
     }
+
+    @Override
+    protected final Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumber();
+        return randomBoolean() ? n : n.toString();
+    }
+
+    protected abstract Number randomNumber();
 }

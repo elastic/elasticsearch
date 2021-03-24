@@ -340,4 +340,10 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
 }

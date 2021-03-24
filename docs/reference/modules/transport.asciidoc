@@ -132,6 +132,8 @@ transport.profiles.dmz.bind_host: 172.16.1.2
 The `default` profile is special. It is used as a fallback for any other
 profiles, if those do not have a specific configuration setting set, and is how
 this node connects to other nodes in the cluster.
+Other profiles can have any name and can be used to set up specific endpoints
+for incoming connections.
 
 The following parameters can be configured on each transport profile, as in the
 example above:

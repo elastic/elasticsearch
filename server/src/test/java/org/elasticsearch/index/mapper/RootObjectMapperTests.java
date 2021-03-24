@@ -300,7 +300,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             "caused by [No mapper found for type [string]]");
     }
 
-    public void testIllegalDynamicTemplateUnknownRuntimeFieldType() throws Exception {
+    public void testIllegalDynamicTemplateUnknownRuntimeField() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {

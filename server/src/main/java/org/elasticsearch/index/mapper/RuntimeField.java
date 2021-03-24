@@ -22,7 +22,7 @@ import java.util.function.BiFunction;
 /**
  * Definition of a runtime field that can be defined as part of the runtime section of the index mappings
  */
-public interface RuntimeFieldType extends ToXContentFragment {
+public interface RuntimeField extends ToXContentFragment {
 
     @Override
     default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -57,11 +57,11 @@ public interface RuntimeFieldType extends ToXContentFragment {
     MappedFieldType asMappedFieldType();
 
     /**
-     *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
-     *  Internally we still create a {@link RuntimeFieldType.Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
-     *  but {@link RuntimeFieldType.Builder#init(FieldMapper)} and {@link RuntimeFieldType.Builder#build(ContentPath)} are never called as
-     *  {@link RuntimeFieldType.Parser#parse(String, Map, Mapper.TypeParser.ParserContext)} calls
-     *  {@link RuntimeFieldType.Builder#parse(String, Mapper.TypeParser.ParserContext, Map)} and returns the corresponding
+     *  For runtime fields the {@link RuntimeField.Parser} returns directly the {@link MappedFieldType}.
+     *  Internally we still create a {@link RuntimeField.Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
+     *  but {@link RuntimeField.Builder#init(FieldMapper)} and {@link RuntimeField.Builder#build(ContentPath)} are never called as
+     *  {@link RuntimeField.Parser#parse(String, Map, Mapper.TypeParser.ParserContext)} calls
+     *  {@link RuntimeField.Builder#parse(String, Mapper.TypeParser.ParserContext, Map)} and returns the corresponding
      *  {@link MappedFieldType}.
      */
     abstract class Builder extends FieldMapper.Builder {
@@ -90,7 +90,7 @@ public interface RuntimeFieldType extends ToXContentFragment {
             throw new UnsupportedOperationException();
         }
 
-        protected abstract RuntimeFieldType buildFieldType();
+        protected abstract RuntimeField buildFieldType();
 
         private void validate() {
             ContentPath contentPath = parentPath(name());
@@ -106,20 +106,20 @@ public interface RuntimeFieldType extends ToXContentFragment {
     }
 
     /**
-     * Parser for a runtime field. Creates the appropriate {@link RuntimeFieldType} for a runtime field,
+     * Parser for a runtime field. Creates the appropriate {@link RuntimeField} for a runtime field,
      * as defined in the runtime section of the index mappings.
      */
     final class Parser {
-        private final BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeFieldType.Builder> builderFunction;
+        private final BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeField.Builder> builderFunction;
 
-        public Parser(BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeFieldType.Builder> builderFunction) {
+        public Parser(BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeField.Builder> builderFunction) {
             this.builderFunction = builderFunction;
         }
 
-        RuntimeFieldType parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
+        RuntimeField parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
             throws MapperParsingException {
 
-            RuntimeFieldType.Builder builder = builderFunction.apply(name, parserContext);
+            RuntimeField.Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             builder.validate();
             return builder.buildFieldType();
@@ -134,10 +134,10 @@ public interface RuntimeFieldType extends ToXContentFragment {
      *                        translated to the removal of such runtime field
      * @return the parsed runtime fields
      */
-    static Map<String, RuntimeFieldType> parseRuntimeFields(Map<String, Object> node,
-                                                            Mapper.TypeParser.ParserContext parserContext,
-                                                            boolean supportsRemoval) {
-        Map<String, RuntimeFieldType> runtimeFields = new HashMap<>();
+    static Map<String, RuntimeField> parseRuntimeFields(Map<String, Object> node,
+                                                        Mapper.TypeParser.ParserContext parserContext,
+                                                        boolean supportsRemoval) {
+        Map<String, RuntimeField> runtimeFields = new HashMap<>();
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -159,7 +159,7 @@ public interface RuntimeFieldType extends ToXContentFragment {
                 } else {
                     type = typeNode.toString();
                 }
-                Parser typeParser = parserContext.runtimeFieldTypeParser(type);
+                Parser typeParser = parserContext.runtimeFieldParser(type);
                 if (typeParser == null) {
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");

@@ -15,7 +15,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.runtimefields.query.DoubleScriptFieldExistsQuery;
@@ -34,9 +34,9 @@ import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected RuntimeFieldType buildFieldType() {
+        protected RuntimeField buildFieldType() {
             if (script.get() == null) {
                 return new DoubleScriptFieldType(name, DoubleFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }

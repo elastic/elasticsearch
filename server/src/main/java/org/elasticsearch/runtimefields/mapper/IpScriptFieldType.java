@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.IpScriptFieldData;
 import org.elasticsearch.runtimefields.query.IpScriptFieldExistsQuery;
@@ -43,9 +43,9 @@ import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected RuntimeFieldType buildFieldType() {
+        protected RuntimeField buildFieldType() {
             if (script.get() == null) {
                 return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }

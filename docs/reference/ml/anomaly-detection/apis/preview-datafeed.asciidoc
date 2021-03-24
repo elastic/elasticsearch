@@ -14,6 +14,9 @@ Previews a {dfeed}.
 == {api-request-title}
 
 `GET _ml/datafeeds/<datafeed_id>/_preview`
+`POST _ml/datafeeds/<datafeed_id>/_preview`
+`GET _ml/datafeeds/_preview`
+`POST _ml/datafeeds/_preview`
 
 [[ml-preview-datafeed-prereqs]]
 == {api-prereq-title}
@@ -29,6 +32,12 @@ The preview {dfeeds} API returns the first "page" of results from the `search`
 that is created by using the current {dfeed} settings. This preview shows the
 structure of the data that will be passed to the anomaly detection engine.
 
+It is possible to preview an existing {dfeed}, or provide configurations for
+the {dfeed} or {anomaly-job} in the API call.
+
+NOTE: You may not provide configurations in the API body while also
+providing the `<datafeed_id>` in the URL.
+
 IMPORTANT: When {es} {security-features} are enabled, the {dfeed} query is
 previewed using the credentials of the user calling the preview {dfeed} API.
 When the {dfeed} is started it runs the query using the roles of the last user
@@ -43,15 +52,115 @@ supply the credentials.
 == {api-path-parms-title}
 
 `<datafeed_id>`::
-(Required, string)
+(Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+
+[[ml-preview-datafeed-request-body]]
+== {api-request-body-title}
+
+`datafeed_config`::
+(Optional, object) The {dfeed} definition to preview. If this is provided,
+the `datafeed_id` must not be in the url. For valid definitions see
+<<ml-put-datafeed-request-body, put datafeed documentation>>.
+
+`job_config`::
+(Optional, object) If provided, this {anomaly-job} is used instead of the one
+referred to by the {dfeed} `job_id`. Must be present if the {dfeed} config
+does not refer to a {anomaly-job}. See <<ml-put-job-request-body, put job documentation>>
+for valid definitions.
 
 [[ml-preview-datafeed-example]]
 == {api-examples-title}
 
+This is an example of providing the ID of an existing {dfeed}
+
 [source,console]
 --------------------------------------------------
 GET _ml/datafeeds/datafeed-high_sum_total_sales/_preview
+--------------------------------------------------
+// TEST[skip:set up Kibana sample data]
+
+The data that is returned for this example is as follows:
+
+[source,console-result]
+----
+[
+  {
+    "order_date" : 1574294659000,
+    "category.keyword" : "Men's Clothing",
+    "customer_full_name.keyword" : "Sultan Al Benson",
+    "taxful_total_price" : 35.96875
+  },
+  {
+    "order_date" : 1574294918000,
+    "category.keyword" : [
+      "Women's Accessories",
+      "Women's Clothing"
+    ],
+    "customer_full_name.keyword" : "Pia Webb",
+    "taxful_total_price" : 83.0
+  },
+  {
+    "order_date" : 1574295782000,
+    "category.keyword" : [
+      "Women's Accessories",
+      "Women's Shoes"
+    ],
+    "customer_full_name.keyword" : "Brigitte Graham",
+    "taxful_total_price" : 72.0
+  }
+]
+----
+
+Below is an example of providing configs for the {dfeed} and {anomaly-job}.
+
+[source,console]
+--------------------------------------------------
+POST _ml/datafeeds/_preview
+{
+  "datafeed_config": {
+    "indices" : [
+      "kibana_sample_data_ecommerce"
+    ],
+    "query" : {
+      "bool" : {
+        "filter" : [
+          {
+            "term" : {
+              "_index" : "kibana_sample_data_ecommerce"
+            }
+          }
+        ]
+      }
+    },
+    "scroll_size" : 1000
+  },
+  "job_config": {
+    "description" : "Find customers spending an unusually high amount in an hour",
+    "analysis_config" : {
+      "bucket_span" : "1h",
+      "detectors" : [
+        {
+          "detector_description" : "High total sales",
+          "function" : "high_sum",
+          "field_name" : "taxful_total_price",
+          "over_field_name" : "customer_full_name.keyword"
+        }
+      ],
+      "influencers" : [
+        "customer_full_name.keyword",
+        "category.keyword"
+      ]
+    },
+    "analysis_limits" : {
+      "model_memory_limit" : "10mb"
+    },
+    "data_description" : {
+      "time_field" : "order_date",
+      "time_format" : "epoch_ms"
+    }
+  }
+}
 --------------------------------------------------
 // TEST[skip:set up Kibana sample data]
 

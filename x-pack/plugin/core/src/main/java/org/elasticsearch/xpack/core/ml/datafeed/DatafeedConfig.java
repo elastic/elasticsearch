@@ -710,6 +710,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this;
         }
 
+        public String getJobId() {
+            return jobId;
+        }
+
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = ExceptionsHelper.requireNonNull(headers, HEADERS.getPreferredName());
             return this;

@@ -48,9 +48,8 @@ privilege>> to use this API.
 
 `<legacy-index-template>`::
 (Required, string)
-Comma-separated list of legacy index templates to delete. Wildcard (`*`)
+The name of the legacy index template to delete. Wildcard (`*`)
 expressions are supported.
-
 
 [[delete-template-api-v1-query-params]]
 ==== {api-query-parms-title}

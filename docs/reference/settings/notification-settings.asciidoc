@@ -263,6 +263,12 @@ Defaults to `true`.
 
 include::ssl-settings.asciidoc[]
 
+`xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`::
+(<<dynamic-cluster-setting,Dynamic>>) 
+Specifies a custom message to be sent if the formula verification criteria
+for CSV files, from kibana `xpack.reporting.csv.checkForFormulas`, is true.
+Use %s in the message as a placeholder for the filename.  
+
 [[slack-notification-settings]]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in

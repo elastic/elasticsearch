@@ -189,8 +189,7 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null,
-            clusterService
+            null
         ) {
             // metadata upgrader should do nothing
             @Override

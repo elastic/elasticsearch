@@ -38,7 +38,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             () -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldParsers()::get, indexSettings.getIndexVersionCreated(),
                 () -> { throw new UnsupportedOperationException(); }, null,
-                scriptService, indexAnalyzers, indexSettings, () -> false, () -> Version.CURRENT);
+                scriptService, indexAnalyzers, indexSettings, () -> false);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();

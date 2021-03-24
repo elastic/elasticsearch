@@ -36,4 +36,15 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "integer");
     }
+
+    @Override
+    protected Number randomNumber() {
+        if (randomBoolean()) {
+            return randomInt();
+        }
+        if (randomBoolean()) {
+            return randomDouble();
+        }
+        return randomDoubleBetween(Integer.MIN_VALUE, Integer.MAX_VALUE, true);
+    }
 }

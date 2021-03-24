@@ -1295,6 +1295,30 @@ setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
             index.soft_deletes.enabled: true
 '''
 
+setups['remote_cluster_and_leader_index_and_follower_index'] = setups['remote_cluster_and_leader_index'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: 'follower_index/_ccr/follow'
+        wait_for_active_shards: 1
+        body: |
+          {
+            "remote_cluster" : "remote_cluster",
+            "leader_index" : "leader_index"
+          }
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+'''
+
+teardowns['pause_follow'] = '''
+  - do:
+      raw:
+        method: POST
+        path: 'follower_index/_ccr/pause_follow'
+  - is_true: acknowledged
+'''
+
 setups['seats'] = '''
   - do:
         indices.create:

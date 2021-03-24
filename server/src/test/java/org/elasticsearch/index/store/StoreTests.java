@@ -741,21 +741,21 @@ public class StoreTests extends ESTestCase {
         final long localStoreSizeDelta = randomLongBetween(-initialStoreSize, initialStoreSize);
         final long reservedBytes =  randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
         StoreStats stats = store.stats(reservedBytes, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize, stats.getSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.localSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(reservedBytes, stats.getReservedSize().getBytes());
 
         stats.add(null);
-        assertEquals(initialStoreSize, stats.getSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.localSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(reservedBytes, stats.getReservedSize().getBytes());
 
-        final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
+        final long otherStatsDataSetBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsLocalBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
-        stats.add(new StoreStats(otherStatsBytes, otherStatsLocalBytes, otherStatsReservedBytes));
-        assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
-        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.localSize().getBytes());
+        stats.add(new StoreStats(otherStatsLocalBytes, otherStatsDataSetBytes, otherStatsReservedBytes));
+        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 
         Directory dir = store.directory();
@@ -771,8 +771,8 @@ public class StoreTests extends ESTestCase {
 
         assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats(0L, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize + length, stats.getSizeInBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.localSize().getBytes());
+        assertEquals(initialStoreSize + length, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.getSizeInBytes());
 
         deleteContent(store.directory());
         IOUtils.close(store);

@@ -522,11 +522,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                     StoreStats store = shardStats.getStats().getStore();
                     assertThat(shardStats.getShardRouting().toString(), store.getReservedSize().getBytes(), equalTo(0L));
-                    assertThat(shardStats.getShardRouting().toString(), store.getLocalSize().getBytes(), equalTo(0L));
+                    assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), equalTo(0L));
                 }
                 if (indicesStatsResponse.getShards().length > 0) {
                     assertThat(indicesStatsResponse.getTotal().getStore().getReservedSize().getBytes(), equalTo(0L));
-                    assertThat(indicesStatsResponse.getTotal().getStore().getLocalSize().getBytes(), equalTo(0L));
+                    assertThat(indicesStatsResponse.getTotal().getStore().getSize().getBytes(), equalTo(0L));
                 }
             }
         }, "test-stats-watcher");
@@ -566,21 +566,23 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         for (ShardStats shardStats : indicesStatsResponse.getShards()) {
             StoreStats store = shardStats.getStats().getStore();
             assertThat(shardStats.getShardRouting().toString(), store.getReservedSize().getBytes(), equalTo(0L));
-            assertThat(shardStats.getShardRouting().toString(), store.getLocalSize().getBytes(), equalTo(0L));
+            assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), equalTo(0L));
 
-            // the extra segments file created for bootstrap new history and associate translog makes us unable to precisely assert this.
+            // the extra segments_N file created for bootstrap new history and associate translog makes us unable to precisely assert this.
             final long expectedSize = snapshotShards.get(shardStats.getShardRouting().getId()).getStats().getTotalSize();
-            assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), greaterThanOrEqualTo(expectedSize));
-            // we expect the new segments file to make it significantly less than 2x.
-            assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), lessThan(expectedSize * 2));
+            assertThat(shardStats.getShardRouting().toString(), store.getTotalDataSetSize().getBytes(), greaterThanOrEqualTo(expectedSize));
+            // the extra segments_N file only has a new history UUID and translog UUID, both of which have constant size. It's size is
+            // therefore identical to the original segments_N file from the snapshot. We expect at least 1 byte of other content, making
+            // it safe to assert that the total data set size is less than 2x the size.
+            assertThat(shardStats.getShardRouting().toString(), store.getTotalDataSetSize().getBytes(), lessThan(expectedSize * 2));
 
             totalExpectedSize += expectedSize;
         }
 
-        // the extra segments file created for bootstrap new history and associate translog makes us unable to precisely assert this.
+        // the extra segments_N file created for bootstrap new history and associate translog makes us unable to precisely assert this.
         final StoreStats store = indicesStatsResponse.getTotal().getStore();
-        assertThat(store.getSize().getBytes(), greaterThanOrEqualTo(totalExpectedSize));
-        assertThat(store.getSize().getBytes(), lessThan(totalExpectedSize * 2));
+        assertThat(store.getTotalDataSetSize().getBytes(), greaterThanOrEqualTo(totalExpectedSize));
+        assertThat(store.getTotalDataSetSize().getBytes(), lessThan(totalExpectedSize * 2));
 
         statsWatcherRunning.set(false);
         statsWatcher.join();

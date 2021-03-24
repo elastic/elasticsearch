@@ -422,7 +422,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "      },"
                 + "      \"store\": {"
                 + "        \"size_in_bytes\": 0,"
-                + "        \"local_size_in_bytes\": 0,"
+                + "        \"total_data_set_size_in_bytes\": 0,"
                 + "        \"reserved_in_bytes\": 0"
                 + "      },"
                 + "      \"fielddata\": {"

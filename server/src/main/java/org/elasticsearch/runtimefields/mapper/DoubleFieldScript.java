@@ -30,7 +30,7 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         DoubleFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new DoubleFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new DoubleFieldScript(
         field,
         params,
         lookup,

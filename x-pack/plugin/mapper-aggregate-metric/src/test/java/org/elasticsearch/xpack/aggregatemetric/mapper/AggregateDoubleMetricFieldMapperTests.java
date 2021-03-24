@@ -528,4 +528,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
 }

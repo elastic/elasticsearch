@@ -49,6 +49,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
+import org.junit.After;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -180,14 +181,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 .setSettings(repositorySettings.build())
         );
 
-        TrackingRepositoryPlugin tracker = null;
-        for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
-            if (plugin instanceof TrackingRepositoryPlugin) {
-                tracker = ((TrackingRepositoryPlugin) plugin);
-            }
-        }
-
-        assertThat(tracker, notNullValue());
+        TrackingRepositoryPlugin tracker = getTrackingRepositoryPlugin();
         assertThat(tracker.totalFilesRead(), equalTo(0L));
         assertThat(tracker.totalBytesRead(), equalTo(0L));
 
@@ -304,6 +298,20 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         }
     }
 
+    @After
+    public void resetTracker() {
+        getTrackingRepositoryPlugin().clear();
+    }
+
+    private TrackingRepositoryPlugin getTrackingRepositoryPlugin() {
+        for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
+            if (plugin instanceof TrackingRepositoryPlugin) {
+                return ((TrackingRepositoryPlugin) plugin);
+            }
+        }
+        throw new IllegalStateException("tracking repository missing");
+    }
+
     /**
      * A plugin that allows to track the read operations on blobs
      */
@@ -311,6 +319,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
         private final ConcurrentHashMap<String, Long> files = new ConcurrentHashMap<>();
         private final AtomicBoolean enabled = new AtomicBoolean(true);
+
+        void clear() {
+            files.clear();
+            enabled.set(true);
+        }
 
         long totalFilesRead() {
             return files.size();

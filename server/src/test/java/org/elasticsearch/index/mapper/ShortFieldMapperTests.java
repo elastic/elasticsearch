@@ -36,4 +36,15 @@ public class ShortFieldMapperTests extends WholeNumberFieldMapperTests {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "short");
     }
+
+    @Override
+    protected Number randomNumber() {
+        if (randomBoolean()) {
+            return randomShort();
+        }
+        if (randomBoolean()) {
+            return randomDouble();
+        }
+        return randomDoubleBetween(Short.MIN_VALUE, Short.MAX_VALUE, true);
+    }
 }

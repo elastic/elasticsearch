@@ -31,6 +31,8 @@ public class SharedBytes extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(SharedBytes.class);
 
+    public static int PAGE_SIZE = 4096;
+
     private static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
@@ -171,6 +173,9 @@ public class SharedBytes extends AbstractRefCounted {
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public int write(ByteBuffer src, long position) throws IOException {
+            // check if writes are page size aligned for optimal performance
+            assert position % PAGE_SIZE == 0;
+            assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
             return fileChannel.write(src, position);
         }

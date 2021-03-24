@@ -153,7 +153,7 @@ To safeguard against this, a default limit of 1024 fields has been introduced fo
 queries using the "all fields" mode (`"default_field": "*"`) or other fieldname
 expansions (e.g. `"foo*"`). If needed, you can change this limit using the
 <<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
-dynamic cluster setting.
+static cluster setting.
 
 [float]
 [[invalid-search-request-body]]

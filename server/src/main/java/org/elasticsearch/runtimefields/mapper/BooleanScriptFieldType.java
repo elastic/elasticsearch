@@ -17,7 +17,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.runtimefields.query.BooleanScriptFieldExistsQuery;
@@ -34,9 +34,9 @@ import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected RuntimeFieldType buildFieldType() {
+        protected RuntimeField buildFieldType() {
             if (script.get() == null) {
                 return new BooleanScriptFieldType(name, BooleanFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }

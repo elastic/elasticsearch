@@ -22,7 +22,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.DateScriptFieldData;
 import org.elasticsearch.runtimefields.query.LongScriptFieldDistanceFeatureQuery;
@@ -46,7 +46,7 @@ import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
             "format",
             true,
@@ -79,7 +79,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         }
 
         @Override
-        protected RuntimeFieldType buildFieldType() {
+        protected RuntimeField buildFieldType() {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
             Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);

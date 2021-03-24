@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.io.IOException;
 import java.util.Collections;
 
-public class TestRuntimeField extends MappedFieldType implements RuntimeFieldType {
+public class TestRuntimeField extends MappedFieldType implements RuntimeField {
 
     private final String type;
 

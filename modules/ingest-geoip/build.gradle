@@ -57,6 +57,11 @@ tasks.named("internalClusterTest").configure {
   }
 }
 
+testClusters.all {
+  systemProperty "es.geoip_v2_feature_flag_enabled", "true"
+  setting "geoip.downloader.enabled", "false"
+}
+
 tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
   from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"

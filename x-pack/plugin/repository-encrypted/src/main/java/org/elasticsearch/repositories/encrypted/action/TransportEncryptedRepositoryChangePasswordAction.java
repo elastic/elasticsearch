@@ -23,25 +23,40 @@ import org.elasticsearch.xpack.core.repositories.encrypted.EncryptedRepositoryCh
 import org.elasticsearch.xpack.core.repositories.encrypted.EncryptedRepositoryChangePasswordResponse;
 import org.elasticsearch.xpack.core.repositories.encrypted.action.ChangeEncryptedRepositoryPasswordAction;
 
-public final class TransportEncryptedRepositoryChangePasswordAction extends
-        TransportMasterNodeAction<EncryptedRepositoryChangePasswordRequest, EncryptedRepositoryChangePasswordResponse> {
+public final class TransportEncryptedRepositoryChangePasswordAction extends TransportMasterNodeAction<
+    EncryptedRepositoryChangePasswordRequest,
+    EncryptedRepositoryChangePasswordResponse> {
 
     @Inject
-    public TransportEncryptedRepositoryChangePasswordAction(TransportService transportService,
-                                                               ClusterService clusterService,
-                                                               ThreadPool threadPool,
-                                                               ActionFilters actionFilters,
-                                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ChangeEncryptedRepositoryPasswordAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                EncryptedRepositoryChangePasswordRequest::new, indexNameExpressionResolver,
-                EncryptedRepositoryChangePasswordResponse::new, ThreadPool.Names.GENERIC);
+    public TransportEncryptedRepositoryChangePasswordAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ChangeEncryptedRepositoryPasswordAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            EncryptedRepositoryChangePasswordRequest::new,
+            indexNameExpressionResolver,
+            EncryptedRepositoryChangePasswordResponse::new,
+            ThreadPool.Names.GENERIC
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, EncryptedRepositoryChangePasswordRequest request, ClusterState state,
-                                   ActionListener<EncryptedRepositoryChangePasswordResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        EncryptedRepositoryChangePasswordRequest request,
+        ClusterState state,
+        ActionListener<EncryptedRepositoryChangePasswordResponse> listener
+    ) throws Exception {
         listener.onResponse(new EncryptedRepositoryChangePasswordResponse(false));
-//            repositoriesService.registerRepository(request, listener.map(response -> AcknowledgedResponse.of(response.isAcknowledged())));
+        // repositoriesService.registerRepository(request, listener.map(response -> AcknowledgedResponse.of(response.isAcknowledged())));
     }
 
     @Override

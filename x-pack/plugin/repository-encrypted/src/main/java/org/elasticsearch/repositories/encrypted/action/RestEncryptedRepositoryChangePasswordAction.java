@@ -42,9 +42,9 @@ public class RestEncryptedRepositoryChangePasswordAction extends BaseRestHandler
             changePasswordRequest.fromPasswordName(requestAsMap.get("from_password_name"));
             changePasswordRequest.toPasswordName(requestAsMap.get("to_password_name"));
         }
-        return channel ->
-                client.admin().cluster().execute(ChangeEncryptedRepositoryPasswordAction.INSTANCE, changePasswordRequest,
-                        new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin()
+            .cluster()
+            .execute(ChangeEncryptedRepositoryPasswordAction.INSTANCE, changePasswordRequest, new RestStatusToXContentListener<>(channel));
     }
 
 }

@@ -73,8 +73,10 @@ public class EncryptedRepositoryTests extends ESTestCase {
         String repoPasswordName = randomAlphaOfLength(6);
         Settings.Builder settings = Settings.builder();
         settings.put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repoPasswordName);
-        settings.put(RepositoryPasswords.PASSWORD_HASH_SETTING.getConcreteSettingForNamespace(repoPasswordName).getKey(),
-                AESKeyUtils.computeSaltedPasswordHash(repoPassword, EsExecutors.newDirectExecutorService()).get());
+        settings.put(
+            RepositoryPasswords.PASSWORD_HASH_SETTING.getConcreteSettingForNamespace(repoPasswordName).getKey(),
+            AESKeyUtils.computeSaltedPasswordHash(repoPassword, EsExecutors.newDirectExecutorService()).get()
+        );
         this.repositoryMetadata = new RepositoryMetadata(
             randomAlphaOfLength(4),
             EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME,

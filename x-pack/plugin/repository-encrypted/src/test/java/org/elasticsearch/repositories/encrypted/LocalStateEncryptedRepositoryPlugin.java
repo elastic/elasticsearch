@@ -90,8 +90,16 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
             Supplier<XPackLicenseState> licenseStateSupplier,
             Map<String, SecureString> repoPasswords
         ) throws GeneralSecurityException {
-            super(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository, licenseStateSupplier,
-                    repoPasswords);
+            super(
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                delegatedRepository,
+                licenseStateSupplier,
+                repoPasswords
+            );
         }
 
         @Override

@@ -40,9 +40,11 @@ public final class RepositoryPasswords {
     static final Setting<String> PASSWORD_CHANGE_FROM_NAME_SETTING = Setting.simpleString("change_password_from_name", "");
     static final Setting<String> PASSWORD_CHANGE_TO_NAME_SETTING = Setting.simpleString("change_password_to_name", "");
     // TODO these are not really "settings"
-    //  we need to find a better way to put these in the cluster state in relation to a repository
-    public static final Setting.AffixSetting<String> PASSWORD_HASH_SETTING =
-            Setting.prefixKeySetting("password_hash.", key -> Setting.simpleString(key));
+    // we need to find a better way to put these in the cluster state in relation to a repository
+    public static final Setting.AffixSetting<String> PASSWORD_HASH_SETTING = Setting.prefixKeySetting(
+        "password_hash.",
+        key -> Setting.simpleString(key)
+    );
 
     static final Logger logger = LogManager.getLogger(RepositoryPasswords.class);
 
@@ -56,8 +58,7 @@ public final class RepositoryPasswords {
         this.localRepositoryPasswordsMap = Map.copyOf(localRepositoryPasswordsMap);
         this.threadPool = threadPool;
         this.localRepositoryPasswordHashesMap = new ConcurrentHashMap<>(localRepositoryPasswordsMap.size());
-        this.verifiedRepositoryPasswordHashesLru = new LinkedHashMap<>(3 * localRepositoryPasswordsMap.size(),
-                0.75f, true) {
+        this.verifiedRepositoryPasswordHashesLru = new LinkedHashMap<>(3 * localRepositoryPasswordsMap.size(), 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, ListenableFuture<Boolean>> eldest) {
                 return size() > 4 * localRepositoryPasswordsMap.size();
@@ -77,13 +78,13 @@ public final class RepositoryPasswords {
         if (false == repositoryMetadata1.type().equals(repositoryMetadata2.type())) {
             return false;
         }
-        Predicate<String> passwordSettingsPredicate = settingName ->
-                settingName.equals(PASSWORD_NAME_SETTING.getKey()) ||
-                        settingName.equals(PASSWORD_CHANGE_FROM_NAME_SETTING.getKey()) ||
-                        settingName.equals(PASSWORD_CHANGE_TO_NAME_SETTING.getKey()) ||
-                        PASSWORD_HASH_SETTING.match(settingName);
-        return repositoryMetadata1.settings().filter(passwordSettingsPredicate.negate())
-                .equals(repositoryMetadata2.settings().filter(passwordSettingsPredicate.negate()));
+        Predicate<String> passwordSettingsPredicate = settingName -> settingName.equals(PASSWORD_NAME_SETTING.getKey())
+            || settingName.equals(PASSWORD_CHANGE_FROM_NAME_SETTING.getKey())
+            || settingName.equals(PASSWORD_CHANGE_TO_NAME_SETTING.getKey())
+            || PASSWORD_HASH_SETTING.match(settingName);
+        return repositoryMetadata1.settings()
+            .filter(passwordSettingsPredicate.negate())
+            .equals(repositoryMetadata2.settings().filter(passwordSettingsPredicate.negate()));
     }
 
     public boolean containsRequiredPasswordHashes(RepositoryMetadata repositoryMetadata) {
@@ -98,12 +99,24 @@ public final class RepositoryPasswords {
         final String fromPasswordName = PASSWORD_CHANGE_FROM_NAME_SETTING.get(repositoryMetadata.settings());
         final String toPasswordName = PASSWORD_CHANGE_TO_NAME_SETTING.get(repositoryMetadata.settings());
         if (Strings.hasLength(fromPasswordName) && false == Strings.hasLength(toPasswordName)) {
-            throw new IllegalArgumentException("Repository setting [" + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey() + "] is set" +
-                    " but [" + PASSWORD_CHANGE_TO_NAME_SETTING.getKey() + "] is not, but they must be set together.");
+            throw new IllegalArgumentException(
+                "Repository setting ["
+                    + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey()
+                    + "] is set"
+                    + " but ["
+                    + PASSWORD_CHANGE_TO_NAME_SETTING.getKey()
+                    + "] is not, but they must be set together."
+            );
         }
         if (false == Strings.hasLength(toPasswordName) && Strings.hasLength(fromPasswordName)) {
-            throw new IllegalArgumentException("Repository setting [" + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey() + "] is set" +
-                    " but [" + PASSWORD_CHANGE_TO_NAME_SETTING.getKey() + "] is not, but they must be set together.");
+            throw new IllegalArgumentException(
+                "Repository setting ["
+                    + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey()
+                    + "] is set"
+                    + " but ["
+                    + PASSWORD_CHANGE_TO_NAME_SETTING.getKey()
+                    + "] is not, but they must be set together."
+            );
         }
         if (Strings.hasLength(fromPasswordName) && false == passwordHashes.containsKey(fromPasswordName)) {
             return false;
@@ -138,23 +151,42 @@ public final class RepositoryPasswords {
         final Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
         final Map<String, String> publishedPasswordHashes = getPasswordHashes(repositoryMetadata);
         for (Map.Entry<String, SecureString> localPassword : localPasswords.entrySet()) {
-            logger.trace(() -> new ParameterizedMessage("Verifying hash for password [{}] of repository [{}]", localPassword.getKey(),
-                    repositoryMetadata.name()));
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Verifying hash for password [{}] of repository [{}]",
+                    localPassword.getKey(),
+                    repositoryMetadata.name()
+                )
+            );
             String publishedPasswordHash = publishedPasswordHashes.get(localPassword.getKey());
             if (publishedPasswordHash == null) {
-                logger.debug(() -> new ParameterizedMessage("Missing hash for password [{}] of repository [{}]", localPassword.getKey(),
-                        repositoryMetadata.name()));
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "Missing hash for password [{}] of repository [{}]",
+                        localPassword.getKey(),
+                        repositoryMetadata.name()
+                    )
+                );
                 // the metadata names a password for which no hash has been published
                 return false;
             } else {
                 // cache the verified hash for a given named password
-                boolean verifyResult =
-                        this.verifiedRepositoryPasswordHashesLru.computeIfAbsent(localPassword.getKey() + publishedPasswordHash,
-                                k -> AESKeyUtils.verifySaltedPasswordHash(localPassword.getValue(),
-                                        publishedPasswordHash, EsExecutors.newDirectExecutorService())).get();
+                boolean verifyResult = this.verifiedRepositoryPasswordHashesLru.computeIfAbsent(
+                    localPassword.getKey() + publishedPasswordHash,
+                    k -> AESKeyUtils.verifySaltedPasswordHash(
+                        localPassword.getValue(),
+                        publishedPasswordHash,
+                        EsExecutors.newDirectExecutorService()
+                    )
+                ).get();
                 if (false == verifyResult) {
-                    logger.debug(() -> new ParameterizedMessage("Mismatch hash for password [{}] of repository [{}]",
-                            localPassword.getKey(), repositoryMetadata.name()));
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "Mismatch hash for password [{}] of repository [{}]",
+                            localPassword.getKey(),
+                            repositoryMetadata.name()
+                        )
+                    );
                     return false;
                 }
             }
@@ -169,8 +201,11 @@ public final class RepositoryPasswords {
                 logger.debug(() -> new ParameterizedMessage("Missing password [{}]", passwordNameAndHash.getKey()));
                 return false;
             }
-            if (false == AESKeyUtils.verifySaltedPasswordHash(password, passwordNameAndHash.getValue(),
-                    EsExecutors.newDirectExecutorService()).get()) {
+            if (false == AESKeyUtils.verifySaltedPasswordHash(
+                password,
+                passwordNameAndHash.getValue(),
+                EsExecutors.newDirectExecutorService()
+            ).get()) {
                 logger.debug(() -> new ParameterizedMessage("Different password [{}]", passwordNameAndHash.getKey()));
                 return false;
             }
@@ -186,44 +221,55 @@ public final class RepositoryPasswords {
             listener.onFailure(e);
             return;
         }
-        final GroupedActionListener<Tuple<String, String>> passwordHashesGroupListener =
-                new GroupedActionListener<>(ActionListener.wrap(passwordHashes -> {
-                    if (isCryptoThread()) {
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> listener.onResponse(passwordHashes));
-                    } else {
-                        listener.onResponse(passwordHashes);
-                    }
-                }, e -> {
-                    if (isCryptoThread()) {
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> listener.onFailure(e));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }), localPasswords.size());
+        final GroupedActionListener<Tuple<String, String>> passwordHashesGroupListener = new GroupedActionListener<>(
+            ActionListener.wrap(passwordHashes -> {
+                if (isCryptoThread()) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> listener.onResponse(passwordHashes));
+                } else {
+                    listener.onResponse(passwordHashes);
+                }
+            }, e -> {
+                if (isCryptoThread()) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> listener.onFailure(e));
+                } else {
+                    listener.onFailure(e);
+                }
+            }),
+            localPasswords.size()
+        );
         for (Map.Entry<String, SecureString> localPassword : localPasswords.entrySet()) {
-            this.localRepositoryPasswordHashesMap.computeIfAbsent(localPassword.getKey(),
-                    passwordName -> AESKeyUtils.computeSaltedPasswordHash(localPassword.getValue(),
-                            threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME)))
-                    .addListener(passwordHashesGroupListener.map(passwordHash -> new Tuple<>(localPassword.getKey(), passwordHash)),
-                            EsExecutors.newDirectExecutorService());
+            this.localRepositoryPasswordHashesMap.computeIfAbsent(
+                localPassword.getKey(),
+                passwordName -> AESKeyUtils.computeSaltedPasswordHash(
+                    localPassword.getValue(),
+                    threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME)
+                )
+            )
+                .addListener(
+                    passwordHashesGroupListener.map(passwordHash -> new Tuple<>(localPassword.getKey(), passwordHash)),
+                    EsExecutors.newDirectExecutorService()
+                );
         }
     }
 
     public Map<String, String> computePasswordHashes(RepositoryMetadata repositoryMetadata) throws ExecutionException,
-            InterruptedException {
+        InterruptedException {
         Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
         Map<String, String> passwordsHashes = new HashMap<>();
         for (Map.Entry<String, SecureString> localPassword : localPasswords.entrySet()) {
-            String passwordHash = this.localRepositoryPasswordHashesMap.computeIfAbsent(localPassword.getKey(),
-                    passwordName -> AESKeyUtils.computeSaltedPasswordHash(localPassword.getValue(),
-                            EsExecutors.newDirectExecutorService())).get();
+            String passwordHash = this.localRepositoryPasswordHashesMap.computeIfAbsent(
+                localPassword.getKey(),
+                passwordName -> AESKeyUtils.computeSaltedPasswordHash(localPassword.getValue(), EsExecutors.newDirectExecutorService())
+            ).get();
             passwordsHashes.put(localPassword.getKey(), passwordHash);
         }
         return passwordsHashes;
     }
 
-    public RepositoryMetadata withPasswordHashes(RepositoryMetadata repositoryMetadata,
-                                                 Collection<Tuple<String, String>> passwordHashesToPublish) {
+    public RepositoryMetadata withPasswordHashes(
+        RepositoryMetadata repositoryMetadata,
+        Collection<Tuple<String, String>> passwordHashesToPublish
+    ) {
         if (false == getPasswordHashes(repositoryMetadata).isEmpty()) {
             throw new IllegalArgumentException("Will not overwrite password hashes");
         }
@@ -234,9 +280,14 @@ public final class RepositoryPasswords {
             String passwordHash = passwordNameAndHash.v2();
             newSettingsBuilder.put(PASSWORD_HASH_SETTING.getConcreteSettingForNamespace(passwordName).getKey(), passwordHash);
         }
-        RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(repositoryMetadata.name(),
-                repositoryMetadata.uuid(), repositoryMetadata.type(),
-                    newSettingsBuilder.build(), repositoryMetadata.generation(), repositoryMetadata.pendingGeneration());
+        RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+            repositoryMetadata.name(),
+            repositoryMetadata.uuid(),
+            repositoryMetadata.type(),
+            newSettingsBuilder.build(),
+            repositoryMetadata.generation(),
+            repositoryMetadata.pendingGeneration()
+        );
         if (getPasswordHashes(newRepositoryMetadata).isEmpty()) {
             throw new IllegalStateException("Inconsistency error when updating repository password hashes");
         }
@@ -253,27 +304,38 @@ public final class RepositoryPasswords {
         SecureString password = localRepositoryPasswordsMap.get(passwordName);
         if (null == password) {
             throw new IllegalArgumentException(
-                    "Missing secure setting [" +
-                            ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey() + "]"
+                "Missing secure setting [" + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey() + "]"
             );
         }
         localPasswordsSubset.put(passwordName, password);
         String fromPasswordName = PASSWORD_CHANGE_FROM_NAME_SETTING.get(settings);
         String toPasswordName = PASSWORD_CHANGE_TO_NAME_SETTING.get(settings);
         if (Strings.hasLength(fromPasswordName) && false == Strings.hasLength(toPasswordName)) {
-            throw new IllegalArgumentException("Repository setting [" + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey() + "] is set" +
-                    " but [" + PASSWORD_CHANGE_TO_NAME_SETTING.getKey() + "] is not, but they must be set together.");
+            throw new IllegalArgumentException(
+                "Repository setting ["
+                    + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey()
+                    + "] is set"
+                    + " but ["
+                    + PASSWORD_CHANGE_TO_NAME_SETTING.getKey()
+                    + "] is not, but they must be set together."
+            );
         }
         if (false == Strings.hasLength(toPasswordName) && Strings.hasLength(fromPasswordName)) {
-            throw new IllegalArgumentException("Repository setting [" + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey() + "] is set" +
-                    " but [" + PASSWORD_CHANGE_TO_NAME_SETTING.getKey() + "] is not, but they must be set together.");
+            throw new IllegalArgumentException(
+                "Repository setting ["
+                    + PASSWORD_CHANGE_FROM_NAME_SETTING.getKey()
+                    + "] is set"
+                    + " but ["
+                    + PASSWORD_CHANGE_TO_NAME_SETTING.getKey()
+                    + "] is not, but they must be set together."
+            );
         }
         if (Strings.hasLength(fromPasswordName)) {
             SecureString fromPassword = localRepositoryPasswordsMap.get(fromPasswordName);
             if (null == fromPassword) {
                 throw new IllegalArgumentException(
-                        "Missing secure setting [" +
-                                ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(fromPasswordName).getKey() + "]");
+                    "Missing secure setting [" + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(fromPasswordName).getKey() + "]"
+                );
             }
             localPasswordsSubset.put(fromPasswordName, fromPassword);
         }
@@ -281,8 +343,8 @@ public final class RepositoryPasswords {
             SecureString toPassword = localRepositoryPasswordsMap.get(toPasswordName);
             if (null == toPassword) {
                 throw new IllegalArgumentException(
-                        "Missing secure setting [" +
-                                ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey() + "]");
+                    "Missing secure setting [" + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey() + "]"
+                );
             }
             localPasswordsSubset.put(toPasswordName, toPassword);
         }

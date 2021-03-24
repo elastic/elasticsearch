@@ -207,18 +207,20 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-                new ActionHandler<>(ChangeEncryptedRepositoryPasswordAction.INSTANCE,
-                        TransportEncryptedRepositoryChangePasswordAction.class)
+            new ActionHandler<>(ChangeEncryptedRepositoryPasswordAction.INSTANCE, TransportEncryptedRepositoryChangePasswordAction.class)
         );
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(
-                new RestEncryptedRepositoryChangePasswordAction()
-        );
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return Arrays.asList(new RestEncryptedRepositoryChangePasswordAction());
     }
 }

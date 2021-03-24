@@ -77,6 +77,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
+    public static final String TYPE_FIELD_NAME = "_type";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
     // maximum allowed number of nested json objects across all fields in a single document
@@ -108,7 +109,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
+                mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
                 scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =

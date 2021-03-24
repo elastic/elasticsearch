@@ -664,7 +664,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on 8.0 or later");
+                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_8_0_0 + " or later");
             }
         }
     }

@@ -210,7 +210,8 @@ public class IndexRequestTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(ver);
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
-            assertThat(error.getMessage(), containsString("[dynamic_templates] parameter requires all nodes on 8.0 or later"));
+            assertThat(error.getMessage(),
+                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_8_0_0 + " or later"));
         }
         // new version
         {

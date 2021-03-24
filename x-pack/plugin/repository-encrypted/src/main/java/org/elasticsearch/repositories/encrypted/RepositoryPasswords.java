@@ -7,6 +7,8 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -22,7 +24,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,7 +34,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING;
-import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.logger;
 
 public final class RepositoryPasswords {
     static final Setting<String> PASSWORD_NAME_SETTING = Setting.simpleString("password_name", "");
@@ -43,6 +43,8 @@ public final class RepositoryPasswords {
     //  we need to find a better way to put these in the cluster state in relation to a repository
     public static final Setting.AffixSetting<String> PASSWORD_HASH_SETTING =
             Setting.prefixKeySetting("password_hash.", key -> Setting.simpleString(key));
+
+    static final Logger logger = LogManager.getLogger(RepositoryPasswords.class);
 
     // all the repository password *values* pulled from the local node's keystore
     private final Map<String, SecureString> localRepositoryPasswordsMap;
@@ -88,7 +90,7 @@ public final class RepositoryPasswords {
         final Map<String, String> passwordHashes = getPasswordHashes(repositoryMetadata);
         final String passwordName = PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         if (Strings.hasLength(passwordName) == false) {
-            throw new IllegalArgumentException("Repository setting [" + PASSWORD_NAME_SETTING.getKey() + "] must be set");
+            throw new IllegalArgumentException("Repository setting [" + PASSWORD_NAME_SETTING.getKey() + "] not set");
         }
         if (false == passwordHashes.containsKey(passwordName)) {
             return false;
@@ -160,6 +162,22 @@ public final class RepositoryPasswords {
         return true;
     }
 
+    public boolean verifyPasswordsHashes(Map<String, String> passwordsHashes) throws ExecutionException, InterruptedException {
+        for (Map.Entry<String, String> passwordNameAndHash : passwordsHashes.entrySet()) {
+            SecureString password = localRepositoryPasswordsMap.get(passwordNameAndHash.getKey());
+            if (password == null) {
+                logger.debug(() -> new ParameterizedMessage("Missing password [{}]", passwordNameAndHash.getKey()));
+                return false;
+            }
+            if (false == AESKeyUtils.verifySaltedPasswordHash(password, passwordNameAndHash.getValue(),
+                    EsExecutors.newDirectExecutorService()).get()) {
+                logger.debug(() -> new ParameterizedMessage("Different password [{}]", passwordNameAndHash.getKey()));
+                return false;
+            }
+        }
+        return true;
+    }
+
     public void computePasswordHashes(RepositoryMetadata repositoryMetadata, ActionListener<Collection<Tuple<String, String>>> listener) {
         final Map<String, SecureString> localPasswords;
         try {
@@ -191,15 +209,15 @@ public final class RepositoryPasswords {
         }
     }
 
-    public Collection<Tuple<String, String>> computePasswordHashes(RepositoryMetadata repositoryMetadata) throws ExecutionException,
+    public Map<String, String> computePasswordHashes(RepositoryMetadata repositoryMetadata) throws ExecutionException,
             InterruptedException {
         Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
-        Collection<Tuple<String, String>> passwordsHashes = new ArrayList<>();
+        Map<String, String> passwordsHashes = new HashMap<>();
         for (Map.Entry<String, SecureString> localPassword : localPasswords.entrySet()) {
             String passwordHash = this.localRepositoryPasswordHashesMap.computeIfAbsent(localPassword.getKey(),
                     passwordName -> AESKeyUtils.computeSaltedPasswordHash(localPassword.getValue(),
                             EsExecutors.newDirectExecutorService())).get();
-            passwordsHashes.add(new Tuple<>(localPassword.getKey(), passwordHash));
+            passwordsHashes.put(localPassword.getKey(), passwordHash);
         }
         return passwordsHashes;
     }
@@ -230,14 +248,13 @@ public final class RepositoryPasswords {
         Map<String, SecureString> localPasswordsSubset = new HashMap<>(3);
         String passwordName = PASSWORD_NAME_SETTING.get(settings);
         if (Strings.hasLength(passwordName) == false) {
-            throw new IllegalArgumentException("Repository setting [" + PASSWORD_NAME_SETTING.getKey() + "] must be set");
+            throw new IllegalArgumentException("Missing repository setting [" + PASSWORD_NAME_SETTING.getKey() + "]");
         }
         SecureString password = localRepositoryPasswordsMap.get(passwordName);
         if (null == password) {
             throw new IllegalArgumentException(
-                    "Secure setting ["
-                            + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey()
-                            + "] must be set"
+                    "Missing secure setting [" +
+                            ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey() + "]"
             );
         }
         localPasswordsSubset.put(passwordName, password);
@@ -255,10 +272,8 @@ public final class RepositoryPasswords {
             SecureString fromPassword = localRepositoryPasswordsMap.get(fromPasswordName);
             if (null == fromPassword) {
                 throw new IllegalArgumentException(
-                        "Secure setting ["
-                                + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(fromPasswordName).getKey()
-                                + "] must be set"
-                );
+                        "Missing secure setting [" +
+                                ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(fromPasswordName).getKey() + "]");
             }
             localPasswordsSubset.put(fromPasswordName, fromPassword);
         }
@@ -266,10 +281,8 @@ public final class RepositoryPasswords {
             SecureString toPassword = localRepositoryPasswordsMap.get(toPasswordName);
             if (null == toPassword) {
                 throw new IllegalArgumentException(
-                        "Secure setting ["
-                                + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey()
-                                + "] must be set"
-                );
+                        "Missing secure setting [" +
+                                ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey() + "]");
             }
             localPasswordsSubset.put(toPasswordName, toPassword);
         }

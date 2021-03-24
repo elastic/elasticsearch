@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -494,7 +495,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("Repository password mismatch"))
+                .allMatch(shardFailure -> shardFailure.reason().contains("The repository password(s) on the local node are different"))
         );
         final Set<String> nodesWithFailures = incompleteSnapshotResponse.getSnapshotInfo()
             .shardFailures()
@@ -554,29 +555,29 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoryException.class,
             () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
         assertThat(
-            getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
+            getSnapshotResponse.getFailedResponses().get(repositoryName).getMessage(),
             containsString("repository password is incorrect")
         );
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setWaitForCompletion(true).get()
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get()
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         // restart master node and fill in the good password
         secureSettingsWithPassword.setString(
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),

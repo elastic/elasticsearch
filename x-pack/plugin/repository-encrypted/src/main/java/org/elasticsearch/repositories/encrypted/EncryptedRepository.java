@@ -37,6 +37,10 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,6 +50,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 
@@ -53,11 +58,13 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -212,6 +219,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     }), onFailure));
         }, "update encrypted repository password hashes [" + metadata.name() + "]", onFailure);
         // go on with the actual task to update the cluster state
+        // this runs on the master applier thread, not worth forking it, right?
         publishHashesStepListener.whenComplete(latestRepositoryData -> super.executeConsistentStateUpdate(createUpdateTaskSupplier,
                 source, onFailure), onFailure);
     }
@@ -225,19 +233,52 @@ public class EncryptedRepository extends BlobStoreRepository {
     @Override
     public String startVerification() {
         // verification bypasses the encrypted blobstore because it must work without published hashes
-        return this.delegatedRepository.startVerification();
+        final String seed = this.delegatedRepository.startVerification();
+        final RepositoryMetadata repositoryMetadata = metadata;
+        try {
+            final Map<String, String> passwordsHashes = repositoryPasswords.computePasswordHashes(repositoryMetadata);
+            return packSeed(seed, passwordsHashes);
+        } catch (Exception e) {
+            throw new RepositoryVerificationException(repositoryMetadata.name(), "Error computing password hashes", e);
+        }
     }
 
     @Override
-    public void endVerification(String seed) {
+    public void endVerification(String packedSeed) {
         // verification bypasses the encrypted blobstore because it must work without published hashes
-        this.delegatedRepository.endVerification(seed);
+        final Tuple<String, Map<String, String>> seedAndHashes;
+        try {
+            seedAndHashes = unpackSeed(packedSeed);
+        } catch (Exception e) {
+            throw new RepositoryVerificationException(metadata.name(), "Error verifying password hashes", e);
+        }
+        this.delegatedRepository.endVerification(seedAndHashes.v1());
     }
 
     @Override
-    public void verify(String seed, DiscoveryNode localNode) {
+    public void verify(String packedSeed, DiscoveryNode localNode) {
         // verification bypasses the encrypted blobstore because it must work without published hashes
-        this.delegatedRepository.verify(seed, localNode);
+        final RepositoryMetadata repositoryMetadata = metadata;
+        final Tuple<String, Map<String, String>> seedAndHashes;
+        try {
+            seedAndHashes = unpackSeed(packedSeed);
+            if (false == repositoryPasswords.verifyPasswordsHashes(seedAndHashes.v2())) {
+                throw new IllegalArgumentException("Repository password(s) mismatch");
+            }
+        } catch (Exception e) {
+            throw new RepositoryVerificationException(repositoryMetadata.name(), "Error verifying password hashes", e);
+        }
+        this.delegatedRepository.verify(seedAndHashes.v1(), localNode);
+    }
+
+    @Override
+    public void start() {
+        super.start();
+        try {
+            repositoryPasswords.currentLocalPassword(metadata);
+        } catch (Exception e) {
+            throw new RepositoryVerificationException(metadata.name(), "Error starting the repository, missing secure settings", e);
+        }
     }
 
     @Override
@@ -431,16 +472,16 @@ public class EncryptedRepository extends BlobStoreRepository {
                     throw new RepositoryException(repositoryName, "Wrapped DEK [" + dekId + "] is larger than expected");
                 }
             } catch (NoSuchFileException e) {
-                // do NOT throw IOException when the DEK does not exist, as this is a decryption problem, and IOExceptions
-                // can move the repository in the corrupted state
+                // do NOT throw or wrap IOExceptions (NoSuchFileException) when the DEK does not exist, as this is a decryption problem
+                // and IOExceptions can move the repository in the corrupted state
                 throw new RepositoryException(repositoryName,
-                    "Failure to read and decrypt DEK ["
-                        + dekId
-                        + "] from "
-                        + dekBlobContainer.path()
-                        + ". Most likely the repository password is incorrect, where previous "
-                        + "snapshots have used a different password.",
-                    e
+                        "Failure to read and decrypt DEK ["
+                                + dekId
+                                + "] from "
+                                + dekBlobContainer.path().add(unwrapper.v1())
+                                + ". Most likely the repository password is incorrect, where previous "
+                                + "snapshots have used a different password. "
+                                + "Reason: " + e.getMessage()
                 );
             }
             logger.trace(() -> new ParameterizedMessage("Repository [{}] successfully read DEK [{}] from path {} {}", repositoryName,
@@ -673,7 +714,25 @@ public class EncryptedRepository extends BlobStoreRepository {
             if (false == repositoryPasswords.containsRequiredPasswordHashes(repositoryMetadata)) {
                 throw new RepositoryException(repositoryMetadata.name(), "Password hashes missing for some passwords");
             }
-            throw new RepositoryException(repositoryMetadata.name(), "The repository passwords on the local node are different");
+            throw new RepositoryException(repositoryMetadata.name(), "The repository password(s) on the local node are different");
+        }
+    }
+
+    private static String packSeed(String seed, Map<String, String> extra) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput(1024)) {
+            out.writeString(seed);
+            out.writeMap(extra, StreamOutput::writeString, StreamOutput::writeString);
+            byte[] outBytes = BytesReference.toBytes(out.bytes());
+            return new String(Base64.getUrlEncoder().withoutPadding().encode(outBytes), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static Tuple<String, Map<String, String>> unpackSeed(String packedSeed) throws IOException {
+        try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(
+                Base64.getUrlDecoder().decode(packedSeed.getBytes(StandardCharsets.UTF_8))))) {
+            String seed = buf.readString();
+            Map<String, String> meta = buf.readMap(StreamInput::readString, StreamInput::readString);
+            return new Tuple<>(seed, meta);
         }
     }
 }

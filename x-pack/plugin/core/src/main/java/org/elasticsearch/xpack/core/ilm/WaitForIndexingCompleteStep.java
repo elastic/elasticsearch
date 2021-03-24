@@ -31,6 +31,11 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetadata followerIndex = clusterState.metadata().index(index);
         if (followerIndex == null) {

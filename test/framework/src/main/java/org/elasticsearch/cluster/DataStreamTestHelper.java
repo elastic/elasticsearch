@@ -38,7 +38,11 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
-    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis, Version minNodeVersion) {
+    public static String getLegacyDefaultBackingIndexName(
+        String dataStreamName,
+        long generation,
+        long epochMillis,
+        Version minNodeVersion) {
         if (minNodeVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
             return String.format(Locale.ROOT,
                 BACKING_INDEX_PREFIX + "%s-%s-%06d",

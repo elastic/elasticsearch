@@ -81,6 +81,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -622,7 +623,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertBusy(() -> assertNotNull(client.indexLifecycle()
                 .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getFailedStep()), 15, TimeUnit.SECONDS);
+                .getIndexResponses().get("my_index").getFailedStep()), 30, TimeUnit.SECONDS);
         }
 
         // tag::ilm-retry-lifecycle-policy-request
@@ -645,7 +646,9 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         } catch (ElasticsearchException e) {
             // the retry API might fail as the shrink action steps are retryable (so if the retry API reaches ES when ILM is retrying the
             // failed `shrink` step, the retry API will fail)
-            // as this code is more for illustrative purposes in the docs we'll allow it
+            // assert that's the exception we encountered (we want to test to fail if there is an actual error with the retry api)
+            assertThat(e.getMessage(), containsStringIgnoringCase("reason=cannot retry an action for an index [my_index] that has not " +
+                "encountered an error when running a Lifecycle Policy"));
         }
 
         // tag::ilm-retry-lifecycle-policy-execute-listener

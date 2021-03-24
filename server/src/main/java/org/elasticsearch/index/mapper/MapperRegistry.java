@@ -23,17 +23,17 @@ import java.util.function.Predicate;
 public final class MapperRegistry {
 
     private final Map<String, Mapper.TypeParser> mapperParsers;
-    private final Map<String, RuntimeFieldType.Parser> runtimeFieldTypeParsers;
+    private final Map<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Function<String, Predicate<String>> fieldFilter;
 
 
-    public MapperRegistry(Map<String, Mapper.TypeParser> mapperParsers, Map<String, RuntimeFieldType.Parser> runtimeFieldTypeParsers,
+    public MapperRegistry(Map<String, Mapper.TypeParser> mapperParsers, Map<String, RuntimeField.Parser> runtimeFieldParsers,
                           Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
                           Function<String, Predicate<String>> fieldFilter) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
-        this.runtimeFieldTypeParsers = runtimeFieldTypeParsers;
+        this.runtimeFieldParsers = runtimeFieldParsers;
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
         // add the _all field mapper for indices created in 6x
         Map<String, MetadataFieldMapper.TypeParser> metadata6x = new LinkedHashMap<>();
@@ -51,8 +51,8 @@ public final class MapperRegistry {
         return mapperParsers;
     }
 
-    public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypeParsers() {
-        return runtimeFieldTypeParsers;
+    public Map<String, RuntimeField.Parser> getRuntimeFieldParsers() {
+        return runtimeFieldParsers;
     }
 
     /**

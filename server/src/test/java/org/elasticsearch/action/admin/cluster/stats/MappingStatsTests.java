@@ -177,7 +177,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     @Override
     protected MappingStats mutateInstance(MappingStats instance) throws IOException {
         List<IndexFeatureStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
-        List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldTypeStats());
+        List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
         if (randomBoolean()) {
             boolean remove = fieldTypes.size() > 0 && randomBoolean();
             if (remove) {
@@ -269,9 +269,9 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         if (version.onOrAfter(Version.V_7_13_0)) {
-            assertEquals(instance.getRuntimeFieldTypeStats(), deserialized.getRuntimeFieldTypeStats());
+            assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());
         } else {
-            assertEquals(0, deserialized.getRuntimeFieldTypeStats().size());
+            assertEquals(0, deserialized.getRuntimeFieldStats().size());
         }
     }
 
@@ -281,6 +281,6 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         in.setVersion(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_7_12_0));
         MappingStats deserialized = new MappingStats(in);
         assertEquals(1, deserialized.getFieldTypeStats().size());
-        assertEquals(0, deserialized.getRuntimeFieldTypeStats().size());
+        assertEquals(0, deserialized.getRuntimeFieldStats().size());
     }
 }

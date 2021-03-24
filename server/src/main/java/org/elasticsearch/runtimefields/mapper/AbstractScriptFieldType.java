@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -46,7 +46,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType implements RuntimeFieldType {
+abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType implements RuntimeField {
     protected final Script script;
     private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
     private final ToXContent toXContent;
@@ -213,7 +213,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     // TODO rework things so that we don't need this
     private static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder extends RuntimeFieldType.Builder {
+    abstract static class Builder extends RuntimeField.Builder {
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,

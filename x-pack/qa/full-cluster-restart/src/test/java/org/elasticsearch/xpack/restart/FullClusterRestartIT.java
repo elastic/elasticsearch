@@ -695,6 +695,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70833")
     public void testDataStreams() throws Exception {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
         if (isRunningAgainstOldCluster()) {

@@ -182,8 +182,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         );
 
         TrackingRepositoryPlugin tracker = getTrackingRepositoryPlugin();
-
-        assertThat(tracker, notNullValue());
         assertThat(tracker.totalFilesRead(), equalTo(0L));
         assertThat(tracker.totalBytesRead(), equalTo(0L));
 
@@ -306,13 +304,12 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
     }
 
     private TrackingRepositoryPlugin getTrackingRepositoryPlugin() {
-        TrackingRepositoryPlugin tracker = null;
         for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
             if (plugin instanceof TrackingRepositoryPlugin) {
-                tracker = ((TrackingRepositoryPlugin) plugin);
+                return ((TrackingRepositoryPlugin) plugin);
             }
         }
-        return tracker;
+        throw new IllegalStateException("tracking repository missing");
     }
 
     /**

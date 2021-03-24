@@ -35,8 +35,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.io.IOException;
 import java.time.Instant;

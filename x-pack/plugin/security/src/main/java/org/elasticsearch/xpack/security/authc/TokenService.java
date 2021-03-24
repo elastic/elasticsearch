@@ -93,7 +93,6 @@ import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
-import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;

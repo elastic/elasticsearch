@@ -23,8 +23,10 @@ import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
 import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -243,5 +245,13 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     protected TimeValue timeout() {
         return TimeValue.timeValueSeconds(10);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

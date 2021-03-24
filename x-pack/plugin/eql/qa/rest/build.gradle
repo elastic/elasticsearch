@@ -23,4 +23,6 @@ testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }

@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -612,11 +612,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<String, RuntimeFieldType> runtimeFields = RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings),
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
             mapperService.parserContext(), false);
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeFieldType runtimeFieldType : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeFieldType.asMappedFieldType();
+        for (RuntimeField runtimeField : runtimeFields.values()) {
+            MappedFieldType fieldType = runtimeField.asMappedFieldType();
             runtimeFieldTypes.put(fieldType.name(), fieldType);
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);

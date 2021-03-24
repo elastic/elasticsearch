@@ -16,7 +16,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.StringScriptFieldData;
 import org.elasticsearch.runtimefields.query.StringScriptFieldExistsQuery;
@@ -42,9 +42,9 @@ import static java.util.stream.Collectors.toSet;
 
 public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected RuntimeFieldType buildFieldType() {
+        protected RuntimeField buildFieldType() {
             if (script.get() == null) {
                 return new KeywordScriptFieldType(name, StringFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }

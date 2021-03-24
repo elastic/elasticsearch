@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -34,6 +35,10 @@ public final class DataStreamTestHelper {
     private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
+
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
+    }
 
     public static IndexMetadata.Builder createFirstBackingIndex(String dataStreamName) {
         return createBackingIndex(dataStreamName, 1, System.currentTimeMillis());

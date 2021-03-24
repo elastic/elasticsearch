@@ -328,9 +328,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
                 clusterService,
-                threadPool,
                 client,
-                SNAPSHOT_BLOB_CACHE_INDEX
+                SNAPSHOT_BLOB_CACHE_INDEX,
+                threadPool::absoluteTimeInMillis
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);

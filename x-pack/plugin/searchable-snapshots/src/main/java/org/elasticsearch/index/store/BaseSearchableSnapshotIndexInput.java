@@ -152,7 +152,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return success;
     }
 
-    protected ByteRange maybeReadFromBlobCache(long position, int length) {
+    protected ByteRange rangeToReadFromBlobCache(long position, int length) {
         final long end = position + length;
         if (headerBlobCacheByteRange.contains(position, end)) {
             return headerBlobCacheByteRange;

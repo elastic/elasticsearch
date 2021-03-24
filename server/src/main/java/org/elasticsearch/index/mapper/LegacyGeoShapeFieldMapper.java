@@ -75,7 +75,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     public static final String CONTENT_TYPE = "geo_shape";
 
     public static final Set<String> DEPRECATED_PARAMETERS
-        = new HashSet<>(Arrays.asList("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points only"));
+        = new HashSet<>(Arrays.asList("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points_only"));
 
     public static boolean containsDeprecatedParameter(Set<String> paramKeys) {
         return DEPRECATED_PARAMETERS.stream().anyMatch(paramKeys::contains);

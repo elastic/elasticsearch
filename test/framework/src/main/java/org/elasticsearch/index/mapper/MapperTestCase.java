@@ -525,9 +525,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Create a vendor for similar random values to round trip in {@link #testFetch}
-     * and {@link #testFetchMany}. The returned objects must be supported by
-     * {@link XContentBuilder#value(Object)}
+     * Create a random {@code _source} value for this field. Must be compatible
+     * with {@link XContentBuilder#value(Object)} and the field's parser.
      */
     protected abstract Object generateRandomInputValue(MappedFieldType ft);
 

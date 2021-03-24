@@ -471,8 +471,7 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.bundledJdk, es.lib, es.modules)
-            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p755));
+        Stream.of(es.home, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p755));
 
         assertPermissionsAndOwnership(es.bin, "root", "elasticsearch", p775);
 

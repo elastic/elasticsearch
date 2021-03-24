@@ -12,8 +12,8 @@ aggregated data into the {ml-features} instead of raw results, which
 reduces the volume of data that must be considered while detecting anomalies.
 
 TIP: If you use a terms aggregation and the cardinality of a term is high but
-still significantly less than your total number of documents, use <<search-aggregations-bucket-composite-aggregation,composite
-aggregations>>
+still significantly less than your total number of documents,
+use <<search-aggregations-bucket-composite-aggregation,composite aggregations>>
 experimental:[Support for composite aggregations inside datafeeds is currently experimental].
 
 [discrete]
@@ -264,7 +264,7 @@ job analysis config.
 counter `system.network.out.bytes` for each value of the field `beat.name`.
 
 NOTE: `derivative` or other pipeline aggregations may not work within `composite`
-aggregations. See <<composite aggregations and pipeline aggs,search-aggregations-bucket-composite-aggregation.html#_pipeline_aggregations>>
+aggregations. See <<search-aggregations-bucket-composite-aggregation#_pipeline_aggregations, composite aggregations and pipeline aggs>>
 
 [source,js]
 ----------------------------------

@@ -1,10 +1,10 @@
 [[java-rest-high-snapshot-clone-snapshot]]
 === Clone Snapshot API
 
-The Clone Snapshot API allows to clone part or all of a snapshot into a new snapshot.
+The Clone Snapshot API clones part or all of a snapshot into a new snapshot.
 
 [[java-rest-high-snapshot-clone-snapshot-request]]
-==== Clone Snapshot Request
+==== Request
 
 A `CloneSnapshotRequest`:
 
@@ -15,14 +15,14 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-re
 
 ==== Indices to Clone
 
-The `indices` property is used to provide the list of
-indices that should be included in the snapshot:
+Use `indices` to specify a list of indices from the source snapshot to include
+in the snapshot clone:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-indices]
 --------------------------------------------------
-<1> Request that Elasticsearch only includes "test_index" from the source snapshot.
+<1> Include only `test_index` from the source snapshot.
 
 ==== Index Settings and Options
 
@@ -37,7 +37,7 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-re
 
 ==== Further Arguments
 
-The following arguments can optionally be provided:
+You can also provide the following optional arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -84,13 +84,12 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-ex
 <2> Called in case of a failure. The raised exception is provided as an argument.
 
 [[java-rest-high-cluster-clone-snapshot-response]]
-==== Clone Snapshot Response
+==== Response
 
-The returned `AcknowledgedResponse` contains a value on whether or not the request
-was received:
+`AcknowledgedResponse` indicates whether the request was received:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-response]
 --------------------------------------------------
-<1> A boolean value of `true` if the clone successfully completed, `false` otherwise.
+<1> A boolean value of `true` if the clone successfully completed. Otherwise, the value is `false`.

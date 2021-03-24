@@ -26,6 +26,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.LegacyReaderContext;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
@@ -45,6 +47,8 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -207,6 +211,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         public void onIndexModule(IndexModule indexModule) {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
+                public void onNewReaderContext(ReaderContext readerContext) {
+                    assertThat(readerContext, not(instanceOf(LegacyReaderContext.class)));
+                }
+
+                @Override
                 public void onPreQueryPhase(SearchContext searchContext) {
                     startedLatch.get().countDown();
                     final CountDownLatch latch = queryLatch.get();
@@ -222,4 +231,5 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             super.onIndexModule(indexModule);
         }
     }
+
 }

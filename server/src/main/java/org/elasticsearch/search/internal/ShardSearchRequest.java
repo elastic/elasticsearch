@@ -80,6 +80,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
+    private final boolean keepSearchStatesInContext;
+
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
                               ShardId shardId,
@@ -166,6 +168,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        this.keepSearchStatesInContext = false;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -207,8 +210,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             this.readerId = null;
             this.keepAlive = null;
         }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            keepSearchStatesInContext = in.readBoolean();
+        } else {
+            keepSearchStatesInContext = true;
+        }
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -230,6 +238,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.keepSearchStatesInContext = clone.keepSearchStatesInContext;
     }
 
     @Override
@@ -274,6 +283,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (out.getVersion().onOrAfter(Version.V_7_10_0) && asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeBoolean(keepSearchStatesInContext);
         }
     }
 
@@ -531,5 +543,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public final Map<String, Object> getRuntimeMappings() {
         return source == null ? emptyMap() : source.runtimeMappings();
+    }
+
+    /**
+     * Returns {@code false} when the coordinating node is ready to handle the search states by itself.
+     * Otherwise, {@link org.elasticsearch.search.SearchService} needs to keep the search states on data nodes.
+     */
+    public boolean keepSearchStatesInContext() {
+        return keepSearchStatesInContext;
     }
 }

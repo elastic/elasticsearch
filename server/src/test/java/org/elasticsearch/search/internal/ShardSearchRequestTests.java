@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -196,5 +197,49 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseInnerQueryBuilder(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    ShardSearchRequest serialize(ShardSearchRequest request, Version version) throws IOException {
+        if (version.before(Version.V_7_11_0)) {
+            if (request.source() != null) {
+                request.source().runtimeMappings(Map.of());
+            }
+        }
+        return copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
+    }
+
+    public void testKeepStatesInContext() throws Exception {
+        ShardSearchRequest request = createShardSearchRequest();
+        assertFalse(request.keepSearchStatesInContext());
+        int iterations = between(0, 5);
+        // New version
+        for (int i = 0; i < iterations; i++) {
+            Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            request = serialize(request, newVersion);
+            assertFalse(request.keepSearchStatesInContext());
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
+        // Old version
+        iterations = between(1, 5);
+        for (int i = 0; i < iterations; i++) {
+            Version oldVersion = VersionUtils.randomVersionBetween(random(),
+                Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+            request = serialize(request, oldVersion);
+            assertTrue(request.keepSearchStatesInContext());
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
+        // Any version
+        iterations = between(1, 5);
+        for (int i = 0; i < iterations; i++) {
+            request = serialize(request, VersionUtils.randomVersion(random()));
+            assertTrue(request.keepSearchStatesInContext());
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
     }
 }

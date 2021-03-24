@@ -51,8 +51,9 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
             randomAlphaOfLength(5),
             randomStatus(),
             randomNonNegativeLong(),
-            randomComponentStatus()
-        );
+            randomComponentStatus(),
+            randomComponentStatus(),
+            randomComponentStatus());
     }
 
     private SingleNodeShutdownMetadata.Status randomStatus() {

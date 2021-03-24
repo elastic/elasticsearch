@@ -264,7 +264,7 @@ job analysis config.
 counter `system.network.out.bytes` for each value of the field `beat.name`.
 
 NOTE: `derivative` or other pipeline aggregations may not work within `composite`
-aggregations. See <<search-aggregations-bucket-composite-aggregation#_pipeline_aggregations, composite aggregations and pipeline aggs>>
+aggregations. See <<search-aggregations-bucket-composite-aggregation-pipeline-aggregations, composite aggregations and pipeline aggs>>
 
 [source,js]
 ----------------------------------

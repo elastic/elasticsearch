@@ -301,6 +301,7 @@ xpack.security.authc.realms.saml.saml1:
   sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "nameid:persistent"
   attributes.groups: "roles"
+  nameid_format: "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 ------------------------------------------------------------
 
 [[saml-user-properties]]

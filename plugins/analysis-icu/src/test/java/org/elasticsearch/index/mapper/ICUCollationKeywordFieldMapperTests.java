@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -280,4 +281,13 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.length);
     }
 
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("docvalue_fields is broken", true);
+        // https://github.com/elastic/elasticsearch/issues/70276
+        /*
+         * docvalue_fields loads garbage bytes.
+         */
+        return null;
+    }
 }

@@ -28,9 +28,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,12 +44,15 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 
-public class BlobStoreCacheService {
+public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
@@ -61,17 +66,58 @@ public class BlobStoreCacheService {
         .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
         .build();
 
+    static final int MAX_IN_FLIGHT_CACHE_FILLS = Integer.MAX_VALUE;
+
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
+    private final Semaphore inFlightCacheFills;
+    private final Supplier<Long> timeSupplier;
+    private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, ThreadPool threadPool, Client client, String index) {
+    public BlobStoreCacheService(ClusterService clusterService, Client client, String index, Supplier<Long> timeSupplier) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
+        this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
+        this.closed = new AtomicBoolean(false);
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
+        this.timeSupplier = timeSupplier;
         this.index = index;
     }
+
+    @Override
+    protected void doStart() {}
+
+    @Override
+    protected void doStop() {
+        if (closed.compareAndSet(false, true)) {
+            logger.debug("blob cache service is stopped");
+        }
+    }
+
+    // public for tests
+    public boolean waitForInFlightCacheFillsToComplete(long timeout, TimeUnit unit) {
+        boolean acquired = false;
+        try {
+            logger.debug("waiting for in-flight blob cache fills to complete");
+            acquired = inFlightCacheFills.tryAcquire(MAX_IN_FLIGHT_CACHE_FILLS, timeout, unit);
+        } catch (InterruptedException e) {
+            logger.warn("interrupted while waiting for in-flight blob cache fills to complete", e);
+            Thread.currentThread().interrupt();
+        } finally {
+            if (acquired) {
+                inFlightCacheFills.release(MAX_IN_FLIGHT_CACHE_FILLS);
+            }
+        }
+        return acquired;
+    }
+
+    // pkg private for tests
+    int getInFlightCacheFills() {
+        return MAX_IN_FLIGHT_CACHE_FILLS - inFlightCacheFills.availablePermits();
+    }
+
+    @Override
+    protected void doClose() {}
 
     public CachedBlob get(String repository, String name, String path, long offset) {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false : "must not block ["
@@ -84,7 +130,7 @@ public class BlobStoreCacheService {
             return future.actionGet(5, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             if (logger.isDebugEnabled()) {
-                logger.warn(
+                logger.debug(
                     () -> new ParameterizedMessage(
                         "get from cache index timed out after [5s], retrieving from blob store instead [id={}]",
                         CachedBlob.generateId(repository, name, path, offset)
@@ -99,6 +145,11 @@ public class BlobStoreCacheService {
     }
 
     protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+        if (closed.get()) {
+            logger.debug("failed to retrieve cached blob from system index [{}], service is closed", index);
+            listener.onResponse(CachedBlob.CACHE_NOT_READY);
+            return;
+        }
         final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
         client.get(request, new ActionListener<>() {
             @Override
@@ -144,7 +195,7 @@ public class BlobStoreCacheService {
     public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {
         try {
             final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()),
+                Instant.ofEpochMilli(timeSupplier.get()),
                 Version.CURRENT,
                 repository,
                 name,
@@ -157,19 +208,39 @@ public class BlobStoreCacheService {
                 request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
             }
 
-            client.index(request, new ActionListener<>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
-                    listener.onFailure(e);
-                }
+            final RunOnce release = new RunOnce(() -> {
+                final int availablePermits = inFlightCacheFills.availablePermits();
+                assert availablePermits > 0 : "in-flight available permits should be greater than 0 but got: " + availablePermits;
+                inFlightCacheFills.release();
             });
+
+            boolean submitted = false;
+            inFlightCacheFills.acquire();
+            try {
+                if (closed.get()) {
+                    listener.onFailure(new IllegalStateException("Blob cache service is closed"));
+                    return;
+                }
+                final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
+                client.index(request, new ActionListener<>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
+                        wrappedListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(new ParameterizedMessage("failure in cache fill: [{}]", request.id()), e);
+                        wrappedListener.onFailure(e);
+                    }
+                });
+                submitted = true;
+            } finally {
+                if (submitted == false) {
+                    release.run();
+                }
+            }
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
             listener.onFailure(e);

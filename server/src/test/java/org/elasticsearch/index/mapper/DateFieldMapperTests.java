@@ -15,6 +15,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -319,6 +320,17 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
+    public void testFormatPreserveNanos() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos"))
+        );
+        DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
+        assertEquals(ft.dateTimeFormatter, DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER);
+        DocValueFormat format = ft.docValueFormat(null, null);
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+    }
+
     public void testFetchDocValuesNanos() throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "date_nanos").field("format", "strict_date_time||epoch_millis"))
@@ -489,12 +501,56 @@ public class DateFieldMapperTests extends MapperTestCase {
         );
     }
 
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", randomBoolean() ? "date" : "date_nanos");
+    }
+
+    @Override
+    protected String randomFetchTestFormat() {
+        // TODO more choices! The test should work fine even for choices that throw out a ton of precision.
+        switch (randomInt(2)) {
+            case 0:
+                return null;
+            case 1:
+                return "epoch_millis";
+            case 2:
+                return "iso8601";
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (((DateFieldType) ft).resolution()) {
+            case MILLISECONDS:
+                if (randomBoolean()) {
+                    return randomIs8601Nanos(MAX_ISO_DATE);
+                }
+                return randomLongBetween(0, Long.MAX_VALUE);
+            case NANOSECONDS:
+                switch (randomInt(2)) {
+                    case 0:
+                        return randomLongBetween(0, MAX_NANOS);
+                    case 1:
+                        return randomIs8601Nanos(MAX_NANOS);
+                    case 2:
+                        return new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                    default:
+                        throw new IllegalStateException();
+                }
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
     private MapperService dateNanosMapperService() throws IOException {
         return createMapperService(mapping(b -> b.startObject("field").field("type", "date_nanos").endObject()));
     }
 
     private String randomIs8601Nanos(long maxMillis) {
-        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
+        String date = DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
         date = date.substring(0, date.length() - 1);  // Strip off trailing "Z"
         return date + String.format(Locale.ROOT, "%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
     }

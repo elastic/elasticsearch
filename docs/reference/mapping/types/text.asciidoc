@@ -199,7 +199,7 @@ PUT my-index-000001
 ==== Enabling fielddata on `text` fields
 
 You can enable fielddata on an existing `text` field using the
-<<indices-put-mapping,PUT mapping API>> as follows:
+<<indices-put-mapping,update mapping API>> as follows:
 
 [source,console]
 -----------------------------------

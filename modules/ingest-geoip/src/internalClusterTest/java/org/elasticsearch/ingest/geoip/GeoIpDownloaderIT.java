@@ -31,8 +31,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
@@ -41,7 +39,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -66,7 +63,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     private static final String ENDPOINT = System.getProperty("geoip_endpoint");
@@ -89,7 +85,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void disableDownloader() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
     }
@@ -236,19 +232,13 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
             .map(c -> c.value.getId())
             .collect(Collectors.toSet());
-        final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getDataNodeInstances(Environment.class).spliterator(), false)
-            .map(env -> {
-                Path geoipTmpDir = env.tmpFile().resolve("geoip-databases");
-                assertThat(Files.exists(geoipTmpDir), is(true));
-                return geoipTmpDir;
-            }).flatMap(path -> {
-                try {
-                    return Files.list(path);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).filter(path -> ids.contains(path.getFileName().toString()))
-            .collect(Collectors.toList());
+        // All nodes share the same geoip base dir in the shared tmp dir:
+        Path geoipBaseTmpDir = internalCluster().getDataNodeInstance(Environment.class).tmpFile().resolve("geoip-databases");
+        assertThat(Files.exists(geoipBaseTmpDir), is(true));
+        final List<Path> geoipTmpDirs;
+        try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
+            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
+        }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {

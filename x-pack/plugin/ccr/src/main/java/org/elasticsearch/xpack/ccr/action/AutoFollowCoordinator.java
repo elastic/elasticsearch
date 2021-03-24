@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -513,6 +514,19 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
                             indexToFollow.getName());
                         LOGGER.warn(message);
+                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
+                            ElasticsearchException failure = new ElasticsearchException(message);
+                            if (error != null) {
+                                failure.addSuppressed(error);
+                            }
+                            groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
+                        });
+                    } else if (SearchableSnapshotsConstants.isSearchableSnapshotStore(leaderIndexSettings)) {
+                        String message = String.format(Locale.ROOT,
+                            "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",
+                            indexToFollow.getName()
+                        );
+                        LOGGER.debug(message);
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
                             ElasticsearchException failure = new ElasticsearchException(message);
                             if (error != null) {

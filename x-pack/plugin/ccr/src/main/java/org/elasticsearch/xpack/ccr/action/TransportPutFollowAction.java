@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -126,6 +127,11 @@ public final class TransportPutFollowAction
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] does not have soft deletes enabled"));
+            return;
+        }
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
+                "] is a searchable snapshot index and cannot be used as a leader index for cross-cluster replication purpose"));
             return;
         }
 

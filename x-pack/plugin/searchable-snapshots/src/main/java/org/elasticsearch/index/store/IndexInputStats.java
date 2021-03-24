@@ -55,6 +55,8 @@ public class IndexInputStats {
     private final Counter blobStoreBytesRequested = new Counter();
     private final AtomicLong currentIndexCacheFills = new AtomicLong();
 
+    private final Counter luceneBytesRead = new Counter();
+
     public IndexInputStats(long numFiles, long totalSize, long minSize, long maxSize, LongSupplier currentTimeNanos) {
         this(numFiles, totalSize, minSize, maxSize, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
     }
@@ -149,6 +151,10 @@ public class IndexInputStats {
         };
     }
 
+    public void addLuceneBytesRead(int bytesRead) {
+        luceneBytesRead.add(bytesRead);
+    }
+
     public long getNumFiles() {
         return numFiles;
     }
@@ -219,6 +225,10 @@ public class IndexInputStats {
 
     public Counter getBlobStoreBytesRequested() {
         return blobStoreBytesRequested;
+    }
+
+    public Counter getLuceneBytesRead() {
+        return luceneBytesRead;
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")

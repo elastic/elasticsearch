@@ -11,13 +11,12 @@ package org.elasticsearch.runtimefields.mapper;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.StringScriptFieldData;
 import org.elasticsearch.runtimefields.query.StringScriptFieldExistsQuery;
@@ -31,7 +30,6 @@ import org.elasticsearch.runtimefields.query.StringScriptFieldWildcardQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,23 +42,19 @@ import static java.util.stream.Collectors.toSet;
 
 public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
         @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
+        protected RuntimeField buildFieldType() {
             if (script.get() == null) {
-                return new KeywordScriptFieldType(name, StringFieldScript.PARSE_FROM_SOURCE, this);
+                return new KeywordScriptFieldType(name, StringFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
             }
-            StringFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), StringFieldScript.CONTEXT);
-            return new KeywordScriptFieldType(name, factory, this);
+            StringFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), StringFieldScript.CONTEXT);
+            return new KeywordScriptFieldType(name, factory, getScript(), meta(), this);
         }
     });
 
     public KeywordScriptFieldType(String name) {
-        this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
-    }
-
-    private KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Builder builder) {
-        super(name, scriptFactory::newFactory, builder);
+        this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     KeywordScriptFieldType(
@@ -68,7 +62,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         StringFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, scriptFactory::newFactory, script, meta, toXContent);
     }

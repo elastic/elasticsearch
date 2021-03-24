@@ -44,6 +44,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     protected final ByteRange headerBlobCacheByteRange;
 
+    /**
+     * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
+     * required for slices of CFS files; regular files already have their footers extracted from the {@link FileInfo} (see method
+     * {@link BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo}).
+     */
+    protected final ByteRange footerBlobCacheByteRange;
+
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
     private AtomicBoolean closed;
@@ -57,7 +64,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         IndexInputStats stats,
         long offset,
         long length,
-        ByteRange blobCacheByteRange
+        ByteRange headerBlobCacheByteRange,
+        ByteRange footerBlobCacheByteRange
     ) {
         super(name, context);
         this.name = Objects.requireNonNull(name);
@@ -68,7 +76,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
-        this.headerBlobCacheByteRange = Objects.requireNonNull(blobCacheByteRange);
+        this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
+        this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
@@ -92,15 +101,16 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected final void readInternal(ByteBuffer b) throws IOException {
         assert assertCurrentThreadIsNotCacheFetchAsync();
 
+        final int bytesToRead = b.remaining();
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
         if (maybeReadChecksumFromFileInfo(b)) {
             logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
-            assert b.remaining() == 0L : b.remaining();
-            return;
+        } else {
+            doReadInternal(b);
         }
-
-        doReadInternal(b);
+        assert b.remaining() == 0L : b.remaining();
+        stats.addLuceneBytesRead(bytesToRead);
     }
 
     protected abstract void doReadInternal(ByteBuffer b) throws IOException;
@@ -143,9 +153,12 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return success;
     }
 
-    protected ByteRange maybeReadFromBlobCache(long position, int length) {
-        if (headerBlobCacheByteRange.contains(position, position + length)) {
+    protected ByteRange rangeToReadFromBlobCache(long position, int length) {
+        final long end = position + length;
+        if (headerBlobCacheByteRange.contains(position, end)) {
             return headerBlobCacheByteRange;
+        } else if (footerBlobCacheByteRange.contains(position, end)) {
+            return footerBlobCacheByteRange;
         }
         return ByteRange.EMPTY;
     }

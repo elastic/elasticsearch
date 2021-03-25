@@ -136,8 +136,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5);
             if (lastChunk > firstChunk) {
-                Metadata metadata = new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5);
-                state = state.put(name, metadata);
+                state = state.put(name, new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
@@ -165,6 +164,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
         state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
+        stats = stats.skippedDownload();
         updateTaskState();
     }
 

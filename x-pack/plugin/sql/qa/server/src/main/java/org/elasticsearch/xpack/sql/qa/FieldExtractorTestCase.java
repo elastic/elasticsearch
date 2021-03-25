@@ -230,7 +230,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123.456 as number
         // and converted to 123.5 for "scaled_float" type
         // and 123.4375 for "half_float" because that is all it stores.
-        double expectedNumber = isScaledFloat ? 123.5 : fieldType.equals("half_float") ? 123.4375 : 1234.56;
+        double expectedNumber = isScaledFloat ? 123.5 : fieldType.equals("half_float") ? 123.4375 : 123.456;
         expected.put("rows", singletonList(singletonList(expectedNumber)));
         assertResponse(expected, runSql("SELECT " + fieldType + "_field FROM test"));
     }

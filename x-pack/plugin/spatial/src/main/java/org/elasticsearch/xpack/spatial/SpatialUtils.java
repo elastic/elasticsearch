@@ -33,7 +33,8 @@ public class SpatialUtils {
         result[0] = new double[gons+1];
         result[1] = new double[gons+1];
         for(int i=0; i<gons; i++) {
-            double angle = i * (360.0 / gons);
+            // make sure we do not start at angle 0 or we have issues at the poles
+            double angle = i * (360.0 / gons) + 5.0;
             double x = Math.cos(SloppyMath.toRadians(angle));
             double y = Math.sin(SloppyMath.toRadians(angle));
             double factor = 2.0;

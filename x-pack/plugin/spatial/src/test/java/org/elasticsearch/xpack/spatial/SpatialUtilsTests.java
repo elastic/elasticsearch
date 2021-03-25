@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
@@ -18,10 +19,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class SpatialUtilsTests extends ESTestCase {
 
     public void testCreateRegularGeoShapePolygon() {
-        double lon = randomDoubleBetween(-20, 20, true);
-        double lat = randomDoubleBetween(-20, 20, true);
-        double radiusMeters = randomDoubleBetween(10, 10000, true);
-        Circle circle = new Circle(lon, lat, radiusMeters);
+        doRegularGeoShapePolygon(GeometryTestUtils.randomCircle(true));
+    }
+
+    public void testCreateRegularGeoShapePolygonAtPoles() {
+        doRegularGeoShapePolygon(new Circle(180, 90, randomDoubleBetween(10, 10000, true)));
+        doRegularGeoShapePolygon(new Circle(-180, 90, randomDoubleBetween(10, 10000, true)));
+        doRegularGeoShapePolygon(new Circle(180, -90, randomDoubleBetween(10, 10000, true)));
+        doRegularGeoShapePolygon(new Circle(-180, -90, randomDoubleBetween(10, 10000, true)));
+    }
+
+    private void doRegularGeoShapePolygon(Circle circle) {
         int numSides = randomIntBetween(4, 1000);
         Polygon polygon = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
         LinearRing outerShell = polygon.getPolygon();
@@ -35,7 +43,7 @@ public class SpatialUtilsTests extends ESTestCase {
         for (int i = 0; i < numPoints ; i++) {
             double actualDistance = SloppyMath
                 .haversinMeters(circle.getY(), circle.getX(), outerShell.getY(i), outerShell.getX(i));
-            assertThat(actualDistance, closeTo(radiusMeters, 0.1));
+            assertThat(actualDistance, closeTo(circle.getRadiusMeters(), 0.1));
         }
     }
 

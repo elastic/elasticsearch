@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -193,5 +194,13 @@ public class SharedBytes extends AbstractRefCounted {
             ios.remove(sharedBytesPos, this);
             SharedBytes.this.decRef();
         }
+    }
+
+    public static ByteSizeValue pageAligned(ByteSizeValue val) {
+        if (val.getBytes() % PAGE_SIZE != 0L) {
+            final long remainder = val.getBytes() % PAGE_SIZE;
+            return ByteSizeValue.ofBytes(val.getBytes() + PAGE_SIZE - remainder);
+        }
+        return val;
     }
 }

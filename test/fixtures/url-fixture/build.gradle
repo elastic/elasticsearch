@@ -19,8 +19,7 @@ dependencies {
 // These directories are shared between the URL repository and the FS repository in integration tests
 project.ext {
   fsRepositoryDirs = [
-    'url-fixture': new File(project.buildDir, "shared-repository"),
-    'url-fixture-searchable-snapshots': new File(project.buildDir, "shared-repository-searchable-snapshots")
+    'url-fixture': new File(project.buildDir, "shared-repository")
   ]
 }
 

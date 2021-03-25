@@ -1,0 +1,23 @@
+import java.nio.file.Files
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.test.fixtures'
+
+description = 'Fixture for an external http service'
+
+// These directories are shared between the URL repository and the FS repository in integration tests
+project.ext {
+  fsRepositoryDirs = [
+    'nginx-fixture': new File(project.buildDir, "shared-repository"),
+  ]
+}
+
+for (repoDir in project.ext.fsRepositoryDirs) {
+  delete(repoDir.value as File)
+}

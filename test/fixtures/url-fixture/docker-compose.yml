@@ -13,16 +13,3 @@ services:
       - ./testfixtures_shared/work:/fixture/work
     ports:
       - "80"
-  url-fixture-searchable-snapshots:
-    build:
-      context: .
-      args:
-        port: 80
-        workingDir: "/fixture/work"
-        repositoryDir: "/fixture/repo"
-    volumes:
-      - ./testfixtures_shared/shared:/fixture/shared
-      - ./build/shared-repository-searchable-snapshots:/fixture/repo
-      - ./testfixtures_shared/searchable_snapshots_work:/fixture/work
-    ports:
-      - "80"

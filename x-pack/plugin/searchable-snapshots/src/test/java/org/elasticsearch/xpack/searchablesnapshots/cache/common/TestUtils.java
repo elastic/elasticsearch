@@ -328,11 +328,6 @@ public final class TestUtils {
         }
 
         @Override
-        public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
-            return ByteRange.EMPTY;
-        }
-
-        @Override
         public void putAsync(
             String repository,
             String name,

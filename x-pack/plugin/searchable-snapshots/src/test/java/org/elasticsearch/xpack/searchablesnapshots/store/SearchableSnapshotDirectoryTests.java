@@ -351,7 +351,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             randomBoolean(),
             false, // no prewarming in this test because we want to ensure that files are accessed on purpose
             (directory, snapshotDirectory) -> {
-                for (String fileName : randomSubsetOf(asList(snapshotDirectory.listAll()))) {
+                for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
                     final long checksum;
                     try (IndexInput input = directory.openInput(fileName, Store.READONCE_CHECKSUM)) {
                         checksum = CodecUtil.checksumEntireFile(input);
@@ -634,7 +634,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
-            for (String fileName : randomSubsetOf(asList(snapshotDirectory.listAll()))) {
+            for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
                 final IOContext context = randomIOContext();
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();

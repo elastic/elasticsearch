@@ -288,3 +288,21 @@ teardown:
 
   - match: { hits.total: 6 } # can-read, read_write, everything
   - match: { aggregations.f.buckets.0.doc_count: 6 }
+
+---
+"filters agg exists doesn't count invisible docs":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        body:
+          aggs:
+            f:
+              filters:
+                filters:
+                  - exists:
+                      field: name
+
+  - match: { hits.total: 6 } # can-read, read_write, everything
+  - match: { aggregations.f.buckets.0.doc_count: 6 }

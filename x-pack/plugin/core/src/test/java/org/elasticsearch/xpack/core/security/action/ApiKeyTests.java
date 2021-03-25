@@ -22,6 +22,7 @@ import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyTests extends ESTestCase {
 
@@ -38,6 +39,8 @@ public class ApiKeyTests extends ESTestCase {
         final Map<String, Object> metadata = randomMetadata();
 
         final ApiKey apiKey = new ApiKey(name, id, creation, expiration, invalidated, username, realmName, metadata);
+        // The metadata will never be null because the constructor convert it to empty map if a null is passed in
+        assertThat(apiKey.getMetadata(), notNullValue());
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         apiKey.toXContent(builder, ToXContent.EMPTY_PARAMS);

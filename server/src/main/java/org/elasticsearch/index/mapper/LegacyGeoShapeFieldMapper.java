@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -77,6 +78,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public static boolean containsDeprecatedParameter(Set<String> paramKeys) {
         return DEPRECATED_PARAMETERS.stream().anyMatch(paramKeys::contains);
+    }
+
+    public static Set<String> getDeprecatedParameters(Set<String> paramKeys) {
+        return DEPRECATED_PARAMETERS.stream().filter((p) -> paramKeys.contains(p)).collect(Collectors.toSet());
     }
 
     public static class Defaults {
@@ -158,8 +163,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Version indexCreatedVersion;
+        private final Set<String> deprecatedParam;
 
-        public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        public Builder(String name, Version version, boolean ignoreMalformedByDefault, boolean coerceByDefault,
+                       Set<String> deprecatedParams) {
             super(name);
 
             if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
@@ -167,6 +174,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
 
             this.indexCreatedVersion = version;
+            this.deprecatedParam = deprecatedParams;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
 
@@ -443,6 +451,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     private final Version indexCreatedVersion;
+    private final Set<String> deprecatedParams;
     private final Builder builder;
 
     public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
@@ -453,10 +462,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
             multiFields, copyTo, indexer, parser);
         if (builder.indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
-            throw new IllegalArgumentException("mapper [" + name()
-                + "] of type [geo_shape] with deprecated parameters is no longer allowed");
+            throw new IllegalArgumentException("using deprecated parameters " + Arrays.toString(builder.deprecatedParam.toArray())
+                + " in mapper [" + name() + "] of type [geo_shape] is no longer allowed");
         }
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.deprecatedParams = builder.deprecatedParam;
         this.builder = builder;
     }
 
@@ -492,7 +502,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion,
-            builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(this);
+            builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value(), deprecatedParams).init(this);
     }
 
     @Override

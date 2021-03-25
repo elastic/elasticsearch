@@ -109,10 +109,13 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     public void testInvalidCurrentVersion() {
         MapperParsingException e =
             expectThrows(MapperParsingException.class,
-                () -> createMapperService(Version.CURRENT, fieldMapping(this::minimalMapping)));
+                () -> createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                    b.field("type", "geo_shape").field("strategy", "recursive").field("points_only", true);
+                })));
         assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] with deprecated parameters is no longer allowed"));
-        assertFieldWarnings("strategy");
+            containsString("using deprecated parameters [points_only, strategy] " +
+                "in mapper [field] of type [geo_shape] is no longer allowed"));
+        assertFieldWarnings(new String[] {"points_only", "strategy"});
     }
 
     public void testLegacySwitches() throws IOException {

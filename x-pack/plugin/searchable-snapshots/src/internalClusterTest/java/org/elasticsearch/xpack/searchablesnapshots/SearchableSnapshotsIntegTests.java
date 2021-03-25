@@ -1496,6 +1496,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         indexInputStats.getAverageSize().getBytes(),
                         greaterThan(0L)
                     );
+                    assertThat(
+                        "Expected at least one Lucene read for " + fileExt + " of shard " + shardRouting,
+                        indexInputStats.getLuceneBytesRead().getCount(),
+                        greaterThan(0L)
+                    );
 
                     if (cacheEnabled == false || nonCachedExtensions.contains(fileExt)) {
                         assertThat(

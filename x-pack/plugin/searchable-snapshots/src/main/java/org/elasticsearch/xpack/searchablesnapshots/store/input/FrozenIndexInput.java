@@ -111,6 +111,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
+        final int originalByteBufPosition = b.position();
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
         final AtomicBoolean stopAsyncReads = new AtomicBoolean();
@@ -172,7 +173,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             assert luceneByteBufLock.getReadHoldCount() == 0;
 
             preventAsyncBufferChanges.run();
-            b.position(bytesRead); // mark all bytes as accounted for
+            b.position(originalByteBufPosition + bytesRead); // mark all bytes as accounted for
         } finally {
             preventAsyncBufferChanges.run();
         }

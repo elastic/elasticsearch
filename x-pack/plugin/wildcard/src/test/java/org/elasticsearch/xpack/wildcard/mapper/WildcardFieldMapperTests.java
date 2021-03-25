@@ -984,4 +984,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
         return sb.toString();
     }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return randomAlphaOfLengthBetween(1, 100);
+    }
 }

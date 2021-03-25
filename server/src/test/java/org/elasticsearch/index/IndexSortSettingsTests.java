@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -172,5 +173,20 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertEquals("docvalues not found for index sort field:[field]", iae.getMessage());
         assertThat(iae.getCause(), instanceOf(UnsupportedOperationException.class));
         assertEquals("index sorting not supported on runtime field [field]", iae.getCause().getMessage());
+    }
+
+    public void testSortingAgainstAliases() {
+        IndexSettings indexSettings = indexSettings(Settings.builder().put("index.sort.field", "field").build());
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> config.buildIndexSort(
+            field -> mft,
+            (ft, s) -> indexFieldDataService.getForField(ft, "index", s)
+        ));
+        assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
     }
 }

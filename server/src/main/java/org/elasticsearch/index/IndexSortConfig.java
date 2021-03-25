@@ -23,6 +23,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -174,6 +175,9 @@ public final class IndexSortConfig {
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
                 throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
+            }
+            if (Objects.equals(ft.name(), sortSpec.field) == false) {
+                throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
             }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;

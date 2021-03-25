@@ -13,6 +13,7 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -25,6 +26,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -96,6 +98,21 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsMeta() {
         return false;
+    }
+
+    @Override
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        return createMapperService(version, mappings);
+    }
+
+    public void testInvalidCurrentVersion() {
+        MapperParsingException e =
+            expectThrows(MapperParsingException.class,
+                () -> createMapperService(Version.CURRENT, fieldMapping(this::minimalMapping)));
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] with deprecated parameters is no longer allowed"));
+        assertFieldWarnings("strategy");
     }
 
     public void testLegacySwitches() throws IOException {

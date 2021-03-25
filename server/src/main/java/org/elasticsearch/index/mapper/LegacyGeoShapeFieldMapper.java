@@ -452,6 +452,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         super(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
             multiFields, copyTo, indexer, parser);
+        if (builder.indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+            throw new IllegalArgumentException("mapper [" + name()
+                + "] of type [geo_shape] with deprecated parameters is no longer allowed");
+        }
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
     }

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -31,6 +33,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -125,17 +132,17 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
-    public void testMappingUpdate() throws Exception {
+    public void testMappingUpdate() {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("shape", "type=geo_shape").get());
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(version).build())
+            .setMapping("shape", "type=geo_shape,strategy=recursive").get());
         ensureGreen();
 
         String update ="{\n" +
             "  \"properties\": {\n" +
             "    \"shape\": {\n" +
-            "      \"type\": \"geo_shape\",\n" +
-            "      \"strategy\": \"recursive\"\n" +
+            "      \"type\": \"geo_shape\"" +
             "    }\n" +
             "  }\n" +
             "}";
@@ -143,7 +150,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
             .preparePutMapping("test")
             .setSource(update, XContentType.JSON).get());
-        assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
     }
 
     /**
@@ -205,7 +212,9 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
         ensureGreen();
 
-        assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        assertAcked(client().admin().indices().prepareCreate("quad")
+            .setSettings(settings(version).build()).setMapping(mappingQuad).get());
         ensureGreen();
 
         String source = "{\n" +

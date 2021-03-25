@@ -297,9 +297,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
             "              \"type\": \"geo_point\"\n" +
             "            },\n" +
             "            \"area_visible\": {\n" +
-            "              \"type\": \"geo_shape\",  \n" +
-            "              \"tree\": \"quadtree\",\n" +
-            "              \"precision\": \"1m\"\n" +
+            "              \"type\": \"geo_shape\"" +
             "            }\n" +
             "          }\n" +
             "        },\n" +

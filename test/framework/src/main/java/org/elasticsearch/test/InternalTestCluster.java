@@ -1055,7 +1055,7 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins);
+            node = new MockNode(finalSettings, plugins, forbidPrivateIndexSettings);
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {

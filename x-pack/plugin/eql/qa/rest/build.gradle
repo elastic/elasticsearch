@@ -23,13 +23,5 @@ testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
-}
-
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
 }

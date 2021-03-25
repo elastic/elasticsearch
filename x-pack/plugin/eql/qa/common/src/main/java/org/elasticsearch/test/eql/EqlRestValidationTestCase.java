@@ -114,12 +114,4 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
             assertOK(response);
         }
     }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
 }

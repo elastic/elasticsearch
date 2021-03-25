@@ -246,12 +246,4 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
     protected TimeValue timeout() {
         return TimeValue.timeValueSeconds(10);
     }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
 }

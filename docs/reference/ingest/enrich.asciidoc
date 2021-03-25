@@ -50,9 +50,6 @@ Before it can be used with an enrich processor, an enrich policy must be
 enrich data from the policy's source indices to create a streamlined system
 index called the _enrich index_. The processor uses this index to match and
 enrich incoming documents.
-
-See <<enrich-policy-definition>> for a full list of enrich policy types and
-configuration options.
 --
 
 [[source-index]]
@@ -136,14 +133,8 @@ automatically send and index documents to your source indices. See
 [[create-enrich-policy]]
 ==== Create an enrich policy
 
-After adding enrich data to your source indices, you can
-<<enrich-policy-definition,define an enrich policy>>. When defining the enrich
-policy, you should include at least the following:
-
-include::enrich.asciidoc[tag=enrich-policy-fields]
-
-You can use this definition to create the enrich policy with the
-<<put-enrich-policy-api,create or update enrich policy API>>.
+After adding enrich data to your source indices, use the
+<<put-enrich-policy-api,create enrich policy API>> to create an enrich policy.
 
 [WARNING]
 ====
@@ -226,74 +217,6 @@ Instead, you can:
 .   Use the <<delete-enrich-policy-api, delete enrich policy>> API
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
-
-[role="xpack"]
-[testenv="basic"]
-[[enrich-policy-definition]]
-=== Enrich policy definition
-
-<<enrich-policy,Enrich policies>> are defined as JSON objects like the
-following:
-
-[source,js]
-----
-{
-  "<enrich_policy_type>": {
-    "indices": [ "..." ],
-    "match_field": "...",
-    "enrich_fields": [ "..." ],
-    "query": {... }
-  }
-}
-----
-// NOTCONSOLE
-
-[[enrich-policy-parms]]
-==== Parameters
-
-`<enrich_policy_type>`::
-+
---
-(Required, enrich policy object)
-The enrich policy type determines how enrich data is matched to incoming
-documents.
-
-Supported enrich policy types include:
-
-<<geo-match-enrich-policy-type,`geo_match`>>:::
-Matches enrich data to incoming documents based on a geographic location using
-a <<query-dsl-geo-shape-query,`geo_shape` query>>. For an example, see
-<<geo-match-enrich-policy-type>>.
-
-<<match-enrich-policy-type,`match`>>:::
-Matches enrich data to incoming documents based on a precise value, such as an
-email address or ID, using a <<query-dsl-term-query,`term` query>>. For an
-example, see <<match-enrich-policy-type>>.
---
-
-`indices`::
-+
---
-(Required, String or array of strings)
-Source indices used to create the enrich index.
-
-If multiple indices are provided, they must share a common `match_field`, which
-the enrich processor can use to match incoming documents.
---
-
-`match_field`::
-(Required, string)
-Field in the source indices used to match incoming documents.
-
-`enrich_fields`::
-(Required, Array of strings)
-Fields to add to matching incoming documents. These fields must be present in
-the source indices.
-
-`query`::
-(Optional, <<query-dsl,Query DSL query object>>)
-Query used to filter documents in the enrich index for matching. Defaults to
-a <<query-dsl-match-all-query,`match_all`>> query.
 
 [role="xpack"]
 [testenv="basic"]

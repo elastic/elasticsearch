@@ -1,5 +1,5 @@
 [role="xpack"]
-[[oidc-guide]]
+[[oidc-guide-stack]]
 
 == Configuring single sign-on to the {stack} using OpenID Connect
 
@@ -44,7 +44,7 @@ called `Callback URI`.
 At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
 Note these two values as they will be used in the {es} configuration.
 
-[[oidc-guide-authentication]]
+[[oidc-es-authentication]]
 === Configure {es} for OpenID Connect authentication
 
 The following is a summary of the configuration steps required in order to enable authentication
@@ -407,7 +407,7 @@ xpack.security.authc.realms.oidc.oidc1:
   ssl.certificate_authorities: ["/oidc/company-ca.pem"]
 -------------------------------------------------------------------------------------
 
-[[oidc-role-mapping]]
+[[oidc-role-mappings]]
 === Configuring role mappings
 
 When a user authenticates using OpenID Connect, they are identified to the Elastic Stack,

@@ -295,7 +295,7 @@ xpack.security.authc.realms.saml.saml1:
   attributes.groups: "roles"
 ------------------------------------------------------------
 
-[[saml-user-properties]]
+[[saml-es-user-properties]]
 ===== {es} user properties
 
 The {es} SAML realm can be configured to map SAML `attributes` to the

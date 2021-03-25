@@ -30,6 +30,21 @@ See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
 
 See <<secure-cluster,Secure the Elastic Stack>>.
 
+[role="exclude",id="oidc-guide"]
+=== Configure OpenID Connect
+
+See <<oidc-guide-stack,Configuring single sign-on to the {stack} using OpenID Connect>>.
+
+[role="exclude",id="oidc-guide-authentication"]
+==== Configure {es} for OpenID Connect
+
+See <<oidc-es-authentication,Configure {es} for OpenID Connect authentication>>.
+
+[role="exclude",id="oidc-role-mapping"]
+==== Configure role mapping
+
+See <<oidc-role-mappings,Configure OpenID Connect role mappings>>.
+
 [role="exclude",id="saml-guide"]
 === Configure SAML single-sign on
 
@@ -39,6 +54,11 @@ See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
 === Configure {es} for SAML authentication
 
 See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
+
+[role="exclude",id="saml-user-properties"]
+==== SAML {es} user properties
+
+See <<saml-es-user-properties,{es} user properties>>.
 
 [role="exclude",id="saml-attribute-mapping"]
 ==== Attribute mapping

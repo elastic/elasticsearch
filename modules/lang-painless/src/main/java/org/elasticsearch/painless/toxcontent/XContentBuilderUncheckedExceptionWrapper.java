@@ -9,20 +9,28 @@
 package org.elasticsearch.painless.toxcontent;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-public class UserTreeToXContentScope {
+public class XContentBuilderUncheckedExceptionWrapper {
     public final XContentBuilder builder;
-    public final ScriptScope scriptScope;
 
-    public UserTreeToXContentScope(XContentBuilder builder, ScriptScope scriptScope) {
+    public XContentBuilderUncheckedExceptionWrapper(XContentBuilder builder) {
         this.builder = Objects.requireNonNull(builder);
-        this.scriptScope = Objects.requireNonNull(scriptScope);
+    }
+
+    public XContentBuilderUncheckedExceptionWrapper() {
+        XContentBuilder jsonBuilder;
+        try {
+            jsonBuilder = XContentFactory.jsonBuilder();
+        } catch (IOException io) {
+            throw new RuntimeException(io);
+        }
+        this.builder = jsonBuilder.prettyPrint();
     }
 
     public void startObject() {
@@ -138,5 +146,14 @@ public class UserTreeToXContentScope {
         } catch (IOException io) {
             throw new IllegalStateException(io);
         }
+    }
+
+    public String toString() {
+        try {
+            builder.flush();
+        } catch (IOException io) {
+            throw new RuntimeException(io);
+        }
+        return builder.getOutputStream().toString();
     }
 }

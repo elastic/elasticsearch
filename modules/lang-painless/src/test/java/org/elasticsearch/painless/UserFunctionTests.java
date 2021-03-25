@@ -8,8 +8,20 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.toxcontent.UserTreeToXContent;
+
 public class UserFunctionTests extends ScriptTestCase {
     public void testZeroArgumentUserFunction() {
-        assertEquals(25, exec("def twofive() { return 25; } twofive()"));
+        String source = "def twofive() { return 25; } twofive()";
+        assertEquals(25, exec(source));
+        UserTreeVisitor<ScriptScope> semantic = new UserTreeToXContent();
+        UserTreeVisitor<ScriptScope> ir = new UserTreeToXContent();
+        Debugger.phases(source, semantic, ir, null);
+        System.out.println("----------Semantic----------");
+        System.out.println(semantic);
+        System.out.println("----------IR----------");
+        System.out.println(ir);
     }
 }

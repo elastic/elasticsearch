@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless.toxcontent;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
@@ -61,6 +61,7 @@ import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.phase.UserTreeBaseVisitor;
 import org.elasticsearch.painless.symbol.Decorator.Condition;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.Comparator;
 import java.util.List;
@@ -72,11 +73,15 @@ import java.util.stream.Collectors;
 /**
  * Serialize the user tree
  */
-public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentScope> {
-    public final XContentBuilder builder;
+public class UserTreeToXContent extends UserTreeBaseVisitor<ScriptScope> {
+    public final XContentBuilderUncheckedExceptionWrapper builder;
 
     public UserTreeToXContent(XContentBuilder builder) {
-        this.builder = Objects.requireNonNull(builder);
+        this.builder = new XContentBuilderUncheckedExceptionWrapper(Objects.requireNonNull(builder));
+    }
+
+    public UserTreeToXContent() {
+        this.builder = new XContentBuilderUncheckedExceptionWrapper();
     }
 
     static final class Fields {
@@ -93,59 +98,59 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentSc
     }
 
     @Override
-    public void visitClass(SClass userClassNode, UserTreeToXContentScope scope) {
-        start(userClassNode, scope);
+    public void visitClass(SClass userClassNode, ScriptScope scope) {
+        start(userClassNode);
 
-        scope.field("source", scope.scriptScope.getScriptSource());
-        scope.startArray("functions");
+        builder.field("source", scope.getScriptSource());
+        builder.startArray("functions");
         userClassNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userClassNode, scope);
     }
 
     @Override
-    public void visitFunction(SFunction userFunctionNode, UserTreeToXContentScope scope) {
-        start(userFunctionNode, scope);
+    public void visitFunction(SFunction userFunctionNode, ScriptScope scope) {
+        start(userFunctionNode);
 
-        scope.field("name", userFunctionNode.getFunctionName());
-        scope.field("returns", userFunctionNode.getReturnCanonicalTypeName());
+        builder.field("name", userFunctionNode.getFunctionName());
+        builder.field("returns", userFunctionNode.getReturnCanonicalTypeName());
         if (userFunctionNode.getParameterNames().isEmpty() == false) {
-            scope.field("parameters", userFunctionNode.getParameterNames());
+            builder.field("parameters", userFunctionNode.getParameterNames());
         }
         if (userFunctionNode.getCanonicalTypeNameParameters().isEmpty() == false) {
-            scope.field("parameterTypes", userFunctionNode.getCanonicalTypeNameParameters());
+            builder.field("parameterTypes", userFunctionNode.getCanonicalTypeNameParameters());
         }
-        scope.field("isInternal", userFunctionNode.isInternal());
-        scope.field("isStatic", userFunctionNode.isStatic());
-        scope.field("isSynthetic", userFunctionNode.isSynthetic());
-        scope.field("isAutoReturnEnabled", userFunctionNode.isAutoReturnEnabled());
+        builder.field("isInternal", userFunctionNode.isInternal());
+        builder.field("isStatic", userFunctionNode.isStatic());
+        builder.field("isSynthetic", userFunctionNode.isSynthetic());
+        builder.field("isAutoReturnEnabled", userFunctionNode.isAutoReturnEnabled());
 
-        scope.startArray(Fields.BLOCK);
+        builder.startArray(Fields.BLOCK);
         userFunctionNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userFunctionNode, scope);
     }
 
     @Override
-    public void visitBlock(SBlock userBlockNode, UserTreeToXContentScope scope) {
-        start(userBlockNode, scope);
+    public void visitBlock(SBlock userBlockNode, ScriptScope scope) {
+        start(userBlockNode);
 
-        scope.startArray("statements");
-         userBlockNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.startArray("statements");
+        userBlockNode.visitChildren(this, scope);
+        builder.endArray();
 
         end(userBlockNode, scope);
     }
 
     @Override
-    public void visitIf(SIf userIfNode, UserTreeToXContentScope scope) {
-        start(userIfNode, scope);
+    public void visitIf(SIf userIfNode, ScriptScope scope) {
+        start(userIfNode);
 
-        scope.startArray(Fields.CONDITION);
+        builder.startArray(Fields.CONDITION);
         userIfNode.getConditionNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         block("ifBlock", userIfNode.getIfBlockNode(), scope);
 
@@ -153,12 +158,12 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentSc
     }
 
     @Override
-    public void visitIfElse(SIfElse userIfElseNode, UserTreeToXContentScope scope) {
-        start(userIfElseNode, scope);
+    public void visitIfElse(SIfElse userIfElseNode, ScriptScope scope) {
+        start(userIfElseNode);
 
-        scope.startArray(Fields.CONDITION);
+        builder.startArray(Fields.CONDITION);
         userIfElseNode.getConditionNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         block("ifBlock", userIfElseNode.getIfBlockNode(), scope);
         block("elseBlock", userIfElseNode.getElseBlockNode(), scope);
@@ -167,46 +172,44 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentSc
     }
 
     @Override
-    public void visitWhile(SWhile userWhileNode, UserTreeToXContentScope scope) {
-        start(userWhileNode, scope);
+    public void visitWhile(SWhile userWhileNode, ScriptScope scope) {
+        start(userWhileNode);
         loop(userWhileNode.getConditionNode(), userWhileNode.getBlockNode(), scope);
         end(userWhileNode, scope);
     }
 
     @Override
-    public void visitDo(SDo userDoNode, UserTreeToXContentScope scope) {
-        start(userDoNode, scope);
-
+    public void visitDo(SDo userDoNode, ScriptScope scope) {
+        start(userDoNode);
         loop(userDoNode.getConditionNode(), userDoNode.getBlockNode(), scope);
-
         end(userDoNode, scope);
     }
 
     @Override
-    public void visitFor(SFor userForNode, UserTreeToXContentScope scope) {
-        start(userForNode, scope);
+    public void visitFor(SFor userForNode, ScriptScope scope) {
+        start(userForNode);
 
         // TODO(stu): why is initializerNode ANode instead of an expression
         ANode initializerNode = userForNode.getInitializerNode();
-        scope.startArray("initializer");
+        builder.startArray("initializer");
         if (initializerNode != null) {
             initializerNode.visit(this, scope);
         }
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray("condition");
+        builder.startArray("condition");
         AExpression conditionNode = userForNode.getConditionNode();
         if (conditionNode != null) {
             conditionNode.visit(this, scope);
         }
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray("afterthought");
+        builder.startArray("afterthought");
         AExpression afterthoughtNode = userForNode.getAfterthoughtNode();
         if (afterthoughtNode != null) {
             afterthoughtNode.visit(this, scope);
         }
-        scope.endArray();
+        builder.endArray();
 
         block(userForNode.getBlockNode(), scope);
 
@@ -214,15 +217,15 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentSc
     }
 
     @Override
-    public void visitEach(SEach userEachNode, UserTreeToXContentScope scope) {
-        start(userEachNode, scope);
+    public void visitEach(SEach userEachNode, ScriptScope scope) {
+        start(userEachNode);
 
-        scope.field(Fields.TYPE, userEachNode.getCanonicalTypeName());
-        scope.field(Fields.SYMBOL, userEachNode.getSymbol());
+        builder.field(Fields.TYPE, userEachNode.getCanonicalTypeName());
+        builder.field(Fields.SYMBOL, userEachNode.getSymbol());
 
-        scope.startArray("iterable");
+        builder.startArray("iterable");
         userEachNode.getIterableNode().visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         block(userEachNode.getBlockNode(), scope);
 
@@ -230,453 +233,458 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentSc
     }
 
     @Override
-    public void visitDeclBlock(SDeclBlock userDeclBlockNode, UserTreeToXContentScope scope) {
-        start(userDeclBlockNode, scope);
+    public void visitDeclBlock(SDeclBlock userDeclBlockNode, ScriptScope scope) {
+        start(userDeclBlockNode);
 
-        scope.startArray("declarations");
+        builder.startArray("declarations");
         userDeclBlockNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userDeclBlockNode, scope);
     }
 
     @Override
-    public void visitDeclaration(SDeclaration userDeclarationNode, UserTreeToXContentScope scope) {
-        start(userDeclarationNode, scope);
+    public void visitDeclaration(SDeclaration userDeclarationNode, ScriptScope scope) {
+        start(userDeclarationNode);
 
-        scope.field(Fields.TYPE, userDeclarationNode.getCanonicalTypeName());
-        scope.field(Fields.SYMBOL, userDeclarationNode.getSymbol());
+        builder.field(Fields.TYPE, userDeclarationNode.getCanonicalTypeName());
+        builder.field(Fields.SYMBOL, userDeclarationNode.getSymbol());
 
-        scope.startArray("value");
+        builder.startArray("value");
         userDeclarationNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userDeclarationNode, scope);
     }
 
     @Override
-    public void visitReturn(SReturn userReturnNode, UserTreeToXContentScope scope) {
-        start(userReturnNode, scope);
+    public void visitReturn(SReturn userReturnNode, ScriptScope scope) {
+        start(userReturnNode);
 
-        scope.startArray("value");
+        builder.startArray("value");
         userReturnNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userReturnNode, scope);
     }
 
     @Override
-    public void visitExpression(SExpression userExpressionNode, UserTreeToXContentScope scope) {
-        start(userExpressionNode, scope);
+    public void visitExpression(SExpression userExpressionNode, ScriptScope scope) {
+        start(userExpressionNode);
 
-        scope.startArray("statement");
+        builder.startArray("statement");
         userExpressionNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userExpressionNode, scope);
     }
 
     @Override
-    public void visitTry(STry userTryNode, UserTreeToXContentScope scope) {
-        start(userTryNode, scope);
+    public void visitTry(STry userTryNode, ScriptScope scope) {
+        start(userTryNode);
 
         block(userTryNode.getBlockNode(), scope);
 
-        scope.startArray("catch");
+        builder.startArray("catch");
         for (SCatch catchNode : userTryNode.getCatchNodes()) {
             catchNode.visit(this, scope);
         }
-        scope.endArray();
+        builder.endArray();
 
         end(userTryNode, scope);
     }
 
     @Override
-    public void visitCatch(SCatch userCatchNode, UserTreeToXContentScope scope) {
-        start(userCatchNode, scope);
+    public void visitCatch(SCatch userCatchNode, ScriptScope scope) {
+        start(userCatchNode);
 
-        scope.field("exception", userCatchNode.getBaseException());
-        scope.field(Fields.TYPE, userCatchNode.getCanonicalTypeName());
-        scope.field(Fields.SYMBOL, userCatchNode.getSymbol());
+        builder.field("exception", userCatchNode.getBaseException());
+        builder.field(Fields.TYPE, userCatchNode.getCanonicalTypeName());
+        builder.field(Fields.SYMBOL, userCatchNode.getSymbol());
 
-        scope.startArray(Fields.BLOCK);
+        builder.startArray(Fields.BLOCK);
         userCatchNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userCatchNode, scope);
     }
 
     @Override
-    public void visitThrow(SThrow userThrowNode, UserTreeToXContentScope scope) {
-        start(userThrowNode, scope);
+    public void visitThrow(SThrow userThrowNode, ScriptScope scope) {
+        start(userThrowNode);
 
-        scope.startArray("expression");
+        builder.startArray("expression");
         userThrowNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userThrowNode, scope);
     }
 
     @Override
-    public void visitContinue(SContinue userContinueNode, UserTreeToXContentScope scope) {
-        start(userContinueNode, scope);
+    public void visitContinue(SContinue userContinueNode, ScriptScope scope) {
+        start(userContinueNode);
         end(userContinueNode, scope);
     }
 
     @Override
-    public void visitBreak(SBreak userBreakNode, UserTreeToXContentScope scope) {
-        start(userBreakNode, scope);
+    public void visitBreak(SBreak userBreakNode, ScriptScope scope) {
+        start(userBreakNode);
         end(userBreakNode, scope);
     }
 
     @Override
-    public void visitAssignment(EAssignment userAssignmentNode, UserTreeToXContentScope scope) {
-        start(userAssignmentNode, scope);
+    public void visitAssignment(EAssignment userAssignmentNode, ScriptScope scope) {
+        start(userAssignmentNode);
         // TODO(stu): why would operation be null?
-        scope.field("postIfRead", userAssignmentNode.postIfRead());
+        builder.field("postIfRead", userAssignmentNode.postIfRead());
         binaryOperation(userAssignmentNode.getOperation(), userAssignmentNode.getLeftNode(), userAssignmentNode.getRightNode(), scope);
         end(userAssignmentNode, scope);
     }
 
     @Override
-    public void visitUnary(EUnary userUnaryNode, UserTreeToXContentScope scope) {
-        start(userUnaryNode, scope);
+    public void visitUnary(EUnary userUnaryNode, ScriptScope scope) {
+        start(userUnaryNode);
 
-        operation(userUnaryNode.getOperation(), scope);
+        operation(userUnaryNode.getOperation());
 
-        scope.startArray("child");
+        builder.startArray("child");
         userUnaryNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userUnaryNode, scope);
     }
 
     @Override
-    public void visitBinary(EBinary userBinaryNode, UserTreeToXContentScope scope) {
-        start(userBinaryNode, scope);
+    public void visitBinary(EBinary userBinaryNode, ScriptScope scope) {
+        start(userBinaryNode);
         binaryOperation(userBinaryNode.getOperation(), userBinaryNode.getLeftNode(), userBinaryNode.getRightNode(), scope);
         end(userBinaryNode, scope);
     }
 
     @Override
-    public void visitBooleanComp(EBooleanComp userBooleanCompNode, UserTreeToXContentScope scope) {
-        start(userBooleanCompNode, scope);
+    public void visitBooleanComp(EBooleanComp userBooleanCompNode, ScriptScope scope) {
+        start(userBooleanCompNode);
         binaryOperation(userBooleanCompNode.getOperation(), userBooleanCompNode.getLeftNode(), userBooleanCompNode.getRightNode(), scope);
         end(userBooleanCompNode, scope);
     }
 
     @Override
-    public void visitComp(EComp userCompNode, UserTreeToXContentScope scope) {
-        start(userCompNode, scope);
+    public void visitComp(EComp userCompNode, ScriptScope scope) {
+        start(userCompNode);
         binaryOperation(userCompNode.getOperation(), userCompNode.getLeftNode(), userCompNode.getRightNode(), scope);
         end(userCompNode, scope);
     }
 
     @Override
-    public void visitExplicit(EExplicit userExplicitNode, UserTreeToXContentScope scope) {
-        start(userExplicitNode, scope);
+    public void visitExplicit(EExplicit userExplicitNode, ScriptScope scope) {
+        start(userExplicitNode);
 
-        scope.field(Fields.TYPE, userExplicitNode.getCanonicalTypeName());
-        scope.startArray("child");
+        builder.field(Fields.TYPE, userExplicitNode.getCanonicalTypeName());
+        builder.startArray("child");
         userExplicitNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userExplicitNode, scope);
     }
 
     @Override
-    public void visitInstanceof(EInstanceof userInstanceofNode, UserTreeToXContentScope scope) {
-        start(userInstanceofNode, scope);
+    public void visitInstanceof(EInstanceof userInstanceofNode, ScriptScope scope) {
+        start(userInstanceofNode);
 
-        scope.field(Fields.TYPE, userInstanceofNode.getCanonicalTypeName());
-        scope.startArray("child");
+        builder.field(Fields.TYPE, userInstanceofNode.getCanonicalTypeName());
+        builder.startArray("child");
         userInstanceofNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userInstanceofNode, scope);
     }
 
     @Override
-    public void visitConditional(EConditional userConditionalNode, UserTreeToXContentScope scope) {
-        start(userConditionalNode, scope);
+    public void visitConditional(EConditional userConditionalNode, ScriptScope scope) {
+        start(userConditionalNode);
 
-        scope.startArray("condition");
+        builder.startArray("condition");
         userConditionalNode.getConditionNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray("true");
+        builder.startArray("true");
         userConditionalNode.getTrueNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray("false");
+        builder.startArray("false");
         userConditionalNode.getFalseNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userConditionalNode, scope);
     }
 
     @Override
-    public void visitElvis(EElvis userElvisNode, UserTreeToXContentScope scope) {
-        start(userElvisNode, scope);
+    public void visitElvis(EElvis userElvisNode, ScriptScope scope) {
+        start(userElvisNode);
 
-        scope.startArray(Fields.LEFT);
+        builder.startArray(Fields.LEFT);
         userElvisNode.getLeftNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray(Fields.RIGHT);
+        builder.startArray(Fields.RIGHT);
         userElvisNode.getRightNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userElvisNode, scope);
     }
 
     @Override
-    public void visitListInit(EListInit userListInitNode, UserTreeToXContentScope scope) {
-        start(userListInitNode, scope);
-        scope.startArray("values");
+    public void visitListInit(EListInit userListInitNode, ScriptScope scope) {
+        start(userListInitNode);
+        builder.startArray("values");
         userListInitNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
         end(userListInitNode, scope);
     }
 
     @Override
-    public void visitMapInit(EMapInit userMapInitNode, UserTreeToXContentScope scope) {
-        start(userMapInitNode, scope);
+    public void visitMapInit(EMapInit userMapInitNode, ScriptScope scope) {
+        start(userMapInitNode);
         expressions("keys", userMapInitNode.getKeyNodes(), scope);
         expressions("values", userMapInitNode.getValueNodes(), scope);
         end(userMapInitNode, scope);
     }
 
     @Override
-    public void visitNewArray(ENewArray userNewArrayNode, UserTreeToXContentScope scope) {
-        start(userNewArrayNode, scope);
-        scope.field(Fields.TYPE, userNewArrayNode.getCanonicalTypeName());
-        scope.field("isInitializer", userNewArrayNode.isInitializer());
+    public void visitNewArray(ENewArray userNewArrayNode, ScriptScope scope) {
+        start(userNewArrayNode);
+        builder.field(Fields.TYPE, userNewArrayNode.getCanonicalTypeName());
+        builder.field("isInitializer", userNewArrayNode.isInitializer());
         expressions("values", userNewArrayNode.getValueNodes(), scope);
         end(userNewArrayNode, scope);
     }
 
     @Override
-    public void visitNewObj(ENewObj userNewObjNode, UserTreeToXContentScope scope) {
-        start(userNewObjNode, scope);
-        scope.field(Fields.TYPE, userNewObjNode.getCanonicalTypeName());
+    public void visitNewObj(ENewObj userNewObjNode, ScriptScope scope) {
+        start(userNewObjNode);
+        builder.field(Fields.TYPE, userNewObjNode.getCanonicalTypeName());
         arguments(userNewObjNode.getArgumentNodes(), scope);
         end(userNewObjNode, scope);
     }
 
     @Override
-    public void visitCallLocal(ECallLocal userCallLocalNode, UserTreeToXContentScope scope) {
-        start(userCallLocalNode, scope);
-        scope.field("methodName", userCallLocalNode.getMethodName());
+    public void visitCallLocal(ECallLocal userCallLocalNode, ScriptScope scope) {
+        start(userCallLocalNode);
+        builder.field("methodName", userCallLocalNode.getMethodName());
         arguments(userCallLocalNode.getArgumentNodes(), scope);
         end(userCallLocalNode, scope);
     }
 
     @Override
-    public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, UserTreeToXContentScope scope) {
-        start(userBooleanConstantNode, scope);
-        scope.field("value", userBooleanConstantNode.getBool());
+    public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, ScriptScope scope) {
+        start(userBooleanConstantNode);
+        builder.field("value", userBooleanConstantNode.getBool());
         end(userBooleanConstantNode, scope);
     }
 
     @Override
-    public void visitNumeric(ENumeric userNumericNode, UserTreeToXContentScope scope) {
-        start(userNumericNode, scope);
-        scope.field("numeric", userNumericNode.getNumeric());
-        scope.field("radix", userNumericNode.getRadix());
+    public void visitNumeric(ENumeric userNumericNode, ScriptScope scope) {
+        start(userNumericNode);
+        builder.field("numeric", userNumericNode.getNumeric());
+        builder.field("radix", userNumericNode.getRadix());
         end(userNumericNode, scope);
     }
 
     @Override
-    public void visitDecimal(EDecimal userDecimalNode, UserTreeToXContentScope scope) {
-        start(userDecimalNode, scope);
-        scope.field("value", userDecimalNode.getDecimal());
+    public void visitDecimal(EDecimal userDecimalNode, ScriptScope scope) {
+        start(userDecimalNode);
+        builder.field("value", userDecimalNode.getDecimal());
         end(userDecimalNode, scope);
     }
 
     @Override
-    public void visitString(EString userStringNode, UserTreeToXContentScope scope) {
-        start(userStringNode, scope);
-        scope.field("value", userStringNode.getString());
+    public void visitString(EString userStringNode, ScriptScope scope) {
+        start(userStringNode);
+        builder.field("value", userStringNode.getString());
         end(userStringNode, scope);
     }
 
     @Override
-    public void visitNull(ENull userNullNode, UserTreeToXContentScope scope) {
-        start(userNullNode, scope);
+    public void visitNull(ENull userNullNode, ScriptScope scope) {
+        start(userNullNode);
         end(userNullNode, scope);
     }
 
     @Override
-    public void visitRegex(ERegex userRegexNode, UserTreeToXContentScope scope) {
-        start(userRegexNode, scope);
-        scope.field("pattern", userRegexNode.getPattern());
-        scope.field("flags", userRegexNode.getFlags());
+    public void visitRegex(ERegex userRegexNode, ScriptScope scope) {
+        start(userRegexNode);
+        builder.field("pattern", userRegexNode.getPattern());
+        builder.field("flags", userRegexNode.getFlags());
         end(userRegexNode, scope);
     }
 
     @Override
-    public void visitLambda(ELambda userLambdaNode, UserTreeToXContentScope scope) {
-        start(userLambdaNode, scope);
-        scope.field("types", userLambdaNode.getCanonicalTypeNameParameters());
-        scope.field("parameters", userLambdaNode.getParameterNames());
+    public void visitLambda(ELambda userLambdaNode, ScriptScope scope) {
+        start(userLambdaNode);
+        builder.field("types", userLambdaNode.getCanonicalTypeNameParameters());
+        builder.field("parameters", userLambdaNode.getParameterNames());
         block(userLambdaNode.getBlockNode(), scope);
         end(userLambdaNode, scope);
     }
 
     @Override
-    public void visitFunctionRef(EFunctionRef userFunctionRefNode, UserTreeToXContentScope scope) {
-        start(userFunctionRefNode, scope);
-        scope.field(Fields.SYMBOL, userFunctionRefNode.getSymbol());
-        scope.field("methodName", userFunctionRefNode.getMethodName());
+    public void visitFunctionRef(EFunctionRef userFunctionRefNode, ScriptScope scope) {
+        start(userFunctionRefNode);
+        builder.field(Fields.SYMBOL, userFunctionRefNode.getSymbol());
+        builder.field("methodName", userFunctionRefNode.getMethodName());
         end(userFunctionRefNode, scope);
     }
 
     @Override
-    public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, UserTreeToXContentScope scope) {
-        start(userNewArrayFunctionRefNode, scope);
-        scope.field(Fields.TYPE, userNewArrayFunctionRefNode.getCanonicalTypeName());
+    public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, ScriptScope scope) {
+        start(userNewArrayFunctionRefNode);
+        builder.field(Fields.TYPE, userNewArrayFunctionRefNode.getCanonicalTypeName());
         end(userNewArrayFunctionRefNode, scope);
     }
 
     @Override
-    public void visitSymbol(ESymbol userSymbolNode, UserTreeToXContentScope scope) {
-        start(userSymbolNode, scope);
-        scope.field(Fields.SYMBOL, userSymbolNode.getSymbol());
+    public void visitSymbol(ESymbol userSymbolNode, ScriptScope scope) {
+        start(userSymbolNode);
+        builder.field(Fields.SYMBOL, userSymbolNode.getSymbol());
         end(userSymbolNode, scope);
     }
 
     @Override
-    public void visitDot(EDot userDotNode, UserTreeToXContentScope scope) {
-        start(userDotNode, scope);
+    public void visitDot(EDot userDotNode, ScriptScope scope) {
+        start(userDotNode);
 
-        scope.startArray("prefix");
+        builder.startArray("prefix");
         userDotNode.visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.field("index", userDotNode.getIndex());
-        scope.field("nullSafe", userDotNode.isNullSafe());
+        builder.field("index", userDotNode.getIndex());
+        builder.field("nullSafe", userDotNode.isNullSafe());
 
         end(userDotNode, scope);
     }
 
     @Override
-    public void visitBrace(EBrace userBraceNode, UserTreeToXContentScope scope) {
-        start(userBraceNode, scope);
+    public void visitBrace(EBrace userBraceNode, ScriptScope scope) {
+        start(userBraceNode);
 
-        scope.startArray("prefix");
+        builder.startArray("prefix");
         userBraceNode.getPrefixNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray("index");
+        builder.startArray("index");
         userBraceNode.getIndexNode().visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         end(userBraceNode, scope);
     }
 
     @Override
-    public void visitCall(ECall userCallNode, UserTreeToXContentScope scope) {
-        start(userCallNode, scope);
+    public void visitCall(ECall userCallNode, ScriptScope scope) {
+        start(userCallNode);
 
-        scope.startArray("prefix");
+        builder.startArray("prefix");
         userCallNode.getPrefixNode().visitChildren(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.field("isNullSafe", userCallNode.isNullSafe());
-        scope.field("methodName", userCallNode.getMethodName());
+        builder.field("isNullSafe", userCallNode.isNullSafe());
+        builder.field("methodName", userCallNode.getMethodName());
 
         arguments(userCallNode.getArgumentNodes(), scope);
 
         end(userCallNode, scope);
     }
 
-    private void start(ANode node, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field(Fields.NODE, node.getClass().getSimpleName());
-        scope.field(Fields.LOCATION, node.getLocation().getOffset());
+    private void start(ANode node) {
+        builder.startObject();
+        builder.field(Fields.NODE, node.getClass().getSimpleName());
+        builder.field(Fields.LOCATION, node.getLocation().getOffset());
     }
 
-    private void end(ANode node, UserTreeToXContentScope scope) {
+    private void end(ANode node, ScriptScope scope) {
         decorations(node, scope);
-        scope.endObject();
+        builder.endObject();
     }
 
-    private void block(String name, SBlock block, UserTreeToXContentScope scope) {
-        scope.startArray(name);
+    private void block(String name, SBlock block, ScriptScope scope) {
+        builder.startArray(name);
         if (block != null) {
             block.visit(this, scope);
         }
-        scope.endArray();
+        builder.endArray();
     }
 
-    private void block(SBlock block, UserTreeToXContentScope scope) {
+    private void block(SBlock block, ScriptScope scope) {
         block(Fields.BLOCK, block, scope);
     }
 
-    private void loop(AExpression condition, SBlock block, UserTreeToXContentScope scope) {
-        scope.startArray(Fields.CONDITION);
+    private void loop(AExpression condition, SBlock block, ScriptScope scope) {
+        builder.startArray(Fields.CONDITION);
         condition.visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
         block(block, scope);
     }
 
-    private void operation(Operation op, UserTreeToXContentScope scope) {
-        scope.startObject("operation");
+    private void operation(Operation op) {
+        builder.startObject("operation");
         if (op != null) {
-            scope.field(Fields.SYMBOL, op.symbol);
-            scope.field("name", op.name);
+            builder.field(Fields.SYMBOL, op.symbol);
+            builder.field("name", op.name);
         }
-        scope.endObject();
+        builder.endObject();
     }
 
-    private void binaryOperation(Operation op, AExpression left, AExpression right, UserTreeToXContentScope scope) {
-        operation(op, scope);
+    private void binaryOperation(Operation op, AExpression left, AExpression right, ScriptScope scope) {
+        operation(op);
 
-        scope.startArray(Fields.LEFT);
+        builder.startArray(Fields.LEFT);
         left.visit(this, scope);
-        scope.endArray();
+        builder.endArray();
 
-        scope.startArray(Fields.RIGHT);
+        builder.startArray(Fields.RIGHT);
         right.visit(this, scope);
-        scope.endArray();
+        builder.endArray();
     }
 
-    private void arguments(List<AExpression> arguments, UserTreeToXContentScope scope) {
+    private void arguments(List<AExpression> arguments, ScriptScope scope) {
         if (arguments.isEmpty() == false) {
             expressions("arguments", arguments, scope);
         }
     }
 
-    private void expressions(String name, List<AExpression> expressions, UserTreeToXContentScope scope) {
+    private void expressions(String name, List<AExpression> expressions, ScriptScope scope) {
         if (expressions.isEmpty() == false) {
-            scope.startArray(name);
+            builder.startArray(name);
             for (AExpression expression : expressions) {
                 expression.visit(this, scope);
             }
-            scope.endArray();
+            builder.endArray();
         }
     }
 
-    private void decorations(ANode node, UserTreeToXContentScope scope) {
-        Set<Class<? extends Condition>> conditions = scope.scriptScope.getAllConditions(node.getIdentifier());
+    private void decorations(ANode node, ScriptScope scope) {
+        Set<Class<? extends Condition>> conditions = scope.getAllConditions(node.getIdentifier());
         if (conditions.isEmpty() == false) {
-            scope.field(Fields.CONDITIONS, conditions.stream().map(Class::getSimpleName).sorted().collect(Collectors.toList()));
+            builder.field(Fields.CONDITIONS, conditions.stream().map(Class::getSimpleName).sorted().collect(Collectors.toList()));
         }
 
-        Map<Class<? extends Decoration>, Decoration> decorations = scope.scriptScope.getAllDecorations(node.getIdentifier());
+        Map<Class<? extends Decoration>, Decoration> decorations = scope.getAllDecorations(node.getIdentifier());
         if (decorations.isEmpty() == false) {
-            scope.startArray(Fields.DECORATIONS);
+            builder.startArray(Fields.DECORATIONS);
 
             List<Class<? extends Decoration>> dkeys = decorations.keySet().stream()
                     .sorted(Comparator.comparing(Class::getName))
                     .collect(Collectors.toList());
 
             for (Class<? extends Decoration> dkey : dkeys) {
-                DecorationToXContent.ToXContent(decorations.get(dkey), scope);
+                DecorationToXContent.ToXContent(decorations.get(dkey), builder);
             }
-            scope.endArray();
+            builder.endArray();
         }
+    }
+
+    @Override
+    public String toString() {
+        return builder.toString();
     }
 }

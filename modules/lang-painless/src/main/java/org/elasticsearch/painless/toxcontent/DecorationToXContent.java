@@ -80,561 +80,561 @@ public class DecorationToXContent {
         static final String METHOD = "method";
     }
 
-    public static void ToXContent(TargetType targetType, UserTreeToXContentScope scope) {
-        start(targetType, scope);
-        scope.field(Fields.TYPE, targetType.getTargetType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(TargetType targetType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(targetType, builder);
+        builder.field(Fields.TYPE, targetType.getTargetType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(ValueType valueType, UserTreeToXContentScope scope) {
-        start(valueType, scope);
-        scope.field(Fields.TYPE, valueType.getValueType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(ValueType valueType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(valueType, builder);
+        builder.field(Fields.TYPE, valueType.getValueType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(StaticType staticType, UserTreeToXContentScope scope) {
-        start(staticType, scope);
-        scope.field(Fields.TYPE, staticType.getStaticType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(StaticType staticType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(staticType, builder);
+        builder.field(Fields.TYPE, staticType.getStaticType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(PartialCanonicalTypeName partialCanonicalTypeName, UserTreeToXContentScope scope) {
-        start(partialCanonicalTypeName, scope);
-        scope.field(Fields.TYPE, partialCanonicalTypeName.getPartialCanonicalTypeName());
-        scope.endObject();
+    public static void ToXContent(PartialCanonicalTypeName partialCanonicalTypeName, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(partialCanonicalTypeName, builder);
+        builder.field(Fields.TYPE, partialCanonicalTypeName.getPartialCanonicalTypeName());
+        builder.endObject();
     }
 
-    public static void ToXContent(ExpressionPainlessCast expressionPainlessCast, UserTreeToXContentScope scope) {
-        start(expressionPainlessCast, scope);
-        scope.field(Fields.CAST);
-        ToXContent(expressionPainlessCast.getExpressionPainlessCast(), scope);
-        scope.endObject();
+    public static void ToXContent(ExpressionPainlessCast expressionPainlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(expressionPainlessCast, builder);
+        builder.field(Fields.CAST);
+        ToXContent(expressionPainlessCast.getExpressionPainlessCast(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(SemanticVariable semanticVariable, UserTreeToXContentScope scope) {
-        start(semanticVariable, scope);
-        scope.field("variable");
-        ToXContent(semanticVariable.getSemanticVariable(), scope);
-        scope.endObject();
+    public static void ToXContent(SemanticVariable semanticVariable, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(semanticVariable, builder);
+        builder.field("variable");
+        ToXContent(semanticVariable.getSemanticVariable(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(IterablePainlessMethod iterablePainlessMethod, UserTreeToXContentScope scope) {
-        start(iterablePainlessMethod, scope);
-        scope.field(Fields.METHOD);
-        ToXContent(iterablePainlessMethod.getIterablePainlessMethod(), scope);
-        scope.endObject();
+    public static void ToXContent(IterablePainlessMethod iterablePainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(iterablePainlessMethod, builder);
+        builder.field(Fields.METHOD);
+        ToXContent(iterablePainlessMethod.getIterablePainlessMethod(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(UnaryType unaryType, UserTreeToXContentScope scope) {
-        start(unaryType, scope);
-        scope.field(Fields.TYPE, unaryType.getUnaryType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(UnaryType unaryType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(unaryType, builder);
+        builder.field(Fields.TYPE, unaryType.getUnaryType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(BinaryType binaryType, UserTreeToXContentScope scope) {
-        start(binaryType, scope);
-        scope.field(Fields.TYPE, binaryType.getBinaryType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(BinaryType binaryType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(binaryType, builder);
+        builder.field(Fields.TYPE, binaryType.getBinaryType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(ShiftType shiftType, UserTreeToXContentScope scope) {
-        start(shiftType, scope);
-        scope.field(Fields.TYPE, shiftType.getShiftType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(ShiftType shiftType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(shiftType, builder);
+        builder.field(Fields.TYPE, shiftType.getShiftType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(ComparisonType comparisonType, UserTreeToXContentScope scope) {
-        start(comparisonType, scope);
-        scope.field(Fields.TYPE, comparisonType.getComparisonType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(ComparisonType comparisonType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(comparisonType, builder);
+        builder.field(Fields.TYPE, comparisonType.getComparisonType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(CompoundType compoundType, UserTreeToXContentScope scope) {
-        start(compoundType, scope);
-        scope.field(Fields.TYPE, compoundType.getCompoundType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(CompoundType compoundType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(compoundType, builder);
+        builder.field(Fields.TYPE, compoundType.getCompoundType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(UpcastPainlessCast upcastPainlessCast, UserTreeToXContentScope scope) {
-        start(upcastPainlessCast, scope);
-        scope.field(Fields.CAST);
-        ToXContent(upcastPainlessCast.getUpcastPainlessCast(), scope);
-        scope.endObject();
+    public static void ToXContent(UpcastPainlessCast upcastPainlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(upcastPainlessCast, builder);
+        builder.field(Fields.CAST);
+        ToXContent(upcastPainlessCast.getUpcastPainlessCast(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(DowncastPainlessCast downcastPainlessCast, UserTreeToXContentScope scope) {
-        start(downcastPainlessCast, scope);
-        scope.field(Fields.CAST);
-        ToXContent(downcastPainlessCast.getDowncastPainlessCast(), scope);
-        scope.endObject();
+    public static void ToXContent(DowncastPainlessCast downcastPainlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(downcastPainlessCast, builder);
+        builder.field(Fields.CAST);
+        ToXContent(downcastPainlessCast.getDowncastPainlessCast(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessField standardPainlessField, UserTreeToXContentScope scope) {
-        start(standardPainlessField, scope);
-        scope.field("field");
-        ToXContent(standardPainlessField.getStandardPainlessField(), scope);
-        scope.endObject();
+    public static void ToXContent(StandardPainlessField standardPainlessField, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardPainlessField, builder);
+        builder.field("field");
+        ToXContent(standardPainlessField.getStandardPainlessField(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessConstructor standardPainlessConstructor, UserTreeToXContentScope scope) {
-        start(standardPainlessConstructor, scope);
-        scope.field("constructor");
-        ToXContent(standardPainlessConstructor.getStandardPainlessConstructor(), scope);
-        scope.endObject();
+    public static void ToXContent(StandardPainlessConstructor standardPainlessConstructor, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardPainlessConstructor, builder);
+        builder.field("constructor");
+        ToXContent(standardPainlessConstructor.getStandardPainlessConstructor(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessMethod standardPainlessMethod, UserTreeToXContentScope scope) {
-        start(standardPainlessMethod, scope);
-        scope.field(Fields.METHOD);
-        ToXContent(standardPainlessMethod.getStandardPainlessMethod(), scope);
-        scope.endObject();
+    public static void ToXContent(StandardPainlessMethod standardPainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardPainlessMethod, builder);
+        builder.field(Fields.METHOD);
+        ToXContent(standardPainlessMethod.getStandardPainlessMethod(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(GetterPainlessMethod getterPainlessMethod, UserTreeToXContentScope scope) {
-        start(getterPainlessMethod, scope);
-        scope.field(Fields.METHOD);
-        ToXContent(getterPainlessMethod.getGetterPainlessMethod(), scope);
-        scope.endObject();
+    public static void ToXContent(GetterPainlessMethod getterPainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(getterPainlessMethod, builder);
+        builder.field(Fields.METHOD);
+        ToXContent(getterPainlessMethod.getGetterPainlessMethod(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(SetterPainlessMethod setterPainlessMethod, UserTreeToXContentScope scope) {
-        start(setterPainlessMethod, scope);
-        scope.field(Fields.METHOD);
-        ToXContent(setterPainlessMethod.getSetterPainlessMethod(), scope);
-        scope.endObject();
+    public static void ToXContent(SetterPainlessMethod setterPainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(setterPainlessMethod, builder);
+        builder.field(Fields.METHOD);
+        ToXContent(setterPainlessMethod.getSetterPainlessMethod(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardConstant standardConstant, UserTreeToXContentScope scope) {
-        start(standardConstant, scope);
-        scope.startObject("constant");
-        scope.field(Fields.TYPE, standardConstant.getStandardConstant().getClass().getSimpleName());
-        scope.field("value", standardConstant.getStandardConstant());
-        scope.endObject();
-        scope.endObject();
+    public static void ToXContent(StandardConstant standardConstant, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardConstant, builder);
+        builder.startObject("constant");
+        builder.field(Fields.TYPE, standardConstant.getStandardConstant().getClass().getSimpleName());
+        builder.field("value", standardConstant.getStandardConstant());
+        builder.endObject();
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardLocalFunction standardLocalFunction, UserTreeToXContentScope scope) {
-        start(standardLocalFunction, scope);
-        scope.field("function");
-        ToXContent(standardLocalFunction.getLocalFunction(), scope);
-        scope.endObject();
+    public static void ToXContent(StandardLocalFunction standardLocalFunction, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardLocalFunction, builder);
+        builder.field("function");
+        ToXContent(standardLocalFunction.getLocalFunction(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessClassBinding standardPainlessClassBinding, UserTreeToXContentScope scope) {
-        start(standardPainlessClassBinding, scope);
-        scope.field("PainlessClassBinding");
-        ToXContent(standardPainlessClassBinding.getPainlessClassBinding(), scope);
-        scope.endObject();
+    public static void ToXContent(StandardPainlessClassBinding standardPainlessClassBinding, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardPainlessClassBinding, builder);
+        builder.field("PainlessClassBinding");
+        ToXContent(standardPainlessClassBinding.getPainlessClassBinding(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessInstanceBinding standardPainlessInstanceBinding, UserTreeToXContentScope scope) {
-        start(standardPainlessInstanceBinding, scope);
-        scope.field("PainlessInstanceBinding");
-        ToXContent(standardPainlessInstanceBinding.getPainlessInstanceBinding(), scope);
-        scope.endObject();
+    public static void ToXContent(StandardPainlessInstanceBinding standardPainlessInstanceBinding, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(standardPainlessInstanceBinding, builder);
+        builder.field("PainlessInstanceBinding");
+        ToXContent(standardPainlessInstanceBinding.getPainlessInstanceBinding(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(MethodNameDecoration methodNameDecoration, UserTreeToXContentScope scope) {
-        start(methodNameDecoration, scope);
-        scope.field("methodName", methodNameDecoration.getMethodName());
-        scope.endObject();
+    public static void ToXContent(MethodNameDecoration methodNameDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(methodNameDecoration, builder);
+        builder.field("methodName", methodNameDecoration.getMethodName());
+        builder.endObject();
     }
 
-    public static void ToXContent(ReturnType returnType, UserTreeToXContentScope scope) {
-        start(returnType, scope);
-        scope.field("returnType", returnType.getReturnType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(ReturnType returnType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(returnType, builder);
+        builder.field("returnType", returnType.getReturnType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(TypeParameters typeParameters, UserTreeToXContentScope scope) {
-        start(typeParameters, scope);
+    public static void ToXContent(TypeParameters typeParameters, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(typeParameters, builder);
         if (typeParameters.getTypeParameters().isEmpty() == false) {
-            scope.field("typeParameters", classNames(typeParameters.getTypeParameters()));
+            builder.field("typeParameters", classNames(typeParameters.getTypeParameters()));
         }
-        scope.endObject();
+        builder.endObject();
     }
 
-    public static void ToXContent(ParameterNames parameterNames, UserTreeToXContentScope scope) {
-        start(parameterNames, scope);
+    public static void ToXContent(ParameterNames parameterNames, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(parameterNames, builder);
         if (parameterNames.getParameterNames().isEmpty() == false) {
-            scope.field("parameterNames", parameterNames.getParameterNames());
+            builder.field("parameterNames", parameterNames.getParameterNames());
         }
-        scope.endObject();
+        builder.endObject();
     }
 
-    public static void ToXContent(ReferenceDecoration referenceDecoration, UserTreeToXContentScope scope) {
-        start(referenceDecoration, scope);
+    public static void ToXContent(ReferenceDecoration referenceDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(referenceDecoration, builder);
         FunctionRef ref = referenceDecoration.getReference();
-        scope.field("interfaceMethodName", ref.interfaceMethodName);
+        builder.field("interfaceMethodName", ref.interfaceMethodName);
 
-        scope.field("interfaceMethodType");
-        ToXContent(ref.interfaceMethodType, scope);
+        builder.field("interfaceMethodType");
+        ToXContent(ref.interfaceMethodType, builder);
 
-        scope.field("delegateClassName", ref.delegateClassName);
-        scope.field("isDelegateInterface", ref.isDelegateInterface);
-        scope.field("isDelegateAugmented", ref.isDelegateAugmented);
-        scope.field("delegateInvokeType", ref.delegateInvokeType);
-        scope.field("delegateMethodName", ref.delegateMethodName);
+        builder.field("delegateClassName", ref.delegateClassName);
+        builder.field("isDelegateInterface", ref.isDelegateInterface);
+        builder.field("isDelegateAugmented", ref.isDelegateAugmented);
+        builder.field("delegateInvokeType", ref.delegateInvokeType);
+        builder.field("delegateMethodName", ref.delegateMethodName);
 
-        scope.field("delegateMethodType");
-        ToXContent(ref.delegateMethodType, scope);
+        builder.field("delegateMethodType");
+        ToXContent(ref.delegateMethodType, builder);
 
         if (ref.delegateInjections.length > 0) {
-            scope.startArray("delegateInjections");
+            builder.startArray("delegateInjections");
             for (Object obj : ref.delegateInjections) {
-                scope.startObject();
-                scope.field("type", obj.getClass().getSimpleName());
-                scope.field("value", obj);
-                scope.endObject();
+                builder.startObject();
+                builder.field("type", obj.getClass().getSimpleName());
+                builder.field("value", obj);
+                builder.endObject();
             }
-            scope.endArray();
+            builder.endArray();
         }
 
-        scope.field("factoryMethodType");
-        ToXContent(ref.factoryMethodType, scope);
-        scope.endObject();
+        builder.field("factoryMethodType");
+        ToXContent(ref.factoryMethodType, builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(EncodingDecoration encodingDecoration, UserTreeToXContentScope scope) {
-        start(encodingDecoration, scope);
-        scope.field("encoding", encodingDecoration.getEncoding());
-        scope.endObject();
+    public static void ToXContent(EncodingDecoration encodingDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(encodingDecoration, builder);
+        builder.field("encoding", encodingDecoration.getEncoding());
+        builder.endObject();
     }
 
-    public static void ToXContent(CapturesDecoration capturesDecoration, UserTreeToXContentScope scope) {
-        start(capturesDecoration, scope);
+    public static void ToXContent(CapturesDecoration capturesDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(capturesDecoration, builder);
         if (capturesDecoration.getCaptures().isEmpty() == false) {
-            scope.startArray("captures");
+            builder.startArray("captures");
             for (SemanticScope.Variable capture : capturesDecoration.getCaptures()) {
-                ToXContent(capture, scope);
+                ToXContent(capture, builder);
             }
-            scope.endArray();
+            builder.endArray();
         }
-        scope.endObject();
+        builder.endObject();
     }
 
-    public static void ToXContent(InstanceType instanceType, UserTreeToXContentScope scope) {
-        start(instanceType, scope);
-        scope.field("instanceType", instanceType.getInstanceType().getSimpleName());
-        scope.endObject();
+    public static void ToXContent(InstanceType instanceType, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(instanceType, builder);
+        builder.field("instanceType", instanceType.getInstanceType().getSimpleName());
+        builder.endObject();
     }
 
-    public static void ToXContent(AccessDepth accessDepth, UserTreeToXContentScope scope) {
-        start(accessDepth, scope);
-        scope.field("depth", accessDepth.getAccessDepth());
-        scope.endObject();
+    public static void ToXContent(AccessDepth accessDepth, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(accessDepth, builder);
+        builder.field("depth", accessDepth.getAccessDepth());
+        builder.endObject();
     }
 
-    public static void ToXContent(IRNodeDecoration irNodeDecoration, UserTreeToXContentScope scope) {
-        start(irNodeDecoration, scope);
+    public static void ToXContent(IRNodeDecoration irNodeDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(irNodeDecoration, builder);
         // TODO(stu): expand this
-        scope.field("irNode", irNodeDecoration.getIRNode().toString());
-        scope.endObject();
+        builder.field("irNode", irNodeDecoration.getIRNode().toString());
+        builder.endObject();
     }
 
-    public static void ToXContent(Converter converter, UserTreeToXContentScope scope) {
-        start(converter, scope);
-        scope.field("converter");
-        ToXContent(converter.getConverter(), scope);
-        scope.endObject();
+    public static void ToXContent(Converter converter, XContentBuilderUncheckedExceptionWrapper builder) {
+        start(converter, builder);
+        builder.field("converter");
+        ToXContent(converter.getConverter(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(Decoration decoration, UserTreeToXContentScope scope) {
+    public static void ToXContent(Decoration decoration, XContentBuilderUncheckedExceptionWrapper builder) {
         if  (decoration instanceof TargetType) {
-            ToXContent((TargetType) decoration, scope);
+            ToXContent((TargetType) decoration, builder);
         } else if (decoration instanceof ValueType) {
-            ToXContent((ValueType) decoration, scope);
+            ToXContent((ValueType) decoration, builder);
         } else if (decoration instanceof StaticType) {
-            ToXContent((StaticType) decoration, scope);
+            ToXContent((StaticType) decoration, builder);
         } else if (decoration instanceof PartialCanonicalTypeName) {
-            ToXContent((PartialCanonicalTypeName) decoration, scope);
+            ToXContent((PartialCanonicalTypeName) decoration, builder);
         } else if (decoration instanceof ExpressionPainlessCast) {
-            ToXContent((ExpressionPainlessCast) decoration, scope);
+            ToXContent((ExpressionPainlessCast) decoration, builder);
         } else if (decoration instanceof SemanticVariable) {
-            ToXContent((SemanticVariable) decoration, scope);
+            ToXContent((SemanticVariable) decoration, builder);
         } else if (decoration instanceof IterablePainlessMethod) {
-            ToXContent((IterablePainlessMethod) decoration, scope);
+            ToXContent((IterablePainlessMethod) decoration, builder);
         } else if (decoration instanceof UnaryType) {
-            ToXContent((UnaryType) decoration, scope);
+            ToXContent((UnaryType) decoration, builder);
         } else if (decoration instanceof BinaryType) {
-            ToXContent((BinaryType) decoration, scope);
+            ToXContent((BinaryType) decoration, builder);
         } else if (decoration instanceof ShiftType) {
-            ToXContent((ShiftType) decoration, scope);
+            ToXContent((ShiftType) decoration, builder);
         } else if (decoration instanceof ComparisonType) {
-            ToXContent((ComparisonType) decoration, scope);
+            ToXContent((ComparisonType) decoration, builder);
         } else if (decoration instanceof CompoundType) {
-            ToXContent((CompoundType) decoration, scope);
+            ToXContent((CompoundType) decoration, builder);
         } else if (decoration instanceof UpcastPainlessCast) {
-            ToXContent((UpcastPainlessCast) decoration, scope);
+            ToXContent((UpcastPainlessCast) decoration, builder);
         } else if (decoration instanceof DowncastPainlessCast) {
-            ToXContent((DowncastPainlessCast) decoration, scope);
+            ToXContent((DowncastPainlessCast) decoration, builder);
         } else if (decoration instanceof StandardPainlessField) {
-            ToXContent((StandardPainlessField) decoration, scope);
+            ToXContent((StandardPainlessField) decoration, builder);
         } else if (decoration instanceof StandardPainlessConstructor) {
-            ToXContent((StandardPainlessConstructor) decoration, scope);
+            ToXContent((StandardPainlessConstructor) decoration, builder);
         } else if (decoration instanceof StandardPainlessMethod) {
-            ToXContent((StandardPainlessMethod) decoration, scope);
+            ToXContent((StandardPainlessMethod) decoration, builder);
         } else if (decoration instanceof GetterPainlessMethod) {
-            ToXContent((GetterPainlessMethod) decoration, scope);
+            ToXContent((GetterPainlessMethod) decoration, builder);
         } else if (decoration instanceof SetterPainlessMethod) {
-            ToXContent((SetterPainlessMethod) decoration, scope);
+            ToXContent((SetterPainlessMethod) decoration, builder);
         } else if (decoration instanceof StandardConstant) {
-            ToXContent((StandardConstant) decoration, scope);
+            ToXContent((StandardConstant) decoration, builder);
         } else if (decoration instanceof StandardLocalFunction) {
-            ToXContent((StandardLocalFunction) decoration, scope);
+            ToXContent((StandardLocalFunction) decoration, builder);
         } else if (decoration instanceof StandardPainlessClassBinding) {
-            ToXContent((StandardPainlessClassBinding) decoration, scope);
+            ToXContent((StandardPainlessClassBinding) decoration, builder);
         } else if (decoration instanceof StandardPainlessInstanceBinding) {
-            ToXContent((StandardPainlessInstanceBinding) decoration, scope);
+            ToXContent((StandardPainlessInstanceBinding) decoration, builder);
         } else if (decoration instanceof MethodNameDecoration) {
-            ToXContent((MethodNameDecoration) decoration, scope);
+            ToXContent((MethodNameDecoration) decoration, builder);
         } else if (decoration instanceof ReturnType) {
-            ToXContent((ReturnType) decoration, scope);
+            ToXContent((ReturnType) decoration, builder);
         } else if (decoration instanceof TypeParameters) {
-            ToXContent((TypeParameters) decoration, scope);
+            ToXContent((TypeParameters) decoration, builder);
         } else if (decoration instanceof ParameterNames) {
-            ToXContent((ParameterNames) decoration, scope);
+            ToXContent((ParameterNames) decoration, builder);
         } else if (decoration instanceof ReferenceDecoration) {
-            ToXContent((ReferenceDecoration) decoration, scope);
+            ToXContent((ReferenceDecoration) decoration, builder);
         } else if (decoration instanceof EncodingDecoration) {
-            ToXContent((EncodingDecoration) decoration, scope);
+            ToXContent((EncodingDecoration) decoration, builder);
         } else if (decoration instanceof CapturesDecoration) {
-            ToXContent((CapturesDecoration) decoration, scope);
+            ToXContent((CapturesDecoration) decoration, builder);
         } else if (decoration instanceof InstanceType) {
-            ToXContent((InstanceType) decoration, scope);
+            ToXContent((InstanceType) decoration, builder);
         } else if (decoration instanceof AccessDepth) {
-            ToXContent((AccessDepth) decoration, scope);
+            ToXContent((AccessDepth) decoration, builder);
         } else if (decoration instanceof IRNodeDecoration) {
-            ToXContent((IRNodeDecoration) decoration, scope);
+            ToXContent((IRNodeDecoration) decoration, builder);
         } else if (decoration instanceof Converter) {
-            ToXContent((Converter) decoration, scope);
+            ToXContent((Converter) decoration, builder);
         } else {
-            scope.startObject();
-            scope.field(Fields.DECORATION, decoration.getClass().getSimpleName());
-            scope.endObject();
+            builder.startObject();
+            builder.field(Fields.DECORATION, decoration.getClass().getSimpleName());
+            builder.endObject();
         }
     }
 
     // lookup
-    public static void ToXContent(PainlessCast painlessCast, UserTreeToXContentScope scope) {
-        scope.startObject();
+    public static void ToXContent(PainlessCast painlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
         if (painlessCast.originalType != null) {
-            scope.field("originalType", painlessCast.originalType.getSimpleName());
+            builder.field("originalType", painlessCast.originalType.getSimpleName());
         }
         if (painlessCast.targetType != null) {
-            scope.field("targetType", painlessCast.targetType.getSimpleName());
+            builder.field("targetType", painlessCast.targetType.getSimpleName());
         }
 
-        scope.field("explicitCast", painlessCast.explicitCast);
+        builder.field("explicitCast", painlessCast.explicitCast);
 
         if (painlessCast.unboxOriginalType != null) {
-            scope.field("unboxOriginalType", painlessCast.unboxOriginalType.getSimpleName());
+            builder.field("unboxOriginalType", painlessCast.unboxOriginalType.getSimpleName());
         }
         if (painlessCast.unboxTargetType != null) {
-            scope.field("unboxTargetType", painlessCast.unboxTargetType.getSimpleName());
+            builder.field("unboxTargetType", painlessCast.unboxTargetType.getSimpleName());
         }
         if (painlessCast.boxOriginalType != null) {
-            scope.field("boxOriginalType", painlessCast.boxOriginalType.getSimpleName());
+            builder.field("boxOriginalType", painlessCast.boxOriginalType.getSimpleName());
         }
-        scope.endObject();
+        builder.endObject();
     }
 
-    public static void ToXContent(PainlessMethod method, UserTreeToXContentScope scope) {
-        scope.startObject();
+    public static void ToXContent(PainlessMethod method, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
         if (method.javaMethod != null) {
-            scope.field("javaMethod");
-            ToXContent(method.methodType, scope);
+            builder.field("javaMethod");
+            ToXContent(method.methodType, builder);
         }
         if (method.targetClass != null) {
-            scope.field("targetClass", method.targetClass.getSimpleName());
+            builder.field("targetClass", method.targetClass.getSimpleName());
         }
         if (method.returnType != null) {
-            scope.field("returnType", method.returnType.getSimpleName());
+            builder.field("returnType", method.returnType.getSimpleName());
         }
         if (method.typeParameters != null && method.typeParameters.isEmpty() == false) {
-            scope.field("typeParameters", classNames(method.typeParameters));
+            builder.field("typeParameters", classNames(method.typeParameters));
         }
         if (method.methodHandle != null) {
-            scope.field("methodHandle");
-            ToXContent(method.methodHandle.type(), scope);
+            builder.field("methodHandle");
+            ToXContent(method.methodHandle.type(), builder);
         }
         // ignoring methodType as that's handled under methodHandle
-        AnnotationsToXContent(method.annotations, scope);
-        scope.endObject();
+        AnnotationsToXContent(method.annotations, builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(FunctionTable.LocalFunction localFunction, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("functionName", localFunction.getFunctionName());
-        scope.field("returnType", localFunction.getReturnType().getSimpleName());
+    public static void ToXContent(FunctionTable.LocalFunction localFunction, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("functionName", localFunction.getFunctionName());
+        builder.field("returnType", localFunction.getReturnType().getSimpleName());
         if (localFunction.getTypeParameters().isEmpty() == false) {
-            scope.field("typeParameters", classNames(localFunction.getTypeParameters()));
+            builder.field("typeParameters", classNames(localFunction.getTypeParameters()));
         }
-        scope.field("isInternal", localFunction.isInternal());
-        scope.field("isStatic", localFunction.isStatic());
-        scope.field("methodType");
-        ToXContent(localFunction.getMethodType(), scope);
-        scope.endObject();
+        builder.field("isInternal", localFunction.isInternal());
+        builder.field("isStatic", localFunction.isStatic());
+        builder.field("methodType");
+        ToXContent(localFunction.getMethodType(), builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(PainlessClassBinding binding, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("javaConstructor");
-        ToXContent(binding.javaConstructor, scope);
+    public static void ToXContent(PainlessClassBinding binding, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("javaConstructor");
+        ToXContent(binding.javaConstructor, builder);
 
-        scope.field("javaMethod");
-        ToXContent(binding.javaMethod, scope);
-        scope.field("returnType", binding.returnType.getSimpleName());
+        builder.field("javaMethod");
+        ToXContent(binding.javaMethod, builder);
+        builder.field("returnType", binding.returnType.getSimpleName());
         if (binding.typeParameters.isEmpty() == false) {
-            scope.field("typeParameters", classNames(binding.typeParameters));
+            builder.field("typeParameters", classNames(binding.typeParameters));
         }
-        AnnotationsToXContent(binding.annotations, scope);
-        scope.endObject();
+        AnnotationsToXContent(binding.annotations, builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(PainlessInstanceBinding binding, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("targetInstance", binding.targetInstance.getClass().getSimpleName());
+    public static void ToXContent(PainlessInstanceBinding binding, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("targetInstance", binding.targetInstance.getClass().getSimpleName());
 
-        scope.field("javaMethod");
-        ToXContent(binding.javaMethod, scope);
-        scope.field("returnType", binding.returnType.getSimpleName());
+        builder.field("javaMethod");
+        ToXContent(binding.javaMethod, builder);
+        builder.field("returnType", binding.returnType.getSimpleName());
         if (binding.typeParameters.isEmpty() == false) {
-            scope.field("typeParameters", classNames(binding.typeParameters));
+            builder.field("typeParameters", classNames(binding.typeParameters));
         }
-        AnnotationsToXContent(binding.annotations, scope);
-        scope.endObject();
+        AnnotationsToXContent(binding.annotations, builder);
+        builder.endObject();
     }
 
-    public static void ToXContent(PainlessField field, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("javaField");
-        ToXContent(field.javaField, scope);
-        scope.field("typeParameter", field.typeParameter.getSimpleName());
-        scope.field("getterMethodHandle");
-        ToXContent(field.getterMethodHandle.type(), scope);
-        scope.field("setterMethodHandle");
+    public static void ToXContent(PainlessField field, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("javaField");
+        ToXContent(field.javaField, builder);
+        builder.field("typeParameter", field.typeParameter.getSimpleName());
+        builder.field("getterMethodHandle");
+        ToXContent(field.getterMethodHandle.type(), builder);
+        builder.field("setterMethodHandle");
         if (field.setterMethodHandle != null) {
-            ToXContent(field.setterMethodHandle.type(), scope);
+            ToXContent(field.setterMethodHandle.type(), builder);
         }
-        scope.endObject();
+        builder.endObject();
     }
 
-    public static void ToXContent(PainlessConstructor constructor, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("javaConstructor");
-        ToXContent(constructor.javaConstructor, scope);
+    public static void ToXContent(PainlessConstructor constructor, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("javaConstructor");
+        ToXContent(constructor.javaConstructor, builder);
         if (constructor.typeParameters.isEmpty() == false) {
-            scope.field("typeParameters", classNames(constructor.typeParameters));
+            builder.field("typeParameters", classNames(constructor.typeParameters));
         }
-        scope.field("methodHandle");
-        ToXContent(constructor.methodHandle.type(), scope);
-        scope.endObject();
+        builder.field("methodHandle");
+        ToXContent(constructor.methodHandle.type(), builder);
+        builder.endObject();
     }
 
     // symbol
-    public static void ToXContent(SemanticScope.Variable variable, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field(Fields.TYPE, variable.getType());
-        scope.field("name", variable.getName());
-        scope.field("isFinal", variable.isFinal());
-        scope.endObject();
+    public static void ToXContent(SemanticScope.Variable variable, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field(Fields.TYPE, variable.getType());
+        builder.field("name", variable.getName());
+        builder.field("isFinal", variable.isFinal());
+        builder.endObject();
     }
 
     // annotations
-    public static void AnnotationsToXContent(Map<Class<?>, Object> annotations, UserTreeToXContentScope scope) {
+    public static void AnnotationsToXContent(Map<Class<?>, Object> annotations, XContentBuilderUncheckedExceptionWrapper builder) {
         if (annotations == null || annotations.isEmpty()) {
             return;
         }
-        scope.startArray("annotations");
+        builder.startArray("annotations");
         for (Class<?> key : annotations.keySet().stream().sorted().collect(Collectors.toList())) {
-            AnnotationToXContent(annotations.get(key), scope);
+            AnnotationToXContent(annotations.get(key), builder);
         }
-        scope.endArray();
+        builder.endArray();
     }
 
-    public static void AnnotationToXContent(Object annotation, UserTreeToXContentScope scope) {
+    public static void AnnotationToXContent(Object annotation, XContentBuilderUncheckedExceptionWrapper builder) {
         if (annotation instanceof CompileTimeOnlyAnnotation) {
-            scope.value(CompileTimeOnlyAnnotation.NAME);
+            builder.value(CompileTimeOnlyAnnotation.NAME);
         } else if (annotation instanceof DeprecatedAnnotation) {
-            scope.startObject();
-            scope.field("name", DeprecatedAnnotation.NAME);
-            scope.field("message", ((DeprecatedAnnotation) annotation).getMessage());
-            scope.endObject();
+            builder.startObject();
+            builder.field("name", DeprecatedAnnotation.NAME);
+            builder.field("message", ((DeprecatedAnnotation) annotation).getMessage());
+            builder.endObject();
         } else if (annotation instanceof InjectConstantAnnotation) {
-            scope.startObject();
-            scope.field("name", InjectConstantAnnotation.NAME);
-            scope.field("message", ((InjectConstantAnnotation) annotation).injects);
-            scope.endObject();
+            builder.startObject();
+            builder.field("name", InjectConstantAnnotation.NAME);
+            builder.field("message", ((InjectConstantAnnotation) annotation).injects);
+            builder.endObject();
         } else if (annotation instanceof NoImportAnnotation) {
-            scope.value(NoImportAnnotation.NAME);
+            builder.value(NoImportAnnotation.NAME);
         } else if (annotation instanceof NonDeterministicAnnotation) {
-            scope.value(NonDeterministicAnnotation.NAME);
+            builder.value(NonDeterministicAnnotation.NAME);
         } else {
-            scope.value(annotation.toString());
+            builder.value(annotation.toString());
         }
     }
 
     // asm
-    public static void ToXContent(org.objectweb.asm.commons.Method asmMethod, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("name", asmMethod.getName());
-        scope.field("descriptor", asmMethod.getDescriptor());
-        scope.field("returnType", asmMethod.getReturnType().getClassName());
-        scope.field("argumentTypes", Arrays.stream(asmMethod.getArgumentTypes()).map(Type::getClassName));
-        scope.endObject();
+    public static void ToXContent(org.objectweb.asm.commons.Method asmMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("name", asmMethod.getName());
+        builder.field("descriptor", asmMethod.getDescriptor());
+        builder.field("returnType", asmMethod.getReturnType().getClassName());
+        builder.field("argumentTypes", Arrays.stream(asmMethod.getArgumentTypes()).map(Type::getClassName));
+        builder.endObject();
     }
 
     // java.lang.invoke
-    public static void ToXContent(MethodType methodType, UserTreeToXContentScope scope) {
-        scope.startObject();
+    public static void ToXContent(MethodType methodType, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
         List<Class<?>> parameters = methodType.parameterList();
         if (parameters.isEmpty() == false) {
-            scope.field("parameters", classNames(parameters));
+            builder.field("parameters", classNames(parameters));
         }
-        scope.field("return", methodType.returnType().getSimpleName());
-        scope.endObject();
+        builder.field("return", methodType.returnType().getSimpleName());
+        builder.endObject();
     }
 
     // java.lang.reflect
-    public static void ToXContent(Field field, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("name", field.getName());
-        scope.field("type", field.getType().getSimpleName());
-        scope.field("modifiers", Modifier.toString(field.getModifiers()));
-        scope.endObject();
+    public static void ToXContent(Field field, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("name", field.getName());
+        builder.field("type", field.getType().getSimpleName());
+        builder.field("modifiers", Modifier.toString(field.getModifiers()));
+        builder.endObject();
     }
 
-    public static void ToXContent(Method method, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("name", method.getName());
-        scope.field("parameters", classNames(method.getParameterTypes()));
-        scope.field("return", method.getReturnType().getSimpleName());
+    public static void ToXContent(Method method, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("name", method.getName());
+        builder.field("parameters", classNames(method.getParameterTypes()));
+        builder.field("return", method.getReturnType().getSimpleName());
         Class<?>[] exceptions = method.getExceptionTypes();
         if (exceptions.length > 0) {
-            scope.field("exceptions", classNames(exceptions));
+            builder.field("exceptions", classNames(exceptions));
         }
-        scope.field("modifiers", Modifier.toString(method.getModifiers()));
-        scope.endObject();
+        builder.field("modifiers", Modifier.toString(method.getModifiers()));
+        builder.endObject();
     }
 
-    public static void ToXContent(Constructor<?> constructor, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field("name", constructor.getName());
+    public static void ToXContent(Constructor<?> constructor, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field("name", constructor.getName());
         if (constructor.getParameterTypes().length > 0) {
-            scope.field("parameterTypes", classNames(constructor.getParameterTypes()));
+            builder.field("parameterTypes", classNames(constructor.getParameterTypes()));
         }
         if (constructor.getExceptionTypes().length > 0) {
-            scope.field("exceptionTypes", classNames(constructor.getExceptionTypes()));
+            builder.field("exceptionTypes", classNames(constructor.getExceptionTypes()));
         }
-        scope.field("modifiers", Modifier.toString(constructor.getModifiers()));
-        scope.endObject();
+        builder.field("modifiers", Modifier.toString(constructor.getModifiers()));
+        builder.endObject();
     }
 
     // helpers
-    public static void start(Decoration decoration, UserTreeToXContentScope scope) {
-        scope.startObject();
-        scope.field(Fields.DECORATION, decoration.getClass().getSimpleName());
+    public static void start(Decoration decoration, XContentBuilderUncheckedExceptionWrapper builder) {
+        builder.startObject();
+        builder.field(Fields.DECORATION, decoration.getClass().getSimpleName());
     }
 
     public static List<String> classNames(Class<?>[] classes) {

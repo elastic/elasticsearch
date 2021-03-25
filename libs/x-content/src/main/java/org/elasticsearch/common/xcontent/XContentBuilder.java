@@ -53,6 +53,14 @@ public final class XContentBuilder implements Closeable, Flushable {
         return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
 
+    public static XContentBuilder builder(XContent xContent, RestApiVersion restApiVersion) throws IOException {
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(),
+            Collections.emptySet(),
+            Collections.emptySet(),
+            xContent.type().toParsedMediaType(),
+            restApiVersion);
+    }
+
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContentType} xContentType and some inclusive and/or exclusive filters.
      * <p>
@@ -68,7 +76,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public static XContentBuilder builder(XContentType xContentType, Set<String> includes, Set<String> excludes) throws IOException {
         return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), includes, excludes,
-            xContentType.toParsedMediaType());
+            xContentType.toParsedMediaType(), RestApiVersion.current());
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -152,21 +160,23 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private final OutputStream bos;
 
+    private final RestApiVersion restApiVersion;
+
+    private final ParsedMediaType responseContentType;
+
     /**
      * When this flag is set to true, some types of values are written in a format easier to read for a human.
      */
     private boolean humanReadable = false;
 
-    private RestApiVersion restApiVersion;
 
-    private ParsedMediaType responseContentType;
 
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType());
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType(), RestApiVersion.current());
     }
     /**
      * Constructs a new builder using the provided XContent, an OutputStream and
@@ -175,7 +185,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContentType xContentType, OutputStream bos, Set<String> includes) throws IOException {
-        this(xContentType.xContent(), bos, includes, Collections.emptySet(), xContentType.toParsedMediaType());
+        this(xContentType.xContent(), bos, includes, Collections.emptySet(), xContentType.toParsedMediaType(), RestApiVersion.current());
     }
 
     /**
@@ -188,13 +198,15 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      * @param responseContentType  a content-type header value to be send back on a response
+     * @param restApiVersion
      */
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
-                           ParsedMediaType responseContentType) throws IOException {
+                           ParsedMediaType responseContentType, RestApiVersion restApiVersion) throws IOException {
         this.bos = os;
         assert responseContentType != null : "generated response cannot be null";
         this.responseContentType = responseContentType;
         this.generator = xContent.createGenerator(bos, includes, excludes);
+        this.restApiVersion = restApiVersion;
     }
 
     public String getResponseContentTypeString() {
@@ -1006,16 +1018,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    /**
-     * Sets a version used for serialising a response compatible with a previous version.
-     * @param restApiVersion - indicates requested a version of API that the builder will be creating
-     */
-    public XContentBuilder withCompatibleVersion(RestApiVersion restApiVersion) {
-        assert this.restApiVersion == null : "restApiVersion has already been set";
-        Objects.requireNonNull(restApiVersion, "restApiVersion cannot be null");
-        this.restApiVersion = restApiVersion;
-        return this;
-    }
 
     /**
      * Returns a version used for serialising a response.

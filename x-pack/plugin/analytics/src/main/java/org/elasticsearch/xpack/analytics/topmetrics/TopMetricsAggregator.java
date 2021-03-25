@@ -415,14 +415,12 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         SegmentOrdsValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
             super(bigArrays, name, config);
-            try {
-                valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
-            } catch (ClassCastException e) {
+            if (false == config.hasOrdinals()) {
                 throw new IllegalArgumentException(
-                    "top_metrics can only collect bytes that have segment ordinals but " + config.getDescription() + " does not",
-                    e
+                    "top_metrics can only collect bytes that have segment ordinals but " + config.getDescription() + " does not"
                 );
             }
+            valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
             segmentResolve = bigArrays.newObjectArray(size);
             segmentOrds = bigArrays.newLongArray(size, false);
         }

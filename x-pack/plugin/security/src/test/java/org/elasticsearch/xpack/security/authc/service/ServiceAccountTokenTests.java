@@ -112,7 +112,7 @@ public class ServiceAccountTokenTests extends ESTestCase {
                 .forEach(i -> chars[randomIntBetween(0, chars.length - 1)] = randomFrom(INVALID_TOKEN_NAME_CHARS));
             return new String(chars);
         } else {
-            return randomFrom("", " ", randomAlphaOfLength(257), null);
+            return randomFrom("", " ", randomAlphaOfLength(257));
         }
     }
 }

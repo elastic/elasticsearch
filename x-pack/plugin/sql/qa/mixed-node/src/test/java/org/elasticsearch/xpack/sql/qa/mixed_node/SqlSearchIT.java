@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.document.HalfFloatPoint;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -58,6 +59,7 @@ public class SqlSearchIT extends ESRestTestCase {
     private static Version newVersion;
     private static boolean isBwcNodeBeforeFieldsApiInQL;
     private static boolean isBwcNodeBeforeFieldsApiInES;
+    private static boolean halfFloatMightReturnFullFloatPrecision;
 
     @Before
     public void createIndex() throws IOException {
@@ -70,6 +72,7 @@ public class SqlSearchIT extends ESRestTestCase {
         newVersion = nodes.getNewNodes().get(0).getVersion();
         isBwcNodeBeforeFieldsApiInQL = bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
         isBwcNodeBeforeFieldsApiInES = bwcVersion.before(SWITCH_TO_FIELDS_API_VERSION);
+        halfFloatMightReturnFullFloatPrecision = bwcVersion.before(Version.V_7_13_0);
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(
@@ -94,7 +97,15 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
+                /*
+                 * In 7.12.x we got full float precision from half floats
+                 * back from the fields API. When the cluster is mixed with
+                 * that version we don't fetch the half float because we
+                 * can't make any assertions about it.
+                 */
+                if (isBwcNodeBeforeFieldsApiInQL || false == halfFloatMightReturnFullFloatPrecision) {
+                    columns.add(columnInfo("half_float_field", "half_float"));
+                }
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -114,7 +125,17 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    /*
+                     * In 7.12.x we got full float precision from half floats
+                     * back from the fields API. When the cluster is mixed with
+                     * that version we don't fetch the half float because we
+                     * can't make any assertions about it.
+                     */
+                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                    if (false == halfFloatMightReturnFullFloatPrecision) {
+                        fieldValues.put("half_float_field", roundedHalfFloat);
+                    }
                 }
             }
         );
@@ -126,7 +147,15 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
+                /*
+                 * In 7.12.x we got full float precision from half floats
+                 * back from the fields API. When the cluster is mixed with
+                 * that version we don't fetch the half float because we
+                 * can't make any assertions about it.
+                 */
+                if (isBwcNodeBeforeFieldsApiInQL && isBwcNodeBeforeFieldsApiInES || false == halfFloatMightReturnFullFloatPrecision) {
+                    columns.add(columnInfo("half_float_field", "half_float"));
+                }
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -143,7 +172,17 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    /*
+                     * In 7.12.x we got full float precision from half floats
+                     * back from the fields API. When the cluster is mixed with
+                     * that version we don't fetch the half float because we
+                     * can't make any assertions about it.
+                     */
+                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                    if (false == halfFloatMightReturnFullFloatPrecision) {
+                        fieldValues.put("half_float_field", roundedHalfFloat);
+                    }
                 }
             }
         );

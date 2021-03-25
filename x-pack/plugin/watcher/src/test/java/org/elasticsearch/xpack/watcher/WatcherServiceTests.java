@@ -47,6 +47,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -235,7 +236,7 @@ public class WatcherServiceTests extends ESTestCase {
         when(watch.trigger()).thenReturn(trigger);
         when(watch.id()).thenReturn(id);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
-        ExecutableNoneInput noneInput = new ExecutableNoneInput();
+        ExecutableInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
 
         triggerService.add(watch);

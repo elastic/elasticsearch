@@ -2,9 +2,6 @@
 [[index-modules]]
 = Index modules
 
-[partintro]
---
-
 Index Modules are modules created per index and control all aspects related to
 an index.
 
@@ -252,6 +249,23 @@ are ignored for this index.
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
 
+
+`index.query.default_field`::
++
+--
+(string or array of strings)
+Wildcard (`*`) patterns matching one or more fields. The following query types
+search these matching fields by default:
+
+* <<query-dsl-mlt-query>>
+* <<query-dsl-multi-match-query>>
+* <<query-dsl-query-string-query>>
+* <<query-dsl-simple-query-string-query>>
+
+Defaults to `*`, which matches all fields eligible for
+<<term-level-queries,term-level queries>>, excluding metadata fields.
+--
+
  `index.routing.allocation.enable`::
 
     Controls shard allocation for this index. It can be set to:
@@ -343,7 +357,6 @@ Other index settings are available in index modules:
 <<ilm-settings,{ilm-cap}>>::
 
     Specify the lifecycle policy and rollover alias for an index.
---
 
 include::index-modules/analysis.asciidoc[]
 

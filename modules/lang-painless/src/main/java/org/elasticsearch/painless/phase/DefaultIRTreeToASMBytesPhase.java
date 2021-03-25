@@ -98,7 +98,6 @@ import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
@@ -1181,9 +1180,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.newInstance(MethodWriter.getType(irNewObjectNode.getDecorationValue(IRDExpressionType.class)));
 
-        if (irNewObjectNode.hasCondition(IRCRead.class)) {
-            methodWriter.dup();
-        }
+        // Always dup so that visitStatementExpression's always has something to pop
+        methodWriter.dup();
 
         for (ExpressionNode irArgumentNode : irNewObjectNode.getArgumentNodes()) {
             visit(irArgumentNode, writeScope);

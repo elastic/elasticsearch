@@ -109,7 +109,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
             String fileName = uri.toString().substring(uri.getScheme().length() + 1);
             Path path = getDataPath(getSchemaLocation() + fileName);
             logger.debug("loading sub-schema [{}] from: [{}]", uri, path);
-            return getClass().getResourceAsStream(getSchemaLocation() + fileName);
+            return Files.newInputStream(path);
         }, "file").build();
 
         return factory;

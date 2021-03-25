@@ -25,7 +25,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Before;
@@ -283,7 +282,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
-        assertEquals(RestStatus.OK, response.status());
 
         // if all requested indices failed, we fail the request by throwing the exception
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> client().prepareFieldCaps("index1-error", "index2-error")

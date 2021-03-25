@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
@@ -17,11 +16,11 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +34,7 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements StatusToXContentObject {
+public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
@@ -229,20 +228,5 @@ public class FieldCapabilitiesResponse extends ActionResponse implements StatusT
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    @Override
-    public RestStatus status() {
-        RestStatus status = RestStatus.OK;
-        if (indices.length == 0 && failures.size() > 0) {
-            for (Exception failure : failures.stream().map(FieldCapabilitiesFailure::getException).toArray(Exception[]::new)) {
-                RestStatus failureStatus = ExceptionsHelper.status(failure);
-                if (failureStatus.getStatus() >= status.getStatus()) {
-                    status = failureStatus;
-                }
-            }
-            return status;
-        }
-        return status;
     }
 }

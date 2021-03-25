@@ -304,12 +304,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         /**
          * Collect the field capabilities for an index.
          */
-        void add(String index, boolean isMetaField, boolean search, boolean agg, Map<String, String> meta) {
+        void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
-            this.isMetadataField |= isMetaField;
+            this.isMetadataField |= isMetadataField;
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .add(entry.getValue());

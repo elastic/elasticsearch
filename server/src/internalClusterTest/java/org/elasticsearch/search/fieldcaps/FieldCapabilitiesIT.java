@@ -232,7 +232,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertTrue(newField.containsKey("keyword"));
     }
 
-    public void testMetaFields() {
+    public void testMetadataFields() {
         for (int i = 0; i < 2; i++) {
             String[] fields = i == 0 ? new String[] { "*" } : new String[] { "_id", "_test" };
             FieldCapabilitiesResponse response = client()

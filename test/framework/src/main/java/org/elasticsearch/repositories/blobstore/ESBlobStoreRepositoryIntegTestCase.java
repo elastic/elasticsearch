@@ -209,6 +209,15 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
     }
 
+    public static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
+                                 boolean failIfAlreadyExists) throws IOException {
+        if (randomBoolean()) {
+            container.writeBlob(blobName, bytesArray, failIfAlreadyExists);
+        } else {
+            container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
+        }
+    }
+
     public void testContainerCreationAndDeletion() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer containerFoo = store.blobContainer(new BlobPath().add("foo"));
@@ -469,15 +478,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 .setRouting(randomAlphaOfLength(randomIntBetween(1, 10))).setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);
-    }
-
-    protected static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
-                                  boolean failIfAlreadyExists) throws IOException {
-        if (randomBoolean()) {
-            container.writeBlob(blobName, bytesArray, failIfAlreadyExists);
-        } else {
-            container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
-        }
     }
 
     private String[] generateRandomNames(int num) {

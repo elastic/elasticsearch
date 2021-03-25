@@ -37,6 +37,10 @@ First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasti
 * Run `bin/elasticsearch` on Linux or macOS. Run `bin\elasticsearch.bat` on Windows.
 * Run `curl -X GET http://localhost:9200/` to verify Elasticsearch is running.
 
+For more options, see
+https://www.elastic.co/guide/en/elasticsearch/reference/current/starting-elasticsearch.html[Starting
+Elasticsearch].
+
 === Indexing
 
 First, index some sample JSON documents. The first request automatically creates

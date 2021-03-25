@@ -14,6 +14,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -243,9 +244,19 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(),
             iw -> {
+                List<List<IndexableField>> docs = new ArrayList<>();
                 for (double value : values) {
-                    iw.addDocument(singleton(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
+                    docs.add(List.of(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
                 }
+                /*
+                 * Use add documents to force us to collect from a single segment
+                 * so we don't break the collection across the shrads. We can't do
+                 * *that* because we don't bring back the compensations for the sum
+                 * back in the shard results. If we don't bring back the compensations
+                 * errors can creep in. Not big errors, but big enough to upset this
+                 * test.
+                 */
+                iw.addDocuments(docs);
             },
             avg -> assertEquals(expected, avg.getValue(), delta),
             fieldType

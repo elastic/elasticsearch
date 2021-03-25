@@ -56,7 +56,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -304,7 +304,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testFielddataLookupOneFieldManyReferences() throws IOException {
         int numFields = randomIntBetween(5, 20);
-        List<RuntimeFieldType> fields = new ArrayList<>(numFields + 1);
+        List<RuntimeField> fields = new ArrayList<>(numFields + 1);
         fields.add(runtimeField("root", leafLookup -> {
             StringBuilder value = new StringBuilder();
             for (int i = 0; i < numFields; i++) {
@@ -324,6 +324,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
     }
 
+<<<<<<< HEAD
     public void testAliases() throws IOException {
         RuntimeFieldType runtime = new AliasRuntimeField("alias", "field");
         MappedFieldType field = new MockFieldMapper.FakeFieldType("field");
@@ -348,6 +349,12 @@ public class SearchExecutionContextTests extends ESTestCase {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeFieldType::name, r -> r));
+=======
+    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
+        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+        Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
+>>>>>>> origin/master
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
         return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
@@ -406,7 +413,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         return createSearchExecutionContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of());
     }
 
-    private static SearchExecutionContext createSearchExecutionContext(RuntimeFieldType... fieldTypes) {
+    private static SearchExecutionContext createSearchExecutionContext(RuntimeField... fieldTypes) {
         return createSearchExecutionContext(
             "uuid",
             null,
@@ -470,7 +477,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         when(mapperService.parserContext()).thenReturn(new Mapper.TypeParser.ParserContext(
             null,
             mapperRegistry.getMapperParsers()::get,
-            mapperRegistry.getRuntimeFieldTypeParsers()::get,
+            mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
             searchExecutionContextSupplier,
             null,
@@ -482,6 +489,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         return mapperService;
     }
 
+<<<<<<< HEAD
     private static RuntimeFieldType runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
         return new TestRuntimeField(
             name,
@@ -499,6 +507,14 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappedFieldType withDocValues(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
         return new MappedFieldType(name, true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+=======
+    private static RuntimeField runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
+        return runtimeField(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup));
+    }
+
+    private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
+        return new TestRuntimeField(name, null) {
+>>>>>>> origin/master
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {

@@ -39,6 +39,41 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(0, size(lookup.filter(ft -> true)));
     }
 
+<<<<<<< HEAD
+=======
+    public void testFilter() {
+        Collection<FieldMapper> fieldMappers = List.of(new MockFieldMapper("field"), new MockFieldMapper("test"));
+        Collection<FieldAliasMapper> fieldAliases = singletonList(new FieldAliasMapper("alias", "alias", "test"));
+        Collection<RuntimeField> runtimeFields = List.of(
+            new TestRuntimeField("runtime", "type"), new TestRuntimeField("field", "type"));
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(fieldMappers, fieldAliases, runtimeFields);
+        assertEquals(3, size(fieldTypeLookup.filter(ft -> true)));
+        for (MappedFieldType fieldType : fieldTypeLookup.filter(ft -> true)) {
+            if (fieldType.name().equals("test")) {
+                assertThat(fieldType, instanceOf(MockFieldMapper.FakeFieldType.class));
+            }
+            if (fieldType.name().equals("field") || fieldType.name().equals("runtime")) {
+                assertThat(fieldType, instanceOf(TestRuntimeField.class));
+            }
+        }
+        assertEquals(0, size(fieldTypeLookup.filter(ft -> false)));
+        {
+            Iterable<MappedFieldType> fieldIterable = fieldTypeLookup.filter(ft -> ft.name().equals("field"));
+            assertEquals(1, size(fieldIterable));
+            MappedFieldType field = fieldIterable.iterator().next();
+            assertEquals("field", field.name());
+            assertThat(field, instanceOf(TestRuntimeField.class));
+        }
+        {
+            Iterable<MappedFieldType> fieldIterable = fieldTypeLookup.filter(ft -> ft.name().equals("test"));
+            assertEquals(1, size(fieldIterable));
+            MappedFieldType field = fieldIterable.iterator().next();
+            assertEquals("test", field.name());
+            assertThat(field, instanceOf(MockFieldMapper.FakeFieldType.class));
+        }
+    }
+
+>>>>>>> origin/master
     public void testAddNewField() {
         MockFieldMapper f = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());

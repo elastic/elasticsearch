@@ -76,9 +76,9 @@ public abstract class ValuesSource {
     protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
 
     /**
-     * Check if this values source supports using global ordinals
+     * Check if this values source supports using global and segment ordinals.
      */
-    public boolean hasGlobalOrdinals() {
+    public boolean hasOrdinals() {
         return false;
     }
 
@@ -171,7 +171,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public boolean hasGlobalOrdinals() {
+            public boolean hasOrdinals() {
                 return true;
             }
 

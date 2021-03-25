@@ -159,7 +159,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         ClusterState state = systemIndexTestClusterState();
         SystemIndices systemIndices = new SystemIndices(Collections.singletonMap(
             this.getTestName(),
-            new SystemIndices.Feature("test feature",
+            new SystemIndices.Feature(this.getTestName(), "test feature",
                 Collections.singletonList(new SystemIndexDescriptor(".y", "an index that doesn't exist")))));
 
         GetAliasesRequest request = new GetAliasesRequest(".y");

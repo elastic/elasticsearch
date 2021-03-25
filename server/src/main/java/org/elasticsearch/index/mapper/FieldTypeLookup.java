@@ -25,7 +25,7 @@ import java.util.stream.Stream;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, RuntimeFieldType> runtimeFields = new HashMap<>();
+    private final Map<String, RuntimeField> runtimeFields = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -40,7 +40,7 @@ final class FieldTypeLookup {
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<RuntimeFieldType> runtimeFieldTypes
+        Collection<RuntimeField> runtimeFields
     ) {
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
@@ -71,9 +71,8 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
         }
 
-        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
-            //this will override concrete fields with runtime fields that have the same name
-            runtimeFields.put(runtimeFieldType.name(), runtimeFieldType);
+        for (RuntimeField runtimeField : runtimeFields) {
+            this.runtimeFields.put(runtimeField.name(), runtimeField);
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
@@ -96,7 +95,7 @@ final class FieldTypeLookup {
                 throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
             }
             fieldPath.add(field);
-            RuntimeFieldType runtimeFieldType = FieldTypeLookup.this.runtimeFields.get(field);
+            RuntimeField runtimeFieldType = FieldTypeLookup.this.runtimeFields.get(field);
             if (runtimeFieldType != null) {
                 return runtimeFieldType.asMappedFieldType(this::get);
             }
@@ -118,6 +117,13 @@ final class FieldTypeLookup {
         // If the mapping contains fields that support dynamic sub-key lookup, check
         // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
         return dynamicKeyLookup.get(field);
+    }
+
+    /**
+     * Returns all the mapped field types.
+     */
+    Collection<MappedFieldType> get() {
+        return fullNameToFieldType.values();
     }
 
     /**

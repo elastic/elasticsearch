@@ -14,21 +14,22 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -46,21 +47,17 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType implements RuntimeFieldType {
+abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType implements RuntimeField {
     protected final Script script;
-    protected final CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent;
     private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
-
-    AbstractScriptFieldType(String name, TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory, Builder builder) {
-        this(name, factory, builder.getScript(), Collections.emptyMap(), builder::toXContent);
-    }
+    private final ToXContent toXContent;
 
     AbstractScriptFieldType(
         String name,
         TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
@@ -69,13 +66,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     }
 
     @Override
-    public MappedFieldType asMappedFieldType(Function<String, MappedFieldType> lookup) {
+    public final MappedFieldType asMappedFieldType(Function<String, MappedFieldType> lookup) {
         return this;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return RuntimeFieldType.toXContent(name(), typeName(), this.toXContent, builder, params);
+    public final void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        toXContent.toXContent(builder, params);
     }
 
     /**
@@ -101,17 +98,33 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     // TODO rework things so that we don't need this
     private static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder extends RuntimeFieldType.Builder {
+    abstract static class Builder<Factory> extends RuntimeField.Builder {
+        private final ScriptContext<Factory> scriptContext;
+        private final Factory parseFromSourceFactory;
+
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
             () -> null,
             Builder::parseScript,
-            RuntimeFieldType.initializerNotSupported()
+            initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        Builder(String name) {
+        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
             super(name);
+            this.scriptContext = scriptContext;
+            this.parseFromSourceFactory = parseFromSourceFactory;
+        }
+
+        abstract RuntimeField newRuntimeField(Factory scriptFactory);
+
+        @Override
+        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+            if (script.get() == null) {
+                return newRuntimeField(parseFromSourceFactory);
+            }
+            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
+            return newRuntimeField(factory);
         }
 
         @Override

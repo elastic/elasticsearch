@@ -66,8 +66,8 @@ teardown:
 ---
 "Tests searchable snapshots stats":
   - skip:
-      version: " - 7.7.99"
-      reason:  searchable snapshots introduced in 7.8.0
+      version: " - 7.12.99"
+      reason:  searchable snapshots response format changed in 7.13.0
 
   - do:
       catch: missing
@@ -139,9 +139,13 @@ teardown:
   - is_true: total
   - is_true: total.0.file_ext
   - gt:      { total.0.num_files: 0 }
-  - gt:      { total.0.total_size: 0 }
   - gt:      { total.0.open_count: 0 }
   - gt:      { total.0.close_count: 0 }
+
+  - gt:      { total.0.size.total_in_bytes: 0 }
+  - gt:      { total.0.size.min_in_bytes: 0 }
+  - gt:      { total.0.size.max_in_bytes: 0 }
+  - gt:      { total.0.size.average_in_bytes: 0 }
 
   - gte:     { total.0.contiguous_bytes_read.count: 0 }
   - gte:     { total.0.contiguous_bytes_read.sum: 0 }
@@ -207,6 +211,11 @@ teardown:
   - gte:     { total.0.blob_store_bytes_requested.min: 0 }
   - gte:     { total.0.blob_store_bytes_requested.max: 0 }
 
+  - gte:     { total.0.lucene_bytes_read.count: 0 }
+  - gte:     { total.0.lucene_bytes_read.sum: 0 }
+  - gte:     { total.0.lucene_bytes_read.min: 0 }
+  - gte:     { total.0.lucene_bytes_read.max: 0 }
+
   - gte:     { total.0.current_index_cache_fills: 0 }
 
   - length:  { indices: 1 }
@@ -215,9 +224,13 @@ teardown:
 
   - is_true: indices.docs.total.0.file_ext
   - gt:      { indices.docs.total.0.num_files: 0 }
-  - gt:      { indices.docs.total.0.total_size: 0 }
   - gt:      { indices.docs.total.0.open_count: 0 }
   - gt:      { indices.docs.total.0.close_count: 0 }
+
+  - gt:      { indices.docs.total.0.size.total_in_bytes: 0 }
+  - gt:      { indices.docs.total.0.size.min_in_bytes: 0 }
+  - gt:      { indices.docs.total.0.size.max_in_bytes: 0 }
+  - gt:      { indices.docs.total.0.size.average_in_bytes: 0 }
 
   - gte:     { indices.docs.total.0.contiguous_bytes_read.count: 0 }
   - gte:     { indices.docs.total.0.contiguous_bytes_read.sum: 0 }
@@ -283,6 +296,11 @@ teardown:
   - gte:     { indices.docs.total.0.blob_store_bytes_requested.min: 0 }
   - gte:     { indices.docs.total.0.blob_store_bytes_requested.max: 0 }
 
+  - gte:     { indices.docs.total.0.lucene_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.lucene_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.lucene_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.lucene_bytes_read.max: 0 }
+
   - gte:     { indices.docs.total.0.current_index_cache_fills: 0 }
 
   - length:  { indices.docs.shards: 1 }
@@ -295,9 +313,13 @@ teardown:
 
   - is_true: indices.docs.shards.0.0.files.0.file_ext
   - gt:      { indices.docs.shards.0.0.files.0.num_files: 0 }
-  - gt:      { indices.docs.shards.0.0.files.0.total_size: 0 }
   - gt:      { indices.docs.shards.0.0.files.0.open_count: 0 }
   - gt:      { indices.docs.shards.0.0.files.0.close_count: 0 }
+
+  - gt:      { indices.docs.shards.0.0.files.0.size.total_in_bytes: 0 }
+  - gt:      { indices.docs.shards.0.0.files.0.size.min_in_bytes: 0 }
+  - gt:      { indices.docs.shards.0.0.files.0.size.max_in_bytes: 0 }
+  - gt:      { indices.docs.shards.0.0.files.0.size.average_in_bytes: 0 }
 
   - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.count: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.sum: 0 }
@@ -363,6 +385,11 @@ teardown:
   - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.min: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.max: 0 }
 
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.lucene_bytes_read.max: 0 }
+
   - gte:     { indices.docs.shards.0.0.files.0.current_index_cache_fills: 0 }
 
   - do:
@@ -373,6 +400,10 @@ teardown:
 
   - is_true:   indices.docs.shards.0.0.files.0.cached_bytes_written.time
   - is_true:   indices.docs.shards.0.0.files.0.direct_bytes_read.time
+  - is_true:   indices.docs.shards.0.0.files.0.size.total
+  - is_true:   indices.docs.shards.0.0.files.0.size.min
+  - is_true:   indices.docs.shards.0.0.files.0.size.max
+  - is_true:   indices.docs.shards.0.0.files.0.size.average
 
   - do:
       searchable_snapshots.stats:

@@ -36,7 +36,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -77,6 +77,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
+    public static final String TYPE_FIELD_NAME = "_type";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.nested_fields.limit", 50L, 0, Property.Dynamic, Property.IndexScope);
     // maximum allowed number of nested json objects across all fields in a single document
@@ -101,15 +102,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
                          Supplier<SearchExecutionContext> searchExecutionContextSupplier, BooleanSupplier idFieldDataEnabled,
-                         ScriptService scriptService) {
+                         ScriptCompiler scriptCompiler) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                mapperRegistry.getRuntimeFieldTypeParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
-                scriptService, indexAnalyzers, indexSettings, idFieldDataEnabled);
+                mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
+                scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
@@ -386,11 +387,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return mappingLookup().fieldTypes().get(fullName);
-    }
-
-    public MappedFieldType concreteFieldType(String field) {
-        return mappingLookup().fieldTypes().getConcrete(field);
+        return mappingLookup().fieldTypesLookup().get(fullName);
     }
 
     /**
@@ -414,7 +411,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         return this.mapper == null ? Collections.emptySet() :
-            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
+            this.mapper.mappers().fieldTypesLookup().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
     /**

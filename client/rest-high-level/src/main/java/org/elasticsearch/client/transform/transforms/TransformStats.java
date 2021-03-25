@@ -117,7 +117,7 @@ public class TransformStats {
 
     public enum State {
 
-        STARTED, INDEXING, ABORTING, STOPPING, STOPPED, FAILED;
+        STARTED, INDEXING, ABORTING, STOPPING, STOPPED, FAILED, WAITING;
 
         public static State fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));

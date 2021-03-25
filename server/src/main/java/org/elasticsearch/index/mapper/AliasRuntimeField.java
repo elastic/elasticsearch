@@ -14,16 +14,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-public class AliasRuntimeField implements RuntimeFieldType {
+public class AliasRuntimeField implements RuntimeField {
 
     public static final String CONTENT_TYPE = "alias";
 
-    private static class Builder extends RuntimeFieldType.Builder {
+    private static class Builder extends RuntimeField.Builder {
 
         final FieldMapper.Parameter<String> path = FieldMapper.Parameter.stringParam(
             "path",
             true,
-            RuntimeFieldType.initializerNotSupported(),
+            initializerNotSupported(),
             null
         ).setValidator(
             s -> {
@@ -43,12 +43,12 @@ public class AliasRuntimeField implements RuntimeFieldType {
         }
 
         @Override
-        protected RuntimeFieldType buildFieldType() {
+        protected RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
             return new AliasRuntimeField(name, path.get());
         }
     }
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((n, c) -> new Builder(n));
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
     private final String name;
     private final String path;
@@ -59,12 +59,8 @@ public class AliasRuntimeField implements RuntimeFieldType {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
-        builder.field("type", "alias");
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("path", path);
-        builder.endObject();
-        return builder;
     }
 
     @Override

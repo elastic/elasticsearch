@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class TestRuntimeField implements RuntimeFieldType {
+public class TestRuntimeField implements RuntimeField {
 
     private final String type;
     private final String name;
@@ -42,10 +42,7 @@ public class TestRuntimeField implements RuntimeFieldType {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
-        builder.field("type", type);
-        builder.endObject();
-        return builder;
+    public void doXContentBody(XContentBuilder builder, Params params) {
+
     }
 }

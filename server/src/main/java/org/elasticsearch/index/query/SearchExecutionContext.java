@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -58,6 +58,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -105,7 +106,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, RuntimeFieldType> runtimeMappings;
+    private final Map<String, RuntimeField> runtimeMappings;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -198,7 +199,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, RuntimeFieldType> runtimeMappings) {
+                                   Map<String, RuntimeField> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -325,6 +326,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns the registered mapped field types.  Does not include runtime fields.
+     */
+    public Collection<MappedFieldType> getFieldTypes() {
+        return mappingLookup.fieldTypes();
+    }
+
+    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {
@@ -345,7 +353,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
             }
             fieldPath.add(field);
-            RuntimeFieldType runtimeFieldType = SearchExecutionContext.this.runtimeMappings.get(field);
+            RuntimeField runtimeFieldType = SearchExecutionContext.this.runtimeMappings.get(field);
             if (runtimeFieldType != null) {
                 return runtimeFieldType.asMappedFieldType(this::get);
             }
@@ -615,11 +623,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, RuntimeFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, RuntimeField> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        return RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
+        return RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
     }
 
     /**

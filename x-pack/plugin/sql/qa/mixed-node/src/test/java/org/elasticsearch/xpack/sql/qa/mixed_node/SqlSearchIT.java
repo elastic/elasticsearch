@@ -94,7 +94,7 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
+                // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -114,7 +114,8 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    builder.append("\"half_float_field\":\"123.456\"");
+                    // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
                 }
             }
         );
@@ -126,7 +127,7 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
+                // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -143,7 +144,8 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    builder.append("\"half_float_field\":\"123.456\"");
+                    // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
                 }
             }
         );

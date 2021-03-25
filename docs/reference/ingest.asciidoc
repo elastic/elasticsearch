@@ -508,7 +508,9 @@ PUT _ingest/pipeline/my-pipeline
 }
 ----
 
-You can also specify `on_failure` for a pipeline.
+You can also specify `on_failure` for a pipeline. If a processor without an
+`on_failure` value fails, {es} uses this pipeline-level parameter as a fallback.
+{es} will not attempt to run the pipeline's remaining processors.
 
 [source,console]
 ----

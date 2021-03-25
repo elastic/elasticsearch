@@ -110,10 +110,6 @@ One or more source indices used to create the enrich index.
 +
 If multiple indices are specified, they must share a common `match_field`.
 
-<<<<<<< HEAD
-See <<enrich-policy-definition>> for object definition and parameters.
---
-=======
 `match_field`::
 (Required, string)
 Field in source indices used to match incoming documents.
@@ -129,4 +125,3 @@ Query used to filter documents in the enrich index. The policy only uses
 documents matching this query to enrich incoming documents. Defaults to a
 <<query-dsl-match-all-query,`match_all`>> query.
 ====
->>>>>>> 224bf7943a7... [DOCS] Move enrich policy object def to API docs (#70825)

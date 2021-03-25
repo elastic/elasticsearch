@@ -37,7 +37,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         StringFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new StringFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new StringFieldScript(
         field,
         params,
         lookup,

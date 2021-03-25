@@ -63,7 +63,7 @@ configure the HTTP interface to use SSL/TLS before you can enable OpenID Connect
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[oidc-enable-token]]
 ==== Enable the token service

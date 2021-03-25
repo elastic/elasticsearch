@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<DateFieldScript.Factory>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
             private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
                 "format",
                 true,

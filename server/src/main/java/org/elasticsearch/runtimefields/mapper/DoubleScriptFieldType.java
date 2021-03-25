@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DoubleFieldScript.CONTEXT, DoubleFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<DoubleFieldScript.Factory>(name, DoubleFieldScript.CONTEXT, DoubleFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(DoubleFieldScript.Factory scriptFactory) {
                 return new DoubleScriptFieldType(name, scriptFactory, getScript(), meta(), this);

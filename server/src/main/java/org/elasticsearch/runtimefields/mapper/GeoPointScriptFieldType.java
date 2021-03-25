@@ -39,7 +39,7 @@ import java.util.function.Supplier;
 public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, GeoPointFieldScript.CONTEXT, GeoPointFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<GeoPointFieldScript.Factory>(name, GeoPointFieldScript.CONTEXT, GeoPointFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(GeoPointFieldScript.Factory scriptFactory) {
                 return new GeoPointScriptFieldType(name, scriptFactory, getScript(), meta(), this);

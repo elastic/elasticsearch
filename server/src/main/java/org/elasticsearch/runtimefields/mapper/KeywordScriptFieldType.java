@@ -43,7 +43,7 @@ import static java.util.stream.Collectors.toSet;
 public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, StringFieldScript.CONTEXT, StringFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<StringFieldScript.Factory>(name, StringFieldScript.CONTEXT, StringFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(StringFieldScript.Factory scriptFactory) {
                 return new KeywordScriptFieldType(name, scriptFactory, getScript(), meta(), this);

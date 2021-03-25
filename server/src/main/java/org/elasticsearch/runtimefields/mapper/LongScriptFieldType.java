@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<LongFieldScript.Factory>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(LongFieldScript.Factory scriptFactory) {
                 return new LongScriptFieldType(name, scriptFactory, getScript(), meta(), this);

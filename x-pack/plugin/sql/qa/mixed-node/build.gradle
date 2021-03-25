@@ -14,6 +14,10 @@ dependencies {
   testImplementation project(path: xpackModule('sql'), configuration: 'default')
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("integTest").configure{ enabled = false}
 
 // A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards

@@ -9,6 +9,8 @@
 package org.elasticsearch.painless.printer;
 
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -47,6 +49,13 @@ import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.Decorations.Converter;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class DecorationToXContent {
@@ -166,25 +175,25 @@ public class DecorationToXContent {
 
     public static void ToXContent(StandardPainlessField standardPainlessField, UserTreePrinterScope scope) {
         scope.startObject();
-
         scope.field(Fields.DECORATION, standardPainlessField.getClass().getSimpleName());
-
+        scope.field("field");
+        ToXContent(standardPainlessField.getStandardPainlessField(), scope);
         scope.endObject();
     }
 
     public static void ToXContent(StandardPainlessConstructor standardPainlessConstructor, UserTreePrinterScope scope) {
         scope.startObject();
-
         scope.field(Fields.DECORATION, standardPainlessConstructor.getClass().getSimpleName());
-
+        scope.field("constructor");
+        ToXContent(standardPainlessConstructor.getStandardPainlessConstructor(), scope);
         scope.endObject();
     }
 
     public static void ToXContent(StandardPainlessMethod standardPainlessMethod, UserTreePrinterScope scope) {
         scope.startObject();
-
         scope.field(Fields.DECORATION, standardPainlessMethod.getClass().getSimpleName());
-
+        scope.field("method");
+        ToXContent(standardPainlessMethod.getStandardPainlessMethod(), scope);
         scope.endObject();
     }
 
@@ -434,8 +443,8 @@ public class DecorationToXContent {
     public static void ToXContent(PainlessMethod method, UserTreePrinterScope scope) {
         scope.startObject();
         if (method.javaMethod != null) {
-            // TODO(stu): is this right?
-            scope.field("javaMethod", method.javaMethod.getName());
+            scope.field("javaMethod");
+            ToXContent(method.methodType, scope);
         }
         if (method.targetClass != null) {
             scope.field("targetClass", method.targetClass.getSimpleName());
@@ -444,19 +453,86 @@ public class DecorationToXContent {
             scope.field("returnType", method.returnType.getSimpleName());
         }
         if (method.typeParameters != null) {
-            scope.field("typeParameters", method.typeParameters.stream().map(Class::getSimpleName).collect(Collectors.toList()));
+            scope.field("typeParameters", classNames(method.typeParameters));
         }
         if (method.methodHandle != null) {
-            scope.field("methodHandle", method.methodHandle.getClass().getSimpleName());
+            scope.field("methodHandle");
+            ToXContent(method.methodHandle.type(), scope);
         }
-        if (method.methodType != null) {
-            // TODO(stu): is this right?
-            scope.field("methodType", method.methodType.parameterCount());
-        }
+        // ignoring methodType as that's handled under methodHandle
         if (method.annotations != null) {
-            // TODO(stu): is this right?
-            scope.field("annotations", method.annotations.toString());
+            scope.field("annotations",
+                    method.annotations.keySet().stream().map(Class::getSimpleName).sorted().collect(Collectors.toList())
+            );
         }
         scope.endObject();
+    }
+
+    public static void ToXContent(PainlessField field, UserTreePrinterScope scope) {
+        scope.startObject();
+        scope.field("javaField");
+        ToXContent(field.javaField, scope);
+        scope.field("typeParameter", field.typeParameter.getSimpleName());
+        scope.field("getterMethodHandle");
+        ToXContent(field.getterMethodHandle.type(), scope);
+        scope.field("setterMethodHandle");
+        if (field.setterMethodHandle != null) {
+            ToXContent(field.setterMethodHandle.type(), scope);
+        }
+        scope.endObject();
+    }
+
+    public static void ToXContent(PainlessConstructor constructor, UserTreePrinterScope scope) {
+        scope.startObject();
+        Class<?>[] parameterTypes = constructor.javaConstructor.getParameterTypes();
+        if (parameterTypes.length > 0) {
+            scope.field("javaConstructor", classNames(parameterTypes));
+        }
+        if (constructor.typeParameters.isEmpty() == false) {
+            scope.field("typeParameters", classNames(constructor.typeParameters));
+        }
+        scope.field("methodHandle");
+        ToXContent(constructor.methodHandle.type(), scope);
+        scope.endObject();
+    }
+
+    public static void ToXContent(MethodType methodType, UserTreePrinterScope scope) {
+        scope.startObject();
+        List<Class<?>> parameters = methodType.parameterList();
+        if (parameters.isEmpty() == false) {
+            scope.field("parameters", classNames(parameters));
+        }
+        scope.field("return", methodType.returnType().getSimpleName());
+        scope.endObject();
+    }
+
+    // java.lang.reflect
+    public static void ToXContent(Field field, UserTreePrinterScope scope) {
+        scope.startObject();
+        scope.field("name", field.getName());
+        scope.field("type", field.getType().getSimpleName());
+        scope.field("modifiers", Modifier.toString(field.getModifiers()));
+        scope.endObject();
+    }
+
+    public static void ToXContent(Method method, UserTreePrinterScope scope) {
+        scope.startObject();
+        scope.field("name", method.getName());
+        scope.field("parameters", classNames(method.getParameterTypes()));
+        scope.field("return", method.getReturnType().getSimpleName());
+        Class<?>[] exceptions = method.getExceptionTypes();
+        if (exceptions.length > 0) {
+            scope.field("exceptions", classNames(exceptions));
+        }
+        scope.field("modifiers", Modifier.toString(method.getModifiers()));
+        scope.endObject();
+    }
+
+    public static List<String> classNames(Class<?>[] classes) {
+        return Arrays.stream(classes).map(Class::getSimpleName).collect(Collectors.toList());
+    }
+
+    public static List<String> classNames(List<Class<?>> classes) {
+        return classes.stream().map(Class::getSimpleName).collect(Collectors.toList());
     }
 }

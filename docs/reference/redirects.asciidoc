@@ -3,6 +3,102 @@
 
 The following pages have moved or been deleted.
 
+// [START] Security redirects
+
+[role="exclude",id="get-started-users"]
+=== Create users
+
+See <<security-create-builtin-users,Create passwords for built-in users>>.
+
+[role="exclude",id="encrypting-communications-certificates"]
+=== Generate certificates
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode-communications"]
+=== Tutorial: Encrypting communications
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode"]
+=== Encrypting internode communication
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="security-getting-started"]
+=== Tutorial: Getting started with security
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+[role="exclude",id="saml-guide"]
+=== Configure SAML single-sign on
+
+See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-guide-authentication"]
+=== Configure {es} for SAML authentication
+
+See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
+
+[role="exclude",id="saml-attribute-mapping"]
+==== Attribute mapping
+
+See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="active-directory-ssl"]
+=== Setting up SSL between {es} and Active Directory
+
+See <<tls-active-directory,Encrypting communications between {es} and Active Directory>>.
+
+[role="exclude",id="elasticsearch-security"]
+=== Security overview
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+[role="exclude",id="get-started-enable-security"]
+=== Enable {es} {security-features}
+
+See <<security-minimal-setup,Set up minimal security for {es}>>.
+
+[role="exclude",id="ssl-tls"]
+=== Set up TLS on a cluster
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+// [START] Configuring TLS
+[role="exclude",id="configuring-tls"]
+=== Configure TLS
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+[role="exclude",id="tls-http"]
+==== Encrypt HTTP client communications
+
+See <<encrypt-http-communication,Encrypt HTTP client communications>>.
+
+[role="exclude",id="tls-transport"]
+==== Encrypt internode communication
+
+See <<encrypt-internode-communication,Encrypt internode communications>>.
+
+[role="exclude",id="node-certificates"]
+==== Generating node certificates
+
+See <<generate-certificates,Generate the certificate authority>>.
+
+[role="exclude",id="configuring-security"]
+=== Configure security in {es}
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+// [END] Configuring TLS
+
+[role="exclude",id="encrypting-communications"]
+=== Encrypting communications
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+// [END] Security redirects
+
 [roles="exclude",id="modules-scripting-stored-scripts"]
 === Stored scripts
 
@@ -406,7 +502,7 @@ See <<ref-native-settings>>.
 [role="exclude",id="configuring-saml-realm"]
 === Configuring a SAML realm
 
-See <<saml-guide>>.
+See <<saml-guide-stack>>.
 
 [role="exclude",id="saml-settings"]
 ==== SAML realm settings
@@ -498,7 +594,7 @@ See <<ad-realm-configuration>>.
 [role="exclude",id="how-security-works"]
 === How security works
 
-See <<elasticsearch-security>>.
+See <<configuring-stack-security>>.
 
 [role="exclude",id="rollup-job-config"]
 === Rollup job configuration

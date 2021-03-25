@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map.Entry;
@@ -49,10 +50,10 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = initializeSchemaFactory();
 
-        String path = getSchemaLocation() + getJsonSchemaFileName();
-        logger.debug("loading schema from: [{}]", path);
+        Path p = getDataPath(getSchemaLocation() + getJsonSchemaFileName());
+        logger.debug("loading schema from: [{}]", p);
 
-        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(getClass().getResourceAsStream(path)), config);
+        JsonSchema jsonSchema = factory.getSchema(mapper.readTree(Files.newInputStream(p)), config);
 
         // ensure the schema meets certain criteria like not empty, strictness
         assertTrue("found empty schema", jsonSchema.getValidators().size() > 0);
@@ -110,7 +111,6 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         JsonSchemaFactory factory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).uriFetcher(uri -> {
             String fileName = uri.toString().substring(uri.getScheme().length() + 1);
             Path path = getDataPath(getSchemaLocation() + fileName);
-            String resource = getSchemaLocation() + fileName;
             logger.debug("loading sub-schema [{}] from: [{}]", uri, path);
             return getClass().getResourceAsStream(getSchemaLocation() + fileName);
         }, "file").build();

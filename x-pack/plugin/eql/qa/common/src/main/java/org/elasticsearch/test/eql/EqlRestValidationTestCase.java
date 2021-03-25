@@ -11,7 +11,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -111,5 +113,13 @@ public abstract class EqlRestValidationTestCase extends ESRestTestCase {
             Response response = client().performRequest(request);
             assertOK(response);
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

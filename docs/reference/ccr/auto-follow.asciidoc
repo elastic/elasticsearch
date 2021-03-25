@@ -7,6 +7,12 @@ each new index in the series is replicated automatically. Whenever the name of
 a new index on the remote cluster matches the auto-follow pattern, a
 corresponding follower index is added to the local cluster.
 
+NOTE: auto-follow patterns creates follower indices only for opened, fully
+assigned indices that match the specified pattern in the remote cluster. The
+ patterns should not match special indices like <<frozen-indices,frozen indices>>,
+<<searchable-snapshots,{search-snaps}>> or <<index-blocks-read-only, read-only indices>>
+that cannot be used for CCR purpose.
+
 You can also create auto-follow patterns for data streams. When a new backing
 index is generated on a remote cluster, that index and its data stream are
 automatically followed if the data stream name matches an auto-follow

@@ -38,7 +38,6 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final boolean invalidated;
     private final String username;
     private final String realm;
-    @Nullable
     private final Map<String, Object> metadata;
 
     public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
@@ -53,7 +52,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = invalidated;
         this.username = username;
         this.realm = realm;
-        this.metadata = metadata;
+        this.metadata = metadata == null ? Map.of() : metadata;
     }
 
     public ApiKey(StreamInput in) throws IOException {
@@ -71,7 +70,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
-            this.metadata = null;
+            this.metadata = Map.of();
         }
     }
 
@@ -143,7 +142,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, creation, expiration, invalidated, username, realm);
+        return Objects.hash(name, id, creation, expiration, invalidated, username, realm, metadata);
     }
 
     @Override
@@ -164,7 +163,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
                 && Objects.equals(expiration, other.expiration)
                 && Objects.equals(invalidated, other.invalidated)
                 && Objects.equals(username, other.username)
-                && Objects.equals(realm, other.realm);
+                && Objects.equals(realm, other.realm)
+                && Objects.equals(metadata, other.metadata);
     }
 
     @SuppressWarnings("unchecked")

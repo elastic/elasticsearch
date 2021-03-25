@@ -3,10 +3,10 @@
 == User authorization
 
 The {stack-security-features} add _authorization_, which is the process of determining whether the user behind an incoming request is allowed to execute
-the request. 
+the request.
 
-This process takes place after the user is successfully identified and 
-<<setting-up-authentication,authenticated>>. 
+This process takes place after the user is successfully identified and
+<<setting-up-authentication,authenticated>>.
 
 [[roles]]
 [discrete]
@@ -14,7 +14,7 @@ This process takes place after the user is successfully identified and
 
 The {security-features} provide a role-based access control (RBAC) mechanism,
 which enables you to authorize users by assigning privileges to roles and
-assigning roles to users or groups. 
+assigning roles to users or groups.
 
 image::security/authorization/images/authorization.png[This image illustrates role-based access control]
 
@@ -47,17 +47,17 @@ _User_::
 The authenticated user.
 
 _Group_::
-One or more groups to which a user belongs. Groups are not supported in some 
-realms, such as native, file, or PKI realms. 
+One or more groups to which a user belongs. Groups are not supported in some
+realms, such as native, file, or PKI realms.
 
 A role has a unique name and identifies a set of permissions that translate to
-privileges on resources. You can associate a user or group with an arbitrary 
-number of roles. When you map roles to groups, the roles of a user in that group 
-are the combination of the roles assigned to that group and the roles assigned 
-to that user. Likewise, the total set of permissions that a user has is defined 
+privileges on resources. You can associate a user or group with an arbitrary
+number of roles. When you map roles to groups, the roles of a user in that group
+are the combination of the roles assigned to that group and the roles assigned
+to that user. Likewise, the total set of permissions that a user has is defined
 by the union of the permissions in all its roles.
 
-The method for assigning roles to users varies depending on which realms you use 
+The method for assigning roles to users varies depending on which realms you use
 to authenticate users. For more information, see <<mapping-roles>>.
 
 [[attributes]]
@@ -69,7 +69,31 @@ mechanism, which enables you to use attributes to restrict access to documents
 in search queries and aggregations. For example, you can assign attributes to
 users and documents, then implement an access policy in a role definition. Users
 with that role can read a specific document only if they have all the required
-attributes. 
+attributes.
 
-For more information, see 
+For more information, see
 https://www.elastic.co/blog/attribute-based-access-control-with-xpack[Document-level attribute-based access control with X-Pack 6.1].
+
+include::built-in-roles.asciidoc[]
+
+include::managing-roles.asciidoc[]
+
+include::stack-management.asciidoc[]
+
+include::privileges.asciidoc[]
+
+include::document-level-security.asciidoc[]
+
+include::field-level-security.asciidoc[]
+
+include::alias-privileges.asciidoc[]
+
+include::mapping-roles.asciidoc[]
+
+include::field-and-document-access-control.asciidoc[]
+
+include::run-as-privilege.asciidoc[leveloffset=+2]
+
+include::configuring-authorization-delegation.asciidoc[]
+
+include::custom-authorization.asciidoc[]

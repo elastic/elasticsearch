@@ -9,7 +9,6 @@
 package org.elasticsearch.painless.toxcontent;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
@@ -74,14 +73,14 @@ import java.util.stream.Collectors;
  * Serialize the user tree
  */
 public class UserTreeToXContent extends UserTreeBaseVisitor<ScriptScope> {
-    public final XContentBuilderUncheckedExceptionWrapper builder;
+    public final XContentBuilderWrapper builder;
 
     public UserTreeToXContent(XContentBuilder builder) {
-        this.builder = new XContentBuilderUncheckedExceptionWrapper(Objects.requireNonNull(builder));
+        this.builder = new XContentBuilderWrapper(Objects.requireNonNull(builder));
     }
 
     public UserTreeToXContent() {
-        this.builder = new XContentBuilderUncheckedExceptionWrapper();
+        this.builder = new XContentBuilderWrapper();
     }
 
     static final class Fields {

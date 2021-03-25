@@ -80,131 +80,131 @@ public class DecorationToXContent {
         static final String METHOD = "method";
     }
 
-    public static void ToXContent(TargetType targetType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(TargetType targetType, XContentBuilderWrapper builder) {
         start(targetType, builder);
         builder.field(Fields.TYPE, targetType.getTargetType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(ValueType valueType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ValueType valueType, XContentBuilderWrapper builder) {
         start(valueType, builder);
         builder.field(Fields.TYPE, valueType.getValueType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(StaticType staticType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StaticType staticType, XContentBuilderWrapper builder) {
         start(staticType, builder);
         builder.field(Fields.TYPE, staticType.getStaticType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(PartialCanonicalTypeName partialCanonicalTypeName, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PartialCanonicalTypeName partialCanonicalTypeName, XContentBuilderWrapper builder) {
         start(partialCanonicalTypeName, builder);
         builder.field(Fields.TYPE, partialCanonicalTypeName.getPartialCanonicalTypeName());
         builder.endObject();
     }
 
-    public static void ToXContent(ExpressionPainlessCast expressionPainlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ExpressionPainlessCast expressionPainlessCast, XContentBuilderWrapper builder) {
         start(expressionPainlessCast, builder);
         builder.field(Fields.CAST);
         ToXContent(expressionPainlessCast.getExpressionPainlessCast(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(SemanticVariable semanticVariable, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(SemanticVariable semanticVariable, XContentBuilderWrapper builder) {
         start(semanticVariable, builder);
         builder.field("variable");
         ToXContent(semanticVariable.getSemanticVariable(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(IterablePainlessMethod iterablePainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(IterablePainlessMethod iterablePainlessMethod, XContentBuilderWrapper builder) {
         start(iterablePainlessMethod, builder);
         builder.field(Fields.METHOD);
         ToXContent(iterablePainlessMethod.getIterablePainlessMethod(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(UnaryType unaryType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(UnaryType unaryType, XContentBuilderWrapper builder) {
         start(unaryType, builder);
         builder.field(Fields.TYPE, unaryType.getUnaryType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(BinaryType binaryType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(BinaryType binaryType, XContentBuilderWrapper builder) {
         start(binaryType, builder);
         builder.field(Fields.TYPE, binaryType.getBinaryType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(ShiftType shiftType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ShiftType shiftType, XContentBuilderWrapper builder) {
         start(shiftType, builder);
         builder.field(Fields.TYPE, shiftType.getShiftType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(ComparisonType comparisonType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ComparisonType comparisonType, XContentBuilderWrapper builder) {
         start(comparisonType, builder);
         builder.field(Fields.TYPE, comparisonType.getComparisonType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(CompoundType compoundType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(CompoundType compoundType, XContentBuilderWrapper builder) {
         start(compoundType, builder);
         builder.field(Fields.TYPE, compoundType.getCompoundType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(UpcastPainlessCast upcastPainlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(UpcastPainlessCast upcastPainlessCast, XContentBuilderWrapper builder) {
         start(upcastPainlessCast, builder);
         builder.field(Fields.CAST);
         ToXContent(upcastPainlessCast.getUpcastPainlessCast(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(DowncastPainlessCast downcastPainlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(DowncastPainlessCast downcastPainlessCast, XContentBuilderWrapper builder) {
         start(downcastPainlessCast, builder);
         builder.field(Fields.CAST);
         ToXContent(downcastPainlessCast.getDowncastPainlessCast(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessField standardPainlessField, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardPainlessField standardPainlessField, XContentBuilderWrapper builder) {
         start(standardPainlessField, builder);
         builder.field("field");
         ToXContent(standardPainlessField.getStandardPainlessField(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessConstructor standardPainlessConstructor, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardPainlessConstructor standardPainlessConstructor, XContentBuilderWrapper builder) {
         start(standardPainlessConstructor, builder);
         builder.field("constructor");
         ToXContent(standardPainlessConstructor.getStandardPainlessConstructor(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessMethod standardPainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardPainlessMethod standardPainlessMethod, XContentBuilderWrapper builder) {
         start(standardPainlessMethod, builder);
         builder.field(Fields.METHOD);
         ToXContent(standardPainlessMethod.getStandardPainlessMethod(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(GetterPainlessMethod getterPainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(GetterPainlessMethod getterPainlessMethod, XContentBuilderWrapper builder) {
         start(getterPainlessMethod, builder);
         builder.field(Fields.METHOD);
         ToXContent(getterPainlessMethod.getGetterPainlessMethod(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(SetterPainlessMethod setterPainlessMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(SetterPainlessMethod setterPainlessMethod, XContentBuilderWrapper builder) {
         start(setterPainlessMethod, builder);
         builder.field(Fields.METHOD);
         ToXContent(setterPainlessMethod.getSetterPainlessMethod(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(StandardConstant standardConstant, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardConstant standardConstant, XContentBuilderWrapper builder) {
         start(standardConstant, builder);
         builder.startObject("constant");
         builder.field(Fields.TYPE, standardConstant.getStandardConstant().getClass().getSimpleName());
@@ -213,40 +213,40 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(StandardLocalFunction standardLocalFunction, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardLocalFunction standardLocalFunction, XContentBuilderWrapper builder) {
         start(standardLocalFunction, builder);
         builder.field("function");
         ToXContent(standardLocalFunction.getLocalFunction(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessClassBinding standardPainlessClassBinding, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardPainlessClassBinding standardPainlessClassBinding, XContentBuilderWrapper builder) {
         start(standardPainlessClassBinding, builder);
         builder.field("PainlessClassBinding");
         ToXContent(standardPainlessClassBinding.getPainlessClassBinding(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(StandardPainlessInstanceBinding standardPainlessInstanceBinding, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(StandardPainlessInstanceBinding standardPainlessInstanceBinding, XContentBuilderWrapper builder) {
         start(standardPainlessInstanceBinding, builder);
         builder.field("PainlessInstanceBinding");
         ToXContent(standardPainlessInstanceBinding.getPainlessInstanceBinding(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(MethodNameDecoration methodNameDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(MethodNameDecoration methodNameDecoration, XContentBuilderWrapper builder) {
         start(methodNameDecoration, builder);
         builder.field("methodName", methodNameDecoration.getMethodName());
         builder.endObject();
     }
 
-    public static void ToXContent(ReturnType returnType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ReturnType returnType, XContentBuilderWrapper builder) {
         start(returnType, builder);
         builder.field("returnType", returnType.getReturnType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(TypeParameters typeParameters, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(TypeParameters typeParameters, XContentBuilderWrapper builder) {
         start(typeParameters, builder);
         if (typeParameters.getTypeParameters().isEmpty() == false) {
             builder.field("typeParameters", classNames(typeParameters.getTypeParameters()));
@@ -254,7 +254,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(ParameterNames parameterNames, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ParameterNames parameterNames, XContentBuilderWrapper builder) {
         start(parameterNames, builder);
         if (parameterNames.getParameterNames().isEmpty() == false) {
             builder.field("parameterNames", parameterNames.getParameterNames());
@@ -262,7 +262,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(ReferenceDecoration referenceDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(ReferenceDecoration referenceDecoration, XContentBuilderWrapper builder) {
         start(referenceDecoration, builder);
         FunctionRef ref = referenceDecoration.getReference();
         builder.field("interfaceMethodName", ref.interfaceMethodName);
@@ -295,13 +295,13 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(EncodingDecoration encodingDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(EncodingDecoration encodingDecoration, XContentBuilderWrapper builder) {
         start(encodingDecoration, builder);
         builder.field("encoding", encodingDecoration.getEncoding());
         builder.endObject();
     }
 
-    public static void ToXContent(CapturesDecoration capturesDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(CapturesDecoration capturesDecoration, XContentBuilderWrapper builder) {
         start(capturesDecoration, builder);
         if (capturesDecoration.getCaptures().isEmpty() == false) {
             builder.startArray("captures");
@@ -313,33 +313,33 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(InstanceType instanceType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(InstanceType instanceType, XContentBuilderWrapper builder) {
         start(instanceType, builder);
         builder.field("instanceType", instanceType.getInstanceType().getSimpleName());
         builder.endObject();
     }
 
-    public static void ToXContent(AccessDepth accessDepth, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(AccessDepth accessDepth, XContentBuilderWrapper builder) {
         start(accessDepth, builder);
         builder.field("depth", accessDepth.getAccessDepth());
         builder.endObject();
     }
 
-    public static void ToXContent(IRNodeDecoration irNodeDecoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(IRNodeDecoration irNodeDecoration, XContentBuilderWrapper builder) {
         start(irNodeDecoration, builder);
         // TODO(stu): expand this
         builder.field("irNode", irNodeDecoration.getIRNode().toString());
         builder.endObject();
     }
 
-    public static void ToXContent(Converter converter, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(Converter converter, XContentBuilderWrapper builder) {
         start(converter, builder);
         builder.field("converter");
         ToXContent(converter.getConverter(), builder);
         builder.endObject();
     }
 
-    public static void ToXContent(Decoration decoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(Decoration decoration, XContentBuilderWrapper builder) {
         if  (decoration instanceof TargetType) {
             ToXContent((TargetType) decoration, builder);
         } else if (decoration instanceof ValueType) {
@@ -416,7 +416,7 @@ public class DecorationToXContent {
     }
 
     // lookup
-    public static void ToXContent(PainlessCast painlessCast, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PainlessCast painlessCast, XContentBuilderWrapper builder) {
         builder.startObject();
         if (painlessCast.originalType != null) {
             builder.field("originalType", painlessCast.originalType.getSimpleName());
@@ -439,7 +439,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(PainlessMethod method, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PainlessMethod method, XContentBuilderWrapper builder) {
         builder.startObject();
         if (method.javaMethod != null) {
             builder.field("javaMethod");
@@ -463,7 +463,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(FunctionTable.LocalFunction localFunction, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(FunctionTable.LocalFunction localFunction, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("functionName", localFunction.getFunctionName());
         builder.field("returnType", localFunction.getReturnType().getSimpleName());
@@ -477,7 +477,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(PainlessClassBinding binding, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PainlessClassBinding binding, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("javaConstructor");
         ToXContent(binding.javaConstructor, builder);
@@ -492,7 +492,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(PainlessInstanceBinding binding, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PainlessInstanceBinding binding, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("targetInstance", binding.targetInstance.getClass().getSimpleName());
 
@@ -506,7 +506,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(PainlessField field, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PainlessField field, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("javaField");
         ToXContent(field.javaField, builder);
@@ -520,7 +520,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(PainlessConstructor constructor, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(PainlessConstructor constructor, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("javaConstructor");
         ToXContent(constructor.javaConstructor, builder);
@@ -533,7 +533,7 @@ public class DecorationToXContent {
     }
 
     // symbol
-    public static void ToXContent(SemanticScope.Variable variable, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(SemanticScope.Variable variable, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field(Fields.TYPE, variable.getType());
         builder.field("name", variable.getName());
@@ -542,7 +542,7 @@ public class DecorationToXContent {
     }
 
     // annotations
-    public static void AnnotationsToXContent(Map<Class<?>, Object> annotations, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void AnnotationsToXContent(Map<Class<?>, Object> annotations, XContentBuilderWrapper builder) {
         if (annotations == null || annotations.isEmpty()) {
             return;
         }
@@ -553,7 +553,7 @@ public class DecorationToXContent {
         builder.endArray();
     }
 
-    public static void AnnotationToXContent(Object annotation, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void AnnotationToXContent(Object annotation, XContentBuilderWrapper builder) {
         if (annotation instanceof CompileTimeOnlyAnnotation) {
             builder.value(CompileTimeOnlyAnnotation.NAME);
         } else if (annotation instanceof DeprecatedAnnotation) {
@@ -576,7 +576,7 @@ public class DecorationToXContent {
     }
 
     // asm
-    public static void ToXContent(org.objectweb.asm.commons.Method asmMethod, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(org.objectweb.asm.commons.Method asmMethod, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("name", asmMethod.getName());
         builder.field("descriptor", asmMethod.getDescriptor());
@@ -586,7 +586,7 @@ public class DecorationToXContent {
     }
 
     // java.lang.invoke
-    public static void ToXContent(MethodType methodType, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(MethodType methodType, XContentBuilderWrapper builder) {
         builder.startObject();
         List<Class<?>> parameters = methodType.parameterList();
         if (parameters.isEmpty() == false) {
@@ -597,7 +597,7 @@ public class DecorationToXContent {
     }
 
     // java.lang.reflect
-    public static void ToXContent(Field field, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(Field field, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("name", field.getName());
         builder.field("type", field.getType().getSimpleName());
@@ -605,7 +605,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(Method method, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(Method method, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("name", method.getName());
         builder.field("parameters", classNames(method.getParameterTypes()));
@@ -618,7 +618,7 @@ public class DecorationToXContent {
         builder.endObject();
     }
 
-    public static void ToXContent(Constructor<?> constructor, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void ToXContent(Constructor<?> constructor, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field("name", constructor.getName());
         if (constructor.getParameterTypes().length > 0) {
@@ -632,7 +632,7 @@ public class DecorationToXContent {
     }
 
     // helpers
-    public static void start(Decoration decoration, XContentBuilderUncheckedExceptionWrapper builder) {
+    public static void start(Decoration decoration, XContentBuilderWrapper builder) {
         builder.startObject();
         builder.field(Fields.DECORATION, decoration.getClass().getSimpleName());
     }

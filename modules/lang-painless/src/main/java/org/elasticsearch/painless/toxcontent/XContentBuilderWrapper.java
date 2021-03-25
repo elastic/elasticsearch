@@ -16,14 +16,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-public class XContentBuilderUncheckedExceptionWrapper {
+public class XContentBuilderWrapper {
     public final XContentBuilder builder;
 
-    public XContentBuilderUncheckedExceptionWrapper(XContentBuilder builder) {
+    public XContentBuilderWrapper(XContentBuilder builder) {
         this.builder = Objects.requireNonNull(builder);
     }
 
-    public XContentBuilderUncheckedExceptionWrapper() {
+    public XContentBuilderWrapper() {
         XContentBuilder jsonBuilder;
         try {
             jsonBuilder = XContentFactory.jsonBuilder();

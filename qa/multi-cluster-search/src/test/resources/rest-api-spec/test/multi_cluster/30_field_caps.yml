@@ -106,7 +106,6 @@
   - match: { error.script : "bad syntax" }
   - match: { error.lang : "painless" }
 
-
 ---
 "Get field caps from remote cluster with index filter":
   - skip:

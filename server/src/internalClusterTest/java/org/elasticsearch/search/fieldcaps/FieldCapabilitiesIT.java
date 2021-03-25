@@ -285,7 +285,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
 
         // if all requested indices failed, we fail the request by throwing the exception
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> client().prepareFieldCaps("index1-error", "index2-error")
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareFieldCaps("index1-error", "index2-error")
             .setFields("*")
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get());

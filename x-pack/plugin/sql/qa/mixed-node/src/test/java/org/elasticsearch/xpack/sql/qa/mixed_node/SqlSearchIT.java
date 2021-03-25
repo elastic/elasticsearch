@@ -72,7 +72,7 @@ public class SqlSearchIT extends ESRestTestCase {
         newVersion = nodes.getNewNodes().get(0).getVersion();
         isBwcNodeBeforeFieldsApiInQL = bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
         isBwcNodeBeforeFieldsApiInES = bwcVersion.before(SWITCH_TO_FIELDS_API_VERSION);
-        halfFloatMightReturnFullFloatPrecision = false == isBwcNodeBeforeFieldsApiInQL && bwcVersion.before(Version.V_7_13_0);
+        halfFloatMightReturnFullFloatPrecision = bwcVersion.before(Version.V_7_13_0);
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(
@@ -103,7 +103,7 @@ public class SqlSearchIT extends ESRestTestCase {
                  * that version we don't fetch the half float because we
                  * can't make any assertions about it.
                  */
-                if (false == halfFloatMightReturnFullFloatPrecision) {
+                if (isBwcNodeBeforeFieldsApiInQL || false == halfFloatMightReturnFullFloatPrecision) {
                     columns.add(columnInfo("half_float_field", "half_float"));
                 }
             },
@@ -153,7 +153,7 @@ public class SqlSearchIT extends ESRestTestCase {
                  * that version we don't fetch the half float because we
                  * can't make any assertions about it.
                  */
-                if (false == halfFloatMightReturnFullFloatPrecision) {
+                if (isBwcNodeBeforeFieldsApiInQL && isBwcNodeBeforeFieldsApiInES || false == halfFloatMightReturnFullFloatPrecision) {
                     columns.add(columnInfo("half_float_field", "half_float"));
                 }
             },

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.painless.printer;
+package org.elasticsearch.painless.toxcontent;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.symbol.ScriptScope;

@@ -6,8 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.painless.printer;
+package org.elasticsearch.painless.toxcontent;
 
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
@@ -63,6 +65,7 @@ import org.elasticsearch.painless.symbol.Decorator.Decoration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -70,6 +73,12 @@ import java.util.stream.Collectors;
  * Serialize the user tree
  */
 public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreeToXContentScope> {
+    public final XContentBuilder builder;
+
+    public UserTreeToXContent(XContentBuilder builder) {
+        this.builder = Objects.requireNonNull(builder);
+    }
+
     static final class Fields {
         static final String NODE = "node";
         static final String LOCATION = "location";

@@ -136,7 +136,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
         private static final ConstructingObjectParser<Metadata, Void> PARSER =
             new ConstructingObjectParser<>(NAME, true,
-                args -> new Metadata((long) args[0], (int) args[1], (int) args[2], (String) args[3], args[4] != null && (boolean) args[4]));
+                args -> new Metadata((long) args[0], (int) args[1], (int) args[2], (String) args[3]));
 
         static {
             PARSER.declareLong(constructorArg(), LAST_UPDATE);
@@ -158,18 +158,16 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         private final int firstChunk;
         private final int lastChunk;
         private final String md5;
-        private final boolean tar;
 
         Metadata(StreamInput in) throws IOException {
-            this(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readBoolean());
+            this(in.readLong(), in.readVInt(), in.readVInt(), in.readString());
         }
 
-        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, boolean tar) {
+        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5) {
             this.lastUpdate = lastUpdate;
             this.firstChunk = firstChunk;
             this.lastChunk = lastChunk;
             this.md5 = Objects.requireNonNull(md5);
-            this.tar = tar;
         }
 
         public long getLastUpdate() {
@@ -188,10 +186,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return md5;
         }
 
-        public boolean isTar() {
-            return tar;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -200,13 +194,12 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             return lastUpdate == metadata.lastUpdate
                 && firstChunk == metadata.firstChunk
                 && lastChunk == metadata.lastChunk
-                && md5.equals(metadata.md5)
-                && tar == metadata.tar;
+                && md5.equals(metadata.md5);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5, tar);
+            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5);
         }
 
         @Override
@@ -217,7 +210,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
                 builder.field(FIRST_CHUNK.getPreferredName(), firstChunk);
                 builder.field(LAST_CHUNK.getPreferredName(), lastChunk);
                 builder.field(MD5.getPreferredName(), md5);
-                builder.field(TAR.getPreferredName(), tar);
             }
             builder.endObject();
             return builder;
@@ -229,7 +221,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             out.writeVInt(firstChunk);
             out.writeVInt(lastChunk);
             out.writeString(md5);
-            out.writeBoolean(tar);
         }
     }
 }

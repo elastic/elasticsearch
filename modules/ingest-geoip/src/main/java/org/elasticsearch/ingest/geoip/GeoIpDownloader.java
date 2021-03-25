@@ -104,7 +104,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         logger.info("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
-            processDatabase(res);
+            if (res.get("name").toString().endsWith(".tgz")) {
+                processDatabase(res);
+            }
         }
     }
 
@@ -121,11 +123,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     //visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
-        String originalName = databaseInfo.get("name").toString();
-        String name = originalName
-            .replace(".mmdb.gz", "")
-            .replace(".gz", "")
-            .replace(".tgz", "") + ".mmdb";
+        String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
         if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
             updateTimestamp(name, state.get(name));
@@ -138,7 +136,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5);
             if (lastChunk > firstChunk) {
-                Metadata metadata = new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5, originalName.endsWith(".tgz"));
+                Metadata metadata = new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5);
                 state = state.put(name, metadata);
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
@@ -166,8 +164,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(),
-            old.isTar()));
+        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
         updateTaskState();
     }
 
@@ -239,7 +236,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     public GeoIpDownloaderStats getStatus() {
-        return isCancelled() || isCompleted() ? null: stats;
+        return isCancelled() || isCompleted() ? null : stats;
     }
 
     private void scheduleNextRun(TimeValue time) {

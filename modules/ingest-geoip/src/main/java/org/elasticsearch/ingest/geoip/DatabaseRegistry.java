@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.TarEntry;
-import org.elasticsearch.common.io.TarInputStream;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -266,19 +264,17 @@ public final class DatabaseRegistry implements Closeable {
                 decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
-                if (metadata.isTar()) {
-                    try (TarInputStream is = new TarInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpFile)))) {
-                        TarEntry entry;
-                        while ((entry = is.getNextEntry()) != null) {
-                            if (entry.getType() != TarEntry.Type.FILE) {
-                                continue;
-                            }
-                            String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
-                            if (name.startsWith(databaseName)) {
-                                Files.copy(is, databaseTmpFile, REPLACE_EXISTING);
-                            } else {
-                                Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), REPLACE_EXISTING);
-                            }
+                try (TarInputStream is = new TarInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpFile)))) {
+                    TarInputStream.TarEntry entry;
+                    while ((entry = is.getNextEntry()) != null) {
+                        if (entry.isNotFile()) {
+                            continue;
+                        }
+                        String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                        if (name.startsWith(databaseName)) {
+                            Files.copy(is, databaseTmpFile, REPLACE_EXISTING);
+                        } else {
+                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), REPLACE_EXISTING);
                         }
                     }
                 }

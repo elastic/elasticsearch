@@ -17,8 +17,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.TarEntry;
-import org.elasticsearch.common.io.TarInputStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -58,10 +56,9 @@ import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -135,16 +132,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         data.add((byte[]) hit.getSourceAsMap().get("data"));
                     }
 
-                    InputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
-
-                    if (metadata.isTar()) {
-                        TarInputStream tarIs = new TarInputStream(stream);
-                        stream = tarIs;
-                        TarEntry entry;
-                        while ((entry = tarIs.getNextEntry()) != null) {
-                            if (entry.getName().endsWith(".mmdb")) {
-                                break;
-                            }
+                    TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
+                    TarInputStream.TarEntry entry;
+                    while ((entry = stream.getNextEntry()) != null) {
+                        if (entry.getName().endsWith(".mmdb")) {
+                            break;
                         }
                     }
 
@@ -160,6 +152,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         // setup:
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -262,9 +255,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, hasItems(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
-                        endsWith("GeoLite2-ASN.mmdb")));
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
+                        "GeoLite2-City.mmdb_COPYRIGHT.txt","GeoLite2-Country.mmdb_COPYRIGHT.txt","GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                        "GeoLite2-City.mmdb_LICENSE.txt","GeoLite2-Country.mmdb_LICENSE.txt","GeoLite2-ASN.mmdb_LICENSE.txt",
+                        "GeoLite2-ASN.mmdb_README.txt"));
                 }
             }
         });
@@ -276,7 +271,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
             assertThat(result.getFailure(), nullValue());
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
             assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
             assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
         });

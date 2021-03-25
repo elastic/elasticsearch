@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.io;
+package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -35,10 +35,12 @@ public class TarInputStreamTests extends ESTestCase {
              TarInputStream tis = new TarInputStream(is)) {
             assertNotNull(is);
             for (Entry entry : entries) {
-                TarEntry tarEntry = tis.getNextEntry();
+                TarInputStream.TarEntry tarEntry = tis.getNextEntry();
                 assertEquals(entry.name, tarEntry.getName());
-                assertEquals(entry.mtime, tarEntry.getModificationTime());
-                assertEquals(entry.data, new String(tis.readAllBytes(), StandardCharsets.UTF_8));
+                if (entry.notFile == false) {
+                    assertEquals(entry.data, new String(tis.readAllBytes(), StandardCharsets.UTF_8));
+                }
+                assertEquals(entry.notFile, tarEntry.isNotFile());
             }
             assertNull(tis.getNextEntry());
         }
@@ -48,13 +50,17 @@ public class TarInputStreamTests extends ESTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         Object[][] entries = new Object[][]{
             createTest("tar1.tar",
-                new Entry("a.txt", "aaa", 1616416474)),
+                new Entry("a.txt", "aaa\n", false)),
             createTest("tar2.tar",
-                new Entry("a.txt", "aaa", 1616416474),
-                new Entry("b.txt", "bbbbbb", 1616416484)),
+                new Entry("a.txt", "aaa\n", false),
+                new Entry("b.txt", "bbbbbb\n", false)),
             createTest("tar3.tar",
-                new Entry("c.txt", Stream.generate(() -> "a").limit(512).collect(Collectors.joining()), 1616416501),
-                new Entry("b.txt", "bbbbbb", 1616416484)),
+                new Entry("c.txt", Stream.generate(() -> "-").limit(512).collect(Collectors.joining()), false),
+                new Entry("b.txt", "bbbbbb\n", false)),
+            createTest("tar4.tar",
+                new Entry("./", null, true),
+                new Entry("./b.txt", "bbb\n", false),
+                new Entry("./a.txt", "aaa\n", false))
         };
         return Arrays.asList(entries);
     }
@@ -66,12 +72,12 @@ public class TarInputStreamTests extends ESTestCase {
     private static class Entry {
         String name;
         String data;
-        long mtime;
+        boolean notFile;
 
-        private Entry(String name, String data, long mtime) {
+        private Entry(String name, String data, boolean notFile) {
             this.name = name;
             this.data = data;
-            this.mtime = mtime;
+            this.notFile = notFile;
         }
 
         @Override

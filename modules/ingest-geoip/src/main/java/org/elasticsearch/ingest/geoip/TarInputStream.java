@@ -6,29 +6,34 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.io;
+package org.elasticsearch.ingest.geoip;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
-public class TarInputStream extends FilterInputStream {
+/**
+ * {@link InputStream} with very basic support for tar format, just enough to parse archives provided by GeoIP database service from Infra.
+ * This class is not suitable for general purpose tar processing!
+ */
+class TarInputStream extends FilterInputStream {
 
     private TarEntry currentEntry;
     private long remaining;
     private final byte[] buf = new byte[512];
 
-    public TarInputStream(InputStream is) {
-        super(is);
+    TarInputStream(InputStream in) {
+        super(in);
     }
 
     public TarEntry getNextEntry() throws IOException {
         if (currentEntry != null) {
             //go to the end of the current entry
             skipN(remaining);
-            long reminder = currentEntry.getSize() % 512;
+            long reminder = currentEntry.size % 512;
             if (reminder != 0) {
                 skipN(512 - reminder);
             }
@@ -40,51 +45,19 @@ public class TarInputStream extends FilterInputStream {
         if (read != 512) {
             throw new EOFException();
         }
-        if (bufAllZeroes()) {
+        if (Arrays.compare(buf, new byte[512]) == 0) {
             return null;
         }
-        String name = getString(0, 100);
-        int mode = getInt(100);
-        int uid = getInt(108);
-        int gid = getInt(116);
-        remaining = getLong(124);
-        long mTime = getLong(136);
-        int checksum = getInt(148);
-        TarEntry.Type type = TarEntry.getType(getString(156, 1));
-        String linkName = getString(157, 100);
-        boolean ustar = getString(257, 6).equals("ustar");
-        String uname = getString(265, 32);
-        String gname = getString(297, 32);
-        int devMajor = getInt(329);
-        int devMinor = getInt(337);
-        name = getString(345, 155) + name;
-        if (name.endsWith("/")) {
-            type = TarEntry.Type.DIRECTORY;
-            name = name.substring(0, name.length() - 1);
-        }
-        ensureConsistency(checksum);
-        currentEntry = new TarEntry(name, mode, uid, gid, remaining, mTime, type, linkName, uname, gname, devMajor, devMinor, ustar);
-        if (type == TarEntry.Type.DIRECTORY) {
+        String name = getString(345, 155) + getString(0, 100);
+
+        String sizeString = getString(124, 12);
+        remaining = sizeString.isEmpty() ? 0 : Long.parseLong(sizeString, 8);
+        boolean notFile = (buf[156] != 0 && buf[156] != '0') || name.endsWith("/");
+        currentEntry = new TarEntry(name, remaining, notFile);
+        if (notFile) {
             remaining = 0;
         }
         return currentEntry;
-    }
-
-    private void ensureConsistency(int checksum) throws IOException {
-        for (int i = 0; i < 148; i++) {
-            checksum -= (buf[i] & 0xff);
-        }
-        for (int i = 156; i < 512; i++) {
-            checksum -= (buf[i] & 0xff);
-        }
-        if (checksum != 256) {
-            throw new IOException("entry header corrupted - checksum mismatch");
-        }
-    }
-
-    @Override
-    public int available() throws IOException {
-        return remaining > 0 ? 1 : 0;
     }
 
     @Override
@@ -110,16 +83,6 @@ public class TarInputStream extends FilterInputStream {
         return new String(buf, offset, maxLen, StandardCharsets.UTF_8).trim();
     }
 
-    private int getInt(int offset) {
-        String s = getString(offset, 8);
-        return s.isEmpty() ? 0 : Integer.parseInt(s, 8);
-    }
-
-    private long getLong(int offset) {
-        String s = getString(offset, 12);
-        return s.isEmpty() ? 0 : Long.parseLong(s, 8);
-    }
-
     private void skipN(long n) throws IOException {
         while (n > 0) {
             long skip = in.skip(n);
@@ -134,13 +97,24 @@ public class TarInputStream extends FilterInputStream {
         }
     }
 
-    private boolean bufAllZeroes() {
-        for (byte b : buf) {
-            if (b != 0) {
-                return false;
-            }
+    static class TarEntry {
+        private final String name;
+        private final long size;
+        private final boolean notFile;
+
+        TarEntry(String name, long size, boolean notFile) {
+            this.name = name;
+            this.size = size;
+            this.notFile = notFile;
         }
-        return true;
+
+        public String getName() {
+            return name;
+        }
+
+        public boolean isNotFile() {
+            return notFile;
+        }
     }
 }
 

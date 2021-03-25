@@ -210,7 +210,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
@@ -244,13 +244,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
 
-        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0", false)));
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
 
     public void testProcessDatabaseSame() throws IOException {
-        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(0, 4, 10, "1", false);
+        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(0, 4, 10, "1");
         GeoIpTaskState taskState = GeoIpTaskState.EMPTY.put("test.mmdb", metadata);
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
@@ -280,7 +280,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.setState(taskState);
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     @SuppressWarnings("unchecked")
@@ -317,12 +317,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabases() throws IOException {
-        List<Map<String, Object>> maps = List.of(Map.of("a", 1), Map.of("a", 2));
+        List<Map<String, Object>> maps = List.of(Map.of("a", 1, "name", "a.tgz"), Map.of("a", 2, "name", "a.tgz"));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         builder.startArray();
-        builder.map(Map.of("a", 1));
-        builder.map(Map.of("a", 2));
+        builder.map(Map.of("a", 1, "name", "a.tgz"));
+        builder.map(Map.of("a", 2, "name", "a.tgz"));
         builder.endArray();
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree"))

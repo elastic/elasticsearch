@@ -18,4 +18,5 @@ project.ext {
 
 for (repoDir in project.ext.fsRepositoryDirs) {
   delete(repoDir.value as File)
+  repoDir.value.mkdirs()
 }

@@ -13,9 +13,12 @@ Previews a {dfeed}.
 [[ml-preview-datafeed-request]]
 == {api-request-title}
 
-`GET _ml/datafeeds/<datafeed_id>/_preview`
-`POST _ml/datafeeds/<datafeed_id>/_preview`
-`GET _ml/datafeeds/_preview`
+`GET _ml/datafeeds/<datafeed_id>/_preview` +
+
+`POST _ml/datafeeds/<datafeed_id>/_preview` +
+
+`GET _ml/datafeeds/_preview` +
+
 `POST _ml/datafeeds/_preview`
 
 [[ml-preview-datafeed-prereqs]]
@@ -28,15 +31,10 @@ Previews a {dfeed}.
 [[ml-preview-datafeed-desc]]
 == {api-description-title}
 
-The preview {dfeeds} API returns the first "page" of results from the `search`
-that is created by using the current {dfeed} settings. This preview shows the
-structure of the data that will be passed to the anomaly detection engine.
-
-It is possible to preview an existing {dfeed}, or provide configurations for
-the {dfeed} or {anomaly-job} in the API call.
-
-NOTE: You may not provide configurations in the API body while also
-providing the `<datafeed_id>` in the URL.
+The preview {dfeeds} API returns the first "page" of search results from a 
+{dfeed}. You can preview an existing {dfeed} or provide configuration details
+for the {dfeed} and {anomaly-job} in the API. The preview shows the structure of 
+the data that will be passed to the anomaly detection engine.
 
 IMPORTANT: When {es} {security-features} are enabled, the {dfeed} query is
 previewed using the credentials of the user calling the preview {dfeed} API.
@@ -54,25 +52,29 @@ supply the credentials.
 `<datafeed_id>`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
++
+NOTE: If you provide the `<datafeed_id>` as a path parameter, you cannot
+provide {dfeed} or {anomaly-job} configuration details in the request body.
 
 [[ml-preview-datafeed-request-body]]
 == {api-request-body-title}
 
 `datafeed_config`::
-(Optional, object) The {dfeed} definition to preview. If this is provided,
-the `datafeed_id` must not be in the url. For valid definitions see
-<<ml-put-datafeed-request-body, put datafeed documentation>>.
+(Optional, object) The {dfeed} definition to preview. For valid definitions, see
+the <<ml-put-datafeed-request-body,create {dfeeds} API>>.
 
 `job_config`::
-(Optional, object) If provided, this {anomaly-job} is used instead of the one
-referred to by the {dfeed} `job_id`. Must be present if the {dfeed} config
-does not refer to a {anomaly-job}. See <<ml-put-job-request-body, put job documentation>>
-for valid definitions.
+(Optional, object) The configuration details for the {anomaly-job} that is
+associated with the {dfeed}. If the `datafeed_config` object does not include a
+`job_id` that references an existing {anomaly-job}, you must supply this
+`job_config` object. If you include both a `job_id` and a `job_config`, the
+latter information is used. For valid definitions, see the
+<<ml-put-job-request-body,create {anomaly-jobs} API>>.
 
 [[ml-preview-datafeed-example]]
 == {api-examples-title}
 
-This is an example of providing the ID of an existing {dfeed}
+This is an example of providing the ID of an existing {dfeed}:
 
 [source,console]
 --------------------------------------------------
@@ -112,7 +114,8 @@ The data that is returned for this example is as follows:
 ]
 ----
 
-Below is an example of providing configs for the {dfeed} and {anomaly-job}.
+The following example provides {dfeed} and {anomaly-job} configuration 
+details in the API:
 
 [source,console]
 --------------------------------------------------

@@ -16,4 +16,8 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 addQaCheckDependencies()

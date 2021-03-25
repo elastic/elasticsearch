@@ -163,17 +163,19 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
+        private final String rootName;
 
-        public KeyedFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, String key,
+        public KeyedFlattenedFieldType(String name, String rootName, boolean indexed, boolean hasDocValues, String key,
                                        boolean splitQueriesOnWhitespace, Map<String, String> meta) {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
             this.key = key;
+            this.rootName = rootName;
         }
 
-        private KeyedFlattenedFieldType(String name, String key, RootFlattenedFieldType ref) {
-            this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+        private KeyedFlattenedFieldType(String name, String rootName, String key, RootFlattenedFieldType ref) {
+            this(name, rootName, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -259,8 +261,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // This is an internal field but it can match a field pattern so we return an empty list.
-            return lookup -> List.of();
+            return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }
     }
 
@@ -441,7 +442,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public KeyedFlattenedFieldType keyedFieldType(String key) {
-        return new KeyedFlattenedFieldType(keyedFieldName(), key, fieldType());
+        return new KeyedFlattenedFieldType(keyedFieldName(), name(), key, fieldType());
     }
 
     public String keyedFieldName() {

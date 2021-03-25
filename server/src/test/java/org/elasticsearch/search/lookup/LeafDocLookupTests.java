@@ -28,6 +28,7 @@ public class LeafDocLookupTests extends ESTestCase {
     private ScriptDocValues<?> docValues;
     private LeafDocLookup docLookup;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -61,9 +62,9 @@ public class LeafDocLookupTests extends ESTestCase {
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
         FlattenedFieldMapper.KeyedFlattenedFieldType fieldType1
-            = new FlattenedFieldMapper.KeyedFlattenedFieldType("field", true, true, "key1", false, Collections.emptyMap());
+            = new FlattenedFieldMapper.KeyedFlattenedFieldType("field", "field", true, true, "key1", false, Collections.emptyMap());
         FlattenedFieldMapper.KeyedFlattenedFieldType fieldType2
-            = new FlattenedFieldMapper.KeyedFlattenedFieldType( "field", true, true, "key2", false, Collections.emptyMap());
+            = new FlattenedFieldMapper.KeyedFlattenedFieldType( "field", "field", true, true, "key2", false, Collections.emptyMap());
 
         Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
             FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) fieldType;

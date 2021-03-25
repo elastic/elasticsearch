@@ -31,7 +31,7 @@ import java.util.Map;
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap());
+        return new KeyedFlattenedFieldType("field", "field", true, true, "key", false, Collections.emptyMap());
     }
 
     public void testIndexedValueForSearch() {
@@ -56,7 +56,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
 
-        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key",
+        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", "field", false, true, "key",
             false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));

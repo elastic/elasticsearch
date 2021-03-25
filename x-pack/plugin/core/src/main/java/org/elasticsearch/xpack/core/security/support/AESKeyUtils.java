@@ -97,7 +97,8 @@ public final class AESKeyUtils {
         return verifySaltedPasswordHash(password, saltedHash, EsExecutors.newDirectExecutorService()).get();
     }
 
-    public static ListenableFuture<Boolean> verifySaltedPasswordHash(SecureString password, String saltedHash, ExecutorService executorService) {
+    public static ListenableFuture<Boolean> verifySaltedPasswordHash(SecureString password, String saltedHash,
+                                                                     ExecutorService executorService) {
         final ListenableFuture<Boolean> listenableFuture = new ListenableFuture<>();
         if (password == null) {
             listenableFuture.onFailure(new IllegalArgumentException("Unexpected null password used for hash verify"));

@@ -11,8 +11,6 @@ import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.Nullable;
@@ -26,7 +24,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 
 import java.io.ByteArrayInputStream;

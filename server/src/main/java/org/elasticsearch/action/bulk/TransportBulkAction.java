@@ -262,9 +262,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             // fail all requests involving this index, if create didn't work
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                 DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
-                                    bulkRequest.requests.set(i, null);
-                                }
+                                if (request != null)
+                                    setResponseFailureIfIndexMatches(responses, i, request, index, e);
                             }
                         }
                         if (counter.decrementAndGet() == 0) {
@@ -365,14 +364,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
+    private void setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
                                                      String index, Exception e) {
         if (index.equals(request.index())) {
             responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(),
                 request.id(), e)));
-            return true;
         }
-        return false;
     }
 
     private long buildTookInMillis(long startTimeNanos) {
@@ -416,7 +413,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 //the request can only be null because we set it to null in the previous step, so it gets ignored
-                if (docWriteRequest == null) {
+                if (responses.get(i) != null) {
                     continue;
                 }
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
@@ -473,8 +470,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
-                    // make sure the request gets never processed again
-                    bulkRequest.requests.set(i, null);
                 }
             }
 
@@ -618,8 +613,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     unavailableException);
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
             responses.set(idx, bulkItemResponse);
-            // make sure the request gets never processed again
-            bulkRequest.requests.set(idx, null);
         }
     }
 

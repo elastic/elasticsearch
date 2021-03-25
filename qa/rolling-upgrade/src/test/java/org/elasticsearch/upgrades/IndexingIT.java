@@ -208,11 +208,11 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Map<String, Object> response = entityAsMap(client().performRequest(search));
 
                 Map<?, ?> bestHit = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("hits.hits", response))).get(0);
-                List<Object> date = (List<Object>) XContentMapValues.extractValue("fields.date", bestHit);
+                List<?> date = (List<?>) XContentMapValues.extractValue("fields.date", bestHit);
                 assertThat(date.size(), equalTo(1));
                 assertThat(date.get(0), equalTo("2015-01-01T12:10:30.123Z"));
 
-                List<Object> dateNanos = (List<Object>) XContentMapValues.extractValue("fields.date_nanos", bestHit);
+                List<?> dateNanos = (List<?>) XContentMapValues.extractValue("fields.date_nanos", bestHit);
                 assertThat(dateNanos.size(), equalTo(1));
                 assertThat(dateNanos.get(0), equalTo("2015-01-01T12:10:30.123456789Z"));
                 break;

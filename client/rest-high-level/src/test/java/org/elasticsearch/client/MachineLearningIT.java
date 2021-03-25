@@ -1824,7 +1824,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         AucRocResult aucRocResult =
             evaluateDataFrameResponse.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME);
         assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-        assertThat(aucRocResult.getValue(), closeTo(0.70025, 1e-9));
+        assertThat(aucRocResult.getValue(), closeTo(0.70, 1e-3));
         assertNotNull(aucRocResult.getCurve());
         List<AucRocPoint> curve = aucRocResult.getCurve();
         AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
@@ -1959,7 +1959,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             AucRocResult aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocResult.getValue(), closeTo(0.6425, 1e-9));
+            assertThat(aucRocResult.getValue(), closeTo(0.619, 1e-3));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy

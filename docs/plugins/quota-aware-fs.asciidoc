@@ -1,6 +1,11 @@
 [[quota-aware-fs]]
 === Quota-aware Filesystem Plugin
 
+[NOTE]
+The Quota-aware Filesystem plugin is designed for indirect use by {ess-trial}[{ess}],
+{ece-ref}[{ece}], and {eck-ref}[Elastic Cloud on Kubernetes]. Direct use is not
+supported.
+
 The Quota-aware Filesystem plugin adds an interface for telling
 Elasticsearch the disk-quota limits under which it is operating.
 

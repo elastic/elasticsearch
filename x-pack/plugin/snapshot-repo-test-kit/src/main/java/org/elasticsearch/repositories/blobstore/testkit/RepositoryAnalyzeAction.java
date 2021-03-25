@@ -465,7 +465,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         request.getReadNodeCount(),
                         request.getEarlyReadNodeCount(),
                         smallBlob && random.nextDouble() < request.getRareActionProbability(),
-                        repository.supportURLRepo() && smallBlob && random.nextDouble() < request.getRareActionProbability()
+                        repository.supportURLRepo()
+                            && repository.hasAtomicOverwrites()
+                            && smallBlob
+                            && random.nextDouble() < request.getRareActionProbability()
                     )
                 );
                 queue.add(verifyBlobTask);

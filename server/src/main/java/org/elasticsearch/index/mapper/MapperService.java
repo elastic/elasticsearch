@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -52,6 +51,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -207,7 +207,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-            assertMappingVersion(currentIndexMetadata, newIndexMetadata, Collections.emptyMap());
+            assert assertNoUpdateRequired(newIndexMetadata);
             return;
         }
 
@@ -291,64 +291,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "incoming:\n" + incomingMappingSource + "\nmerged:\n" + mergedMappingSource;
     }
 
-    private void assertMappingVersion(
-        final IndexMetadata currentIndexMetadata,
-        final IndexMetadata newIndexMetadata,
-        final Map<String, DocumentMapper> updatedEntries) {
-        if (Assertions.ENABLED
-            && currentIndexMetadata != null
-            && currentIndexMetadata.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
-            if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-                // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
-                assert updatedEntries.isEmpty() : updatedEntries;
-
-                MappingMetadata defaultMapping = newIndexMetadata.defaultMapping();
-                if (defaultMapping != null) {
-                    final CompressedXContent currentSource = currentIndexMetadata.defaultMapping().source();
-                    final CompressedXContent newSource = defaultMapping.source();
-                    assert currentSource.equals(newSource) :
-                        "expected current mapping [" + currentSource + "] for type [" + defaultMapping.type() + "] "
-                            + "to be the same as new mapping [" + newSource + "]";
-                }
-
-                MappingMetadata mapping = newIndexMetadata.mapping();
-                if (mapping != null) {
-                    final CompressedXContent currentSource = currentIndexMetadata.mapping().source();
-                    final CompressedXContent newSource = mapping.source();
-                    assert currentSource.equals(newSource) :
-                        "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
-                            + "to be the same as new mapping [" + newSource + "]";
-                    assert currentSource.equals(mapper.mappingSource()) :
-                        "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
-                            + "to be the same as new mapping [" + mapper.mappingSource() + "]";
-                }
-
-            } else {
-                // the mapping version should increase, there should be updates, and the mapping should be different
-                final long currentMappingVersion = currentIndexMetadata.getMappingVersion();
-                final long newMappingVersion = newIndexMetadata.getMappingVersion();
-                assert currentMappingVersion < newMappingVersion :
-                    "expected current mapping version [" + currentMappingVersion + "] "
-                        + "to be less than new mapping version [" + newMappingVersion + "]";
-                assert updatedEntries.isEmpty() == false;
-                for (final DocumentMapper documentMapper : updatedEntries.values()) {
-                    final MappingMetadata currentMapping;
-                    if (documentMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
-                        currentMapping = currentIndexMetadata.defaultMapping();
-                    } else {
-                        currentMapping = currentIndexMetadata.mapping();
-                        assert currentMapping == null || documentMapper.type().equals(currentMapping.type());
-                    }
-                    if (currentMapping != null) {
-                        final CompressedXContent currentSource = currentMapping.source();
-                        final CompressedXContent newSource = documentMapper.mappingSource();
-                        assert currentSource.equals(newSource) == false :
-                            "expected current mapping [" + currentSource + "] for type [" + documentMapper.type() + "] " +
-                                "to be different than new mapping";
-                    }
-                }
+    boolean assertNoUpdateRequired(final IndexMetadata newIndexMetadata) {
+        MappingMetadata mapping = newIndexMetadata.mapping();
+        if (mapping != null) {
+            // mapping representations may change between versions (eg text field mappers
+            // used to always explicitly serialize analyzers), so we cannot simply check
+            // that the incoming mappings are the same as the current ones: we need to
+            // parse the incoming mappings into a DocumentMapper and check that its
+            // serialization is the same as the existing mapper
+            DocumentMapper newMapper = parse(mapping.type(), mapping.source(), false);
+            final CompressedXContent currentSource = this.mapper.mappingSource();
+            final CompressedXContent newSource = newMapper.mappingSource();
+            if (Objects.equals(currentSource, newSource) == false) {
+                throw new IllegalStateException("expected current mapping [" + currentSource
+                    + "] to be the same as new mapping [" + newSource + "]");
             }
         }
+        return true;
     }
 
     public void merge(Map<String, Map<String, Object>> mappings, MergeReason reason) {

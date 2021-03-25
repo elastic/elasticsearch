@@ -145,3 +145,5 @@ PUT /_cluster/settings
 NOTE: In order to avoid locking yourself out of the cluster, the default bound
       transport address will never be denied. This means you can always SSH into
       a system and use curl to apply changes.
+
+include::securing-communications/separating-node-client-traffic.asciidoc[]

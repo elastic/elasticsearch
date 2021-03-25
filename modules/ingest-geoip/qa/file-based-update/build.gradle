@@ -12,6 +12,8 @@ apply plugin: 'elasticsearch.rest-test'
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'resource.reload.interval.high', '100ms'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
 tasks.named("integTest").configure {

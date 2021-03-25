@@ -135,4 +135,10 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
 }

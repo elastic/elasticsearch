@@ -40,6 +40,7 @@ import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalati
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
+import static org.elasticsearch.packaging.util.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
@@ -57,6 +58,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -757,6 +759,19 @@ public class DockerTests extends PackagingTestCase {
 
         // This is roughly 0.4 * 942
         assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
+    }
+
+    /**
+     * Checks that the image has an appropriate <code>HEALTHCHECK</code> definition for the current distribution.
+     */
+    public void test160CheckImageHealthcheckDefinition() throws Exception {
+        final List<String> imageHealthcheck = getImageHealthcheck(distribution);
+
+        if (distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+            assertThat(imageHealthcheck, contains("CMD-SHELL", "curl -I -f --max-time 5 http://localhost:9200 || exit 1"));
+        } else {
+            assertThat(imageHealthcheck, nullValue());
+        }
     }
 
     /**

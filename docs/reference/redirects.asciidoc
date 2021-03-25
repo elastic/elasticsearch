@@ -1458,42 +1458,6 @@ instead.
 
 See <<fielddata-mapping-param>>.
 
-ifdef::permanently-unreleased-branch[]
-[role="exclude",id="rollup-overview"]
-=== {rollup-cap} overview
-
-// tag::legacy-rollup-redirect[]
-Legacy rollups are deprecated and will be replaced by <<xpack-rollup,new rollup
-functionality>> introduced in Elasticsearch 7.x. For legacy rollup API
-documentation, see <<legacy-rollup-apis>>.
-// end::legacy-rollup-redirect[]
-
-[role="exclude",id="rollup-getting-started"]
-=== Getting started with {rollups}
-
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
-
-[role="exclude",id="rollup-api-quickref"]
-=== {rollup-cap} API quick reference
-
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
-
-[role="exclude",id="rollup-understanding-groups"]
-=== Understanding rollup groups
-
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
-
-[role="exclude",id="rollup-agg-limitations"]
-=== {rollup-cap} aggregation limitations
-
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
-
-[role="exclude",id="rollup-search-limitations"]
-=== {rollup-cap} search limitations
-
-include::redirects.asciidoc[tag=legacy-rollup-redirect]
-endif::[]
-
 [role="exclude",id="pipeline"]
 === Pipeline definition
 
@@ -1544,3 +1508,8 @@ See <<processors>>.
 === Enrich policy definition
 
 See <<put-enrich-policy-api>>.
+
+[role="exclude",id="rollup-api"]
+=== Rollup API
+
+See <<rollup-apis>>.

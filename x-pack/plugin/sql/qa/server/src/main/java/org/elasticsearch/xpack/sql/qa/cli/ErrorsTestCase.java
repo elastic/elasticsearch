@@ -120,7 +120,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         index("test", body -> body.field("a", 1).field("b", 2));
         String commandResult = command("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000");
         assertEquals(
-            START + "Bad request [[3;33;22mThe maximum LIMIT for aggregate sorting is [65535], received [120000]" + END,
+            START + "Bad request [[3;33;22mThe maximum LIMIT for aggregate sorting is [65536], received [120000]" + END,
             commandResult
         );
     }

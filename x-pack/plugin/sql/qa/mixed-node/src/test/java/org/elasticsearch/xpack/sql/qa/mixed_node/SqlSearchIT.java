@@ -20,7 +20,6 @@ import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 
@@ -90,13 +89,12 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70630")
     public void testAllTypesWithRequestToOldNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
+                // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -116,7 +114,8 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    builder.append("\"half_float_field\":\"123.456\"");
+                    // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
                 }
             }
         );
@@ -128,7 +127,7 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
+                // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -145,7 +144,8 @@ public class SqlSearchIT extends ESRestTestCase {
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    builder.append("\"half_float_field\":\"123.456\"");
+                    // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
                 }
             }
         );
@@ -226,19 +226,15 @@ public class SqlSearchIT extends ESRestTestCase {
         Map<String, Object> column = new HashMap<>();
         column.put("name", name);
         column.put("type", type);
-        column.put("display_size", SqlDataTypes.displaySize(SqlDataTypes.fromTypeName(type)));
         return unmodifiableMap(column);
     }
 
-    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
+    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList)
+        throws Exception {
         try (
             RestClient client = buildClient(restClientSettings(),
                 nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
-            Request request = new Request("POST", "_sql");
-            String version = ",\"version\":\"" + newVersion.toString() + "\"";
-            String binaryFormat = ",\"binary_format\":\"false\"";
-
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
             String intervalYearMonth = "INTERVAL '150' YEAR AS interval_year, ";
@@ -249,9 +245,8 @@ public class SqlSearchIT extends ESRestTestCase {
             String fieldsList = columns.stream().map(m -> (String) m.get("name")).filter(str -> str.startsWith("interval") == false)
                 .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
-            request.setJsonEntity(
-                "{\"mode\":\"jdbc\"" + version + binaryFormat + ",\"query\":\"" + query + "\"}"
-            );
+            Request request = new Request("POST", "_sql");
+            request.setJsonEntity("{\"query\":\"" + query + "\"}");
             assertBusy(() -> { assertResponse(expectedResponse, runSql(client, request)); });
         }
     }

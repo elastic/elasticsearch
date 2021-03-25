@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetGlobalCheckpointAction extends BaseRestHandler {
+public class RestGetGlobalCheckpointsAction extends BaseRestHandler {
 
     @Override
     public String getName() {

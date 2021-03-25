@@ -20,14 +20,14 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAction.Response> {
+public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsAction.Response> {
 
-    public static final GetGlobalCheckpointAction INSTANCE = new GetGlobalCheckpointAction();
+    public static final GetGlobalCheckpointsAction INSTANCE = new GetGlobalCheckpointsAction();
     // TODO: Do we still use xpack?
-    public static final String NAME = "indices:monitor/xpack/fleet/global_checkpoint/";
+    public static final String NAME = "indices:monitor/xpack/fleet/global_checkpoints/";
 
-    private GetGlobalCheckpointAction() {
-        super(NAME, GetGlobalCheckpointAction.Response::new);
+    private GetGlobalCheckpointsAction() {
+        super(NAME, GetGlobalCheckpointsAction.Response::new);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -54,7 +54,7 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
         }
     }
 
-    public static class Request extends SingleShardRequest<Request> {
+    public static class Request extends SingleShardRequest<GetGlobalCheckpointAction.Request> {
 
         Request(StreamInput in) throws IOException {
 

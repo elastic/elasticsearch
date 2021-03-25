@@ -48,7 +48,11 @@ public class TransportGetGlobalCheckpointAction extends TransportSingleShardActi
 
     @Override
     protected GetGlobalCheckpointAction.Response shardOperation(GetGlobalCheckpointAction.Request request, ShardId shardId) throws IOException {
-        return null;
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final IndexShard indexShard = indexService.getShard(shardId.id());
+        final SeqNoStats seqNoStats = indexShard.seqNoStats();
+        // TODO: Fix
+        return new GetGlobalCheckpointAction.Response(new long[0]);
     }
 
     @Override
@@ -57,14 +61,9 @@ public class TransportGetGlobalCheckpointAction extends TransportSingleShardActi
         final IndexShard indexShard = indexService.getShard(shardId.id());
         final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
-        if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
-            logger.trace(
-                "{} waiting for global checkpoint advancement from [{}] to [{}]",
-                shardId,
-                seqNoStats.getGlobalCheckpoint(),
-                request.getFromSeqNo());
+        if (request.waitForAdvance() && request.currentCheckpoint() >= seqNoStats.getGlobalCheckpoint()) {
             indexShard.addGlobalCheckpointListener(
-                request.getFromSeqNo(),
+                request.currentCheckpoint(),
                 new GlobalCheckpointListeners.GlobalCheckpointListener() {
 
                     @Override
@@ -75,17 +74,17 @@ public class TransportGetGlobalCheckpointAction extends TransportSingleShardActi
                     @Override
                     public void accept(final long g, final Exception e) {
                         if (g != UNASSIGNED_SEQ_NO) {
-                            assert request.getFromSeqNo() <= g
-                                : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
-                            globalCheckpointAdvanced(shardId, g, request, listener);
+                            assert request.currentCheckpoint() <= g
+                                : shardId + " only advanced to [" + g + "] while waiting for [" + request.currentCheckpoint() + "]";
+                            globalCheckpointAdvanced(shardId, request, listener);
                         } else {
                             assert e != null;
-                            globalCheckpointAdvancementFailure(shardId, e, request, listener, indexShard);
+                            globalCheckpointAdvancementFailure(shardId, e, request, listener);
                         }
                     }
 
                 },
-                request.getPollTimeout());
+                request.pollTimeout());
         } else {
             super.asyncShardOperation(request, shardId, listener);
         }
@@ -93,7 +92,6 @@ public class TransportGetGlobalCheckpointAction extends TransportSingleShardActi
 
     private void globalCheckpointAdvanced(
         final ShardId shardId,
-        final long globalCheckpoint,
         final GetGlobalCheckpointAction.Request request,
         final ActionListener<GetGlobalCheckpointAction.Response> listener) {
         try {
@@ -107,30 +105,22 @@ public class TransportGetGlobalCheckpointAction extends TransportSingleShardActi
         final ShardId shardId,
         final Exception e,
         final GetGlobalCheckpointAction.Request request,
-        final ActionListener<GetGlobalCheckpointAction.Response> listener,
-        final IndexShard indexShard) {
+        final ActionListener<GetGlobalCheckpointAction.Response> listener) {
         if (e instanceof TimeoutException) {
             try {
                 final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                // TODO: Necessary?
                 if (indexMetadata == null) {
                     listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                     return;
+                } else {
+                    listener.onFailure(e);
                 }
-                final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
-                final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-//                listener.onResponse(
-//                    getResponse(
-//                        mappingVersion,
-//                        settingsVersion,
-//                        aliasesVersion,
-//                        latestSeqNoStats,
-//                        maxSeqNoOfUpdatesOrDeletes,
-//                        EMPTY_OPERATIONS_ARRAY,
-//                        request.relativeStartNanos));
             } catch (final Exception caught) {
                 caught.addSuppressed(e);
                 listener.onFailure(caught);
             }
+
         } else {
             listener.onFailure(e);
         }

@@ -57,8 +57,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
  * available for ingest processors.
@@ -272,15 +270,15 @@ public final class DatabaseRegistry implements Closeable {
                         }
                         String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
                         if (name.startsWith(databaseName)) {
-                            Files.copy(is, databaseTmpFile, REPLACE_EXISTING);
+                            Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
                         } else {
-                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), REPLACE_EXISTING);
+                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), StandardCopyOption.REPLACE_EXISTING);
                         }
                     }
                 }
 
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
-                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, REPLACE_EXISTING);
+                Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
                 updateDatabase(databaseName, recordedMd5, databaseFile);
                 Files.delete(databaseTmpGzFile);
             },
@@ -371,7 +369,7 @@ public final class DatabaseRegistry implements Closeable {
 
     static void decompress(Path source, Path target) throws IOException {
         try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(source), 8192)) {
-            Files.copy(in, target, REPLACE_EXISTING);
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

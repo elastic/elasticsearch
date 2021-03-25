@@ -229,7 +229,7 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         ValuesSource.Bytes.WithOrdinals source = mock(ValuesSource.Bytes.WithOrdinals.class);
         when(source.ordinalsValues(null)).thenReturn(values);
         ValuesSourceConfig config = toConfig(source, CoreValuesSourceType.KEYWORD, DocValueFormat.RAW, true);
-        when(config.hasGlobalOrdinals()).thenReturn(false); // We don't need global orindals. Only segment ordinals.
+        when(config.hasOrdinals()).thenReturn(true);
         return config;
     }
 

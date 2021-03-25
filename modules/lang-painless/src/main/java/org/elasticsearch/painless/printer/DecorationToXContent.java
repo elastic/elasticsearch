@@ -8,7 +8,7 @@
 
 package org.elasticsearch.painless.printer;
 
-import org.elasticsearch.Build;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -59,7 +59,6 @@ import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.SemanticScope;
 import org.objectweb.asm.Type;
 
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -70,16 +69,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Serialize user tree decorations from org.elasticsearch.painless.symbol.Decorations
+ */
 public class DecorationToXContent {
-    // PainlessCast
-    // PainlessField
-    // PainlessMethod
-    // PainlessClassBinding
-    // LocalFunction
-
     static final class Fields {
         static final String DECORATION = "decoration";
         static final String TYPE = "type";
+        static final String CAST = "cast";
+        static final String METHOD = "method";
     }
 
     public static void ToXContent(TargetType targetType, UserTreePrinterScope scope) {
@@ -108,7 +106,7 @@ public class DecorationToXContent {
 
     public static void ToXContent(ExpressionPainlessCast expressionPainlessCast, UserTreePrinterScope scope) {
         start(expressionPainlessCast, scope);
-        scope.field("cast");
+        scope.field(Fields.CAST);
         ToXContent(expressionPainlessCast.getExpressionPainlessCast(), scope);
         scope.endObject();
     }
@@ -122,7 +120,7 @@ public class DecorationToXContent {
 
     public static void ToXContent(IterablePainlessMethod iterablePainlessMethod, UserTreePrinterScope scope) {
         start(iterablePainlessMethod, scope);
-        scope.field("method");
+        scope.field(Fields.METHOD);
         ToXContent(iterablePainlessMethod.getIterablePainlessMethod(), scope);
         scope.endObject();
     }
@@ -159,14 +157,14 @@ public class DecorationToXContent {
 
     public static void ToXContent(UpcastPainlessCast upcastPainlessCast, UserTreePrinterScope scope) {
         start(upcastPainlessCast, scope);
-        scope.field("cast");
+        scope.field(Fields.CAST);
         ToXContent(upcastPainlessCast.getUpcastPainlessCast(), scope);
         scope.endObject();
     }
 
     public static void ToXContent(DowncastPainlessCast downcastPainlessCast, UserTreePrinterScope scope) {
         start(downcastPainlessCast, scope);
-        scope.field("cast");
+        scope.field(Fields.CAST);
         ToXContent(downcastPainlessCast.getDowncastPainlessCast(), scope);
         scope.endObject();
     }
@@ -187,21 +185,21 @@ public class DecorationToXContent {
 
     public static void ToXContent(StandardPainlessMethod standardPainlessMethod, UserTreePrinterScope scope) {
         start(standardPainlessMethod, scope);
-        scope.field("method");
+        scope.field(Fields.METHOD);
         ToXContent(standardPainlessMethod.getStandardPainlessMethod(), scope);
         scope.endObject();
     }
 
     public static void ToXContent(GetterPainlessMethod getterPainlessMethod, UserTreePrinterScope scope) {
         start(getterPainlessMethod, scope);
-        scope.field("method");
+        scope.field(Fields.METHOD);
         ToXContent(getterPainlessMethod.getGetterPainlessMethod(), scope);
         scope.endObject();
     }
 
     public static void ToXContent(SetterPainlessMethod setterPainlessMethod, UserTreePrinterScope scope) {
         start(setterPainlessMethod, scope);
-        scope.field("method");
+        scope.field(Fields.METHOD);
         ToXContent(setterPainlessMethod.getSetterPainlessMethod(), scope);
         scope.endObject();
     }
@@ -237,69 +235,107 @@ public class DecorationToXContent {
     }
 
     public static void ToXContent(MethodNameDecoration methodNameDecoration, UserTreePrinterScope scope) {
-        // TODO(stu): next
         start(methodNameDecoration, scope);
-
+        scope.field("methodName", methodNameDecoration.getMethodName());
         scope.endObject();
     }
 
     public static void ToXContent(ReturnType returnType, UserTreePrinterScope scope) {
         start(returnType, scope);
-
+        scope.field("returnType", returnType.getReturnType().getSimpleName());
         scope.endObject();
     }
 
     public static void ToXContent(TypeParameters typeParameters, UserTreePrinterScope scope) {
         start(typeParameters, scope);
-
+        if (typeParameters.getTypeParameters().isEmpty() == false) {
+            scope.field("typeParameters", classNames(typeParameters.getTypeParameters()));
+        }
         scope.endObject();
     }
 
     public static void ToXContent(ParameterNames parameterNames, UserTreePrinterScope scope) {
         start(parameterNames, scope);
-
+        if (parameterNames.getParameterNames().isEmpty() == false) {
+            scope.field("parameterNames", parameterNames.getParameterNames());
+        }
         scope.endObject();
     }
 
     public static void ToXContent(ReferenceDecoration referenceDecoration, UserTreePrinterScope scope) {
         start(referenceDecoration, scope);
+        FunctionRef ref = referenceDecoration.getReference();
+        scope.field("interfaceMethodName", ref.interfaceMethodName);
 
+        scope.field("interfaceMethodType");
+        ToXContent(ref.interfaceMethodType, scope);
+
+        scope.field("delegateClassName", ref.delegateClassName);
+        scope.field("isDelegateInterface", ref.isDelegateInterface);
+        scope.field("isDelegateAugmented", ref.isDelegateAugmented);
+        scope.field("delegateInvokeType", ref.delegateInvokeType);
+        scope.field("delegateMethodName", ref.delegateMethodName);
+
+        scope.field("delegateMethodType");
+        ToXContent(ref.delegateMethodType, scope);
+
+        if (ref.delegateInjections.length > 0) {
+            scope.startArray("delegateInjections");
+            for (Object obj : ref.delegateInjections) {
+                scope.startObject();
+                scope.field("type", obj.getClass().getSimpleName());
+                scope.field("value", obj);
+                scope.endObject();
+            }
+            scope.endArray();
+        }
+
+        scope.field("factoryMethodType");
+        ToXContent(ref.factoryMethodType, scope);
         scope.endObject();
     }
 
     public static void ToXContent(EncodingDecoration encodingDecoration, UserTreePrinterScope scope) {
         start(encodingDecoration, scope);
-
+        scope.field("encoding", encodingDecoration.getEncoding());
         scope.endObject();
     }
 
     public static void ToXContent(CapturesDecoration capturesDecoration, UserTreePrinterScope scope) {
         start(capturesDecoration, scope);
-
+        if (capturesDecoration.getCaptures().isEmpty() == false) {
+            scope.startArray("captures");
+            for (SemanticScope.Variable capture : capturesDecoration.getCaptures()) {
+                ToXContent(capture, scope);
+            }
+            scope.endArray();
+        }
         scope.endObject();
     }
 
     public static void ToXContent(InstanceType instanceType, UserTreePrinterScope scope) {
         start(instanceType, scope);
-
+        scope.field("instanceType", instanceType.getInstanceType().getSimpleName());
         scope.endObject();
     }
 
     public static void ToXContent(AccessDepth accessDepth, UserTreePrinterScope scope) {
         start(accessDepth, scope);
-
+        scope.field("depth", accessDepth.getAccessDepth());
         scope.endObject();
     }
 
     public static void ToXContent(IRNodeDecoration irNodeDecoration, UserTreePrinterScope scope) {
         start(irNodeDecoration, scope);
-
+        // TODO(stu): expand this
+        scope.field("irNode", irNodeDecoration.getIRNode().toString());
         scope.endObject();
     }
 
-    public static void ToXContent(Converter Converter, UserTreePrinterScope scope) {
-        start(Converter, scope);
-
+    public static void ToXContent(Converter converter, UserTreePrinterScope scope) {
+        start(converter, scope);
+        scope.field("converter");
+        ToXContent(converter.getConverter(), scope);
         scope.endObject();
     }
 
@@ -379,6 +415,7 @@ public class DecorationToXContent {
         }
     }
 
+    // lookup
     public static void ToXContent(PainlessCast painlessCast, UserTreePrinterScope scope) {
         scope.startObject();
         if (painlessCast.originalType != null) {
@@ -399,14 +436,6 @@ public class DecorationToXContent {
         if (painlessCast.boxOriginalType != null) {
             scope.field("boxOriginalType", painlessCast.boxOriginalType.getSimpleName());
         }
-        scope.endObject();
-    }
-
-    public static void ToXContent(SemanticScope.Variable variable, UserTreePrinterScope scope) {
-        scope.startObject();
-        scope.field(Fields.TYPE, variable.getType());
-        scope.field("name", variable.getName());
-        scope.field("isFinal", variable.isFinal());
         scope.endObject();
     }
 
@@ -448,7 +477,6 @@ public class DecorationToXContent {
         scope.endObject();
     }
 
-    // lookup
     public static void ToXContent(PainlessClassBinding binding, UserTreePrinterScope scope) {
         scope.startObject();
         scope.field("javaConstructor");
@@ -478,6 +506,42 @@ public class DecorationToXContent {
         scope.endObject();
     }
 
+    public static void ToXContent(PainlessField field, UserTreePrinterScope scope) {
+        scope.startObject();
+        scope.field("javaField");
+        ToXContent(field.javaField, scope);
+        scope.field("typeParameter", field.typeParameter.getSimpleName());
+        scope.field("getterMethodHandle");
+        ToXContent(field.getterMethodHandle.type(), scope);
+        scope.field("setterMethodHandle");
+        if (field.setterMethodHandle != null) {
+            ToXContent(field.setterMethodHandle.type(), scope);
+        }
+        scope.endObject();
+    }
+
+    public static void ToXContent(PainlessConstructor constructor, UserTreePrinterScope scope) {
+        scope.startObject();
+        scope.field("javaConstructor");
+        ToXContent(constructor.javaConstructor, scope);
+        if (constructor.typeParameters.isEmpty() == false) {
+            scope.field("typeParameters", classNames(constructor.typeParameters));
+        }
+        scope.field("methodHandle");
+        ToXContent(constructor.methodHandle.type(), scope);
+        scope.endObject();
+    }
+
+    // symbol
+    public static void ToXContent(SemanticScope.Variable variable, UserTreePrinterScope scope) {
+        scope.startObject();
+        scope.field(Fields.TYPE, variable.getType());
+        scope.field("name", variable.getName());
+        scope.field("isFinal", variable.isFinal());
+        scope.endObject();
+    }
+
+    // annotations
     public static void AnnotationsToXContent(Map<Class<?>, Object> annotations, UserTreePrinterScope scope) {
         if (annotations == null || annotations.isEmpty()) {
             return;
@@ -511,32 +575,7 @@ public class DecorationToXContent {
         }
     }
 
-    public static void ToXContent(PainlessField field, UserTreePrinterScope scope) {
-        scope.startObject();
-        scope.field("javaField");
-        ToXContent(field.javaField, scope);
-        scope.field("typeParameter", field.typeParameter.getSimpleName());
-        scope.field("getterMethodHandle");
-        ToXContent(field.getterMethodHandle.type(), scope);
-        scope.field("setterMethodHandle");
-        if (field.setterMethodHandle != null) {
-            ToXContent(field.setterMethodHandle.type(), scope);
-        }
-        scope.endObject();
-    }
-
-    public static void ToXContent(PainlessConstructor constructor, UserTreePrinterScope scope) {
-        scope.startObject();
-        scope.field("javaConstructor");
-        ToXContent(constructor.javaConstructor, scope);
-        if (constructor.typeParameters.isEmpty() == false) {
-            scope.field("typeParameters", classNames(constructor.typeParameters));
-        }
-        scope.field("methodHandle");
-        ToXContent(constructor.methodHandle.type(), scope);
-        scope.endObject();
-    }
-
+    // asm
     public static void ToXContent(org.objectweb.asm.commons.Method asmMethod, UserTreePrinterScope scope) {
         scope.startObject();
         scope.field("name", asmMethod.getName());
@@ -546,6 +585,7 @@ public class DecorationToXContent {
         scope.endObject();
     }
 
+    // java.lang.invoke
     public static void ToXContent(MethodType methodType, UserTreePrinterScope scope) {
         scope.startObject();
         List<Class<?>> parameters = methodType.parameterList();

@@ -57,20 +57,18 @@ import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.phase.UserTreeBaseVisitor;
-import org.elasticsearch.painless.symbol.Decorations;
-import org.elasticsearch.painless.symbol.Decorator;
 import org.elasticsearch.painless.symbol.Decorator.Condition;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
-import org.elasticsearch.painless.symbol.ScriptScope;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Serialize the user tree
+ */
 public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope> {
     static final class Fields {
         static final String NODE = "node";

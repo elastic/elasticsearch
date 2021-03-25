@@ -20,8 +20,9 @@ value. For other fields, the processor hashes only the field value.
 | `target_field`     | no       | `fingerprint` | Output field for the fingerprint.
 | `salt`             | no       | <none>        |
 {wikipedia}/Salt_(cryptography)[Salt value] for the hash function.
-| `method`           | no       | `SHA-1`       | The cryptographic hash function used to
-compute the fingerprint. Must be one of `MD5`, `SHA-1`, `SHA-256`, or `SHA-512`.
+| `method`           | no       | `SHA-1`       | The hash method used to
+compute the fingerprint. Must be one of `MD5`, `SHA-1`, `SHA-256`, `SHA-512`, or
+`MurmurHash3`.
 | `ignore_missing`   | no       | `false`       | If `true`, the processor
 ignores any missing `fields`. If all fields are missing, the processor silently
 exits without modifying the document.

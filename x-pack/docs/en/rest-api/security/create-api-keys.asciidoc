@@ -27,7 +27,9 @@ See the note under `role_descriptors`.
 ==== {api-description-title}
 
 The API keys are created by the {es} API key service, which is automatically enabled
-when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
+when you configure TLS on the HTTP interface. See <<encrypt-http-communication>>. Alternatively,
+
+
 you can explicitly enable the `xpack.security.authc.api_key.enabled` setting. When
 you are running in production mode, a bootstrap check prevents you from enabling
 the API key service unless you also enable TLS on the HTTP interface.

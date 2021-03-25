@@ -28,6 +28,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("confusion_matrix");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ConfusionMatrix, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
         a -> new ConfusionMatrix((List<Double>) a[0]));
 

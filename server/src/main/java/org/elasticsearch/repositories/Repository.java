@@ -265,6 +265,14 @@ public interface Repository extends LifecycleComponent {
     void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
                             ActionListener<String> listener);
 
+    /**
+     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * during snapshot initialization.
+     */
+    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
+        return userMetadata;
+    }
+
     default boolean isCompatible(RepositoryMetadata repositoryMetadata) {
         RepositoryMetadata currentMetadata = getMetadata();
         return currentMetadata.type().equals(repositoryMetadata.type()) &&

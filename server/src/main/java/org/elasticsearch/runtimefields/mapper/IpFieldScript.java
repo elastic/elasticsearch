@@ -51,7 +51,7 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         IpFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new IpFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new IpFieldScript(
         field,
         params,
         lookup,

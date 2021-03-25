@@ -173,7 +173,7 @@ public class IndicesModuleTests extends ESTestCase {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
             public Map<String, RuntimeField.Parser> getRuntimeFields() {
-                return Map.of("test", new RuntimeField.Parser((s, parserContext) -> null));
+                return Map.of("test", new RuntimeField.Parser(name -> null));
             }
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
@@ -186,7 +186,7 @@ public class IndicesModuleTests extends ESTestCase {
         MapperPlugin plugin = new MapperPlugin() {
             @Override
             public Map<String, RuntimeField.Parser> getRuntimeFields() {
-                return Map.of(KeywordFieldMapper.CONTENT_TYPE, new RuntimeField.Parser((s, parserContext) -> null));
+                return Map.of(KeywordFieldMapper.CONTENT_TYPE, new RuntimeField.Parser(name -> null));
             }
         };
         List<MapperPlugin> plugins = Collections.singletonList(plugin);

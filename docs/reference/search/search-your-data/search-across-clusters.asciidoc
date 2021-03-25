@@ -14,9 +14,11 @@ IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 The following APIs support {ccs}:
 
 * <<search-search,Search>>
+* <<async-search,Async search>>
 * <<search-multi-search,Multi search>>
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
+* <<search-field-caps,Field capabilities>>
 
 [discrete]
 [[ccs-example]]
@@ -420,3 +422,7 @@ cluster.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
+
+Only features that exist across all searched clusters are supported. Using
+a recent feature with a remote cluster where the feature is not supported
+will result in undefined behavior.

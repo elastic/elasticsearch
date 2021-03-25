@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -213,7 +214,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     // TODO rework things so that we don't need this
     private static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder extends RuntimeField.Builder {
+    abstract static class Builder<Factory> extends RuntimeField.Builder {
+        private final ScriptContext<Factory> scriptContext;
+        private final Factory parseFromSourceFactory;
+
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
@@ -222,8 +226,21 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
             initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        Builder(String name) {
+        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
             super(name);
+            this.scriptContext = scriptContext;
+            this.parseFromSourceFactory = parseFromSourceFactory;
+        }
+
+        abstract RuntimeField newRuntimeField(Factory scriptFactory);
+
+        @Override
+        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+            if (script.get() == null) {
+                return newRuntimeField(parseFromSourceFactory);
+            }
+            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
+            return newRuntimeField(factory);
         }
 
         @Override

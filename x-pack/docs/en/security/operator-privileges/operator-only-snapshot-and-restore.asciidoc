@@ -3,7 +3,7 @@
 [[operator-only-snapshot-and-restore]]
 === Operator privileges for snapshot and restore
 
-include::operator-privileges-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Invoking <<operator-only-apis,operator-only APIs>> or updating
 <<operator-only-dynamic-cluster-settings,operator-only dynamic cluster settings>>

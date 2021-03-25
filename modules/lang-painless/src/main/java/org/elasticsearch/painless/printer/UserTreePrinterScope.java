@@ -14,6 +14,7 @@ import org.elasticsearch.painless.symbol.ScriptScope;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 public class UserTreePrinterScope {
     public final XContentBuilder builder;
@@ -75,6 +76,21 @@ public class UserTreePrinterScope {
     public void field(String name)  {
         try {
             builder.field(name);
+        } catch (IOException io) {
+            throw new IllegalStateException(io);
+        }
+    }
+
+    public void field(String name, Object value)  {
+        try {
+            if (value instanceof Character) {
+                builder.field(name, ((Character) value).charValue());
+            } else if (value instanceof Pattern) {
+                // TODO(stu): flags?
+                builder.field(name, ((Pattern) value).pattern());
+            } else {
+                builder.field(name, value);
+            }
         } catch (IOException io) {
             throw new IllegalStateException(io);
         }

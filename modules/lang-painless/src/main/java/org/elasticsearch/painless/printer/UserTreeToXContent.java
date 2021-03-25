@@ -126,9 +126,8 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
         start(userBlockNode, scope);
 
         scope.startArray("statements");
-        userBlockNode.visitChildren(this, scope);
+         userBlockNode.visitChildren(this, scope);
         scope.endArray();
-        decorations(userBlockNode, scope);
 
         end(userBlockNode, scope);
     }

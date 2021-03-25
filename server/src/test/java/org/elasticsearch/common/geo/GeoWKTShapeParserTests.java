@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
@@ -325,8 +326,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
                 .build(new ContentPath());
 
         // test store z disabled
@@ -349,8 +351,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
                 .build(new ContentPath());
 
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
@@ -364,8 +367,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
                 .coerce(false).build(new ContentPath());
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder));

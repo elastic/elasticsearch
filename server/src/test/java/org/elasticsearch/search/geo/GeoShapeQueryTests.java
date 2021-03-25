@@ -101,7 +101,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                 expectThrows(MapperParsingException.class,
                     () -> client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(settings).get());
             assertThat(ex.getMessage(),
-                containsString("mapper [geo] of type [geo_shape] is using deprecated parameters and cannot be created"));
+                containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed"));
             Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
             finalSetting = settings(version).put(settings).build();
         } else {
@@ -479,7 +479,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                 expectThrows(MapperParsingException.class,
                     () -> client().admin().indices().prepareCreate("test").setMapping(mapping).get());
             assertThat(ex.getMessage(),
-                containsString("mapper [geo] of type [geo_shape] is using deprecated parameters and cannot be created"));
+                containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed"));
         }
 
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
@@ -537,7 +537,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             expectThrows(MapperParsingException.class,
                 () -> client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get());
         assertThat(ex.getMessage(),
-            containsString("mapper [geo] of type [geo_shape] is using deprecated parameters and cannot be created"));
+            containsString("using deprecated parameters [points_only, tree, distance_error_pct, tree_levels] " +
+                "in mapper [geo] of type [geo_shape] is no longer allowed"));
 
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Settings settings = settings(version).build();
@@ -578,7 +579,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             expectThrows(MapperParsingException.class,
                 () -> client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get());
         assertThat(ex.getMessage(),
-            containsString("mapper [geo] of type [geo_shape] is using deprecated parameters and cannot be created"));
+            containsString("using deprecated parameters [points_only, tree, distance_error_pct, tree_levels] " +
+                    "in mapper [geo] of type [geo_shape] is no longer allowed"));
 
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Settings settings = settings(version).build();
@@ -660,7 +662,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             expectThrows(MapperParsingException.class,
                 () -> client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         assertThat(ex.getMessage(),
-            containsString("mapper [geo] of type [geo_shape] is using deprecated parameters and cannot be created"));
+            containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed"));
 
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Settings settings = settings(version).build();

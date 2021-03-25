@@ -163,7 +163,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         responses.put("rating", ratingCapabilities);
 
         List<FieldCapabilitiesFailure> failureMap = List.of(
-            new FieldCapabilitiesFailure(List.of("errorindex", "errorindex2"), new IllegalArgumentException("test"))
+            new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
         return new FieldCapabilitiesResponse(new String[] {"index1", "index2", "index3", "index4"}, responses, failureMap);
     }

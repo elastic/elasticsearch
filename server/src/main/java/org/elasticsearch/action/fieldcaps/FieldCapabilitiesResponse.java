@@ -16,7 +16,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -96,7 +95,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
      * Get the concrete list of indices that failed
      */
     public String[] getFailedIndices() {
-        return this.failures.stream().map(FieldCapabilitiesFailure::getIndices).flatMap(s -> s.stream()).toArray(String[]::new);
+        return this.failures.stream().map(FieldCapabilitiesFailure::getIndices).flatMap(s -> Arrays.stream(s)).toArray(String[]::new);
     }
 
     /**

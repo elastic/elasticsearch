@@ -30,7 +30,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -80,13 +79,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final CountDown completionCounter = new CountDown(totalNumRequest);
         final List<FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedList(new ArrayList<>());
-        final Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
-            new HashMap<>()
-        );
+        final FailureCollector indexFailures = new FailureCollector();
 
         final Runnable countDown = () -> {
             if (completionCounter.countDown()) {
-                Collection<FieldCapabilitiesFailure> failures = indexFailures.values();
+                List<FieldCapabilitiesFailure> failures = indexFailures.values();
                 if (indexResponses.size() > 0) {
                     if (request.isMergeResults()) {
                         listener.onResponse(merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)));
@@ -127,12 +124,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
                     @Override
                     public void onFailure(Exception e) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        Tuple<String, String> groupingKey = new Tuple<String, String>(cause.getMessage(), cause.getClass().getName());
-                        indexFailures.compute(
-                            groupingKey,
-                            (k, v) -> v == null ? new FieldCapabilitiesFailure(new ArrayList<>(List.of(index)), e) : v.addIndex(index)
-                        );
+                        indexFailures.collect(e, index);
                         countDown.run();
                     }
                 }
@@ -165,33 +157,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
                 for (FieldCapabilitiesFailure failure : response.getFailures()) {
                     Exception ex = failure.getException();
-                    handleRemoteException(ex, clusterAlias, failure.getIndices().toArray(String[]::new), indexFailures);
+                    indexFailures.collectRemoteException(ex, clusterAlias, failure.getIndices());
                 }
                 countDown.run();
             }, ex -> {
-                handleRemoteException(ex, clusterAlias, originalIndices.indices(), indexFailures);
+                indexFailures.collectRemoteException(ex, clusterAlias, originalIndices.indices());
                 countDown.run();
                 }
             ));
         }
-    }
-
-    private void handleRemoteException(
-        Exception ex,
-        String clusterAlias,
-        String[] remoteIndices,
-        Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures
-    ) {
-        List<String> remoteIndexNames = new ArrayList<>();
-        for (String failedIndex : remoteIndices) {
-            remoteIndexNames.add(RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex));
-        }
-        Throwable cause = ExceptionsHelper.unwrapCause(ex);
-        Tuple<String, String> groupingKey = new Tuple<String, String>(cause.getMessage(), cause.getClass().getName());
-        indexFailures.compute(
-            groupingKey,
-            (k, v) -> v == null ? new FieldCapabilitiesFailure(remoteIndexNames, ex) : v.addIndices(remoteIndexNames)
-        );
     }
 
     private FieldCapabilitiesResponse merge(
@@ -243,6 +217,37 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(),
                 key -> new FieldCapabilities.Builder(field, key));
             builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
+        }
+    }
+
+    private class FailureCollector {
+        final Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(
+            new HashMap<>()
+        );
+
+        List<FieldCapabilitiesFailure> values() {
+            return new ArrayList<>(indexFailures.values());
+        }
+
+        void collect(Exception e, String index) {
+            // we deduplicate exceptions on the underlying causes message and classname
+            // we unwrap the cause to e.g. group RemoteTransportexceptions coming from different nodes if the cause is the same
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            Tuple<String, String> groupingKey = new Tuple<String, String>(cause.getMessage(), cause.getClass().getName());
+            indexFailures.compute(
+                groupingKey,
+                (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[] {index}, e) : v.addIndex(index)
+            );
+        }
+
+        void collectRemoteException(Exception ex, String clusterAlias, String[] remoteIndices) {
+            for (String failedIndex : remoteIndices) {
+                collect(ex, RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex));
+            }
+        }
+
+        int size() {
+            return this.indexFailures.size();
         }
     }
 }

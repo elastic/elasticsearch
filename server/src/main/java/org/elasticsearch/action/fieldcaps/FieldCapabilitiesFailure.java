@@ -20,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,8 +32,8 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     private final List<String> indices;
     private final Exception exception;
 
-    public FieldCapabilitiesFailure(List<String> indices, Exception exception) {
-        this.indices = Objects.requireNonNull(indices);
+    public FieldCapabilitiesFailure(String[] indices, Exception exception) {
+        this.indices = new ArrayList<>(Arrays.asList(Objects.requireNonNull(indices)));
         this.exception = Objects.requireNonNull(exception);
     }
 
@@ -58,7 +60,7 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<FieldCapabilitiesFailure, Void> PARSER =
         new ConstructingObjectParser<>("field_capabilities_failure", true, a -> {
-            return new FieldCapabilitiesFailure((List<String>) a[0], (Exception) a[1]);
+            return new FieldCapabilitiesFailure(((List<String>) a[0]).toArray(String[]::new), (Exception) a[1]);
         });
 
     static {
@@ -86,8 +88,8 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
         out.writeException(exception);
     }
 
-    public List<String> getIndices() {
-        return indices;
+    public String[] getIndices() {
+        return indices.toArray(String[]::new);
     }
 
     public Exception getException() {

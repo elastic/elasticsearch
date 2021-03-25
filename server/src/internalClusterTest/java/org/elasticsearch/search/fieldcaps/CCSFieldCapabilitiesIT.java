@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -66,17 +65,18 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .get();
         assertThat(response.getIndices()[0], equalTo(localIndex));
         assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:*"));
-        List<FieldCapabilitiesFailure> failures = response.getFailures()
+        FieldCapabilitiesFailure failure = response.getFailures()
             .stream()
-            .collect(Collectors.filtering(f -> f.getIndices().contains("remote_cluster:*"), Collectors.toList()));
-        Exception failure = failures.get(0).getException();
-        assertEquals(RemoteTransportException.class, failure.getClass());
-        Throwable cause = ExceptionsHelper.unwrapCause(failure);
+            .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:*"))
+            .findFirst().get();
+        Exception ex = failure.getException();
+        assertEquals(RemoteTransportException.class, ex.getClass());
+        Throwable cause = ExceptionsHelper.unwrapCause(ex);
         assertEquals(IllegalArgumentException.class, cause.getClass());
         assertEquals("I throw because I choose to.", cause.getMessage());
 
         // if we only query the remote we should get back an exception only
-        IllegalArgumentException ex = expectThrows(
+        ex = expectThrows(
             IllegalArgumentException.class,
             () -> client().prepareFieldCaps("remote_cluster:*")
             .setFields("*")
@@ -95,12 +95,13 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .get();
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:okay_remote_index"));
         assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:" + remoteErrorIndex));
-        failures = response.getFailures()
+        failure = response.getFailures()
             .stream()
-            .collect(Collectors.filtering(f -> f.getIndices().contains("remote_cluster:" + remoteErrorIndex), Collectors.toList()));
-        failure = failures.get(0).getException();
-        assertEquals(RemoteTransportException.class, failure.getClass());
-        cause = ExceptionsHelper.unwrapCause(failure);
+            .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:" + remoteErrorIndex))
+            .findFirst().get();
+        ex = failure.getException();
+        assertEquals(RemoteTransportException.class, ex.getClass());
+        cause = ExceptionsHelper.unwrapCause(ex);
         assertEquals(IllegalArgumentException.class, cause.getClass());
         assertEquals("I throw because I choose to.", cause.getMessage());
     }

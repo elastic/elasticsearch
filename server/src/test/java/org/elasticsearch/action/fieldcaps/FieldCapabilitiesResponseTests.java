@@ -146,9 +146,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         List<FieldCapabilitiesFailure> failures = new ArrayList<>();
         for (String index : indices) {
             if (randomBoolean() || failures.size() == 0) {
-                List<String> indexNames = new ArrayList<>();
-                indexNames.add(index);
-                failures.add(new FieldCapabilitiesFailure(indexNames, ElasticsearchExceptionTests.randomExceptions().v2()));
+                failures.add(new FieldCapabilitiesFailure(new String[] {index}, ElasticsearchExceptionTests.randomExceptions().v2()));
             } else {
                 failures.get(failures.size() - 1).addIndex(index);
             }

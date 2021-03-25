@@ -42,6 +42,7 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
@@ -274,7 +275,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         System.out.println(response);
         assertEquals(1, response.getFailures().size());
         assertEquals(2, response.getFailedIndices().length);
-        assertThat(response.getFailures().get(0).getIndices(), containsInAnyOrder("index1-error", "index2-error"));
+        assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
         assertEquals(RemoteTransportException.class, failure.getClass());
         assertEquals(IllegalArgumentException.class, failure.getCause().getClass());

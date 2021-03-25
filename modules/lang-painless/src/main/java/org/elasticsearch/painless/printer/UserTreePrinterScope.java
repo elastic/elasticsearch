@@ -115,4 +115,12 @@ public class UserTreePrinterScope {
             throw new IllegalStateException(io);
         }
     }
+
+    public void value(String value) {
+        try {
+            builder.value(value);
+        } catch (IOException io) {
+            throw new IllegalStateException(io);
+        }
+    }
 }

@@ -39,6 +39,7 @@ public class Decorator {
 
     @SuppressWarnings("unchecked")
     public <T extends Decoration> T put(int identifier, T decoration) {
+        //if (true) throw new RuntimeException(decoration.toString());
         return (T)decorations.get(identifier).put(decoration.getClass(), decoration);
     }
 
@@ -67,6 +68,7 @@ public class Decorator {
     }
 
     public boolean set(int identifier, Class<? extends Condition> type) {
+        //if (true) throw new RuntimeException(type.toString());
         return conditions.get(identifier).add(type);
     }
 
@@ -86,5 +88,13 @@ public class Decorator {
         }
 
         return false;
+    }
+
+    public Map<Class<? extends Decoration>, Decoration> getAllDecorations(int identifier) {
+        return decorations.get(identifier);
+    }
+
+    public Set<Class<? extends Condition>> getAllConditions(int identifier) {
+        return conditions.get(identifier);
     }
 }

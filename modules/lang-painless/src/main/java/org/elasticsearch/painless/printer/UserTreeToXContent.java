@@ -57,8 +57,19 @@ import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.phase.UserTreeBaseVisitor;
+import org.elasticsearch.painless.symbol.Decorations;
+import org.elasticsearch.painless.symbol.Decorator;
+import org.elasticsearch.painless.symbol.Decorator.Condition;
+import org.elasticsearch.painless.symbol.Decorator.Decoration;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope> {
     static final class Fields {
@@ -70,7 +81,8 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
         static final String CONDITION = "condition";
         static final String TYPE = "type";
         static final String SYMBOL = "symbol";
-
+        static final String DECORATIONS = "decorations";
+        static final String CONDITIONS = "conditions";
     }
 
     @Override
@@ -90,6 +102,8 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
         scope.startObject();
         scope.field(Fields.NODE, "function");
         scope.field(Fields.LOCATION, userFunctionNode.getLocation().getOffset());
+        decorations(userFunctionNode, scope);
+
         scope.field("name", userFunctionNode.getFunctionName());
         scope.field("returns", userFunctionNode.getReturnCanonicalTypeName());
         scope.field("parameters", userFunctionNode.getParameterNames());
@@ -109,8 +123,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitBlock(SBlock userBlockNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, Fields.BLOCK);
-        scope.field(Fields.LOCATION, userBlockNode.getLocation().getOffset());
+        start(userBlockNode, scope);
 
         scope.startArray("statements");
         userBlockNode.visitChildren(this, scope);
@@ -122,8 +135,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitIf(SIf userIfNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "if");
-        scope.field(Fields.LOCATION, userIfNode.getLocation().getOffset());
+        start(userIfNode, scope);
 
         scope.startArray(Fields.CONDITION);
         userIfNode.getConditionNode().visit(this, scope);
@@ -137,8 +149,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitIfElse(SIfElse userIfElseNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "ifElse");
-        scope.field(Fields.LOCATION, userIfElseNode.getLocation().getOffset());
+        start(userIfElseNode, scope);
 
         scope.startArray(Fields.CONDITION);
         userIfElseNode.getConditionNode().visit(this, scope);
@@ -153,8 +164,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitWhile(SWhile userWhileNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "while");
-        scope.field(Fields.LOCATION, userWhileNode.getLocation().getOffset());
+        start(userWhileNode, scope);
 
         loop(userWhileNode.getConditionNode(), userWhileNode.getBlockNode(), scope);
 
@@ -164,8 +174,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitDo(SDo userDoNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "do");
-        scope.field(Fields.LOCATION, userDoNode.getLocation().getOffset());
+        start(userDoNode, scope);
 
         loop(userDoNode.getConditionNode(), userDoNode.getBlockNode(), scope);
 
@@ -175,8 +184,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitFor(SFor userForNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "for");
-        scope.field(Fields.LOCATION, userForNode.getLocation().getOffset());
+        start(userForNode, scope);
 
         // TODO(stu): why is initializerNode ANode instead of an expression
         ANode initializerNode = userForNode.getInitializerNode();
@@ -208,8 +216,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitEach(SEach userEachNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "each");
-        scope.field(Fields.LOCATION, userEachNode.getLocation().getOffset());
+        start(userEachNode, scope);
 
         scope.field(Fields.TYPE, userEachNode.getCanonicalTypeName());
         scope.field(Fields.SYMBOL, userEachNode.getSymbol());
@@ -226,8 +233,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitDeclBlock(SDeclBlock userDeclBlockNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "declBlock");
-        scope.field(Fields.LOCATION, userDeclBlockNode.getLocation().getOffset());
+        start(userDeclBlockNode, scope);
 
         scope.startArray("declarations");
         userDeclBlockNode.visitChildren(this, scope);
@@ -239,8 +245,8 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitDeclaration(SDeclaration userDeclarationNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "declaration");
-        scope.field(Fields.LOCATION, userDeclarationNode.getLocation().getOffset());
+        start(userDeclarationNode, scope);
+
         scope.field(Fields.TYPE, userDeclarationNode.getCanonicalTypeName());
         scope.field(Fields.SYMBOL, userDeclarationNode.getSymbol());
 
@@ -254,8 +260,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitReturn(SReturn userReturnNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "return");
-        scope.field(Fields.LOCATION, userReturnNode.getLocation().getOffset());
+        start(userReturnNode, scope);
 
         scope.startArray("value");
         userReturnNode.visitChildren(this, scope);
@@ -265,9 +270,9 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     }
 
     @Override
-    public void visitExpression(SExpression userExpressionNode, UserTreePrinterScope scope) {scope.startObject();
-        scope.field(Fields.NODE, "expression");
-        scope.field(Fields.LOCATION, userExpressionNode.getLocation().getOffset());
+    public void visitExpression(SExpression userExpressionNode, UserTreePrinterScope scope) {
+        scope.startObject();
+        start(userExpressionNode, scope);
 
         scope.startArray("statement");
         userExpressionNode.visitChildren(this, scope);
@@ -279,8 +284,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitTry(STry userTryNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "try");
-        scope.field(Fields.LOCATION, userTryNode.getLocation().getOffset());
+        start(userTryNode, scope);
 
         block(userTryNode.getBlockNode(), scope);
 
@@ -296,8 +300,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitCatch(SCatch userCatchNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "catch");
-        scope.field(Fields.LOCATION, userCatchNode.getLocation().getOffset());
+        start(userCatchNode, scope);
 
         scope.field("exception", userCatchNode.getBaseException());
         scope.field(Fields.TYPE, userCatchNode.getCanonicalTypeName());
@@ -313,8 +316,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitThrow(SThrow userThrowNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "throw");
-        scope.field(Fields.LOCATION, userThrowNode.getLocation().getOffset());
+        start(userThrowNode, scope);
 
         scope.startArray("expression");
         userThrowNode.visitChildren(this, scope);
@@ -326,24 +328,21 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitContinue(SContinue userContinueNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "continue");
-        scope.field(Fields.LOCATION, userContinueNode.getLocation().getOffset());
+        start(userContinueNode, scope);
         scope.endObject();
     }
 
     @Override
     public void visitBreak(SBreak userBreakNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "break");
-        scope.field(Fields.LOCATION, userBreakNode.getLocation().getOffset());
+        start(userBreakNode, scope);
         scope.endObject();
     }
 
     @Override
     public void visitAssignment(EAssignment userAssignmentNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "assignment");
-        scope.field(Fields.LOCATION, userAssignmentNode.getLocation().getOffset());
+        start(userAssignmentNode, scope);
         // TODO(stu): why would operation be null?
         scope.field("postIfRead", userAssignmentNode.postIfRead());
         binaryOperation(userAssignmentNode.getOperation(), userAssignmentNode.getLeftNode(), userAssignmentNode.getRightNode(), scope);
@@ -354,8 +353,8 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitUnary(EUnary userUnaryNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "unary");
-        scope.field(Fields.LOCATION, userUnaryNode.getLocation().getOffset());
+        start(userUnaryNode, scope);
+
         operation(userUnaryNode.getOperation(), scope);
 
         scope.startArray("child");
@@ -368,8 +367,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitBinary(EBinary userBinaryNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "binary");
-        scope.field(Fields.LOCATION, userBinaryNode.getLocation().getOffset());
+        start(userBinaryNode, scope);
 
         binaryOperation(userBinaryNode.getOperation(), userBinaryNode.getLeftNode(), userBinaryNode.getRightNode(), scope);
 
@@ -379,8 +377,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitBooleanComp(EBooleanComp userBooleanCompNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "booleanComp");
-        scope.field(Fields.LOCATION, userBooleanCompNode.getLocation().getOffset());
+        start(userBooleanCompNode, scope);
 
         binaryOperation(userBooleanCompNode.getOperation(), userBooleanCompNode.getLeftNode(), userBooleanCompNode.getRightNode(), scope);
 
@@ -390,8 +387,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitComp(EComp userCompNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "comp");
-        scope.field(Fields.LOCATION, userCompNode.getLocation().getOffset());
+        start(userCompNode, scope);
 
         binaryOperation(userCompNode.getOperation(), userCompNode.getLeftNode(), userCompNode.getRightNode(), scope);
 
@@ -401,8 +397,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitExplicit(EExplicit userExplicitNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "explicitCast");
-        scope.field(Fields.LOCATION, userExplicitNode.getLocation().getOffset());
+        start(userExplicitNode, scope);
 
         scope.field(Fields.TYPE, userExplicitNode.getCanonicalTypeName());
         scope.startArray("child");
@@ -415,8 +410,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitInstanceof(EInstanceof userInstanceofNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "instanceof");
-        scope.field(Fields.LOCATION, userInstanceofNode.getLocation().getOffset());
+        start(userInstanceofNode, scope);
 
         scope.field(Fields.TYPE, userInstanceofNode.getCanonicalTypeName());
         scope.startArray("child");
@@ -429,8 +423,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitConditional(EConditional userConditionalNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "conditional");
-        scope.field(Fields.LOCATION, userConditionalNode.getLocation().getOffset());
+        start(userConditionalNode, scope);
 
         scope.startArray("condition");
         userConditionalNode.getConditionNode().visit(this, scope);
@@ -450,8 +443,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitElvis(EElvis userElvisNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "elvis");
-        scope.field(Fields.LOCATION, userElvisNode.getLocation().getOffset());
+        start(userElvisNode, scope);
 
         scope.startArray(Fields.LEFT);
         userElvisNode.getLeftNode().visit(this, scope);
@@ -467,8 +459,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitListInit(EListInit userListInitNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "listInit");
-        scope.field(Fields.LOCATION, userListInitNode.getLocation().getOffset());
+        start(userListInitNode, scope);
 
         scope.startArray("values");
         userListInitNode.visitChildren(this, scope);
@@ -480,8 +471,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitMapInit(EMapInit userMapInitNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "mapInit");
-        scope.field(Fields.LOCATION, userMapInitNode.getLocation().getOffset());
+        start(userMapInitNode, scope);
 
         expressions("keys", userMapInitNode.getKeyNodes(), scope);
         expressions("values", userMapInitNode.getValueNodes(), scope);
@@ -492,8 +482,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitNewArray(ENewArray userNewArrayNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "newArray");
-        scope.field(Fields.LOCATION, userNewArrayNode.getLocation().getOffset());
+        start(userNewArrayNode, scope);
 
         scope.field(Fields.TYPE, userNewArrayNode.getCanonicalTypeName());
         scope.field("isInitializer", userNewArrayNode.isInitializer());
@@ -505,8 +494,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitNewObj(ENewObj userNewObjNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "newObject");
-        scope.field(Fields.LOCATION, userNewObjNode.getLocation().getOffset());
+        start(userNewObjNode, scope);
 
         scope.field(Fields.TYPE, userNewObjNode.getCanonicalTypeName());
         arguments(userNewObjNode.getArgumentNodes(), scope);
@@ -517,8 +505,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitCallLocal(ECallLocal userCallLocalNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "callLocal");
-        scope.field(Fields.LOCATION, userCallLocalNode.getLocation().getOffset());
+        start(userCallLocalNode, scope);
 
         scope.field("methodName", userCallLocalNode.getMethodName());
         arguments(userCallLocalNode.getArgumentNodes(), scope);
@@ -529,8 +516,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "booleanConstant");
-        scope.field(Fields.LOCATION, userBooleanConstantNode.getLocation().getOffset());
+        start(userBooleanConstantNode, scope);
 
         scope.field("value", userBooleanConstantNode.getBool());
 
@@ -540,8 +526,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitNumeric(ENumeric userNumericNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "numeric");
-        scope.field(Fields.LOCATION, userNumericNode.getLocation().getOffset());
+        start(userNumericNode, scope);
 
         scope.field("numeric", userNumericNode.getNumeric());
         scope.field("radix", userNumericNode.getRadix());
@@ -552,8 +537,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitDecimal(EDecimal userDecimalNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "decimal");
-        scope.field(Fields.LOCATION, userDecimalNode.getLocation().getOffset());
+        start(userDecimalNode, scope);
 
         scope.field("value", userDecimalNode.getDecimal());
 
@@ -563,8 +547,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitString(EString userStringNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "string");
-        scope.field(Fields.LOCATION, userStringNode.getLocation().getOffset());
+        start(userStringNode, scope);
 
         scope.field("value", userStringNode.getString());
 
@@ -574,8 +557,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitNull(ENull userNullNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "null");
-        scope.field(Fields.LOCATION, userNullNode.getLocation().getOffset());
+        start(userNullNode, scope);
 
         scope.endObject();
     }
@@ -583,8 +565,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitRegex(ERegex userRegexNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "regex");
-        scope.field(Fields.LOCATION, userRegexNode.getLocation().getOffset());
+        start(userRegexNode, scope);
 
         scope.field("pattern", userRegexNode.getPattern());
         scope.field("flags", userRegexNode.getFlags());
@@ -595,8 +576,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitLambda(ELambda userLambdaNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "lambda");
-        scope.field(Fields.LOCATION, userLambdaNode.getLocation().getOffset());
+        start(userLambdaNode, scope);
 
         scope.field("types", userLambdaNode.getCanonicalTypeNameParameters());
         scope.field("parameters", userLambdaNode.getParameterNames());
@@ -608,8 +588,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitFunctionRef(EFunctionRef userFunctionRefNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "functionRef");
-        scope.field(Fields.LOCATION, userFunctionRefNode.getLocation().getOffset());
+        start(userFunctionRefNode, scope);
 
         scope.field(Fields.SYMBOL, userFunctionRefNode.getSymbol());
         scope.field("methodName", userFunctionRefNode.getMethodName());
@@ -620,8 +599,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "newArrayFunctionRef");
-        scope.field(Fields.LOCATION, userNewArrayFunctionRefNode.getLocation().getOffset());
+        start(userNewArrayFunctionRefNode, scope);
 
         scope.field(Fields.TYPE, userNewArrayFunctionRefNode.getCanonicalTypeName());
 
@@ -631,8 +609,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitSymbol(ESymbol userSymbolNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, Fields.SYMBOL);
-        scope.field(Fields.LOCATION, userSymbolNode.getLocation().getOffset());
+        start(userSymbolNode, scope);
 
         scope.field(Fields.SYMBOL, userSymbolNode.getSymbol());
 
@@ -642,8 +619,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitDot(EDot userDotNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "dot");
-        scope.field(Fields.LOCATION, userDotNode.getLocation().getOffset());
+        start(userDotNode, scope);
 
         scope.startArray("prefix");
         userDotNode.visitChildren(this, scope);
@@ -658,8 +634,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitBrace(EBrace userBraceNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "brace");
-        scope.field(Fields.LOCATION, userBraceNode.getLocation().getOffset());
+        start(userBraceNode, scope);
 
         scope.startArray("prefix");
         userBraceNode.getPrefixNode().visit(this, scope);
@@ -675,8 +650,7 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
     @Override
     public void visitCall(ECall userCallNode, UserTreePrinterScope scope) {
         scope.startObject();
-        scope.field(Fields.NODE, "call");
-        scope.field(Fields.LOCATION, userCallNode.getLocation().getOffset());
+        start(userCallNode, scope);
 
         scope.startArray("prefix");
         userCallNode.getPrefixNode().visitChildren(this, scope);
@@ -688,6 +662,12 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
         arguments(userCallNode.getArgumentNodes(), scope);
 
         scope.endObject();
+    }
+
+    private void start(ANode node, UserTreePrinterScope scope) {
+        scope.field(Fields.NODE, node.getClass().getSimpleName());
+        scope.field(Fields.LOCATION, node.getLocation().getOffset());
+        decorations(node, scope);
     }
 
     private void block(String name, SBlock block, UserTreePrinterScope scope) {
@@ -741,6 +721,26 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<UserTreePrinterScope
             expression.visit(this, scope);
         }
         scope.endArray();
+    }
 
+    private void decorations(ANode node, UserTreePrinterScope scope) {
+        Set<Class<? extends Condition>> conditions = scope.scriptScope.getAllConditions(node.getIdentifier());
+        if (conditions.isEmpty() == false) {
+            scope.field(Fields.CONDITIONS, conditions.stream().map(Class::getSimpleName).sorted().collect(Collectors.toList()));
+        }
+
+        Map<Class<? extends Decoration>, Decoration> decorations = scope.scriptScope.getAllDecorations(node.getIdentifier());
+        if (decorations.isEmpty() == false) {
+            scope.startArray(Fields.DECORATIONS);
+
+            List<Class<? extends Decoration>> dkeys = decorations.keySet().stream()
+                    .sorted(Comparator.comparing(Class::getName))
+                    .collect(Collectors.toList());
+
+            for (Class<? extends Decoration> dkey : dkeys) {
+                DecorationToXContent.ToXContent(decorations.get(dkey), scope);
+            }
+            scope.endArray();
+        }
     }
 }

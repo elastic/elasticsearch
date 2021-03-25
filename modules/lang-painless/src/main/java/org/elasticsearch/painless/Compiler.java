@@ -223,6 +223,7 @@ final class Compiler {
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         //new UserTreePrinter().visitClass(root, new PrintScope());
 
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         try {
             XContentBuilder xcontent = XContentFactory.jsonBuilder().prettyPrint();
             new UserTreeToXContent().visitClass(root, new UserTreePrinterScope(xcontent, scriptScope));
@@ -232,7 +233,6 @@ final class Compiler {
             throw new RuntimeException(io);
         }
 
-        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         //new UserTreePrinter().visitClass(root, new PrintScope());
         // TODO: Make this phase optional #60156
         new DocFieldsPhase().visitClass(root, scriptScope);

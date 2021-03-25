@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CoreMatchers;
@@ -93,7 +94,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertThat(repositories.repository(name), instanceOf(BlobStoreRepository.class));
             assertThat(repositories.repository(name).isReadOnly(), is(settings.getAsBoolean(READONLY_SETTING_KEY, false)));
             BlobStore blobStore = ((BlobStoreRepository) repositories.repository(name)).getBlobStore();
-            assertThat("blob store has to be lazy initialized", blobStore, verify ? is(notNullValue()) : is(nullValue()));
+            if (false == verify) {
+                // verify might or might not trigger blobstore creation
+                assertThat("blob store has to be lazy initialized", blobStore, is(nullValue()));
+            }
         });
 
         return name;
@@ -202,15 +206,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             container.deleteBlobsIgnoringIfNotExists(blobNames);
             assertTrue(container.listBlobs().isEmpty());
             container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
-        }
-    }
-
-    public static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
-                                 boolean failIfAlreadyExists) throws IOException {
-        if (randomBoolean()) {
-            container.writeBlob(blobName, bytesArray, failIfAlreadyExists);
-        } else {
-            container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
         }
     }
 
@@ -474,6 +469,15 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 .setRouting(randomAlphaOfLength(randomIntBetween(1, 10))).setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);
+    }
+
+    protected static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
+                                  boolean failIfAlreadyExists) throws IOException {
+        if (randomBoolean()) {
+            container.writeBlob(blobName, bytesArray, failIfAlreadyExists);
+        } else {
+            container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
+        }
     }
 
     private String[] generateRandomNames(int num) {

@@ -162,79 +162,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             return;
         }
         final StepListener<RepositoryData> publishHashesStepListener = new StepListener<>();
-        super.executeConsistentStateUpdate(
-            (latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
-                // async compute password hashes for task, given the repository metadata
-                repositoryPasswords.computePasswordHashes(
-                    latestRepositoryMetadata,
-                    ActionListener.wrap(localPasswordHashes -> updateTaskListener.onResponse(new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            // don't ever overwrite hashes
-                            if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
-                                logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains password " + "hashes");
-                                return currentState;
-                            }
-                            final RepositoryMetadata newRepositoryMetadata = repositoryPasswords.withPasswordHashes(
-                                latestRepositoryMetadata,
-                                localPasswordHashes
-                            );
-                            if (false == repositoryPasswords.containsRequiredPasswordHashes(newRepositoryMetadata)) {
-                                throw new IllegalStateException(
-                                    "Internal consistency error when updating repository ["
-                                        + latestRepositoryMetadata.name()
-                                        + "] password hashes"
-                                );
-                            }
-                            final RepositoriesMetadata repositories = currentState.metadata()
-                                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-                            final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
-                            boolean found = false;
-                            for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                                    if (found) {
-                                        throw new IllegalStateException(
-                                            "Internal consistency error when updating repository "
-                                                + "["
-                                                + latestRepositoryMetadata.name()
-                                                + "] password hashes"
-                                        );
-                                    }
-                                    found = true;
-                                    newRepositoriesMetadata.add(newRepositoryMetadata);
-                                } else {
-                                    newRepositoriesMetadata.add(repositoryMetadata);
-                                }
-                            }
-                            if (found == false) {
-                                throw new IllegalStateException(
-                                    "Internal consistency error when updating repository ["
-                                        + latestRepositoryMetadata.name()
-                                        + "] password hashes"
-                                );
-                            }
-                            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                            mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
-                            return ClusterState.builder(currentState).metadata(mdBuilder).build();
-                        }
-
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.warn("failed to " + source, e);
-                            onFailure.accept(e);
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-                            logger.info("Published password hashes for repository [" + latestRepositoryMetadata.name() + "]");
-                            publishHashesStepListener.onResponse(latestRepositoryData);
-                        }
-                    }), onFailure)
-                );
-            },
-            "update encrypted repository password hashes [" + metadata.name() + "]",
-            onFailure
-        );
+        publishPasswordsHashes(publishHashesStepListener);
         // go on with the actual task to update the cluster state
         // this runs on the master applier thread, not worth forking it, right?
         publishHashesStepListener.whenComplete(
@@ -347,6 +275,83 @@ public class EncryptedRepository extends BlobStoreRepository {
     protected void doClose() {
         super.doClose();
         this.delegatedRepository.close();
+    }
+
+    // protected for tests
+    protected void publishPasswordsHashes(ActionListener<RepositoryData> listener) {
+        super.executeConsistentStateUpdate(
+            (latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
+                // async compute password hashes for task, given the repository metadata
+                repositoryPasswords.computePasswordHashes(
+                    latestRepositoryMetadata,
+                    ActionListener.wrap(localPasswordHashes -> updateTaskListener.onResponse(new ClusterStateUpdateTask() {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            // don't ever overwrite hashes
+                            if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
+                                logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains password " + "hashes");
+                                return currentState;
+                            }
+                            final RepositoryMetadata newRepositoryMetadata = repositoryPasswords.withPasswordHashes(
+                                latestRepositoryMetadata,
+                                localPasswordHashes
+                            );
+                            if (false == repositoryPasswords.containsRequiredPasswordHashes(newRepositoryMetadata)) {
+                                throw new IllegalStateException(
+                                    "Internal consistency error when updating repository ["
+                                        + latestRepositoryMetadata.name()
+                                        + "] password hashes"
+                                );
+                            }
+                            final RepositoriesMetadata repositories = currentState.metadata()
+                                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                            final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
+                            boolean found = false;
+                            for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+                                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                                    if (found) {
+                                        throw new IllegalStateException(
+                                            "Internal consistency error when updating repository "
+                                                + "["
+                                                + latestRepositoryMetadata.name()
+                                                + "] password hashes"
+                                        );
+                                    }
+                                    found = true;
+                                    newRepositoriesMetadata.add(newRepositoryMetadata);
+                                } else {
+                                    newRepositoriesMetadata.add(repositoryMetadata);
+                                }
+                            }
+                            if (found == false) {
+                                throw new IllegalStateException(
+                                    "Internal consistency error when updating repository ["
+                                        + latestRepositoryMetadata.name()
+                                        + "] password hashes"
+                                );
+                            }
+                            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                            mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
+                            return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                        }
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.warn("failed to " + source, e);
+                            listener.onFailure(e);
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                            logger.info("Published password hashes for repository [" + latestRepositoryMetadata.name() + "]");
+                            listener.onResponse(latestRepositoryData);
+                        }
+                    }), listener::onFailure)
+                );
+            },
+            "update encrypted repository password hashes [" + metadata.name() + "]",
+            listener::onFailure
+        );
     }
 
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {

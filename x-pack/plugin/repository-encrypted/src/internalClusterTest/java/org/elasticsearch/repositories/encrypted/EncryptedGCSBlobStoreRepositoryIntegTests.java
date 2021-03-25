@@ -6,12 +6,15 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests;
 import org.junit.BeforeClass;
 
@@ -101,4 +104,13 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
         return getEncryptedBlobByteLength(contentLength);
     }
 
+    @Override
+    protected BlobStore newBlobStore(String repository) {
+        BlobStore blobStore = super.newBlobStore(repository);
+        final EncryptedRepository encryptedRepository = (EncryptedRepository) internalCluster().getCurrentMasterNodeInstance(
+            RepositoriesService.class
+        ).repository(repository);
+        PlainActionFuture.get(encryptedRepository::publishPasswordsHashes);
+        return blobStore;
+    }
 }

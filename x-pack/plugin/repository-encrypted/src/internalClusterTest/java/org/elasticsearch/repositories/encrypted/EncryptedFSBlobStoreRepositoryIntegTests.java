@@ -7,6 +7,7 @@
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -102,6 +103,16 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
     @Override
     protected String repositoryType() {
         return EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME;
+    }
+
+    @Override
+    protected BlobStore newBlobStore(String repository) {
+        BlobStore blobStore = super.newBlobStore(repository);
+        final EncryptedRepository encryptedRepository = (EncryptedRepository) internalCluster().getCurrentMasterNodeInstance(
+            RepositoriesService.class
+        ).repository(repository);
+        PlainActionFuture.get(encryptedRepository::publishPasswordsHashes);
+        return blobStore;
     }
 
     public void testTamperedEncryptionMetadata() throws Exception {

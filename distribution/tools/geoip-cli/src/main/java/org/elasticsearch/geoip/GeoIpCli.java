@@ -27,6 +27,7 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
@@ -95,13 +96,31 @@ public class GeoIpCli extends Command {
 
     private byte[] createTarHeader(String name, long size) {
         byte[] buf = new byte[512];
-        byte[] nameBytes = name.substring(Math.max(0, 98 - name.length())).getBytes(StandardCharsets.US_ASCII);
+        byte[] sizeBytes = String.format(Locale.ROOT, "%1$011o", size).getBytes(StandardCharsets.UTF_8);
+        byte[] nameBytes = name.substring(Math.max(0, name.length() - 98)).getBytes(StandardCharsets.US_ASCII);
+        byte[] id = "0001750".getBytes(StandardCharsets.UTF_8);
+        byte[] permission = "000644 ".getBytes(StandardCharsets.UTF_8);
+        byte[] magic = "ustar".getBytes(StandardCharsets.UTF_8);
+        byte[] time = String.format(Locale.ROOT, "%1$011o", System.currentTimeMillis() / 1000).getBytes(StandardCharsets.UTF_8);
+        buf[156] = '0';
+        buf[263] = '0';
+        buf[264] = '0';
         System.arraycopy(nameBytes, 0, buf, 0, nameBytes.length);
-        for (int i = 0; i < 16; i++) {
-            buf[108] = '0';
+        System.arraycopy(permission, 0, buf, 100, 7);
+        System.arraycopy(id, 0, buf, 108, 7);
+        System.arraycopy(id, 0, buf, 116, 7);
+        System.arraycopy(sizeBytes, 0, buf, 124, 11);
+        System.arraycopy(time, 0, buf, 136, 11);
+        System.arraycopy(magic, 0, buf, 257, 5);
+
+        int checksum = 256;
+        for (byte b : buf) {
+            checksum += b & 0xFF;
         }
-        buf[113] = '1';
-        buf[121] = '1';
+
+        byte[] checksumBytes = String.format(Locale.ROOT, "%1$07o", checksum).getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(checksumBytes, 0, buf, 148, 7);
+
         return buf;
     }
 

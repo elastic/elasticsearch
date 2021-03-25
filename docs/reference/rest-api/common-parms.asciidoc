@@ -25,15 +25,16 @@ end::index-alias[]
 
 tag::aliases[]
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
+(Optional, <<indices-aliases,alias object>>) <<indices-aliases,Index aliases>>
+which include the index. Index alias names support <<date-math-index-names,date
+math>>.
 end::aliases[]
 
 tag::target-index-aliases[]
 `aliases`::
 (Optional, <<indices-aliases,alias object>>)
-Index aliases which include the target index.
-See <<indices-aliases>>.
+<<indices-aliases,Index aliases>> which include the target index. Index alias
+names support <<date-math-index-names,date math>>.
 end::target-index-aliases[]
 
 tag::allow-no-indices[]
@@ -213,11 +214,6 @@ tag::docs-processed[]
 The number of documents that have been processed from the source index of
 the {transform}.
 end::docs-processed[]
-
-tag::enrich-policy[]
-Enrich policy name
-used to limit the request.
-end::enrich-policy[]
 
 tag::ds-expand-wildcards[]
 `expand_wildcards`::

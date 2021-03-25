@@ -190,7 +190,8 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = true
-String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+// place a PR link here when committing bwc changes:
+String bwc_tests_disabled_issue = ""
 /*
  * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
  * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
@@ -342,13 +343,17 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
-    eclipse.classpath.defaultOutputDir = file('build-eclipse')
     eclipse.classpath.file.whenMerged { classpath ->
-      // give each source folder a unique corresponding output folder
+      /*
+       * give each source folder a unique corresponding output folder
+       * outside of the usual `build` folder. We can't put the build
+       * in the usual build folder because eclipse becomes *very* sad
+       * if we delete it. Which `gradlew clean` does all the time.
+       */
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
-        folder.output = "build-eclipse/" + i
+        folder.output = 'out/eclipse/' + i
       }
 
       // Starting with Gradle 6.7 test dependencies are not exposed by eclipse

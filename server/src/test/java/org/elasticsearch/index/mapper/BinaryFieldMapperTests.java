@@ -118,4 +118,16 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             assertEquals(new BytesArray(value), originalValue);
         }
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We can't parse the binary doc values we send", true);
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/70244
+        return null;
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "binary").field("doc_values", true); // enable doc_values so the test is happy
+    }
 }

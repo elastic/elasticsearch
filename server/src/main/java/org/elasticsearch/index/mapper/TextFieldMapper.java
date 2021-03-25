@@ -958,8 +958,9 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         // this is a pain, but we have to do this to maintain BWC
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.field("type", contentType());
         this.builder.index.toXContent(builder, includeDefaults);
         this.builder.store.toXContent(builder, includeDefaults);

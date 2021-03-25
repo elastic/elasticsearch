@@ -124,9 +124,7 @@ project.ext {
       if (base == DockerBase.IRON_BANK) {
         into('scripts') {
           from projectDir.resolve("src/docker/bin")
-          from(projectDir.resolve("src/docker/config")) {
-            exclude '**/oss'
-          }
+          from(projectDir.resolve("src/docker/config"))
         }
         from(projectDir.resolve("src/docker/iron_bank")) {
           expand(varExpansions)
@@ -137,10 +135,6 @@ project.ext {
         }
 
         into('config') {
-          // The OSS and default distribution can have different configuration, therefore we want to
-          // allow overriding the default configuration by creating config files in oss or default
-          // build-context sub-modules.
-          duplicatesStrategy = DuplicatesStrategy.INCLUDE
           from projectDir.resolve("src/docker/config")
         }
       }
@@ -214,15 +208,12 @@ tasks.named("preProcessFixture").configure {
     // tests expect to have an empty repo
     project.delete(
       "${buildDir}/repo",
-      "${buildDir}/oss-repo"
     )
     createAndSetWritable(
       "${buildDir}/repo",
       "${buildDir}/oss-repo",
       "${buildDir}/logs/default-1",
       "${buildDir}/logs/default-2",
-      "${buildDir}/logs/oss-1",
-      "${buildDir}/logs/oss-2"
     )
   }
 }

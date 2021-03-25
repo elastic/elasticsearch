@@ -23,6 +23,9 @@ Adds or removes master-eligible nodes from the
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
 [[voting-config-exclusions-api-desc]]
 ==== {api-description-title}
   

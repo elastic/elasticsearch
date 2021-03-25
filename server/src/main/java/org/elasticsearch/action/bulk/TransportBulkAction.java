@@ -260,10 +260,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                         else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
-                            int i = -1;
-                            for (Iterator<DocWriteRequest<?>> iter = bulkRequest.requests.iterator(); iter.hasNext();) {
-                                if (setResponseFailureIfIndexMatches(responses, ++i, iter.next(), index, e)) {
-                                    iter.remove();
+                            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                                DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                                if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    bulkRequest.requests.set(i, null);
                                 }
                             }
                         }
@@ -413,17 +413,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Metadata metadata = clusterState.metadata();
             // Group the requests by ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-
-            int i = -1;
-            for (Iterator<DocWriteRequest<?>> iter = bulkRequest.requests.iterator(); iter.hasNext();) {
-                DocWriteRequest<?> docWriteRequest = iter.next();
-                i++;
-                assert docWriteRequest != null : "docWriteRequest shouldn't be null but should have been removed instead";
-
-                if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, iter, metadata)) {
+            for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
+                //the request can only be null because we set it to null in the previous step, so it gets ignored
+                if (docWriteRequest == null) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, iter, concreteIndices, metadata)) {
+                if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
+                    continue;
+                }
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -475,7 +474,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
-                    iter.remove();
+                    bulkRequest.requests.set(i, null);
                 }
             }
 
@@ -576,8 +575,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             });
         }
 
-        private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, Iterator<DocWriteRequest<?>> iter,
-                                                                   final Metadata metadata) {
+        private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
             if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
                 Exception exception = new IndexNotFoundException("["
                     + DocWriteRequest.REQUIRE_ALIAS
@@ -585,17 +583,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     + request.index()
                     + "] is not an alias",
                     request.index());
-                addFailure(request, idx, iter, exception);
+                addFailure(request, idx, exception);
                 return true;
             }
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, Iterator<DocWriteRequest<?>> iter,
-                                                       final ConcreteIndices concreteIndices, final Metadata metadata) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices,
+                final Metadata metadata) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
-                addFailure(request, idx, iter, cannotCreate);
+                addFailure(request, idx, cannotCreate);
                 return true;
             }
             Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
@@ -603,25 +601,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 try {
                     concreteIndex = concreteIndices.resolveIfAbsent(request);
                 } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, iter, ex);
+                    addFailure(request, idx, ex);
                     return true;
                 }
             }
             IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
             if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                addFailure(request, idx, iter, new IndexClosedException(concreteIndex));
+                addFailure(request, idx, new IndexClosedException(concreteIndex));
                 return true;
             }
             return false;
         }
 
-        private void addFailure(DocWriteRequest<?> request, int idx, Iterator<DocWriteRequest<?>> iter, Exception unavailableException) {
+        private void addFailure(DocWriteRequest<?> request, int idx, Exception unavailableException) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(),
                     unavailableException);
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
-            iter.remove();
+            bulkRequest.requests.set(idx, null);
         }
     }
 

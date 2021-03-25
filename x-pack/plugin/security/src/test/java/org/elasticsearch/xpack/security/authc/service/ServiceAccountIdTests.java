@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 
 import java.io.IOException;
 

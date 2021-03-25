@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.authc.service;
+package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +17,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -59,22 +59,14 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     private final String tokenName;
     private final SecureString secret;
 
-    public ServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
-        this.accountId = accountId;
-        this.tokenName = tokenName;
-        this.secret = secret;
-    }
-
-    public ServiceAccountToken(String qualifiedName, SecureString secret) {
-        final String[] split = Strings.delimitedListToStringArray(qualifiedName, "/");
-        if (split == null || split.length != 3) {
-            throw new IllegalArgumentException(
-                "The qualified name of a service token should take format of 'namespace/service_name/token_name'," +
-                    " got [" + qualifiedName + "]");
+    // pkg private for testing
+    ServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
+        this.accountId = Objects.requireNonNull(accountId, "service account ID cannot be null");
+        if (false == isValidTokenName(tokenName)) {
+            throw new IllegalArgumentException(INVALID_TOKEN_NAME_MESSAGE);
         }
-        this.accountId = new ServiceAccountId(split[0], split[1]);
-        this.tokenName = split[2];
-        this.secret = secret;
+        this.tokenName = tokenName;
+        this.secret = Objects.requireNonNull(secret, "service account token secret cannot be null");
     }
 
     public ServiceAccountId getAccountId() {
@@ -121,7 +113,14 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
                 logger.trace("failed to extract qualified service token name and secret, missing ':'");
                 return null;
             }
-            return new ServiceAccountToken(new String(Arrays.copyOfRange(content, 0, i)),
+            final String qualifiedName = new String(Arrays.copyOfRange(content, 0, i));
+            final String[] split = Strings.delimitedListToStringArray(qualifiedName, "/");
+            if (split == null || split.length != 3) {
+                logger.trace("The qualified name of a service token should take format of " +
+                    "'namespace/service_name/token_name', got [{}]", qualifiedName);
+                return null;
+            }
+            return new ServiceAccountToken(new ServiceAccountId(split[0], split[1]), split[2],
                 new SecureString(Arrays.copyOfRange(content, i + 1, content.length)));
         }
     }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.authc.service;
+package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;

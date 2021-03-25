@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -30,7 +27,6 @@ public class ServiceAccountService {
 
     public static final String REALM_TYPE = "service_account";
     public static final String REALM_NAME = "service_account";
-    public static final Version VERSION_MINIMUM = Version.V_8_0_0;
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
@@ -79,21 +75,18 @@ public class ServiceAccountService {
     }
 
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
+        logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
         if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "only [{}] service accounts are supported, but received [{}]",
+            logger.debug("only [{}] service accounts are supported, but received [{}]",
                 ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
-            logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
+            listener.onFailure(createAuthenticationException(serviceAccountToken));
             return;
         }
 
         final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
         if (account == null) {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
-            logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
+            logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
+            listener.onFailure(createAuthenticationException(serviceAccountToken));
             return;
         }
 
@@ -101,12 +94,9 @@ public class ServiceAccountService {
             if (success) {
                 listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
             } else {
-                final ParameterizedMessage message = new ParameterizedMessage(
-                    "failed to authenticate service account [{}] with token name [{}]",
-                    serviceAccountToken.getAccountId().asPrincipal(),
-                    serviceAccountToken.getTokenName());
-                logger.debug(message);
-                listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
+                final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
+                logger.debug(e.getMessage());
+                listener.onFailure(e);
             }
         }, listener::onFailure));
     }
@@ -118,8 +108,7 @@ public class ServiceAccountService {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(new ElasticsearchSecurityException(
-                "cannot load role for service account [" + principal + "] - no such service account"
-            ));
+                "cannot load role for service account [" + principal + "] - no such service account"));
             return;
         }
         listener.onResponse(account.roleDescriptor());
@@ -130,5 +119,12 @@ public class ServiceAccountService {
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(REALM_NAME, REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
             Map.of("_token_name", token.getTokenName()));
+    }
+
+    private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
+        return new ElasticsearchSecurityException("failed to authenticate service account [{}] with token name [{}]",
+            RestStatus.UNAUTHORIZED,
+            serviceAccountToken.getAccountId().asPrincipal(),
+            serviceAccountToken.getTokenName());
     }
 }

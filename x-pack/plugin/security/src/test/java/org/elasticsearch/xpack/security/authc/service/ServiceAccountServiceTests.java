@@ -12,22 +12,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -83,46 +83,88 @@ public class ServiceAccountServiceTests extends ESTestCase {
         // Null for null
         assertNull(ServiceAccountService.tryParseToken(null));
 
-        final ServiceAccountId accountId =
-            new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-        final String tokenName = randomAlphaOfLengthBetween(3, 8);
-        final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
+        final byte[] magicBytes = { 0, 1, 0, 1 };
+        // Less than 4 bytes
+        final SecureString bearerString0 = createBearerString(List.of(Arrays.copyOfRange(magicBytes, 0, randomIntBetween(0, 3))));
+        assertNull(ServiceAccountService.tryParseToken(bearerString0));
 
-        // Invalid version or token type
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            if (randomBoolean()) {
-                final Version invalidVersion = VersionUtils.randomVersionBetween(random(),
-                    Version.V_7_0_0,
-                    VersionUtils.getPreviousVersion(ServiceAccountService.VERSION_MINIMUM));
-                Version.writeVersion(invalidVersion, out);
-                out.writeEnum(SecurityTokenType.SERVICE_ACCOUNT);
-            } else {
-                Version.writeVersion(
-                    VersionUtils.randomVersionBetween(random(), ServiceAccountService.VERSION_MINIMUM, Version.CURRENT),
-                    out);
-                out.writeEnum(randomFrom(SecurityTokenType.ACCESS_TOKEN, SecurityTokenType.REFRESH_TOKEN));
-            }
-            accountId.write(out);
-            out.writeString(tokenName);
-            out.writeSecureString(secret);
-            out.flush();
+        // Prefix mismatch
+        final SecureString bearerString1 = createBearerString(List.of(
+            new byte[] { randomValueOtherThan((byte) 0, ESTestCase::randomByte) },
+            randomByteArrayOfLength(randomIntBetween(30, 50))));
+        assertNull(ServiceAccountService.tryParseToken(bearerString1));
 
-            final String base64 = Base64.getEncoder().withoutPadding().encodeToString(out.bytes().toBytesRef().bytes);
-            assertNull(ServiceAccountService.tryParseToken(new SecureString(base64.toCharArray())));
+        // No colon
+        final SecureString bearerString2 = createBearerString(List.of(
+            magicBytes,
+            randomAlphaOfLengthBetween(30, 50).getBytes(StandardCharsets.UTF_8)));
+        assertNull(ServiceAccountService.tryParseToken(bearerString2));
+
+        // Invalid delimiter for qualified name
+        if (randomBoolean()) {
+            final SecureString bearerString3 = createBearerString(List.of(
+                magicBytes,
+                (randomAlphaOfLengthBetween(10, 20) + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
+            ));
+            assertNull(ServiceAccountService.tryParseToken(bearerString3));
+        } else {
+            final SecureString bearerString3 = createBearerString(List.of(
+                magicBytes,
+                (randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
+                    + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
+            ));
+            assertNull(ServiceAccountService.tryParseToken(bearerString3));
         }
 
-        // Invalid version again
-        assertNull(ServiceAccountService.tryParseToken(
-            new SecureString("0/uxAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWS2xScU9xdDdUSktTNWt3X1hKV0k0QQAAAAAAAAA".toCharArray())));
+        // Invalid token name
+        final SecureString bearerString4 = createBearerString(List.of(
+            magicBytes,
+            (randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
+                + "/" + ServiceAccountTokenTests.randomInvalidTokenName()
+                + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
+        ));
+        assertNull(ServiceAccountService.tryParseToken(bearerString4));
 
-        // Wrong token type again
-        assertNull(ServiceAccountService.tryParseToken(
-            new SecureString("46ToAwAHZWxhc3RpYwVmbGVldAZ0b2tlbjEWUmpXRVp1Q3hTVS1lZTJoMFJoYVFqUQAAAAAAAAA".toCharArray())));
+        // Everything is good
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final String tokenName = ServiceAccountTokenTests.randomTokenName();
+        final ServiceAccountId accountId = new ServiceAccountId(namespace, serviceName);
+        final String secret = randomAlphaOfLengthBetween(10, 20);
+        final SecureString bearerString5 = createBearerString(List.of(
+            magicBytes,
+            (namespace + "/" + serviceName + "/" + tokenName + ":" + secret).getBytes(StandardCharsets.UTF_8)
+        ));
+        final ServiceAccountToken serviceAccountToken1 = ServiceAccountService.tryParseToken(bearerString5);
+        final ServiceAccountToken serviceAccountToken2 = new ServiceAccountToken(accountId, tokenName,
+            new SecureString(secret.toCharArray()));
+        assertThat(serviceAccountToken1, equalTo(serviceAccountToken2));
 
         // Serialise and de-serialise service account token
-        final ServiceAccountToken serviceAccountToken = new ServiceAccountToken(accountId, tokenName, secret);
-        final ServiceAccountToken parsedToken = ServiceAccountService.tryParseToken(serviceAccountToken.asBearerString());
-        assertThat(parsedToken, equalTo(serviceAccountToken));
+        final ServiceAccountToken parsedToken = ServiceAccountService.tryParseToken(serviceAccountToken2.asBearerString());
+        assertThat(parsedToken, equalTo(serviceAccountToken2));
+
+        // Invalid magic byte
+        assertNull(ServiceAccountService.tryParseToken(
+            new SecureString("AQEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray())));
+
+        // No colon
+        assertNull(ServiceAccountService.tryParseToken(
+            new SecureString("AQEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xX3N1cGVyc2VjcmV0".toCharArray())));
+
+        // Invalid qualified name
+        assertNull(ServiceAccountService.tryParseToken(
+            new SecureString("AQEAAWVsYXN0aWMvZmxlZXRfdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray())));
+
+        // Invalid token name
+        assertNull(ServiceAccountService.tryParseToken(
+            new SecureString("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4hOnN1cGVyc2VjcmV0".toCharArray())));
+
+        // everything is fine
+        assertThat(ServiceAccountService.tryParseToken(
+            new SecureString("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray())),
+            equalTo(new ServiceAccountToken(new ServiceAccountId("elastic", "fleet"), "token1",
+                new SecureString("supersecret".toCharArray()))));
     }
 
     private Authentication.RealmRef randomRealmRef() {
@@ -167,9 +209,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         serviceAccountService.authenticateToken(token1, randomAlphaOfLengthBetween(3, 8), future1);
         final ExecutionException e1 = expectThrows(ExecutionException.class, future1::get);
         assertThat(e1.getCause().getClass(), is(ElasticsearchSecurityException.class));
-        assertThat(e1.getMessage(), containsString(
-            "only [" + ElasticServiceAccounts.NAMESPACE + "] service accounts are supported, " +
-                "but received [" + accountId1.asPrincipal() + "]"));
+        assertThat(e1.getMessage(), containsString("failed to authenticate service account ["
+            + token1.getAccountId().asPrincipal() + "] with token name [" + token1.getTokenName() + "]"));
 
         // Null for unknown elastic service name
         final ServiceAccountId accountId2 = new ServiceAccountId(
@@ -180,8 +221,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         serviceAccountService.authenticateToken(token2, randomAlphaOfLengthBetween(3, 8), future2);
         final ExecutionException e2 = expectThrows(ExecutionException.class, future2::get);
         assertThat(e2.getCause().getClass(), is(ElasticsearchSecurityException.class));
-        assertThat(e2.getMessage(), containsString(
-            "the [" + accountId2.asPrincipal() + "] service account does not exist"));
+        assertThat(e2.getMessage(), containsString("failed to authenticate service account ["
+            + token2.getAccountId().asPrincipal() + "] with token name [" + token2.getTokenName() + "]"));
 
         // Success based on credential store
         final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet");
@@ -261,5 +302,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(e.getCause().getClass(), is(ElasticsearchSecurityException.class));
         assertThat(e.getMessage(), containsString(
             "cannot load role for service account [" + username + "] - no such service account"));
+    }
+
+    private SecureString createBearerString(List<byte[]> bytesList) throws IOException {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            for (byte[] bytes : bytesList) {
+                out.write(bytes);
+            }
+            return new SecureString(Base64.getEncoder().withoutPadding().encodeToString(out.toByteArray()).toCharArray());
+        }
     }
 }

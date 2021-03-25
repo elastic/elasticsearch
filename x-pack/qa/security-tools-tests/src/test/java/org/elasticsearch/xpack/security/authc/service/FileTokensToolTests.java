@@ -19,8 +19,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenTests;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.FileTokensTool.CreateFileTokenCommand;
 import org.junit.AfterClass;

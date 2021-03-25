@@ -21,13 +21,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Contains information about the status of a single component (e.g. `shard_migration`, `persistent_tasks`) of the node shutdown process.
+ */
 public class NodeShutdownComponentStatus extends AbstractDiffable<NodeShutdownComponentStatus> implements ToXContentFragment {
     private final SingleNodeShutdownMetadata.Status status;
     @Nullable private final Long startedAtMillis;
     @Nullable private final String errorMessage;
 
     private static final ParseField STATUS_FIELD = new ParseField("status");
-
     private static final ParseField TIME_STARTED_FIELD = new ParseField("time_started_millis");
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ConstructingObjectParser<NodeShutdownComponentStatus, Void> PARSER = new ConstructingObjectParser<>(
@@ -59,14 +61,23 @@ public class NodeShutdownComponentStatus extends AbstractDiffable<NodeShutdownCo
         this.errorMessage = in.readOptionalString();
     }
 
+    /**
+     * @return The overall status of this component.
+     */
     public SingleNodeShutdownMetadata.Status getStatus() {
         return status;
     }
 
+    /**
+     * @return The timestamp this component started shutting down. Null if the component has not yet started shutting down.
+     */
     @Nullable public Long getStartedAtMillis() {
         return startedAtMillis;
     }
 
+    /**
+     * @return The error message this component encountered while trying to shut down, if any. Null if no errors have been encountered.
+     */
     @Nullable public String getErrorMessage() {
         return errorMessage;
     }

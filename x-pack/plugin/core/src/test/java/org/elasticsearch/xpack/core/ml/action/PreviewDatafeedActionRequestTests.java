@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +13,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction.Request;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
@@ -21,21 +21,16 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        boolean includeDatafeed = randomBoolean();
         String jobId = randomAlphaOfLength(10);
         return randomBoolean() ?
             new Request(randomAlphaOfLength(10)) :
             new Request(
-                includeDatafeed ? null : randomAlphaOfLength(10),
-                includeDatafeed ? DatafeedConfigTests.createRandomizedDatafeedConfig(jobId) : null,
+                DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
                 randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
             );
     }
@@ -52,24 +47,21 @@ public class PreviewDatafeedActionRequestTests extends AbstractWireSerializingTe
 
     public void testValidation() {
         String jobId = randomAlphaOfLength(10);
-        Request request = new Request(
-            randomAlphaOfLength(10),
-            DatafeedConfigTests.createRandomizedDatafeedConfig(jobId),
-            randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
-        );
+        Request.Builder requestBuilder = new Request.Builder()
+            .setDatafeedId(randomAlphaOfLength(10))
+            .setDatafeedBuilder(new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig(jobId)))
+            .setJobBuilder(randomBoolean() ? JobTests.buildJobBuilder(jobId) : null);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, requestBuilder::build);
+        assertThat(ex.getMessage(),
+            containsString("[datafeed_id] cannot be supplied when either [job_config] or [datafeed_config] is present"));
 
-        ActionRequestValidationException validationException = request.validate();
-        assertThat(validationException, is(not(nullValue())));
-        assertThat(validationException.getMessage(), containsString("must provide either [datafeed_id] or [datafeed_config] but not both"));
+        requestBuilder.setJobBuilder(null)
+            .setDatafeedId(null)
+            .setDatafeedBuilder(new DatafeedConfig.Builder());
 
-        request = new Request(
-            null,
-            null,
-            randomBoolean() ? JobTests.buildJobBuilder(jobId) : null
-        );
-        validationException = request.validate();
-        assertThat(validationException, is(not(nullValue())));
-        assertThat(validationException.getMessage(), containsString("must provide [datafeed_id] or [datafeed_config]"));
+        ex = expectThrows(IllegalArgumentException.class, requestBuilder::build);
+        assertThat(ex.getMessage(),
+            containsString("[datafeed_config.job_id] must be set or a [job_config] must be provided"));
     }
 
     @Override

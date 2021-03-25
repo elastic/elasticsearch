@@ -439,7 +439,7 @@ setup:
         datafeed_id: missing-feed
 
 ---
-"Test preview missing datafeed and null config":
+"Test preview with datafeed_id and job config":
 
   - do:
       catch: bad_request
@@ -447,10 +447,6 @@ setup:
         datafeed_id: some_datafeed_id
         body: >
           {
-             "datafeed_config": {
-               "job_id":"preview-datafeed-job",
-               "indexes":"airline-data"
-             },
              "job_config": {
                "analysis_config" : {
                  "bucket_span": "1h",

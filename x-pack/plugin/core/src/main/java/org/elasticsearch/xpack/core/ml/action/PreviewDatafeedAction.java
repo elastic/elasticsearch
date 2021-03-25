@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,10 +54,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
         }
 
-        public static Request fromXContent(XContentParser parser, String datafeedId) {
-            Request.Builder builder = PARSER.apply(parser, null);
-            builder.setDatafeedId(datafeedId);
-            return builder.build();
+        public static Request fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null).build();
         }
 
         private final String datafeedId;
@@ -83,9 +80,9 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             this.jobConfig = null;
         }
 
-        public Request(String datafeedId, DatafeedConfig datafeedConfig, Job.Builder jobConfig) {
-            this.datafeedId = datafeedId == null ? "" : datafeedId;
-            this.datafeedConfig = datafeedConfig;
+        public Request(DatafeedConfig datafeedConfig, Job.Builder jobConfig) {
+            this.datafeedId = BLANK_ID;
+            this.datafeedConfig = ExceptionsHelper.requireNonNull(datafeedConfig, DATAFEED_CONFIG.getPreferredName());
             this.jobConfig = jobConfig;
         }
 
@@ -103,18 +100,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (datafeedId.equals(BLANK_ID) && datafeedConfig == null) {
-                validationException = ValidateActions.addValidationError(
-                    "must provide [datafeed_id] or [datafeed_config]",
-                    validationException);
-            }
-            if (datafeedId.equals(BLANK_ID) == false && datafeedConfig != null) {
-                validationException = ValidateActions.addValidationError(
-                    "must provide either [datafeed_id] or [datafeed_config] but not both",
-                    validationException);
-            }
-            return validationException;
+            return null;
         }
 
         @Override
@@ -195,7 +181,14 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                 if (jobBuilder != null) {
                     jobBuilder.setId("preview_job_id");
                 }
-                return new Request(datafeedId, datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
+                if (datafeedId != null && (datafeedBuilder != null || jobBuilder != null)) {
+                    throw new IllegalArgumentException(
+                        "[datafeed_id] cannot be supplied when either [job_config] or [datafeed_config] is present"
+                    );
+                }
+                return datafeedId != null ?
+                    new Request(datafeedId) :
+                    new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
             }
         }
     }

@@ -68,7 +68,7 @@ the <<ml-put-datafeed-request-body,create {dfeeds} API>>.
 associated with the {dfeed}. If the `datafeed_config` object does not include a
 `job_id` that references an existing {anomaly-job}, you must supply this
 `job_config` object. If you include both a `job_id` and a `job_config`, the
-latter information is used. For valid definitions, see the
+latter information is used. You cannot specify a `job_config` object unless you also supply a `datafeed_config` object. For valid definitions, see the
 <<ml-put-job-request-body,create {anomaly-jobs} API>>.
 
 [[ml-preview-datafeed-example]]

@@ -16,11 +16,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-public class UserTreePrinterScope {
+public class UserTreeToXContentScope {
     public final XContentBuilder builder;
     public final ScriptScope scriptScope;
 
-    public UserTreePrinterScope(XContentBuilder builder, ScriptScope scriptScope) {
+    public UserTreeToXContentScope(XContentBuilder builder, ScriptScope scriptScope) {
         this.builder = Objects.requireNonNull(builder);
         this.scriptScope = Objects.requireNonNull(scriptScope);
     }

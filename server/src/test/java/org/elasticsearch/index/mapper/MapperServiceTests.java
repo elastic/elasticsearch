@@ -255,4 +255,41 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }
     }
 
+    public void testMappingUpdateChecks() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // Text fields are not stored by default, so an incoming update that is identical but
+            // just has `stored:false` should not require an update
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"false\"}}}");
+            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
+        }
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // However, an update that really does need a rebuild will throw an exception
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"true\"}}}");
+            Exception e = expectThrows(IllegalStateException.class,
+                () -> mapperService.assertNoUpdateRequired(builder.build()));
+
+            assertThat(e.getMessage(), containsString("expected current mapping ["));
+            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
+        }
+    }
+
 }

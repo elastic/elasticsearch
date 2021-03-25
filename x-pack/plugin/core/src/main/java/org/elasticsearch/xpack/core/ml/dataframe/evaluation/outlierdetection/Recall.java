@@ -26,6 +26,7 @@ public class Recall extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("recall");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Recall, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
         a -> new Recall((List<Double>) a[0]));
 

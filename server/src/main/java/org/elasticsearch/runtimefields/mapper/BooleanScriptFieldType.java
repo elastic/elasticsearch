@@ -34,16 +34,13 @@ import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
-        @Override
-        protected RuntimeField buildFieldType() {
-            if (script.get() == null) {
-                return new BooleanScriptFieldType(name, BooleanFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
+        new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
+            @Override
+            RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
+                return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
             }
-            BooleanFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), BooleanFieldScript.CONTEXT);
-            return new BooleanScriptFieldType(name, factory, getScript(), meta(), this);
-        }
-    });
+        });
 
     public BooleanScriptFieldType(String name) {
         this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);

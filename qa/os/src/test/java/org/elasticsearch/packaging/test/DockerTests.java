@@ -56,7 +56,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -557,6 +556,8 @@ public class DockerTests extends PackagingTestCase {
      * @see <a href="http://label-schema.org/">Label Schema website</a>
      */
     public void test110OrgLabelSchemaLabels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
+
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
@@ -590,6 +591,8 @@ public class DockerTests extends PackagingTestCase {
      * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Open Containers Annotations</a>
      */
     public void test110OrgOpencontainersLabels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
+
         final Map<String, String> labels = getImageLabels(distribution);
 
         final Map<String, String> staticLabels = new HashMap<>();
@@ -814,11 +817,17 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the Iron Bank image doesn't define extra labels
      */
-    public void test310IronBankImageHasNoLabels() throws Exception {
+    public void test310IronBankImageHasNoAdditionalLabels() throws Exception {
         assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
-        assertThat(labels, is(anEmptyMap()));
+        final Set<String> labelKeys = labels.keySet();
+
+        // We can't just assert that the labels map is empty, because it can inherit labels from its base.
+        // This is certainly the case when we build the Iron Bank image using a UBI base. It is unknown
+        // if that is true for genuine Iron Bank builds.
+        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
+        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
     }
 }

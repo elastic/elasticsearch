@@ -37,17 +37,9 @@ First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasti
 * Run `bin/elasticsearch` on Linux or macOS. Run `bin\elasticsearch.bat` on Windows.
 * Run `curl -X GET http://localhost:9200/` to verify Elasticsearch is running.
 
-=== Other Run Possibilities (Linux)
-
-* Running Elasticsearch as a daemon and get its process ID in the file 'pidfile' : `bin/elasticsearch -d -p pidfile`
-
-* Running Elasticsearch with SysV init : `sudo -i service elasticsearch start`
-* Can be stopped using `sudo -i service elasticsearch stop`
-
-* Running Elasticsearch with systemd : `sudo systemctl start elasticsearch.service`
-* Can be stopped using `sudo systemctl stop elasticsearch.service`
-
-* You can configure SysV / systemd to run elasticsearch when your system boots up, see https://www.elastic.co/guide/en/elasticsearch/reference/current/starting-elasticsearch.html for more details.
+For more options, see
+https://www.elastic.co/guide/en/elasticsearch/reference/current/starting-elasticsearch.html[Starting
+Elasticsearch].
 
 === Indexing
 

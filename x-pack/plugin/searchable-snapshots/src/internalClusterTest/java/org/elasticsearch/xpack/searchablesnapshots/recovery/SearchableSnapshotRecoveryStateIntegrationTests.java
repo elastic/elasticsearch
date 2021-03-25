@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots;
+package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
 import com.carrotsearch.hppc.ObjectContainer;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -39,6 +39,8 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.io.File;

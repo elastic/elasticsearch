@@ -315,10 +315,10 @@ includes:
 ----
 PUT /_ingest/pipeline/postal_lookup
 {
-  "description": "Enrich postal codes",
   "processors": [
     {
       "enrich": {
+        "description": "Add 'geo_data' based on 'geo_location'",
         "policy_name": "postal_policy",
         "field": "geo_location",
         "target_field": "geo_data",
@@ -470,10 +470,10 @@ includes:
 ----
 PUT /_ingest/pipeline/user_lookup
 {
-  "description" : "Enriching user details to messages",
   "processors" : [
     {
       "enrich" : {
+        "description": "Add 'user' data based on 'email'",
         "policy_name": "users-policy",
         "field" : "email",
         "target_field": "user",

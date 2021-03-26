@@ -11,12 +11,13 @@ take effect immediately.
 ----
 PUT _ingest/pipeline/my-pipeline-id
 {
-  "description" : "describe pipeline",
+  "description" : "My optional pipeline description",
   "processors" : [
     {
       "set" : {
-        "field": "foo",
-        "value": "bar"
+        "description" : "My optional processor description",
+        "field": "my-keyword-field",
+        "value": "foo"
       }
     }
   ]

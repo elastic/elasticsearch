@@ -143,9 +143,9 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testRobotDevices() throws Exception {
 
-        InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/robot-devices.yml");
+        InputStream testRobotDevices = IngestUserAgentPlugin.class.getResourceAsStream("/test-robot-devices.yml");
 
-        ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "robot_devices");
+        ArrayList<HashMap<String, String>> testDevices = readTestDevices(testRobotDevices, "robot_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
             VersionedName os = getVersionName(testDevice.get("os"));
@@ -161,9 +161,9 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDesktopDevices() throws Exception {
 
-        InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/desktop-devices.yml");
+        InputStream testDesktopDevices = IngestUserAgentPlugin.class.getResourceAsStream("/test-desktop-devices.yml");
 
-        ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "desktop_devices");
+        ArrayList<HashMap<String, String>> testDevices = readTestDevices(testDesktopDevices, "desktop_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
             VersionedName os = getVersionName(testDevice.get("os"));
@@ -179,9 +179,9 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMobileDevices() throws Exception {
 
-        InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/mobile-devices.yml");
+        InputStream testMobileDevices = IngestUserAgentPlugin.class.getResourceAsStream("/test-mobile-devices.yml");
 
-        ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "mobile_devices");
+        ArrayList<HashMap<String, String>> testDevices = readTestDevices(testMobileDevices, "mobile_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
             VersionedName os = getVersionName(testDevice.get("os"));
@@ -197,9 +197,9 @@ public class DeviceTypeParserTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTabletDevices() throws Exception {
 
-        InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/tablet-devices.yml");
+        InputStream testTabletDevices = IngestUserAgentPlugin.class.getResourceAsStream("/test-tablet-devices.yml");
 
-        ArrayList<HashMap<String, String>> testDevices = readTestDevices(deviceTypeRegexStream, "tablet_devices");
+        ArrayList<HashMap<String, String>> testDevices = readTestDevices(testTabletDevices, "tablet_devices");
 
         for (HashMap<String, String> testDevice : testDevices) {
             VersionedName os = getVersionName(testDevice.get("os"));

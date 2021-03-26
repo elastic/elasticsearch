@@ -53,12 +53,10 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
 
     static Map<String, UserAgentParser> createUserAgentParsers(Path userAgentConfigDirectory, UserAgentCache cache) throws IOException {
         Map<String, UserAgentParser> userAgentParsers = new HashMap<>();
-        InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml");
-
 
         UserAgentParser defaultParser = new UserAgentParser(DEFAULT_PARSER_NAME,
             IngestUserAgentPlugin.class.getResourceAsStream("/regexes.yml"),
-            deviceTypeRegexStream, cache);
+            IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml"), cache);
         userAgentParsers.put(DEFAULT_PARSER_NAME, defaultParser);
 
         if (Files.exists(userAgentConfigDirectory) && Files.isDirectory(userAgentConfigDirectory)) {
@@ -69,9 +67,9 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
                 Iterable<Path> iterable = regexFiles::iterator;
                 for (Path path : iterable) {
                     String parserName = path.getFileName().toString();
-                    try (InputStream regexStream = Files.newInputStream(path, StandardOpenOption.READ)) {
-                        InputStream deviceTypeRegexStreamC = IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml");
-                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream, deviceTypeRegexStreamC, cache));
+                    try (InputStream regexStream = Files.newInputStream(path, StandardOpenOption.READ);
+                         InputStream deviceTypeRegexStream = IngestUserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml")) {
+                        userAgentParsers.put(parserName, new UserAgentParser(parserName, regexStream, deviceTypeRegexStream, cache));
                     }
                 }
             }

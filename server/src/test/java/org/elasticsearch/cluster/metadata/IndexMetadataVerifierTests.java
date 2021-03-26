@@ -49,6 +49,42 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
+    public void testConvertSearchableSnapshotSettings() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
+        IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
+        IndexMetadata indexMetadata = service.convertSharedCacheTierPreference(src);
+        assertSame(indexMetadata, src);
+
+        // A full_copy searchable snapshot (settings should be untouched)
+        src = newIndexMeta("foo", Settings.builder()
+            .put("index.store.type", "snapshot")
+            .put("index.store.snapshot.partial", false)
+            .put("index.routing.allocation.include._tier", "data_hot")
+            .put("index.routing.allocation.exclude._tier", "data_warm")
+            .put("index.routing.allocation.require._tier", "data_hot")
+            .put("index.routing.allocation.include._tier_preference", "data_cold")
+            .build());
+        indexMetadata = service.convertSharedCacheTierPreference(src);
+        assertSame(indexMetadata, src);
+
+        // A shared_cache searchable snapshot (should have its settings converted)
+        src = newIndexMeta("foo", Settings.builder()
+            .put("index.store.type", "snapshot")
+            .put("index.store.snapshot.partial", true)
+            .put("index.routing.allocation.include._tier", "data_hot")
+            .put("index.routing.allocation.exclude._tier", "data_warm")
+            .put("index.routing.allocation.require._tier", "data_hot")
+            .put("index.routing.allocation.include._tier_preference", "data_frozen,data_cold")
+            .build());
+        indexMetadata = service.convertSharedCacheTierPreference(src);
+        assertNotSame(indexMetadata, src);
+        Settings newSettings = indexMetadata.getSettings();
+        assertNull(newSettings.get("index.routing.allocation.include._tier"));
+        assertNull(newSettings.get("index.routing.allocation.exclude._tier"));
+        assertNull(newSettings.get("index.routing.allocation.require._tier"));
+        assertThat(newSettings.get("index.routing.allocation.include._tier_preference"), equalTo("data_frozen"));
+    }
+
     public void testCustomSimilarity() {
         IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo",

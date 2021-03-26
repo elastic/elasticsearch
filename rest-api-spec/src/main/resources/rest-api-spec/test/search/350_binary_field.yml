@@ -20,12 +20,10 @@
             Content-Type: application/json
         index:
             index: test
+            refresh: true
             id: 1
             body:
                 binary: U29tZSBiaW5hcnkgYmxvYg==
-
-    - do:
-        indices.refresh: {}
 
     - do:
         search:

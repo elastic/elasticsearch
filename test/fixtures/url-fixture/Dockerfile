@@ -12,6 +12,6 @@ ENV URL_FIXTURE_WORKING_DIR=${workingDir}
 ENV URL_FIXTURE_REPO_DIR=${repositoryDir}
 
 ENTRYPOINT exec java -classpath "/fixture/shared/*" \
-    org.elasticsearch.repositories.url.URLFixture "$URL_FIXTURE_PORT" "$URL_FIXTURE_WORKING_DIR" "$URL_FIXTURE_REPO_DIR"
+    fixture.url.URLFixture "$URL_FIXTURE_PORT" "$URL_FIXTURE_WORKING_DIR" "$URL_FIXTURE_REPO_DIR"
 
 EXPOSE $port

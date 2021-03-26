@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.repositories.url;
+package fixture.url;
 
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import org.elasticsearch.common.SuppressForbidden;
@@ -18,13 +18,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * This {@link URLFixture} exposes a filesystem directory over HTTP. It is used in repository-url
  * integration tests to expose a directory created by a regular FS repository.
  */
 public class URLFixture extends AbstractHttpFixture {
-
+    private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d+)$");
     private final Path repositoryDir;
 
     /**
@@ -54,28 +56,55 @@ public class URLFixture extends AbstractHttpFixture {
     @Override
     protected AbstractHttpFixture.Response handle(final Request request) throws IOException {
         if ("GET".equalsIgnoreCase(request.getMethod())) {
-            String path = request.getPath();
-            if (path.length() > 0 && path.charAt(0) == '/') {
-                path = path.substring(1);
-            }
+            return handleGetRequest(request);
+        }
+        return null;
+    }
 
-            Path normalizedRepositoryDir = repositoryDir.normalize();
-            Path normalizedPath = normalizedRepositoryDir.resolve(path).normalize();
+    private AbstractHttpFixture.Response handleGetRequest(Request request) throws IOException {
+        String path = request.getPath();
+        if (path.length() > 0 && path.charAt(0) == '/') {
+            path = path.substring(1);
+        }
 
-            if (normalizedPath.startsWith(normalizedRepositoryDir)) {
-                if (Files.exists(normalizedPath) && Files.isReadable(normalizedPath) && Files.isRegularFile(normalizedPath)) {
+        Path normalizedRepositoryDir = repositoryDir.normalize();
+        Path normalizedPath = normalizedRepositoryDir.resolve(path).normalize();
+
+        if (normalizedPath.startsWith(normalizedRepositoryDir)) {
+            if (Files.exists(normalizedPath) && Files.isReadable(normalizedPath) && Files.isRegularFile(normalizedPath)) {
+                final String range = request.getHeader("Range");
+                final Map<String, String> headers = new HashMap<>(contentType("application/octet-stream"));
+                if (range == null) {
                     byte[] content = Files.readAllBytes(normalizedPath);
-                    final Map<String, String> headers = new HashMap<>(contentType("application/octet-stream"));
                     headers.put("Content-Length", String.valueOf(content.length));
                     return new Response(RestStatus.OK.getStatus(), headers, content);
                 } else {
-                    return new Response(RestStatus.NOT_FOUND.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                    final Matcher matcher = RANGE_PATTERN.matcher(range);
+                    if (matcher.matches() == false) {
+                        return new Response(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                    } else {
+                        long start = Long.parseLong(matcher.group(1));
+                        long end = Long.parseLong(matcher.group(2));
+                        long rangeLength = end - start + 1;
+                        final long fileSize = Files.size(normalizedPath);
+                        if (start >= fileSize || start > end || rangeLength > fileSize) {
+                            return new Response(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                        }
+
+                        headers.put("Content-Length", String.valueOf(rangeLength));
+                        headers.put("Content-Range", "bytes " + start + "-" + end + "/" + fileSize);
+                        final byte[] content = Files.readAllBytes(normalizedPath);
+                        final byte[] responseData = new byte[(int) rangeLength];
+                        System.arraycopy(content, (int) start, responseData, 0, (int) rangeLength);
+                        return new Response(RestStatus.PARTIAL_CONTENT.getStatus(), headers, responseData);
+                    }
                 }
             } else {
-                return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                return new Response(RestStatus.NOT_FOUND.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
             }
+        } else {
+            return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
         }
-        return null;
     }
 
     @SuppressForbidden(reason = "Paths#get is fine - we don't have environment here")

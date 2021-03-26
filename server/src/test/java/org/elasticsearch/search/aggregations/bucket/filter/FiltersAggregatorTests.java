@@ -782,6 +782,20 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testDocValuesFieldExistsForDateWithMultiValuedFields() throws IOException {
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
+        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
+            long date = start + TimeUnit.HOURS.toMillis(i);
+            return List.of(
+                new LongPoint("f", date),
+                new LongPoint("f", date + 10),
+                new SortedNumericDocValuesField("f", date),
+                new SortedNumericDocValuesField("f", date + 10)
+            );
+        });
+    }
+
     public void testDocValuesFieldExistsForDateWithoutData() throws IOException {
         docValuesFieldExistsNoDataTestCase(new DateFieldMapper.DateFieldType("f"));
     }

@@ -43,16 +43,13 @@ import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
-        @Override
-        protected RuntimeField buildFieldType() {
-            if (script.get() == null) {
-                return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
+        new Builder<>(name, IpFieldScript.CONTEXT, IpFieldScript.PARSE_FROM_SOURCE) {
+            @Override
+            RuntimeField newRuntimeField(IpFieldScript.Factory scriptFactory) {
+                return new IpScriptFieldType(name, scriptFactory, getScript(), meta(), this);
             }
-            IpFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), IpFieldScript.CONTEXT);
-            return new IpScriptFieldType(name, factory, getScript(), meta(), this);
-        }
-    });
+        });
 
     IpScriptFieldType(
         String name,

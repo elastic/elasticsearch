@@ -1,21 +1,3 @@
-ifdef::permanently-unreleased-branch[]
-
-[role="xpack"]
-[testenv="basic"]
-[[rollup-start-job]]
-=== Start legacy {rollup-jobs} API
-[subs="attributes"]
-++++
-<titleabbrev>Start legacy {rollup-jobs}</titleabbrev>
-++++
-
-include::put-job.asciidoc[tag=legacy-rollup-admon]
-
-Starts a stopped legacy {rollup-job}.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [role="xpack"]
 [testenv="basic"]
 [[rollup-start-job]]
@@ -28,8 +10,6 @@ ifndef::permanently-unreleased-branch[]
 Starts an existing, stopped {rollup-job}.
 
 experimental[]
-
-endif::[]
 
 [[rollup-start-job-request]]
 ==== {api-request-title}

@@ -50,6 +50,11 @@ See <<oidc-configure-kibana,Configure OpenID Connect authentication in {kib}>>.
 
 See <<oidc-role-mappings,Configure OpenID Connect role mappings>>.
 
+[role="exclude",id="oidc-claims-mapping"]
+=== Mapping OpenID Connect Claims
+
+See <<oidc-mapping-claims,OpenID Connect Claims>>.
+
 [role="exclude",id="saml-guide"]
 === Configure SAML single-sign on
 

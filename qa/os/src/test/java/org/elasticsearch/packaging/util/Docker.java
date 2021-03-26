@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.DockerRun.getImageName;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
@@ -572,13 +573,7 @@ public class Docker {
      * @return a mapping from label name to value
      */
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
-        // The format below extracts the .Config.Labels value, and prints it as json. Without the json
-        // modifier, a stringified Go map is printed instead, which isn't helpful.
-        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName(distribution)).stdout;
-
-        ObjectMapper mapper = new ObjectMapper();
-
-        final JsonNode jsonNode = mapper.readTree(labelsJson);
+        final JsonNode jsonNode = getImageInspectionJson(distribution).at("/Config/Labels");
 
         Map<String, String> labels = new HashMap<>();
 
@@ -587,11 +582,34 @@ public class Docker {
         return labels;
     }
 
-    public static Shell.Result getContainerLogs() {
-        return sh.run("docker logs " + containerId);
+    /**
+     * Fetches the <code>HEALTHCHECK</code> command for a Docker image
+     * @param distribution required to derive the image name
+     * @return a list of values from `docker inspect`, or null if there is no healthcheck defined
+     */
+    public static List<String> getImageHealthcheck(Distribution distribution) throws Exception {
+        final JsonNode jsonNode = getImageInspectionJson(distribution).at("/Config/Healthcheck/Test");
+
+        if (jsonNode.isMissingNode()) {
+            return null;
+        }
+
+        List<String> healthcheck = new ArrayList<>(jsonNode.size());
+
+        for (JsonNode node : jsonNode) {
+            healthcheck.add(node.textValue());
+        }
+
+        return healthcheck;
     }
 
-    public static String getImageName(Distribution distribution) {
-        return "elasticsearch" + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
+    private static JsonNode getImageInspectionJson(Distribution distribution) throws Exception {
+        String labelsJson = sh.run("docker inspect " + getImageName(distribution)).stdout;
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readTree(labelsJson).get(0);
+    }
+
+    public static Shell.Result getContainerLogs() {
+        return sh.run("docker logs " + containerId);
     }
 }

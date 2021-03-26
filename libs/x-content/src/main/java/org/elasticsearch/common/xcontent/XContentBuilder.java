@@ -53,6 +53,16 @@ public final class XContentBuilder implements Closeable, Flushable {
         return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
 
+    /**
+     * Create a new {@link XContentBuilder} using the given {@link XContent} content and RestApiVersion.
+     * <p>
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content.
+     * </p>
+     *
+     * @param xContent the {@link XContent}
+     * @return a new {@link XContentBuilder}
+     * @throws IOException if an {@link IOException} occurs while building the content
+     */
     public static XContentBuilder builder(XContent xContent, RestApiVersion restApiVersion) throws IOException {
         return new XContentBuilder(xContent, new ByteArrayOutputStream(),
             Collections.emptySet(),
@@ -198,7 +208,25 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      * @param responseContentType  a content-type header value to be send back on a response
-     * @param restApiVersion
+     */
+    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
+                           ParsedMediaType responseContentType) throws IOException {
+        this(xContent, os, includes, excludes, responseContentType, RestApiVersion.current());
+    }
+
+    /**
+     * Creates a new builder using the provided XContent, output stream and some inclusive and/or exclusive filters. When both exclusive and
+     * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
+     * remaining fields against the inclusive filters.
+     * Stores RestApiVersion to help steer the use of the builder depending on the version.
+     * @see #getRestApiVersion()
+     * <p>
+     * Make sure to call {@link #close()} when the builder is done with.
+     * @param os       the output stream
+     * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
+     * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
+     * @param responseContentType  a content-type header value to be send back on a response
+     * @param restApiVersion a rest api version indicating with which version the XContent is compatible with.
      */
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
                            ParsedMediaType responseContentType, RestApiVersion restApiVersion) throws IOException {

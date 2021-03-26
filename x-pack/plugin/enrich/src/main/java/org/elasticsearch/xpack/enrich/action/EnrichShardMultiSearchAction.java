@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -296,8 +295,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             new BytesStreamOutput(source.length()),
             includes,
             excludes,
-            ParsedMediaType.parseMediaType(XContentType.SMILE, emptyMap()),
-            RestApiVersion.current()
+            ParsedMediaType.parseMediaType(XContentType.SMILE, emptyMap())
         );
         XContentParser sourceParser = XContentHelper.createParser(
             NamedXContentRegistry.EMPTY,

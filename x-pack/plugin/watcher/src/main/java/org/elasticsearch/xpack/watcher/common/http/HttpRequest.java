@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.common.http;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -512,7 +511,7 @@ public class HttpRequest implements ToXContentObject {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              XContentBuilder filteredBuilder = new XContentBuilder(xContentType.xContent(), bos,
                  Collections.emptySet(), Collections.singleton(excludeField),
-                 xContentType.toParsedMediaType(), RestApiVersion.current())) {
+                 xContentType.toParsedMediaType())) {
             request.toXContent(filteredBuilder, params);
             filteredBuilder.flush();
             return new ByteArrayInputStream(bos.toByteArray());

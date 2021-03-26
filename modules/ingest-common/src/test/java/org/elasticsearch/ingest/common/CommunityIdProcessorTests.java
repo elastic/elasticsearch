@@ -300,6 +300,20 @@ public class CommunityIdProcessorTests extends ESTestCase {
         source2.put("port", 65536);
         e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
         assertThat(e.getMessage(), containsString("invalid source port [65536]"));
+
+        event = buildEvent();
+        @SuppressWarnings("unchecked")
+        var source3 = (Map<String, Object>) event.get("destination");
+        source3.put("port", 0);
+        e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
+        assertThat(e.getMessage(), containsString("invalid destination port [0]"));
+
+        event = buildEvent();
+        @SuppressWarnings("unchecked")
+        var source4 = (Map<String, Object>) event.get("destination");
+        source4.put("port", 65536);
+        e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
+        assertThat(e.getMessage(), containsString("invalid destination port [65536]"));
     }
 
     public void testIgnoreMissing() throws Exception {

@@ -1267,9 +1267,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:33: EXISTS is not yet supported", error("SELECT test.int FROM test WHERE EXISTS (SELECT 1)"));
     }
 
+    public void testScoreCannotBeUsedInExpressions() {
+        assertEquals("1:12: [SCORE()] cannot be used in expressions, does not support further processing",
+            error("SELECT SIN(SCORE()) FROM test"));
+    }
+
     public void testScoreIsNotInHaving() {
         assertEquals("1:54: HAVING filter is unsupported for function [SCORE()]\n" +
-                "line 1:54: [SCORE()] cannot be an argument to a function",
+                "line 1:54: [SCORE()] cannot be used in expressions, does not support further processing",
             error("SELECT bool, AVG(int) FROM test GROUP BY bool HAVING SCORE() > 0.5"));
     }
 

@@ -13,7 +13,7 @@
       "paths": [
         {
           "path": "/_enrich/policy/{name}/_execute",
-          "methods": [ "PUT" ],
+          "methods": [ "PUT", "POST" ],
           "parts": {
             "name": {
               "type" : "string",

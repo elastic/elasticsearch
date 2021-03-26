@@ -262,12 +262,16 @@ public final class DatabaseRegistry implements Closeable {
                 decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+                // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
+                // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
                 try (TarInputStream is = new TarInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpFile)))) {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
+                        //there might be ./ entry in tar, we should skip it
                         if (entry.isNotFile()) {
                             continue;
                         }
+                        // flatten structure, remove any directories present from the path (should be ./ only)
                         String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
                         if (name.startsWith(databaseName)) {
                             Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);

@@ -1,5 +1,5 @@
 [role="xpack"]
-[[saml-guide]]
+[[saml-guide-stack]]
 
 == Configuring SAML single-sign-on on the {stack}
 
@@ -72,7 +72,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
-[[saml-guide-authentication]]
+[[saml-elasticsearch-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:
@@ -91,7 +91,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -188,10 +188,10 @@ sp.logout::
     proxies involved, but it will typically be +$\{kibana-url}/logout+ where
     _$\{kibana-url}_ is the base URL for your {kib} instance.
 
-attribute.principal:: See <<saml-attribute-mapping>>.
-attribute.groups:: See <<saml-attribute-mapping>>.
+attribute.principal:: See <<saml-attributes-mapping>>.
+attribute.groups:: See <<saml-attributes-mapping>>.
 
-[[saml-attribute-mapping]]
+[[saml-attributes-mapping]]
 ==== Attribute mapping
 
 When a user connects to {kib} through your Identity Provider, the Identity
@@ -627,9 +627,9 @@ The {stack} supports generating such a metadata file using the
 <<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
 <<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-You can generate the SAML metadata by issuing the API request to {es} and store 
-it as an XML file using tools like `jq`. For example, the following command 
-generates the metadata for the SAML realm `realm1` and saves it to a 
+You can generate the SAML metadata by issuing the API request to {es} and store
+it as an XML file using tools like `jq`. For example, the following command
+generates the metadata for the SAML realm `realm1` and saves it to a
 `metadata.xml` file:
 
 ["source","console"]

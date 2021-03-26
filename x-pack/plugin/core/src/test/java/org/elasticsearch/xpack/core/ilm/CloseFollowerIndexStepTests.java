@@ -103,7 +103,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[1];
+            ActionListener<?>listener = (ActionListener<?>) invocation.getArguments()[1];
             listener.onFailure(error);
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());

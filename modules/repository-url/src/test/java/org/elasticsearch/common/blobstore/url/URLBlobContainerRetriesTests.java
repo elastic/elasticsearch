@@ -42,12 +42,6 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70310")
-    public void testReadRangeBlobWithRetries() {
-
-    }
-
-    @Override
     protected String downloadStorageEndpoint(String blob) {
         return "/" + blob;
     }

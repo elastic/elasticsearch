@@ -1,4 +1,0 @@
-[NOTE]
-Autoscaling is designed for indirect use by {ess-trial}[{ess}],
-{ece-ref}[{ece}], and {eck-ref}[Elastic Cloud on Kubernetes]. Direct use is not
-supported.

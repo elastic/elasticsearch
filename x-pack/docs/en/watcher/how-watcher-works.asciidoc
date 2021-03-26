@@ -415,7 +415,7 @@ The formal object definition for a script would be:
 [[stored-templates-scripts]]
 ===== Stored templates and scripts
 
-If you <<modules-scripting-stored-scripts,store>>
+If you <<modules-scripting-using,store>>
 your templates and scripts, you can reference them by id.
 
 To reference a stored script or template, you use the formal object definition

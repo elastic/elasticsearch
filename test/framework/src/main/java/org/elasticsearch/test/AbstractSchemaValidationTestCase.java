@@ -21,7 +21,6 @@ import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -48,7 +47,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
         SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         JsonSchemaFactory factory = initializeSchemaFactory();
 
-        Path p = getDataPath(PathUtils.get(getSchemaLocation(), getJsonSchemaFileName()).toString());
+        Path p = getDataPath(getSchemaLocation() + getJsonSchemaFileName());
         logger.debug("loading schema from: [{}]", p);
 
         JsonSchema jsonSchema = factory.getSchema(mapper.readTree(Files.newInputStream(p)), config);
@@ -108,7 +107,7 @@ public abstract class AbstractSchemaValidationTestCase<T extends ToXContent> ext
     private JsonSchemaFactory initializeSchemaFactory() {
         JsonSchemaFactory factory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(getSchemaVersion())).uriFetcher(uri -> {
             String fileName = uri.toString().substring(uri.getScheme().length() + 1);
-            Path path = getDataPath(PathUtils.get(getSchemaLocation(), fileName).toString());
+            Path path = getDataPath(getSchemaLocation() + fileName);
             logger.debug("loading sub-schema [{}] from: [{}]", uri, path);
             return Files.newInputStream(path);
         }, "file").build();

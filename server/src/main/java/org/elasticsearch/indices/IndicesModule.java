@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -76,7 +76,7 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFieldTypes(mapperPlugins),
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
     }
 
@@ -140,8 +140,8 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
-    private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
-        Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+    private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {
+        Map<String, RuntimeField.Parser> runtimeParsers = new LinkedHashMap<>();
         runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
         runtimeParsers.put(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER);
         runtimeParsers.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER);
@@ -151,7 +151,7 @@ public class IndicesModule extends AbstractModule {
         runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
+            for (Map.Entry<String, RuntimeField.Parser> entry : mapperPlugin.getRuntimeFields().entrySet()) {
                 if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Runtime field type [" + entry.getKey() + "] is already registered");
                 }

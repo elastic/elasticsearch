@@ -9,6 +9,7 @@ package org.elasticsearch.node;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
@@ -145,6 +146,7 @@ public class NodeTests extends ESTestCase {
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
                 .put(dataNode());
     }
 

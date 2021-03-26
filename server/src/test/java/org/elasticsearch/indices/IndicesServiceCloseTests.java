@@ -10,6 +10,7 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -73,6 +74,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
             .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .build();
 
         Node node = new MockNode(settings,

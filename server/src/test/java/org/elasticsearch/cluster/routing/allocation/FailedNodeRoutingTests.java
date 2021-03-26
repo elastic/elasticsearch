@@ -185,6 +185,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             keepGoing = randomBoolean();
         }
         terminate(threadPool);
+
+        assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
+            "set explicitly to false to preserve current behavior");
     }
 
     private static Version getNodeVersion(ShardRouting shardRouting, ClusterState state) {

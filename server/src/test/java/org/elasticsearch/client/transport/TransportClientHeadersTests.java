@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -78,6 +79,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 .put("node.name", "transport_client_" + this.getTestName())
                 .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
                 .put(headersSettings)
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "false")
                 .build(), InternalTransportServiceInterceptor.TestPlugin.class);
         InternalTransportServiceInterceptor.TestPlugin plugin = client.injector.getInstance(PluginsService.class)
             .filterPlugins(InternalTransportServiceInterceptor.TestPlugin.class).stream().findFirst().get();
@@ -97,6 +99,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                         .put("client.transport.nodes_sampler_interval", "1s")
                         .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), transport)
                         .put(HEADER_SETTINGS)
+                        .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "false")
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(),
                 InternalTransportServiceInterceptor.TestPlugin.class)) {
             InternalTransportServiceInterceptor.TestPlugin plugin = client.injector.getInstance(PluginsService.class)

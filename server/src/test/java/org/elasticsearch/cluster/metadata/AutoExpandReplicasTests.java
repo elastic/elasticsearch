@@ -195,6 +195,9 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     }
                 }
             );
+
+            assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
+                "set explicitly to false to preserve current behavior");
         } finally {
             terminate(threadPool);
         }
@@ -247,6 +250,9 @@ public class AutoExpandReplicasTests extends ESTestCase {
             // remove old node and check that auto-expansion takes allocation filtering into account
             state = cluster.removeNodes(state, Collections.singletonList(oldNode));
             assertThat(state.routingTable().index("index").shard(0).size(), equalTo(1));
+
+            assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
+                "set explicitly to false to preserve current behavior");
         } finally {
             terminate(threadPool);
         }

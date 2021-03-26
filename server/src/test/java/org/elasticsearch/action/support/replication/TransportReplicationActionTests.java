@@ -534,6 +534,9 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         assertPhase(task, "failed");
         assertFalse(request.isRetrySet.get());
+
+        assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
+            "set explicitly to false to preserve current behavior");
     }
 
     public void testStalePrimaryShardOnReroute() {

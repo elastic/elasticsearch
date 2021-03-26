@@ -86,6 +86,9 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
                 .get();
             assertNoFailures(resp);
             assertHitCount(resp, (includeLocalIndex ? localNumDocs : 0) + remoteNumDocs);
+
+            assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
+                "set explicitly to false to preserve current behavior");
         } finally {
             closePointInTime(pitId);
         }

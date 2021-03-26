@@ -1205,6 +1205,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY))
             .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1000) // o.w. some tests might block
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .build());
     }
 

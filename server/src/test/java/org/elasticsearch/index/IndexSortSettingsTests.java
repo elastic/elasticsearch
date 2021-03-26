@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -188,5 +189,23 @@ public class IndexSortSettingsTests extends ESTestCase {
             (ft, s) -> indexFieldDataService.getForField(ft, "index", s)
         ));
         assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
+    }
+
+    public void testSortingAgainstAliasesPre713() {
+        IndexSettings indexSettings = indexSettings(Settings.builder()
+            .put("index.version.created", Version.V_7_12_0)
+            .put("index.sort.field", "field").build());
+        IndexSortConfig config = indexSettings.getIndexSortConfig();
+        assertTrue(config.hasIndexSort());
+        IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
+        NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
+        MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
+        config.buildIndexSort(
+            field -> mft,
+            (ft, s) -> indexFieldDataService.getForField(ft, "index", s));
+
+        assertWarnings("Index sort for index [test] defined on field [field] which resolves to field [aliased]. " +
+            "You will not be able to define an index sort over aliased fields in new indexes");
     }
 }

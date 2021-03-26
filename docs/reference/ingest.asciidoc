@@ -98,7 +98,7 @@ to track changes to a pipeline.
 ----
 PUT _ingest/pipeline/my-pipeline-id
 {
-  "version" : 1,
+  "version": 1,
   "processors": [ ... ]
 }
 ----
@@ -149,7 +149,7 @@ body.
 ----
 POST _ingest/pipeline/_simulate
 {
-  "pipeline" : {
+  "pipeline": {
     "processors": [
       {
         "lowercase": {
@@ -226,9 +226,9 @@ POST my-data-stream/_doc?pipeline=my-pipeline
 
 PUT my-data-stream/_bulk?pipeline=my-pipeline
 { "create":{ } }
-{ "@timestamp": "2099-03-08T11:04:05.000Z", "my-keyword-field" : "foo" }
+{ "@timestamp": "2099-03-08T11:04:05.000Z", "my-keyword-field": "foo" }
 { "create":{ } }
-{ "@timestamp": "2099-03-08T11:06:07.000Z", "my-keyword-field" : "bar" }
+{ "@timestamp": "2099-03-08T11:06:07.000Z", "my-keyword-field": "bar" }
 ----
 
 You can also use the `pipeline` parameter with the <<docs-update-by-query,update
@@ -371,9 +371,9 @@ Processors can access the following metadata fields by name:
 ----
 PUT _ingest/pipeline/my-pipeline
 {
-  "processors" : [
+  "processors": [
     {
-      "set" : {
+      "set": {
         "description": "Set '_routing' to 'geoip.country_iso_code' value",
         "field": "_routing",
         "value": "{{geoip.country_iso_code}}"

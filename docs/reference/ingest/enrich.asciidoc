@@ -473,7 +473,7 @@ PUT /_ingest/pipeline/user_lookup
   "processors" : [
     {
       "enrich" : {
-        "description": "Add 'user' based on 'email'",
+        "description": "Add 'user' data based on 'email'",
         "policy_name": "users-policy",
         "field" : "email",
         "target_field": "user",

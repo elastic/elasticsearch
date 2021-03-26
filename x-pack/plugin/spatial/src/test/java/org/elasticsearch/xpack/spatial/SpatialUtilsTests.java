@@ -14,19 +14,33 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SpatialUtilsTests extends ESTestCase {
 
     public void testCreateRegularGeoShapePolygon() {
-        doRegularGeoShapePolygon(GeometryTestUtils.randomCircle(true));
+        final Circle circle = randomValueOtherThanMany(
+            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) < c.getRadiusMeters()
+                || SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) < c.getRadiusMeters(),
+            () -> GeometryTestUtils.randomCircle(true));
+        doRegularGeoShapePolygon(circle);
     }
 
-    public void testCreateRegularGeoShapePolygonAtPoles() {
-        doRegularGeoShapePolygon(new Circle(180, 90, randomDoubleBetween(10, 10000, true)));
-        doRegularGeoShapePolygon(new Circle(-180, 90, randomDoubleBetween(10, 10000, true)));
-        doRegularGeoShapePolygon(new Circle(180, -90, randomDoubleBetween(10, 10000, true)));
-        doRegularGeoShapePolygon(new Circle(-180, -90, randomDoubleBetween(10, 10000, true)));
+    public void testCircleContainsNorthPole() {
+        final Circle circle = randomValueOtherThanMany(
+            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), 90, 0) >= c.getRadiusMeters(),
+            () -> GeometryTestUtils.randomCircle(true));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
+        assertThat(ex.getMessage(), containsString("contains the north pole"));
+    }
+
+    public void testCircleContainsSouthPole() {
+        final Circle circle = randomValueOtherThanMany(
+            c -> SloppyMath.haversinMeters(c.getLat(), c.getLon(), -90, 0) >= c.getRadiusMeters(),
+            () -> GeometryTestUtils.randomCircle(true));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> doRegularGeoShapePolygon(circle));
+        assertThat(ex.getMessage(), containsString("contains the south pole"));
     }
 
     private void doRegularGeoShapePolygon(Circle circle) {

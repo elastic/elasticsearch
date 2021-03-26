@@ -104,7 +104,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
         final RootObjectMapper mergeWith =
             new RootObjectMapper.Builder(type, Version.CURRENT).setRuntime(
-                Collections.singletonMap("test", new TestRuntimeField("test", "long", () -> null))).build(new ContentPath());
+                Collections.singletonMap("test", new TestRuntimeField("test", "long"))).build(new ContentPath());
 
         RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
         assertFalse(merged.isEnabled());

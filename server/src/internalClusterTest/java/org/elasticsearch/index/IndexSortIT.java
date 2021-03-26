@@ -94,7 +94,7 @@ public class IndexSortIT extends ESIntegTestCase {
                 )
                 .setMapping(TEST_MAPPING)
                 .get());
-        assertThat(e.getMessage(), equalTo("unknown concrete index sort field: [alias]"));
+        assertThat(e.getMessage(), equalTo("Cannot use alias [alias] as an index sort field"));
     }
 
     public void testInvalidIndexSort() {
@@ -107,7 +107,7 @@ public class IndexSortIT extends ESIntegTestCase {
                 .setMapping(TEST_MAPPING)
                 .get()
         );
-        assertThat(exc.getMessage(), containsString("unknown concrete index sort field: [invalid_field]"));
+        assertThat(exc.getMessage(), containsString("unknown index sort field:[invalid_field]"));
 
         exc = expectThrows(IllegalArgumentException.class,
             () -> prepareCreate("test")

@@ -59,8 +59,6 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
 import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
@@ -483,22 +481,11 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static RuntimeField runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
-        return new TestRuntimeField(
-            name,
-            "test",
-            () -> withDocValues(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup)));
+        return runtimeField(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup));
     }
 
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return new TestRuntimeField(
-            name,
-            "test",
-            () -> withDocValues(name, runtimeDocValues)
-        );
-    }
-
-    private static MappedFieldType withDocValues(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return new MappedFieldType(name, true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+        return new TestRuntimeField(name, null) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {
@@ -585,21 +572,6 @@ public class SearchExecutionContextTests extends ESTestCase {
                         throw new UnsupportedOperationException();
                     }
                 };
-            }
-
-            @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String typeName() {
-                return "test";
-            }
-
-            @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
-                throw new UnsupportedOperationException();
             }
         };
     }

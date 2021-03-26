@@ -631,7 +631,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testSingleRuntimeFieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
-        List<RuntimeField> updates = Collections.singletonList(new TestRuntimeField("foo", "any", () -> null));
+        List<RuntimeField> updates = Collections.singletonList(new TestRuntimeField("foo", "any"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), Collections.emptyList(), updates);
         assertNotNull(mapping);
         assertNull(mapping.getRoot().getMapper("foo"));
@@ -652,7 +652,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testRuntimeSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
-        List<RuntimeField> updates = Collections.singletonList(new TestRuntimeField("x.foo", "any", () -> null));
+        List<RuntimeField> updates = Collections.singletonList(new TestRuntimeField("x.foo", "any"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), Collections.emptyList(), updates);
         assertNotNull(mapping);
         Mapper xMapper = mapping.getRoot().getMapper("x");

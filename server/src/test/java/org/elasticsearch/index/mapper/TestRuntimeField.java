@@ -8,22 +8,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-public class TestRuntimeField implements RuntimeField {
+public class TestRuntimeField extends MappedFieldType implements RuntimeField {
 
     private final String type;
-    private final String name;
-    private final Supplier<MappedFieldType> fieldType;
 
-    public TestRuntimeField(String name, String type, Supplier<MappedFieldType> fieldType) {
-        this.name = name;
+    public TestRuntimeField(String name, String type) {
+        super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         this.type = type;
-        this.fieldType = fieldType;
     }
 
     @Override
@@ -33,16 +32,21 @@ public class TestRuntimeField implements RuntimeField {
 
     @Override
     public MappedFieldType asMappedFieldType(Function<String, MappedFieldType> lookup) {
-        return fieldType.get();
+        return this;
     }
 
     @Override
-    public String name() {
-        return name;
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public void doXContentBody(XContentBuilder builder, Params params) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
+        return null;
+    }
+
+    @Override
+    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
     }
 }

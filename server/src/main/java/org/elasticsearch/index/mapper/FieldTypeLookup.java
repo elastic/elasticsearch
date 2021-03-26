@@ -99,24 +99,16 @@ final class FieldTypeLookup {
             if (runtimeFieldType != null) {
                 return runtimeFieldType.asMappedFieldType(this::get);
             }
-            return getConcrete(field);
-        }
-    }
 
-    /**
-     * Returns the mapped field type for the given field, excluding runtime fields
-     * @param field the field name
-     * @return a mapped field type, or null if the field does not exist
-     */
-    MappedFieldType getConcrete(String field) {
-        MappedFieldType fieldType = fullNameToFieldType.get(field);
-        if (fieldType != null) {
-            return fieldType;
-        }
+            MappedFieldType fieldType = fullNameToFieldType.get(field);
+            if (fieldType != null) {
+                return fieldType;
+            }
 
-        // If the mapping contains fields that support dynamic sub-key lookup, check
-        // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
-        return dynamicKeyLookup.get(field);
+            // If the mapping contains fields that support dynamic sub-key lookup, check
+            // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
+            return dynamicKeyLookup.get(field);
+        }
     }
 
     /**

@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.equalTo;
 
 public class MappingLookupTests extends ESTestCase {
 
@@ -45,21 +44,21 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testOnlyRuntimeField() {
         MappingLookup mappingLookup = createMappingLookup(emptyList(), emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type", () -> new MockFieldMapper.FakeFieldType("test"))));
+            Collections.singletonList(new TestRuntimeField("test", "type")));
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
-        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.class));
     }
 
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
         MappingLookup mappingLookup = createMappingLookup(Collections.singletonList(fieldMapper), emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type", () -> new MockFieldMapper.FakeFieldType("override"))));
+            Collections.singletonList(new TestRuntimeField("test", "type")));
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
-        assertThat(mappingLookup.fieldTypesLookup().get("test").name(), equalTo("override"));
+        assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.class));
         assertEquals(1, size(mappingLookup.fieldTypesLookup().filter(ft -> true)));
     }
 
@@ -70,13 +69,12 @@ public class MappingLookupTests extends ESTestCase {
         MappingLookup mappingLookup = createMappingLookup(
             Collections.singletonList(fieldMapper),
             Collections.singletonList(objectMapper),
-            Collections.singletonList(new TestRuntimeField(
-                "object.subfield", "type", () -> new MockFieldMapper.FakeFieldType("object.subfield")))
+            Collections.singletonList(new TestRuntimeField("object.subfield", "type"))
         );
         assertThat(mappingLookup.getMapper("object.subfield"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(1, mappingLookup.objectMappers().size());
-        assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(TestRuntimeField.class));
         assertEquals(1, size(mappingLookup.fieldTypesLookup().filter(ft -> true)));
     }
 

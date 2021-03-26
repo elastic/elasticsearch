@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -65,13 +64,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
-                jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            } else {
-                datafeedConfig = null;
-                jobConfig = null;
-            }
+            datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
+            jobConfig = in.readOptionalWriteable(Job.Builder::new);
         }
 
         public Request(String datafeedId) {
@@ -107,10 +101,8 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalWriteable(datafeedConfig);
-                out.writeOptionalWriteable(jobConfig);
-            }
+            out.writeOptionalWriteable(datafeedConfig);
+            out.writeOptionalWriteable(jobConfig);
         }
 
         @Override

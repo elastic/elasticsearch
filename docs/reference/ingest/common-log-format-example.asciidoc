@@ -19,7 +19,7 @@ AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"
 ----
 // NOTCONSOLE
 
-These logs contain an IP address, timestamp, and user agent. You want to give
+These logs contain a timestamp, IP address, and user agent. You want to give
 these three items their own field in {es} for faster searches and
 visualizations. You also want to know where the request is coming from.
 
@@ -34,8 +34,8 @@ image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines lis
 . Add a <<grok-processor,grok processor>> to parse the log message:
 
 .. Click **Add a processor** and select the **Grok** processor type.
-.. Set the field input to `message` and enter the following <<grok-basics,grok
-pattern>>:
+.. Set **Field** to `message` and **Patterns** to the following
+<<grok-basics,grok pattern>>:
 +
 [source,grok]
 ----
@@ -44,19 +44,32 @@ pattern>>:
 // NOTCONSOLE
 +
 .. Click **Add** to save the processor.
+.. Set the processor description to `Extract fields from 'message'`.
 
-. Add processors to map the date, IP, and user agent fields. Map the appropriate
-field to each processor type:
+. Add processors for the timestamp, IP address, and user agent fields. Configure
+the processors as follows:
 +
 --
-* <<date-processor,**Date**>>: `@timestamp`
-* <<geoip-processor,**GeoIP**>>: `source.ip`
-* <<user-agent-processor,**User agent**>>: `user_agent`
 
-In the **Date** processor, specify the date format you want to use:
-`dd/MMM/yyyy:HH:mm:ss Z`.
+[options="header"]
+|====
+| Processor type | Field  | Additional options | Description  
 
-In the **GeoIP** processor, specify the target field as `source.geo`.
+| <<date-processor,**Date**>>
+| `@timestamp`
+| **Formats**: `dd/MMM/yyyy:HH:mm:ss Z`
+| `Format '@timestamp' as 'dd/MMM/yyyy:HH:mm:ss Z'`
+
+| <<geoip-processor,**GeoIP**>>
+| `source.ip`
+| **Target field**: `source.geo`
+| `Add 'source.geo' geoIP data for 'source.ip'`
+
+| <<user-agent-processor,**User agent**>>
+| `user_agent`
+|
+| `Extract fields from 'user_agent'`
+|====
 
 Your form should look similar to this:
 
@@ -87,24 +100,28 @@ PUT /_ingest/pipeline/my-pipeline
   "processors": [
     {
       "grok": {
+        "description": "Extract fields from 'message'",
         "field": "message",
         "patterns": ["%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}"]
       }
     },
     {
       "date": {
+        "description": "Format '@timestamp' as 'dd/MMM/yyyy:HH:mm:ss Z'",
         "field": "@timestamp",
         "formats": [ "dd/MMM/yyyy:HH:mm:ss Z" ]
       }
     },
     {
       "geoip": {
+        "description": "Add 'source.geo' geoIP data for 'source.ip'",
         "field": "source.ip",
         "target_field": "source.geo"
       }
     },
     {
       "user_agent": {
+        "description": "Extract fields from 'user_agent'",
         "field": "user_agent"
       }
     }

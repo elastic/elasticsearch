@@ -1,5 +1,5 @@
-| `if`             | no       | -        | Conditionally execute this processor.
-| `on_failure`     | no       | -        | Handle failures for this processor. See <<handling-failure-in-pipelines>>.
-| `ignore_failure` | no       | `false`  | Ignore failures for this processor. See <<handling-failure-in-pipelines>>.
-| `tag`            | no       | -        | An identifier for this processor. Useful for debugging and metrics.
-// TODO: See <<ingest-conditionals>>. <-- for the if description once PR 35044 is merged
+| `description`     | no      | -        | Description of the processor. Useful for describing the purpose of the processor or its configuration.
+| `if`             | no       | -        | Conditionally execute the processor. See <<handling-pipeline-failures>>.
+| `ignore_failure` | no       | `false`  | Ignore failures for the processor. See <<handling-failure-in-pipelines>>.
+| `on_failure`     | no       | -        | Handle failures for the processor. See <<handling-failure-in-pipelines>>.
+| `tag`            | no       | -        | Identifier for the processor. Useful for debugging and metrics.

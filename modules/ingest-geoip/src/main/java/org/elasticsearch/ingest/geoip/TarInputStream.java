@@ -51,15 +51,18 @@ class TarInputStream extends FilterInputStream {
 
         String name = getString(0, 100);
 
-        String sizeString = getString(124, 12);
-        remaining = sizeString.isEmpty() ? 0 : Long.parseLong(sizeString, 8);
-        reminder = remaining % 512;
-
         boolean notFile = (buf[156] != 0 && buf[156] != '0') || name.endsWith("/");
-        currentEntry = new TarEntry(name, notFile);
-        if (notFile) {
+
+        if(notFile){
             remaining = 0;
+            reminder = 0;
+        } else {
+            String sizeString = getString(124, 12);
+            remaining = sizeString.isEmpty() ? 0 : Long.parseLong(sizeString, 8);
+            reminder = remaining % 512;
         }
+
+        currentEntry = new TarEntry(name, notFile);
         return currentEntry;
     }
 

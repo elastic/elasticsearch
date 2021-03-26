@@ -12,6 +12,7 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -39,6 +40,13 @@ import java.util.stream.Collectors;
  * {@link ActionPlugin#getRestHeaders()}.
  */
 public abstract class BaseRestHandler implements RestHandler {
+
+    /**
+     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
+     * Note: This parameter is only available through compatible rest api.
+     */
+    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
@@ -72,14 +80,14 @@ public abstract class BaseRestHandler implements RestHandler {
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
         final SortedSet<String> unconsumedParams = request.unconsumedParams()
             .stream()
-            .filter(p -> responseParams().contains(p) == false)
+            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
             .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
         if (unconsumedParams.isEmpty() == false) {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
-            candidateParams.addAll(responseParams());
+            candidateParams.addAll(responseParams(request.getRestApiVersion()));
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
@@ -174,6 +182,10 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    protected Set<String> responseParams(RestApiVersion restApiVersion) {
+        return responseParams();
+    }
+
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;
@@ -200,6 +212,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         protected Set<String> responseParams() {
             return delegate.responseParams();
+        }
+
+        @Override
+        protected Set<String> responseParams(RestApiVersion restApiVersion) {
+            return delegate.responseParams(restApiVersion);
         }
 
         @Override

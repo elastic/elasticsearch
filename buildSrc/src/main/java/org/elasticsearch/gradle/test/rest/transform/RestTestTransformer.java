@@ -144,9 +144,16 @@ public class RestTestTransformer {
                             } else {
                                 if (entry.getValue().isObject()) {
                                     ObjectNode child = (ObjectNode) entry.getValue();
-                                    if (child.has(transform.requiredChildKey())) {
+//                                    if (child.has(transform.requiredChildKey())) {
+                                    if(transform.matches(child)) {
                                         transform.transformTest((ObjectNode) currentNode);
                                     }
+                                } else if(entry.getValue().isTextual()){
+                                    String fieldValue = entry.getValue().asText();
+                                    if(transform.matches(fieldValue)) {///fieldValue.equals(transform.requiredChildKey())){
+                                        transform.transformTest((ObjectNode) currentNode);
+                                    }
+
                                 }
                             }
                         }

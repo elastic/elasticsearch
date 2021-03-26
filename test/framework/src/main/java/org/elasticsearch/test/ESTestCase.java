@@ -1144,6 +1144,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public String randomCompatibleMediaType(RestApiVersion version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
+        return compatibleMediaType(type, version);
+    }
+
+    public String compatibleMediaType(XContentType type, RestApiVersion version) {
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }

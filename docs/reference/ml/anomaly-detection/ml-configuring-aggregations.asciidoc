@@ -265,7 +265,7 @@ counter `system.network.out.bytes` for each value of the field `beat.name`.
 
 NOTE: `derivative` or other pipeline aggregations may not work within `composite`
 aggregations. See
-{ref}/search-aggregations-bucket-composite-aggregation-pipeline-aggregations.html[composite aggregations and pipeline aggregations].
+{ref}/search-aggregations-bucket-composite-aggregation.html#search-aggregations-bucket-composite-aggregation-pipeline-aggregations[composite aggregations and pipeline aggregations].
 
 [source,js]
 ----------------------------------

@@ -55,8 +55,13 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
         ClusterState state,
         ActionListener<EncryptedRepositoryChangePasswordResponse> listener
     ) throws Exception {
+        // TODO
+        // update cluster state to initiate password change (ensure passwords exists and no change is already in progress)
+        // move all existing DEKs to use the new password and the new name
+        // update cluster state to decommission the old password
+        // remove the now old DEKs
+        // update cluster state to conclude the password change
         listener.onResponse(new EncryptedRepositoryChangePasswordResponse(false));
-        // repositoriesService.registerRepository(request, listener.map(response -> AcknowledgedResponse.of(response.isAcknowledged())));
     }
 
     @Override

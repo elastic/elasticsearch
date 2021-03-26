@@ -162,7 +162,9 @@ public class EncryptedRepository extends BlobStoreRepository {
             return;
         }
         final StepListener<RepositoryData> publishHashesStepListener = new StepListener<>();
-        publishPasswordsHashes(publishHashesStepListener);
+        // before updating the cluster state for the operation, update it to make sure the password hashes are published
+        // because downstream actions of the operation might need to verify them (eg write blob actions)
+        publishPasswordsHash(publishHashesStepListener);
         // go on with the actual task to update the cluster state
         // this runs on the master applier thread, not worth forking it, right?
         publishHashesStepListener.whenComplete(
@@ -278,80 +280,104 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     // protected for tests
-    protected void publishPasswordsHashes(ActionListener<RepositoryData> listener) {
-        super.executeConsistentStateUpdate(
-            (latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
-                // async compute password hashes for task, given the repository metadata
-                repositoryPasswords.computePasswordHashes(
+    protected void publishPasswordsHash(ActionListener<RepositoryData> listener) {
+        updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
+            // don't ever overwrite hashes
+            if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
+                logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains some password hashes");
+                listener.onResponse(latestRepositoryData);
+                return;
+            }
+            repositoryPasswords.computePasswordHashes(latestRepositoryMetadata, ActionListener.wrap(localPasswordHashes -> {
+                RepositoryMetadata newRepositoryMetadata = repositoryPasswords.withPasswordHashes(
                     latestRepositoryMetadata,
-                    ActionListener.wrap(localPasswordHashes -> updateTaskListener.onResponse(new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            // don't ever overwrite hashes
-                            if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
-                                logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains password " + "hashes");
-                                return currentState;
-                            }
-                            final RepositoryMetadata newRepositoryMetadata = repositoryPasswords.withPasswordHashes(
-                                latestRepositoryMetadata,
-                                localPasswordHashes
-                            );
-                            if (false == repositoryPasswords.containsRequiredPasswordHashes(newRepositoryMetadata)) {
-                                throw new IllegalStateException(
-                                    "Internal consistency error when updating repository ["
-                                        + latestRepositoryMetadata.name()
-                                        + "] password hashes"
-                                );
-                            }
-                            final RepositoriesMetadata repositories = currentState.metadata()
-                                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-                            final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
-                            boolean found = false;
-                            for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                                    if (found) {
-                                        throw new IllegalStateException(
-                                            "Internal consistency error when updating repository "
-                                                + "["
-                                                + latestRepositoryMetadata.name()
-                                                + "] password hashes"
-                                        );
-                                    }
-                                    found = true;
-                                    newRepositoriesMetadata.add(newRepositoryMetadata);
-                                } else {
-                                    newRepositoriesMetadata.add(repositoryMetadata);
-                                }
-                            }
-                            if (found == false) {
-                                throw new IllegalStateException(
-                                    "Internal consistency error when updating repository ["
-                                        + latestRepositoryMetadata.name()
-                                        + "] password hashes"
-                                );
-                            }
-                            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                            mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
-                            return ClusterState.builder(currentState).metadata(mdBuilder).build();
-                        }
-
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.warn("failed to " + source, e);
-                            listener.onFailure(e);
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-                            logger.info("Published password hashes for repository [" + latestRepositoryMetadata.name() + "]");
-                            listener.onResponse(latestRepositoryData);
-                        }
-                    }), listener::onFailure)
+                    localPasswordHashes
                 );
-            },
-            "update encrypted repository password hashes [" + metadata.name() + "]",
-            listener::onFailure
-        );
+                if (false == repositoryPasswords.containsRequiredPasswordHashes(newRepositoryMetadata)) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "New repository ["
+                                + latestRepositoryMetadata.name()
+                                + "] metadata does not contain all the required password hashes"
+                        )
+                    );
+                    return;
+                }
+                newRepositoryMetadataListener.onResponse(newRepositoryMetadata);
+            }, listener::onFailure));
+        }, "update encrypted repository password hashes [" + metadata.name() + "]", listener);
+    }
+
+    protected void initiatePasswordChange(String fromPasswordName, String toPasswordName, ActionListener<RepositoryData> listener) {
+        // TODO
+    }
+
+    // protected for tests
+    protected void updateMetadata(
+        TriConsumer<RepositoryData, RepositoryMetadata, ActionListener<RepositoryMetadata>> updateAction,
+        String source,
+        ActionListener<RepositoryData> listener
+    ) {
+        super.executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
+            updateAction.apply(latestRepositoryData, latestRepositoryMetadata, ActionListener.wrap(newRepositoryMetadata -> {
+                if (false == newRepositoryMetadata.name().equals(latestRepositoryMetadata.name())) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Repository name cannot be changed ["
+                                + latestRepositoryMetadata.name()
+                                + "] ["
+                                + newRepositoryMetadata.name()
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                updateTaskListener.onResponse(new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        final RepositoriesMetadata repositories = currentState.metadata()
+                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                        final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
+                        boolean found = false;
+                        for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+                            if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                                if (found) {
+                                    throw new IllegalStateException(
+                                        "Found multiple repositories with the same name ["
+                                            + newRepositoryMetadata.name()
+                                            + "] when updating repository metadata"
+                                    );
+                                }
+                                found = true;
+                                newRepositoriesMetadata.add(newRepositoryMetadata);
+                            } else {
+                                newRepositoriesMetadata.add(repositoryMetadata);
+                            }
+                        }
+                        if (found == false) {
+                            throw new IllegalStateException(
+                                "Missing repository with name [" + latestRepositoryMetadata.name() + "] when updating repository metadata"
+                            );
+                        }
+                        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
+                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        logger.warn("failed to update metadata from source: " + source, e);
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                        logger.info("Repository [" + newRepositoryMetadata.name() + "] metadata updated from source: " + source);
+                        listener.onResponse(latestRepositoryData);
+                    }
+                });
+            }, listener::onFailure));
+        }, source, listener::onFailure);
     }
 
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {

@@ -115,7 +115,7 @@ public final class EncryptedS3BlobStoreRepositoryIntegTests extends S3BlobStoreR
         final EncryptedRepository encryptedRepository = (EncryptedRepository) internalCluster().getCurrentMasterNodeInstance(
             RepositoriesService.class
         ).repository(repository);
-        PlainActionFuture.get(encryptedRepository::publishPasswordsHashes);
+        PlainActionFuture.get(encryptedRepository::publishPasswordsHash);
         return blobStore;
     }
 }

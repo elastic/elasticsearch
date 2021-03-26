@@ -266,6 +266,22 @@ public final class RepositoryPasswords {
         return passwordsHashes;
     }
 
+    public RepositoryMetadata initiatePasswordChange(
+        RepositoryMetadata repositoryMetadata,
+        String fromPasswordName,
+        String toPasswordName
+    ) {
+        if (false == Strings.hasLength(fromPasswordName)) {
+            throw new IllegalArgumentException("\"from password\" cannot be empty");
+        }
+        if (false == Strings.hasLength(toPasswordName)) {
+            throw new IllegalArgumentException("\"to password\" cannot be empty");
+        }
+        String existingFromPasswordName = PASSWORD_CHANGE_FROM_NAME_SETTING.get(repositoryMetadata.settings());
+        // TODO
+        return repositoryMetadata;
+    }
+
     public RepositoryMetadata withPasswordHashes(
         RepositoryMetadata repositoryMetadata,
         Collection<Tuple<String, String>> passwordHashesToPublish

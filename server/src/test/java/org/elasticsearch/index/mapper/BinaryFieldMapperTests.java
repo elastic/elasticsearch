@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -123,12 +122,9 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        if (rarely()) {
-            return null;
-        } else {
-            byte[] value = randomAlphaOfLengthBetween(1, 30).getBytes(StandardCharsets.UTF_8);
-            return Base64.getEncoder().encodeToString(value);
-        }
+        if (rarely()) return null;
+        byte[] value = randomByteArrayOfLength(randomIntBetween(1, 50));
+        return Base64.getEncoder().encodeToString(value);
     }
 
     @Override

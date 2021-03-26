@@ -9,8 +9,6 @@
 
 Retrieves configuration information for a trained model.
 
-beta::[]
-
 
 [[ml-get-trained-models-request]]
 == {api-request-title}

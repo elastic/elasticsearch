@@ -9,7 +9,6 @@
 
 Deletes a trained model alias.
 
-beta::[]
 
 [[ml-delete-trained-models-aliases-request]]
 == {api-request-title}

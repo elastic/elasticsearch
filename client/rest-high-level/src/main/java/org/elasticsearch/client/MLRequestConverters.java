@@ -326,14 +326,18 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) {
-        String endpoint = new EndpointBuilder()
+    static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) throws IOException {
+        EndpointBuilder builder = new EndpointBuilder()
             .addPathPartAsIs("_ml")
-            .addPathPartAsIs("datafeeds")
-            .addPathPart(previewDatafeedRequest.getDatafeedId())
-            .addPathPartAsIs("_preview")
-            .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+            .addPathPartAsIs("datafeeds");
+        String endpoint = previewDatafeedRequest.getDatafeedId() != null ?
+            builder.addPathPart(previewDatafeedRequest.getDatafeedId()).addPathPartAsIs("_preview").build() :
+            builder.addPathPartAsIs("_preview").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        if (previewDatafeedRequest.getDatafeedId() == null) {
+            request.setEntity(createEntity(previewDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
     }
 
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {

@@ -109,6 +109,60 @@ setup:
   - match: { 3.airline: foo }
   - match: { 3.responsetime: 42.0 }
 
+  - do:
+      ml.preview_datafeed:
+        body: >
+          {
+            "datafeed_config": {
+              "job_id":"preview-datafeed-job",
+              "indexes":"airline-data"
+            }
+          }
+  - length: { $body: 4 }
+  - match: { 0.time: 1487376000000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }
+  - match: { 1.time: 1487377800000 }
+  - match: { 1.airline: foo }
+  - match: { 1.responsetime: 1.0 }
+  - match: { 2.time: 1487379600000 }
+  - match: { 2.airline: bar }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }
+
+  - do:
+      ml.preview_datafeed:
+        body: >
+          {
+            "datafeed_config": {
+              "job_id":"preview-datafeed-job",
+              "indexes":"airline-data"
+            },
+            "job_config": {
+              "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description": {
+                "time_field":"time"
+              }
+            }
+          }
+  - length: { $body: 4 }
+  - match: { 0.time: 1487376000000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }
+  - match: { 1.time: 1487377800000 }
+  - match: { 1.airline: foo }
+  - match: { 1.responsetime: 1.0 }
+  - match: { 2.time: 1487379600000 }
+  - match: { 2.airline: bar }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }
 ---
 "Test preview aggregation datafeed with doc_count":
 
@@ -167,6 +221,65 @@ setup:
   - do:
       ml.preview_datafeed:
         datafeed_id: aggregation-doc-count-feed
+  - length: { $body: 3 }
+  - match: { 0.time: 1487377800000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 2.0 }
+  - match: { 0.doc_count: 2 }
+  - match: { 1.time: 1487379660000 }
+  - match: { 1.airline: bar }
+  - match: { 1.responsetime: 42.0 }
+  - match: { 1.doc_count: 1 }
+  - match: { 1.time: 1487379660000 }
+  - match: { 2.airline: foo }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 2.doc_count: 1 }
+  - do:
+      ml.preview_datafeed:
+        body: >
+          {
+            "datafeed_config": {
+              "indexes":"airline-data",
+              "aggregations": {
+                "buckets": {
+                  "histogram": {
+                    "field": "time",
+                    "interval": 3600000
+                  },
+                  "aggregations": {
+                    "time": {
+                      "max": {
+                        "field": "time"
+                      }
+                    },
+                    "airline": {
+                      "terms": {
+                        "field": "airline",
+                        "size": 100
+                      },
+                      "aggregations": {
+                        "responsetime": {
+                          "sum": {
+                             "field": "responsetime"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "job_config": {
+              "analysis_config" : {
+                  "bucket_span": "1h",
+                  "summary_count_field_name": "doc_count",
+                  "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description" : {
+                  "time_field":"time"
+              }
+            }
+          }
   - length: { $body: 3 }
   - match: { 0.time: 1487377800000 }
   - match: { 0.airline: foo }
@@ -326,6 +439,43 @@ setup:
       ml.preview_datafeed:
         datafeed_id: missing-feed
 
+---
+"Test preview with datafeed_id and job config":
+
+  - do:
+      catch: bad_request
+      ml.preview_datafeed:
+        datafeed_id: some_datafeed_id
+        body: >
+          {
+             "job_config": {
+               "analysis_config" : {
+                 "bucket_span": "1h",
+                 "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+               },
+               "data_description" : {
+                 "time_field":"time"
+               }
+             }
+          }
+---
+"Test preview with datafeed id and config":
+
+  - do:
+      catch: bad_request
+      ml.preview_datafeed:
+        body: >
+          {
+             "job_config": {
+               "analysis_config" : {
+                 "bucket_span": "1h",
+                 "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+               },
+               "data_description" : {
+                 "time_field":"time"
+               }
+             }
+          }
 ---
 "Test preview datafeed with unavailable index":
 

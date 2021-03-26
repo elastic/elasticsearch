@@ -137,12 +137,16 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         InternalAggregation[] reducedAggregations = new InternalAggregation[colSize];
         InternalAggregation[] aggregations = new InternalAggregation[rowSize];
         for (int col = 0; col < colSize; col++) {
+            boolean hasUnmapped = false;
             for (int row = 0; row < aggregationsList.size(); row++) {
                 aggregations[row] = (InternalAggregation) aggregationsList.get(row).aggregations.get(col);
+                hasUnmapped = hasUnmapped || (aggregations[row].isMapped() == false);
             }
             // Sort aggregations so that unmapped aggs come last in the list
             // If all aggs are unmapped, the agg that leads the reduction will just return itself
-            Arrays.sort(aggregations, INTERNAL_AGG_COMPARATOR);
+            if (hasUnmapped) {
+                Arrays.sort(aggregations, INTERNAL_AGG_COMPARATOR);
+            }
             InternalAggregation first = aggregations[0]; // the list can't be empty as it's created on demand
             if (first.mustReduceOnSingleInternalAgg() || aggregations.length > 1) {
                 reducedAggregations[col] = first.reduce(Arrays.asList(aggregations), context);

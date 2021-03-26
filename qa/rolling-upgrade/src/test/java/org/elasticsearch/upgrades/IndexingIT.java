@@ -260,7 +260,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        bulk.setJsoIndenEntity(b.toString());
+        bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }
 

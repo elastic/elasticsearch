@@ -671,16 +671,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFlattenedField() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-        .startObject("_doc")
-            .startObject("properties")
-              .startObject("flat")
-                .field("type", "flattened")
-              .endObject()
-            .endObject()
-        .endObject()
-        .endObject();
-
+        XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());
         MapperService mapperService = createMapperService(mapping);
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()

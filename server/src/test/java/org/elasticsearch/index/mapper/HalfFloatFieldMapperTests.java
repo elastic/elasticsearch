@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.HalfFloatPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
@@ -42,13 +41,6 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Number randomNumber() {
-        /*
-         * The native valueFetcher returns 32 bits of precision but the
-         * doc values fetcher returns 16 bits of precision. To make it
-         * all line up we round here instead of in the fetcher. This bug
-         * is tracked in:
-         * https://github.com/elastic/elasticsearch/issues/70260
-         */
-        return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
+        return randomBoolean() ? randomFloat() : randomDoubleBetween(-65504, 65504, true);
     }
 }

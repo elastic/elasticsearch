@@ -1,5 +1,5 @@
 [role="xpack"]
-[[oidc-guide]]
+[[oidc-guide-stack]]
 
 == Configuring single sign-on to the {stack} using OpenID Connect
 
@@ -12,7 +12,7 @@ Elastic Stack Relying Party will be registered.
 
 NOTE: The OpenID Connect realm support in {kib} is designed with the expectation that it
 will be the primary authentication method for the users of that {kib} instance. The
-<<oidc-kibana>> section describes what this entails and how you can set it up to support
+<<oidc-configure-kibana>> section describes what this entails and how you can set it up to support
 other realms if necessary.
 
 [[oidc-guide-op]]
@@ -44,7 +44,7 @@ called `Callback URI`.
 At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
 Note these two values as they will be used in the {es} configuration.
 
-[[oidc-guide-authentication]]
+[[oidc-es-authentication]]
 === Configure {es} for OpenID Connect authentication
 
 The following is a summary of the configuration steps required in order to enable authentication
@@ -62,7 +62,8 @@ If your {es} cluster is operating in production mode, then you must
 configure the HTTP interface to use SSL/TLS before you can enable OpenID Connect
 authentication.
 
-For more information, see <<tls-http>>.
+For more information, see
+<<encrypt-http-communication>>.
 
 [[oidc-enable-token]]
 ==== Enable the token service
@@ -182,8 +183,8 @@ rp.post_logout_redirect_uri::
     will not trigger a new OpenID Connect Authentication, such as +$\{kibana-url}/logged_out+ where _$\{kibana-url}_ is
     the base URL for your {kib} instance.
 
-claims.principal:: See <<oidc-claims-mapping>>.
-claims.groups:: See <<oidc-claims-mapping>>.
+claims.principal:: See <<oidc-mapping-claims>>.
+claims.groups:: See <<oidc-mapping-claims>>.
 
 A final piece of configuration of the OpenID Connect realm is to set the `Client Secret` that was assigned
 to the RP during registration in the OP. This is a secure setting and as such is not defined in the realm
@@ -203,7 +204,7 @@ available at a well known URL, which is the concatenation of their `Issuer` valu
 That document should contain all the necessary information to configure the OpenID Connect realm in {es}.
 
 
-[[oidc-claims-mapping]]
+[[oidc-mapping-claims]]
 ==== Claims mapping
 
 ===== Claims and scopes
@@ -255,9 +256,9 @@ The recommended steps for configuring OpenID Claims mapping are as follows:
   to configure the scopes to request. To ensure interoperability and minimize
   the errors, you should only request scopes that the OP supports, and which you
   intend to map to {es} user properties.
-
-  NOTE: You can only map claims with values that are strings, numbers, boolean values or an array
-  of the aforementioned.
++
+NOTE: You can only map claims with values that are strings, numbers, boolean
+values or an array of the aforementioned.
 
 . Configure the OpenID Connect realm in {es} to associate the {es} user properties (see
   <<oidc-user-properties, the listing>> below), to the name of the claims that your
@@ -406,7 +407,7 @@ xpack.security.authc.realms.oidc.oidc1:
   ssl.certificate_authorities: ["/oidc/company-ca.pem"]
 -------------------------------------------------------------------------------------
 
-[[oidc-role-mapping]]
+[[oidc-role-mappings]]
 === Configuring role mappings
 
 When a user authenticates using OpenID Connect, they are identified to the Elastic Stack,
@@ -503,7 +504,7 @@ that pertain to the authentication event, rather than the user themselves.
 This behaviour can be disabled by adding `populate_user_metadata: false` as
 a setting in the oidc realm.
 
-[[oidc-kibana]]
+[[oidc-configure-kibana]]
 === Configuring {kib}
 
 OpenID Connect authentication in {kib} requires a small number of additional settings

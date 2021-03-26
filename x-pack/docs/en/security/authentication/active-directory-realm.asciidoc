@@ -47,8 +47,8 @@ properties are populated in the user's _metadata_:
                         groups were mapped to a role).
 |=======================
 
-This metadata is returned in the 
-{ref}/security-api-authenticate.html[authenticate API] and can be used with
+This metadata is returned in the
+<<security-api-authenticate,authenticate API>> and can be used with
 <<templating-role-query, templated queries>> in roles.
 
 Additional metadata can be extracted from the Active Directory server by configuring
@@ -63,7 +63,4 @@ Two modes of operation are supported: failover and load balancing.
 See
 <<load-balancing>>.
 
-[[active-directory-ssl]]
-==== Setting up SSL between Elasticsearch and Active Directory
-
-See <<tls-active-directory>>.
+include::../securing-communications/tls-ad.asciidoc[]

@@ -1,5 +1,5 @@
 [role="xpack"]
-[[saml-guide]]
+[[saml-guide-stack]]
 
 == Configuring SAML single-sign-on on the {stack}
 
@@ -20,7 +20,7 @@ required in {kib} to activate the SAML authentication provider.
 NOTE: The SAML support in {kib} is designed on the expectation that it will be
 the primary (or sole) authentication method for users of that {kib} instance.
 Once you enable SAML authentication in {kib} it will affect all users who try
-to login. The <<saml-kibana>> section provides more detail about how this works.
+to login. The <<saml-configure-kibana>> section provides more detail about how this works.
 
 [[saml-guide-idp]]
 === The identity provider
@@ -72,7 +72,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
-[[saml-guide-authentication]]
+[[saml-elasticsearch-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:
@@ -91,7 +91,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -188,10 +188,10 @@ sp.logout::
     proxies involved, but it will typically be +$\{kibana-url}/logout+ where
     _$\{kibana-url}_ is the base URL for your {kib} instance.
 
-attribute.principal:: See <<saml-attribute-mapping>>.
-attribute.groups:: See <<saml-attribute-mapping>>.
+attribute.principal:: See <<saml-attributes-mapping>>.
+attribute.groups:: See <<saml-attributes-mapping>>.
 
-[[saml-attribute-mapping]]
+[[saml-attributes-mapping]]
 ==== Attribute mapping
 
 When a user connects to {kib} through your Identity Provider, the Identity
@@ -295,7 +295,7 @@ xpack.security.authc.realms.saml.saml1:
   attributes.groups: "roles"
 ------------------------------------------------------------
 
-[[saml-user-properties]]
+[[saml-es-user-properties]]
 ===== {es} user properties
 
 The {es} SAML realm can be configured to map SAML `attributes` to the
@@ -618,9 +618,9 @@ The {stack} supports generating such a metadata file using the
 <<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
 <<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-You can generate the SAML metadata by issuing the API request to {es} and store 
-it as an XML file using tools like `jq`. For example, the following command 
-generates the metadata for the SAML realm `realm1` and saves it to a 
+You can generate the SAML metadata by issuing the API request to {es} and store
+it as an XML file using tools like `jq`. For example, the following command
+generates the metadata for the SAML realm `realm1` and saves it to a
 `metadata.xml` file:
 
 ["source","console"]
@@ -731,7 +731,7 @@ fields.
 This behaviour can be disabled by adding `populate_user_metadata: false` to as
 a setting in the saml realm.
 
-[[saml-kibana]]
+[[saml-configure-kibana]]
 === Configuring {kib}
 
 SAML authentication in {kib} requires a small number of additional settings

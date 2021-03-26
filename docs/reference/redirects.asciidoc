@@ -36,12 +36,17 @@ See <<secure-cluster,Secure the Elastic Stack>>.
 See <<oidc-guide-stack,Configuring single sign-on to the {stack} using OpenID Connect>>.
 
 [role="exclude",id="oidc-guide-authentication"]
-==== Configure {es} for OpenID Connect
+=== Configure {es} for OpenID Connect
 
 See <<oidc-es-authentication,Configure {es} for OpenID Connect authentication>>.
 
+[role="exclude",id="oidc-kibana"]
+=== OpenID Connect authentication in {kib}
+
+See <<oidc-configure-kibana,Configure OpenID Connect authentication in {kib}>>.
+
 [role="exclude",id="oidc-role-mapping"]
-==== Configure role mapping
+=== Configure OpenID Connect role mapping
 
 See <<oidc-role-mappings,Configure OpenID Connect role mappings>>.
 
@@ -61,9 +66,14 @@ See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>
 See <<saml-es-user-properties,{es} user properties>>.
 
 [role="exclude",id="saml-attribute-mapping"]
-==== Attribute mapping
+==== SAML attribute mapping
 
 See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="saml-kibana"]
+=== SAML authentication in {kib}
+
+See <<saml-configure-kibana,Configure SAML authentication in {kib}>>.
 
 [role="exclude",id="active-directory-ssl"]
 === Setting up SSL between {es} and Active Directory

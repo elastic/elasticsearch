@@ -20,7 +20,7 @@ required in {kib} to activate the SAML authentication provider.
 NOTE: The SAML support in {kib} is designed on the expectation that it will be
 the primary (or sole) authentication method for users of that {kib} instance.
 Once you enable SAML authentication in {kib} it will affect all users who try
-to login. The <<saml-kibana>> section provides more detail about how this works.
+to login. The <<saml-configure-kibana>> section provides more detail about how this works.
 
 [[saml-guide-idp]]
 === The identity provider
@@ -731,7 +731,7 @@ fields.
 This behaviour can be disabled by adding `populate_user_metadata: false` to as
 a setting in the saml realm.
 
-[[saml-kibana]]
+[[saml-configure-kibana]]
 === Configuring {kib}
 
 SAML authentication in {kib} requires a small number of additional settings

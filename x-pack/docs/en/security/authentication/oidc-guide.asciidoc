@@ -12,7 +12,7 @@ Elastic Stack Relying Party will be registered.
 
 NOTE: The OpenID Connect realm support in {kib} is designed with the expectation that it
 will be the primary authentication method for the users of that {kib} instance. The
-<<oidc-kibana>> section describes what this entails and how you can set it up to support
+<<oidc-configure-kibana>> section describes what this entails and how you can set it up to support
 other realms if necessary.
 
 [[oidc-guide-op]]
@@ -504,7 +504,7 @@ that pertain to the authentication event, rather than the user themselves.
 This behaviour can be disabled by adding `populate_user_metadata: false` as
 a setting in the oidc realm.
 
-[[oidc-kibana]]
+[[oidc-configure-kibana]]
 === Configuring {kib}
 
 OpenID Connect authentication in {kib} requires a small number of additional settings

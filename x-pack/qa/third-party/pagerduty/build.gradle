@@ -14,7 +14,7 @@ String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')
 
 restResources {
   restApi {
-    includeXpack 'watcher'
+    include 'watcher'
   }
 }
 

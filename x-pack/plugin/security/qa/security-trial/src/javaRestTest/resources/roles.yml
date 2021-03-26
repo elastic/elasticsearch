@@ -6,3 +6,10 @@ security_test_role:
   indices:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "create_index" ]
+cat_test_role:
+  cluster:
+    - monitor
+  indices:
+    - names: [ "index_allowed" ]
+      privileges: [ "read", "write", "monitor" ]
+

@@ -15,8 +15,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk', 'cluster', 'indices', 'search'
-    includeXpack 'rollup'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'rollup'
   }
 }
 

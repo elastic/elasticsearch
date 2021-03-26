@@ -32,14 +32,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class LogstashSystemIndexIT extends ESRestTestCase {
-    static final String BASIC_AUTH_VALUE =
-        basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
+        "x_pack_rest_user",
+        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+    );
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
     public void testPipelineCRUD() throws Exception {

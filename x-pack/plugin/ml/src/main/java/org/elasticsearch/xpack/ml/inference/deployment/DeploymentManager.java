@@ -15,13 +15,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 
 import java.io.IOException;
 import java.util.Map;
@@ -69,6 +72,8 @@ public class DeploymentManager {
             logger.error(new ParameterizedMessage("[{}] error loading model", task.getModelId()), e);
         }
 
+        executorServiceForProcess.execute(() -> processContext.resultProcessor.process(processContext.process.get()));
+
         TrainedModelDeploymentTaskState startedState = new TrainedModelDeploymentTaskState(
             TrainedModelDeploymentState.STARTED, task.getAllocationId(), null);
         task.updatePersistentTaskState(startedState, ActionListener.wrap(
@@ -84,9 +89,36 @@ public class DeploymentManager {
         }
         if (processContext != null) {
             logger.debug("[{}] Stopping deployment", task.getModelId());
-            processContext.killProcess();
+            processContext.stopProcess();
         } else {
             logger.debug("[{}] No process context to stop", task.getModelId());
+        }
+    }
+
+    public void infer(TrainedModelDeploymentTask task, double[] inputs, ActionListener<PyTorchResult> listener) {
+        ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
+        try {
+            String requestId = processContext.process.get().writeInferenceRequest(inputs);
+            waitForResult(processContext, requestId, listener);
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
+            listener.onFailure(ExceptionsHelper.serverError("error writing to process", e));
+            return;
+        }
+    }
+
+    private void waitForResult(ProcessContext processContext, String requestId, ActionListener<PyTorchResult> listener) {
+        try {
+            // TODO the timeout value should come from the action
+            TimeValue timeout = TimeValue.timeValueSeconds(5);
+            PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(requestId, timeout);
+            if (pyTorchResult == null) {
+                listener.onFailure(ExceptionsHelper.serverError("no result was produced within timeout value [{}]", timeout));
+            } else {
+                listener.onResponse(pyTorchResult);
+            }
+        } catch (InterruptedException e) {
+            listener.onFailure(e);
         }
     }
 
@@ -94,16 +126,19 @@ public class DeploymentManager {
 
         private final String modelId;
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
+        private final PyTorchResultProcessor resultProcessor;
 
         ProcessContext(String modelId) {
             this.modelId = Objects.requireNonNull(modelId);
+            resultProcessor = new PyTorchResultProcessor(modelId);
         }
 
         synchronized void startProcess() {
             process.set(pyTorchProcessFactory.createProcess(modelId, executorServiceForProcess, onProcessCrash()));
         }
 
-        synchronized void killProcess() {
+        synchronized void stopProcess() {
+            resultProcessor.stop();
             if (process.get() == null) {
                 return;
             }

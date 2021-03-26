@@ -288,7 +288,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     @Nullable
-    private OutputStream processInStream() {
+    protected OutputStream processInStream() {
         return processInStream.get();
     }
 

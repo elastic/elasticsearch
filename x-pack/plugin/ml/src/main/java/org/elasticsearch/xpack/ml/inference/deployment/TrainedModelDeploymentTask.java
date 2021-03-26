@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 
 import java.util.Map;
 
@@ -52,5 +54,9 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
     protected void onCancelled() {
         String reason = getReasonCancelled();
         stop(reason);
+    }
+
+    public void infer(double[] inputs, ActionListener<PyTorchResult> listener) {
+        manager.infer(this, inputs, listener);
     }
 }

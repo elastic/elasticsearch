@@ -223,7 +223,7 @@ Configurations**, specify `pipeline: <my-pipeline>`.
 [role="screenshot"]
 image::images/ingest/custom-logs-pipeline.png[Add pipeline for custom log file,align="center"]
 
-If you use run {agent} standalone, specify `pipeline: <my-pipeline>` in your
+If you run {agent} standalone, specify `pipeline: <my-pipeline>` in your
 `elastic-agent.yml` configuration. See
 {fleet-guide}/run-elastic-agent-standalone.html[Run {agent} standalone].
 

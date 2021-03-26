@@ -39,10 +39,9 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName(), null);
         PreviewDatafeedAction.Request request = restRequest.hasContent() ?
             PreviewDatafeedAction.Request.fromXContent(restRequest.contentParser()) :
-            new PreviewDatafeedAction.Request(datafeedId);
+            new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
         return channel -> client.execute(PreviewDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

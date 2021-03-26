@@ -31,7 +31,6 @@ public class PreviewDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ConstructingObjectParser<PreviewDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "preview_datafeed_request",
-        true,
         a -> new PreviewDatafeedRequest((String) a[0], (DatafeedConfig.Builder) a[1], (Job.Builder) a[2]));
 
     static {

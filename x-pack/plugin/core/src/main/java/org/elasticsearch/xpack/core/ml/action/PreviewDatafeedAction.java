@@ -180,6 +180,9 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                 }
                 if (jobBuilder != null) {
                     jobBuilder.setId("preview_job_id");
+                    if (datafeedBuilder == null) {
+                        throw new IllegalArgumentException("[datafeed_config] must be present when a [job_config] is provided");
+                    }
                 }
                 if (datafeedId != null && (datafeedBuilder != null || jobBuilder != null)) {
                     throw new IllegalArgumentException(

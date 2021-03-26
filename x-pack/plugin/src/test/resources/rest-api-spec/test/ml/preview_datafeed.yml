@@ -137,14 +137,15 @@ setup:
         body: >
           {
             "datafeed_config": {
+              "job_id":"preview-datafeed-job",
               "indexes":"airline-data"
             },
             "job_config": {
-              "analysis_config" : {
+              "analysis_config": {
                 "bucket_span": "1h",
-                "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+                "detectors": [{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
               },
-              "data_description" : {
+              "data_description": {
                 "time_field":"time"
               }
             }

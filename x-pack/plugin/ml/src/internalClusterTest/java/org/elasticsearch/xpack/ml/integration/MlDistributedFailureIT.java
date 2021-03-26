@@ -410,6 +410,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/68685",
         value = "org.elasticsearch.xpack.ml.process:TRACE,org.elasticsearch.xpack.ml.job:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68685")
     public void testJobRelocationIsMemoryAware() throws Exception {
 
         // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179

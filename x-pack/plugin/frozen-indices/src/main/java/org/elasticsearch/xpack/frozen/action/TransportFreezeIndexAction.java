@@ -140,7 +140,8 @@ public final class TransportFreezeIndexAction extends
                 SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
                 for (Index index : concreteIndices) {
                     IndexAbstraction ia = lookup.get(index.getName());
-                    if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
+                    if (ia != null && ia.getParentDataStream() != null &&
+                        ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
                         writeIndices.add(index.getName());
                     }
                 }

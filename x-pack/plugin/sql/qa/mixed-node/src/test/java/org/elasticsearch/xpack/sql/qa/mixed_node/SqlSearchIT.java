@@ -124,6 +124,14 @@ public class SqlSearchIT extends ESRestTestCase {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
+                    /*
+                     * Double.valueOf(float.toString) gets a `double` representing
+                     * the `float` that we'd get by going through json which is
+                     * base 10. just casting the `float` to a `double` will get
+                     * a lower number with a lot more trailing digits because
+                     * the cast adds *binary* 0s to the end. And those binary
+                     * 0s don't translate the same as json's decimal 0s.
+                     */
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
                     /*
                      * In 7.12.x we got full float precision from half floats
@@ -134,7 +142,7 @@ public class SqlSearchIT extends ESRestTestCase {
                     float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
                     builder.append("\"half_float_field\":\"" + randomFloat + "\"");
                     if (false == halfFloatMightReturnFullFloatPrecision) {
-                        fieldValues.put("half_float_field", roundedHalfFloat);
+                        fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
                     }
                 }
             }
@@ -171,6 +179,14 @@ public class SqlSearchIT extends ESRestTestCase {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
+                    /*
+                     * Double.valueOf(float.toString) gets a `double` representing
+                     * the `float` that we'd get by going through json which is
+                     * base 10. just casting the `float` to a `double` will get
+                     * a lower number with a lot more trailing digits because
+                     * the cast adds *binary* 0s to the end. And those binary
+                     * 0s don't translate the same as json's decimal 0s.
+                     */
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
                     /*
                      * In 7.12.x we got full float precision from half floats
@@ -181,7 +197,7 @@ public class SqlSearchIT extends ESRestTestCase {
                     float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
                     builder.append("\"half_float_field\":\"" + randomFloat + "\"");
                     if (false == halfFloatMightReturnFullFloatPrecision) {
-                        fieldValues.put("half_float_field", roundedHalfFloat);
+                        fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
                     }
                 }
             }

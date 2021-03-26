@@ -74,6 +74,7 @@ PUT _ingest/pipeline/my-pipeline
         "description": "Set 'my-boolean-field' to true",
         "field": "my-boolean-field",
         "value": true
+
       }
     },
     {
@@ -412,8 +413,8 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "description": "Set 'received' to '_ingest.timestamp' value",
-        "field": "received",
+        "description": "Set 'event.ingested' to '_ingest.timestamp' value",
+        "field": "event.ingested",
         "value": "{{_ingest.timestamp}}"
       }
     }

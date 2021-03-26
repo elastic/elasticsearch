@@ -412,7 +412,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "description": "Set 'event.ingested' to '_ingest.timestamp' value",
+        "description": "Index the ingest timestamp as 'event.ingested'",
         "field": "event.ingested",
         "value": "{{_ingest.timestamp}}"
       }

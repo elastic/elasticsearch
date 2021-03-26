@@ -794,7 +794,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String apiKey3 = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials3 = new ApiKeyCredentials(docId3, new SecureString(apiKey3.toCharArray()));
         final List<RoleDescriptor> keyRoles =
-            List.of(RoleDescriptor.parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), true, XContentType.JSON));
+            List.of(RoleDescriptor.parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), XContentType.JSON));
         mockKeyDocument(service, docId3, apiKey3, new User("banner", "superuser"),
                         false, Duration.ofSeconds(3600), keyRoles);
         PlainActionFuture<AuthenticationResult> future3 = new PlainActionFuture<>();

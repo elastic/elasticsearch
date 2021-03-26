@@ -363,7 +363,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         try {
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, XContentType.JSON);
             final boolean dlsEnabled =
                     Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled =

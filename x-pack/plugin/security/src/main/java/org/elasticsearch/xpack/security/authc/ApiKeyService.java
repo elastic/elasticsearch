@@ -526,7 +526,7 @@ public class ApiKeyService {
                     try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                         new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
                         BytesReference.bytes(builder).streamInput())) {
-                        return RoleDescriptor.parse(name, parser, false);
+                        return RoleDescriptor.parse(name, parser);
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -550,7 +550,7 @@ public class ApiKeyService {
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 parser.nextToken(); // role name
                 String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+                roleDescriptors.add(RoleDescriptor.parse(roleName, parser));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

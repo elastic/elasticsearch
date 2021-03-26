@@ -110,7 +110,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "        \"rating\": { " +
             "            \"keyword\": {" +
             "                \"type\": \"keyword\"," +
-            "                \"is_metadata_field\": false," +
+            "                \"metadata_field\": false," +
             "                \"searchable\": false," +
             "                \"aggregatable\": true," +
             "                \"indices\": [\"index3\", \"index4\"]," +
@@ -118,7 +118,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "            }," +
             "            \"long\": {" +
             "                \"type\": \"long\"," +
-            "                \"is_metadata_field\": false," +
+            "                \"metadata_field\": false," +
             "                \"searchable\": true," +
             "                \"aggregatable\": false," +
             "                \"indices\": [\"index1\", \"index2\"]," +
@@ -128,7 +128,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "        \"title\": { " +
             "            \"text\": {" +
             "                \"type\": \"text\"," +
-            "                \"is_metadata_field\": false," +
+            "                \"metadata_field\": false," +
             "                \"searchable\": true," +
             "                \"aggregatable\": false" +
             "            }" +

@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField IS_METADATA_FIELD = new ParseField("is_metadata_field");
+    private static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
     private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
     private static final ParseField INDICES_FIELD = new ParseField("indices");

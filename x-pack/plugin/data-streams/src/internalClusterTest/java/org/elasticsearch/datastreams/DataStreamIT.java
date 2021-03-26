@@ -1083,27 +1083,6 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(e.getMessage(), equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists"));
     }
 
-    public void testCreatingDataStreamAndBackingIndexExistsFails() throws Exception {
-        String dataStreamName = "logs-foobar";
-        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-
-        createIndex(backingIndex);
-        putComposableIndexTemplate("id", List.of("logs-*"));
-
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        Exception e = expectThrows(
-            IllegalStateException.class,
-            () -> client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet()
-        );
-        assertThat(
-            e.getMessage(),
-            startsWith(
-                "data stream [logs-foobar] could create backing indices that conflict with 1"
-                    + " existing index(s) or alias(s) including '.ds-logs-foobar"
-            )
-        );
-    }
-
     public void testQueryDataStreamNameInIndexField() throws Exception {
         putComposableIndexTemplate("id1", List.of("metrics-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");

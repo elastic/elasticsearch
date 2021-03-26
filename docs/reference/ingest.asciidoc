@@ -187,7 +187,7 @@ The API returns transformed documents:
           "my-keyword-field": "foo"
         },
         "_ingest": {
-          "timestamp": "2099-02-30T22:30:03.187Z"
+          "timestamp": "2099-03-07T11:04:03.000Z"
         }
       }
     },
@@ -199,15 +199,15 @@ The API returns transformed documents:
           "my-keyword-field": "bar"
         },
         "_ingest": {
-          "timestamp": "2099-02-30T22:30:03.188Z"
+          "timestamp": "2099-03-07T11:04:04.000Z"
         }
       }
     }
   ]
 }
 ----
-// TESTRESPONSE[s/"2099-02-30T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2099-02-30T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2099-03-07T11:04:03.000Z"/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2099-03-07T11:04:04.000Z"/$body.docs.1.doc._ingest.timestamp/]
 
 [discrete]
 [[add-pipeline-to-indexing-request]]
@@ -226,9 +226,9 @@ POST my-data-stream/_doc?pipeline=my-pipeline
 
 PUT my-data-stream/_bulk?pipeline=my-pipeline
 { "create":{ } }
-{ "@timestamp": "2099-03-08T11:04:05.000Z", "my-keyword-field": "foo" }
+{ "@timestamp": "2099-03-07T11:04:06.000Z", "my-keyword-field": "foo" }
 { "create":{ } }
-{ "@timestamp": "2099-03-08T11:06:07.000Z", "my-keyword-field": "bar" }
+{ "@timestamp": "2099-03-07T11:04:07.000Z", "my-keyword-field": "bar" }
 ----
 
 You can also use the `pipeline` parameter with the <<docs-update-by-query,update

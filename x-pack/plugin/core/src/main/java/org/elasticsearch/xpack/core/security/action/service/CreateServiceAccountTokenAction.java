@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public class CreateServiceAccountTokenAction extends ActionType<CreateServiceAccountTokenResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/service_account_token/create";
+    public static final String NAME = "cluster:admin/xpack/security/service_account/token/create";
     public static final CreateServiceAccountTokenAction INSTANCE = new CreateServiceAccountTokenAction();
 
     private CreateServiceAccountTokenAction() {

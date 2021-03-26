@@ -7,7 +7,6 @@
 [id="{upid}-{api}"]
 === Create or update trained model alias API
 
-beta::[]
 
 Creates or reassigns a trained model alias.
 The API accepts a +{request}+ object as a request and returns a +{response}+.

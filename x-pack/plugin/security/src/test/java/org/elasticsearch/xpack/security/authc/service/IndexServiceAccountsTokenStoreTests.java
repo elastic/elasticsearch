@@ -162,7 +162,8 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         assertThat(bulkRequest.requests().size(), equalTo(1));
         final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
         final Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-        assertThat(sourceMap.get("name"), equalTo("elastic/fleet/" + request.getTokenName()));
+        assertThat(sourceMap.get("username"), equalTo("elastic/fleet"));
+        assertThat(sourceMap.get("name"), equalTo(request.getTokenName()));
         assertThat(sourceMap.get("doc_type"), equalTo("service_account_token"));
         assertThat(sourceMap.get("version"), equalTo(Version.CURRENT.id));
         assertThat(sourceMap.get("password"), notNullValue());

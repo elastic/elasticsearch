@@ -15,8 +15,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
-public class TokenInfo implements Writeable, ToXContentObject {
+public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenInfo> {
 
     private final String name;
     private final TokenSource source;
@@ -39,6 +40,21 @@ public class TokenInfo implements Writeable, ToXContentObject {
         return source;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        TokenInfo tokenInfo = (TokenInfo) o;
+        return Objects.equals(name, tokenInfo.name) && source == tokenInfo.source;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, source);
+    }
+
     public static TokenInfo indexToken(String name) {
         return new TokenInfo(name, TokenSource.INDEX);
     }
@@ -56,6 +72,16 @@ public class TokenInfo implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeEnum(source);
+    }
+
+    @Override
+    public int compareTo(TokenInfo o) {
+        final int score = source.compareTo(o.source);
+        if (score == 0) {
+            return name.compareTo(o.name);
+        } else {
+            return score;
+        }
     }
 
     public enum TokenSource {

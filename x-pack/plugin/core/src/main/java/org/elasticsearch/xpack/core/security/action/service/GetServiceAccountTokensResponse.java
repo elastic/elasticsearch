@@ -26,12 +26,12 @@ public class GetServiceAccountTokensResponse extends ActionResponse implements T
 
     private final String principal;
     private final String nodeName;
-    private final Collection<TokenInfo> tokenInfos;
+    private final List<TokenInfo> tokenInfos;
 
     public GetServiceAccountTokensResponse(String principal, String nodeName, Collection<TokenInfo> tokenInfos) {
         this.principal = principal;
         this.nodeName = nodeName;
-        this.tokenInfos = tokenInfos == null ? List.of() : tokenInfos;
+        this.tokenInfos = tokenInfos == null ? List.of() : tokenInfos.stream().sorted().collect(toUnmodifiableList());
     }
 
     public GetServiceAccountTokensResponse(StreamInput in) throws IOException {
@@ -41,11 +41,23 @@ public class GetServiceAccountTokensResponse extends ActionResponse implements T
         this.tokenInfos = in.readList(TokenInfo::new);
     }
 
+    public String getPrincipal() {
+        return principal;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public Collection<TokenInfo> getTokenInfos() {
+        return tokenInfos;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
         out.writeString(nodeName);
-        out.writeCollection(tokenInfos);
+        out.writeList(tokenInfos);
     }
 
     @Override
@@ -76,8 +88,7 @@ public class GetServiceAccountTokensResponse extends ActionResponse implements T
             return false;
         GetServiceAccountTokensResponse that = (GetServiceAccountTokensResponse) o;
         return Objects.equals(principal, that.principal) && Objects.equals(nodeName, that.nodeName) && Objects.equals(
-            tokenInfos,
-            that.tokenInfos);
+            tokenInfos, that.tokenInfos);
     }
 
     @Override

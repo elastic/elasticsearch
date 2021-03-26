@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,8 +18,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.junit.After;
 import org.junit.Before;
 
@@ -29,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -39,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class FileServiceAccountsTokenStoreTests extends ESTestCase {
 
@@ -180,5 +185,20 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
                 5, TimeUnit.SECONDS);
             assertThat(store.getTokenHashes().get(qualifiedTokenName), equalTo(newTokenHash));
         }
+    }
+
+    public void testFindTokensFor() throws IOException {
+        Path serviceTokensSourceFile = getDataPath("service_tokens");
+        Path configDir = env.configFile();
+        Files.createDirectories(configDir);
+        Path targetFile = configDir.resolve("service_tokens");
+        Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
+        FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, mock(ResourceWatcherService.class), threadPool);
+
+        final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet");
+        final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
+        store.findTokensFor(accountId, future1);
+        final Collection<TokenInfo> tokenInfos1 = future1.actionGet();
+        assertThat(tokenInfos1.size(), equalTo(5));
     }
 }

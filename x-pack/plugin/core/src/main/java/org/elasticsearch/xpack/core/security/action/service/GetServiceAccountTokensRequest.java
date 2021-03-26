@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -42,7 +43,23 @@ public class GetServiceAccountTokensRequest extends ActionRequest {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        GetServiceAccountTokensRequest that = (GetServiceAccountTokensRequest) o;
+        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(namespace, serviceName);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeString(namespace);
         out.writeString(serviceName);
     }

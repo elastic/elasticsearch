@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 
 import java.util.Collection;
 
@@ -24,6 +23,9 @@ public interface ServiceAccountsTokenStore {
      */
     void authenticate(ServiceAccountToken token, ActionListener<Boolean> listener);
 
+    /**
+     * Get all tokens belong to the given service account id
+     */
     void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener);
 
 }

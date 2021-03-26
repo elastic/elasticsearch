@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -59,7 +58,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenStore {
 
     private static final Logger logger = LogManager.getLogger(IndexServiceAccountsTokenStore.class);
-    private static final String SERVICE_ACCOUNT_TOKEN_DOC_TYPE = "service_account_token";
+    static final String SERVICE_ACCOUNT_TOKEN_DOC_TYPE = "service_account_token";
 
     private final Clock clock;
     private final Client client;

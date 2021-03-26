@@ -118,12 +118,10 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
                     TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(response -> {
-                        if (DocWriteResponse.Result.CREATED == response.getResult()) {
-                            listener.onResponse(CreateServiceAccountTokenResponse.created(
-                                token.getTokenName(), token.asBearerString()));
-                        } else {
-                            listener.onResponse(CreateServiceAccountTokenResponse.notCreated());
-                        }
+                        assert DocWriteResponse.Result.CREATED == response.getResult()
+                            : "an successful response of an OpType.CREATE request must have result of CREATED";
+                        listener.onResponse(CreateServiceAccountTokenResponse.created(
+                            token.getTokenName(), token.asBearerString()));
                     }, listener::onFailure)));
             });
         } catch (IOException e) {
@@ -136,7 +134,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
         // TODO: wildcard support?
         final BoolQueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
-            .must(QueryBuilders.prefixQuery("name", accountId.asPrincipal()));
+            .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
         final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(getSettings()))
             .setQuery(query)
@@ -162,7 +160,8 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
         builder.startObject()
             .field("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE)
             .field("version", version.id)
-            .field("name", serviceAccountToken.getQualifiedName())
+            .field("username", serviceAccountToken.getAccountId().asPrincipal())
+            .field("name", serviceAccountToken.getTokenName())
             .field("creation_time", clock.instant().toEpochMilli())
             .field("enabled", true)
             .startObject("creator")

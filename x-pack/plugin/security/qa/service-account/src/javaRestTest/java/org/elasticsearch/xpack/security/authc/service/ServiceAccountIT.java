@@ -188,6 +188,18 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
+    public void testNoDuplicateApiServiceAccountToken() throws IOException {
+        final String tokeName = randomAlphaOfLengthBetween(3, 8);
+        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet/credential/token/" + tokeName);
+        final Response createTokenResponse = client().performRequest(createTokenRequest);
+        assertOK(createTokenResponse);
+
+        final ResponseException e =
+            expectThrows(ResponseException.class, () -> client().performRequest(createTokenRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(e.getMessage(), containsString("document already exists"));
+    }
+
     public void testGetServiceAccountTokens() throws IOException {
         final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet/credential");
         final Response getTokensResponse1 = client().performRequest(getTokensRequest);

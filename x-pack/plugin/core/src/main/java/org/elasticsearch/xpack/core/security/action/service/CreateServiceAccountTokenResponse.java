@@ -91,8 +91,4 @@ public class CreateServiceAccountTokenResponse extends ActionResponse implements
     public static CreateServiceAccountTokenResponse created(String name, SecureString value) {
         return new CreateServiceAccountTokenResponse(true, name, value);
     }
-
-    public static CreateServiceAccountTokenResponse notCreated() {
-        return new CreateServiceAccountTokenResponse(false, null, null);
-    }
 }

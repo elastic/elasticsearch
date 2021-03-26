@@ -57,7 +57,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
-    private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account_token/*");
+    private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of("cluster:monitor/*");
     private static final Set<String> MONITOR_ML_PATTERN = Set.of("cluster:monitor/xpack/ml/*");

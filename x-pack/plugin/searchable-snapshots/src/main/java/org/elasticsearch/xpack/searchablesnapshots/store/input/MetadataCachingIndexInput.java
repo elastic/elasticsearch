@@ -51,7 +51,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     protected final CacheFileReference cacheFileReference;
 
     /**
-     * If > 0, represents a logical file within a compound (CFS) file or is a slice thereof represents the offset of the logical
+     * If {@literal > 0}, represents a logical file within a compound (CFS) file or is a slice thereof represents the offset of the logical
      * compound file within the physical CFS file
      */
     protected final long compoundFileOffset;

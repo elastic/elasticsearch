@@ -17,6 +17,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -26,10 +27,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsAction.Response> {
 
@@ -108,11 +111,14 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
     public static class TransportGetGlobalCheckpointsAction extends TransportAction<Request, Response> {
 
         private final ClusterService clusterService;
+        private final NodeClient client;
 
         @Inject
-        public TransportGetGlobalCheckpointsAction(ActionFilters actionFilters, TaskManager taskManager, ClusterService clusterService) {
+        public TransportGetGlobalCheckpointsAction(final ActionFilters actionFilters, final TaskManager taskManager,
+                                                   final ClusterService clusterService, final NodeClient client) {
             super(NAME, actionFilters, taskManager);
             this.clusterService = clusterService;
+            this.client = client;
         }
 
         @Override
@@ -138,7 +144,32 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             final AtomicArray<GetGlobalCheckpointAction.Response> responses = new AtomicArray<>(numberOfShards);
             final CountDown countDown = new CountDown(numberOfShards);
             for (int i = 0; i < numberOfShards; ++i) {
+                final int shardIndex = i;
+                GetGlobalCheckpointAction.Request shardChangesRequest =
+                    new GetGlobalCheckpointAction.Request(new ShardId(indexMetadata.getIndex(), shardIndex), request.waitForAdvance(),
+                        request.currentCheckpoints()[shardIndex], request.pollTimeout());
 
+                client.execute(GetGlobalCheckpointAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(GetGlobalCheckpointAction.Response response) {
+                        responses.set(shardIndex, response);
+                        if (countDown.countDown()) {
+                            long[] globalCheckpoints = new long[responses.length()];
+                            int i = 0;
+                            for (GetGlobalCheckpointAction.Response r : responses.asList()) {
+                                globalCheckpoints[i++] = r.getGlobalCheckpoint();
+                            }
+                            listener.onResponse(new Response(globalCheckpoints));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (countDown.fastForward()) {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
             }
         }
     }

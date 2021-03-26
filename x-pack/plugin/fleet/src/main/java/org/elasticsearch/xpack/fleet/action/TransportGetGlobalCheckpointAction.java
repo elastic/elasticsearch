@@ -51,8 +51,7 @@ public class TransportGetGlobalCheckpointAction extends TransportSingleShardActi
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.id());
         final SeqNoStats seqNoStats = indexShard.seqNoStats();
-        // TODO: Fix
-        return new GetGlobalCheckpointAction.Response(new long[0]);
+        return new GetGlobalCheckpointAction.Response(seqNoStats.getGlobalCheckpoint());
     }
 
     @Override

@@ -17,12 +17,11 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -132,32 +131,27 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             return null;
         }
 
-        // first we collect all aggregations of the same type and list them together
-        Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
-        for (InternalAggregations aggregations : aggregationsList) {
-            for (Aggregation aggregation : aggregations.aggregations) {
-                List<InternalAggregation> aggs = aggByName.computeIfAbsent(
-                        aggregation.getName(), k -> new ArrayList<>(aggregationsList.size()));
-                aggs.add((InternalAggregation)aggregation);
-            }
-        }
+        final int colSize = aggregationsList.get(0).aggregations.size();
+        final int rowSize = aggregationsList.size();
 
-        // now we can use the first aggregation of each list to handle the reduce of its list
-        List<InternalAggregation> reducedAggregations = new ArrayList<>();
-        for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
-            List<InternalAggregation> aggregations = entry.getValue();
+        InternalAggregation[] reducedAggregations = new InternalAggregation[colSize];
+        InternalAggregation[] aggregations = new InternalAggregation[rowSize];
+        for (int col = 0; col < colSize; col++) {
+            for (int row = 0; row < aggregationsList.size(); row++) {
+                aggregations[row] = (InternalAggregation) aggregationsList.get(row).aggregations.get(col);
+            }
             // Sort aggregations so that unmapped aggs come last in the list
             // If all aggs are unmapped, the agg that leads the reduction will just return itself
-            aggregations.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
-                reducedAggregations.add(first.reduce(aggregations, context));
+            Arrays.sort(aggregations, INTERNAL_AGG_COMPARATOR);
+            InternalAggregation first = aggregations[0]; // the list can't be empty as it's created on demand
+            if (first.mustReduceOnSingleInternalAgg() || aggregations.length > 1) {
+                reducedAggregations[col] = first.reduce(Arrays.asList(aggregations), context);
             } else {
                 // no need for reduce phase
-                reducedAggregations.add(first);
+                reducedAggregations[col] = first;
             }
         }
 
-        return from(reducedAggregations);
+        return from(Arrays.asList(reducedAggregations));
     }
 }

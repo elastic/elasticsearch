@@ -46,50 +46,47 @@ import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
-        private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
-            "format",
-            true,
-            initializerNotSupported(),
-            null
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
-                b.field(n, v);
-            }
-        }, Object::toString).acceptsNull();
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
+        new Builder<>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
+            private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
+                "format",
+                true,
+                initializerNotSupported(),
+                null
+            ).setSerializer((b, n, v) -> {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                    b.field(n, v);
+                }
+            }, Object::toString).acceptsNull();
 
-        private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
-            "locale",
-            true,
-            () -> null,
-            (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            initializerNotSupported()
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(Locale.ROOT)) {
-                b.field(n, v.toString());
-            }
-        }, Object::toString).acceptsNull();
+            private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
+                "locale",
+                true,
+                () -> null,
+                (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
+                initializerNotSupported()
+            ).setSerializer((b, n, v) -> {
+                if (v != null && false == v.equals(Locale.ROOT)) {
+                    b.field(n, v.toString());
+                }
+            }, Object::toString).acceptsNull();
 
-        @Override
-        protected List<FieldMapper.Parameter<?>> getParameters() {
-            List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
-            parameters.add(format);
-            parameters.add(locale);
-            return Collections.unmodifiableList(parameters);
-        }
-
-        @Override
-        protected RuntimeField buildFieldType() {
-            String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
-            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-            if (script.get() == null) {
-                return new DateScriptFieldType(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, getScript(), meta(), this);
+            @Override
+            protected List<FieldMapper.Parameter<?>> getParameters() {
+                List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
+                parameters.add(format);
+                parameters.add(locale);
+                return Collections.unmodifiableList(parameters);
             }
-            DateFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), DateFieldScript.CONTEXT);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, getScript(), meta(), this);
-        }
-    });
+
+            @Override
+            RuntimeField newRuntimeField(DateFieldScript.Factory scriptFactory) {
+                String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
+                Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
+                DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+                return new DateScriptFieldType(name, scriptFactory, dateTimeFormatter, getScript(), meta(), this);
+            }
+        });
 
     private final DateFormatter dateTimeFormatter;
     private final DateMathParser dateMathParser;

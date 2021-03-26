@@ -356,18 +356,6 @@ A rollover can target a <<glossary-data-stream,data stream>> or an
 <<glossary-index-alias,index alias>> with a write index.
 // end::rollover-def[]
 
-ifdef::permanently-unreleased-branch[]
-
-[[glossary-rollup]] rollup::
-// tag::rollup-def[]
-Aggregates an <<glossary-index,index>>'s time series data and stores the results
-in a new read-only index. For example, you can roll up hourly data into daily or
-weekly summaries. See {ref}/xpack-rollup.html[Rollups].
-// end::rollup-def[]
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [[glossary-rollup]] rollup::
 // tag::rollup-def[]
 Summarizes high-granularity data into a more compressed format to maintain access
@@ -390,8 +378,6 @@ Background task that runs continuously to summarize documents in an
 The job configuration controls what data is rolled up and how often. See
 {ref}/xpack-rollup.html[Rolling up historical data].
 // end::rollup-job-def[]
-
-endif::[]
 
 [[glossary-routing]] routing::
 // tag::routing-def[]

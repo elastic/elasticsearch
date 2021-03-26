@@ -32,6 +32,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
@@ -103,7 +104,15 @@ final class CompositeAggregator extends BucketsAggregator {
                 this::addRequestCircuitBreakerBytes
             );
         }
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
+        if (rawAfterKey != null) {
+            try {
+                this.queue.setAfterKey(rawAfterKey);
+            } catch (IllegalArgumentException ex) {
+                throw new ElasticsearchParseException("Cannot set after key in the composite aggregation [" + name + "] - " +
+                    ex.getMessage(), ex);
+            }
+        }
         this.rawAfterKey = rawAfterKey;
     }
 

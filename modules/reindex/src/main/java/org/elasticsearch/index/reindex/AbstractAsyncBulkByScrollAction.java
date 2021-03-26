@@ -104,6 +104,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
+    /**
+     * Keeps track of the total number of bulk operations performed
+     * from a single scroll response. It is possible that
+     * multiple bulk requests are performed from a single scroll
+     * response, meaning that we have to take into account the total
+     * in order to compute a correct scroll keep alive time.
+     */
+    private int totalBatchSizeInSingleScrollResponse;
 
     AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
@@ -314,10 +322,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         worker.countBatch();
         List<? extends ScrollableHitSource.Hit> hits = response.getHits();
+        List<? extends ScrollableHitSource.Hit> remainingHits = Collections.emptyList();
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
             // Truncate the hits if we have more than the request max docs
             long remaining = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
             if (remaining < hits.size()) {
+                remainingHits = hits.subList((int) remaining, hits.size());
                 hits = hits.subList(0, (int) remaining);
             }
         }
@@ -326,12 +336,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+            notifyDone(thisBatchStartTimeNS, asyncResponse, 0, remainingHits);
             return;
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+        final List<? extends ScrollableHitSource.Hit> scrollRemainingHits = remainingHits;
+        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size(), scrollRemainingHits));
     }
 
     /**
@@ -417,14 +428,42 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
     }
 
-    void notifyDone(long thisBatchStartTimeNS, ScrollableHitSource.AsyncResponse asyncResponse, int batchSize) {
+    void notifyDone(long thisBatchStartTimeNS,
+                    ScrollableHitSource.AsyncResponse asyncResponse,
+                    int batchSize,
+                    List<? extends ScrollableHitSource.Hit> scrollRemainingHits) {
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
         this.lastBatchSize = batchSize;
-        asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), batchSize));
+        this.totalBatchSizeInSingleScrollResponse += batchSize;
+
+        if (scrollRemainingHits.isEmpty()) {
+            int totalBatchSize = totalBatchSizeInSingleScrollResponse;
+            totalBatchSizeInSingleScrollResponse = 0;
+            asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
+        } else {
+            final ScrollableHitSource.Response response = asyncResponse.response();
+            onScrollResponse(new ScrollableHitSource.AsyncResponse() {
+                @Override
+                public ScrollableHitSource.Response response() {
+                    return new ScrollableHitSource.Response(response.isTimedOut(),
+                        response.getFailures(),
+                        scrollRemainingHits.size(),
+                        scrollRemainingHits,
+                        response.getScrollId()
+                    );
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    asyncResponse.done(extraKeepAlive);
+                }
+            });
+        }
+
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {

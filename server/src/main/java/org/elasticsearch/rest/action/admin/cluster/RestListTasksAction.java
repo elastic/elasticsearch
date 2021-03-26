@@ -63,19 +63,18 @@ public class RestListTasksAction extends BaseRestHandler {
         boolean detailed = request.paramAsBoolean("detailed", false);
         String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
-        String[] descriptions = Strings.splitStringByCommaToArray(request.param("descriptions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = request.paramAsTime("timeout", null);
 
-        return new ListTasksRequest()
-            .setNodes(nodes)
-            .setDetailed(detailed)
-            .setActions(actions)
-            .setParentTaskId(parentTaskId)
-            .setWaitForCompletion(waitForCompletion)
-            .setTimeout(timeout)
-            .setDescriptions(descriptions);
+        ListTasksRequest listTasksRequest = new ListTasksRequest();
+        listTasksRequest.setNodes(nodes);
+        listTasksRequest.setDetailed(detailed);
+        listTasksRequest.setActions(actions);
+        listTasksRequest.setParentTaskId(parentTaskId);
+        listTasksRequest.setWaitForCompletion(waitForCompletion);
+        listTasksRequest.setTimeout(timeout);
+        return listTasksRequest;
     }
 
     /**

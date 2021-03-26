@@ -360,3 +360,15 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
+
+tasks.register('enforceYamlTestConvention').configure {
+  doLast {
+    if (fileTree('src/main/resources/rest-api-spec/test').files) {
+      throw new GradleException("There are YAML tests in src/main source set. These should be moved to src/yamlRestTest.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention'
+}

@@ -111,4 +111,22 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
 }
 
+tasks.register('enforceApiSpecsConvention').configure {
+  doLast {
+    if (fileTree('src/test/resources/rest-api-spec/api').files) {
+      throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
+    }
+  }
+}
 
+tasks.register('enforceYamlTestConvention').configure {
+  doLast {
+    if (fileTree('src/test/resources/rest-api-spec/test').files) {
+      throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
+}

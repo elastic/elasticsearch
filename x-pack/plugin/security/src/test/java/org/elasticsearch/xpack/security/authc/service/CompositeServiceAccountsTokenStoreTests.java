@@ -66,8 +66,8 @@ public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
             return null;
         }).when(store3).authenticate(eq(token), any());
 
-        final ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore compositeStore =
-            new ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore(List.of(store1, store2, store3), threadContext);
+        final CompositeServiceAccountsTokenStore compositeStore =
+            new CompositeServiceAccountsTokenStore(List.of(store1, store2, store3), threadContext);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         compositeStore.authenticate(token, future);

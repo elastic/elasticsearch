@@ -112,6 +112,8 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAc
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -179,6 +181,8 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessi
 import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
+import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountTokensAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
@@ -201,8 +205,9 @@ import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -256,6 +261,8 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessi
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountTokensAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
@@ -492,10 +499,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(
-            new CompositeServiceAccountsTokenStore(
-                List.of(new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool)),
+        final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore = new IndexServiceAccountsTokenStore(
+            settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
+        components.add(indexServiceAccountsTokenStore);
+
+        final FileServiceAccountsTokenStore fileServiceAccountsTokenStore =
+            new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool);
+
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(settings,
+            new CompositeServiceAccountsTokenStore(List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore),
                 threadPool.getThreadContext()));
+        components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
@@ -848,6 +862,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
                 new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
                 new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
+                new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
+                new ActionHandler<>(GetServiceAccountTokensAction.INSTANCE, TransportGetServiceAccountTokensAction.class),
                 usageAction,
                 infoAction);
     }
@@ -907,7 +923,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestGrantApiKeyAction(settings, getLicenseState()),
                 new RestInvalidateApiKeyAction(settings, getLicenseState()),
                 new RestGetApiKeyAction(settings, getLicenseState()),
-                new RestDelegatePkiAuthenticationAction(settings, getLicenseState())
+                new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
+                new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
+                new RestGetServiceAccountTokensAction(settings, getLicenseState())
         );
     }
 

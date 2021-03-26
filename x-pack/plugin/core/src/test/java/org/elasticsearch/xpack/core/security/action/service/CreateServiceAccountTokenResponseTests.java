@@ -1,0 +1,47 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.security.action.service;
+
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.io.IOException;
+
+public class CreateServiceAccountTokenResponseTests extends AbstractWireSerializingTestCase<CreateServiceAccountTokenResponse> {
+
+    @Override
+    protected Writeable.Reader<CreateServiceAccountTokenResponse> instanceReader() {
+        return CreateServiceAccountTokenResponse::new;
+    }
+
+    @Override
+    protected CreateServiceAccountTokenResponse createTestInstance() {
+        if (randomBoolean()) {
+            return CreateServiceAccountTokenResponse.created(
+                randomAlphaOfLengthBetween(3, 8), new SecureString(randomAlphaOfLength(20).toCharArray()));
+        } else {
+            return CreateServiceAccountTokenResponse.notCreated();
+        }
+    }
+
+    @Override
+    protected CreateServiceAccountTokenResponse mutateInstance(CreateServiceAccountTokenResponse instance) throws IOException {
+        if (instance.isCreated()) {
+            if (randomBoolean()) {
+                return CreateServiceAccountTokenResponse.created(randomAlphaOfLengthBetween(3, 8),
+                    new SecureString(randomAlphaOfLength(20).toCharArray()));
+            } else {
+                return CreateServiceAccountTokenResponse.notCreated();
+            }
+        } else {
+            return CreateServiceAccountTokenResponse.created(randomAlphaOfLengthBetween(3, 8),
+                new SecureString(randomAlphaOfLength(20).toCharArray()));
+        }
+    }
+}

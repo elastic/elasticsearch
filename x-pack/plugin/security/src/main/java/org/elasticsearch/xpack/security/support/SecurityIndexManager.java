@@ -347,7 +347,11 @@ public class SecurityIndexManager implements ClusterStateListener {
                         @Override
                         public void onResponse(CreateIndexResponse createIndexResponse) {
                             if (createIndexResponse.isAcknowledged()) {
-                                andThen.run();
+                                try {
+                                    andThen.run();
+                                } catch (Exception e2) {
+                                    consumer.accept(e2);
+                                }
                             } else {
                                 consumer.accept(new ElasticsearchException("Failed to create security index"));
                             }
@@ -359,7 +363,11 @@ public class SecurityIndexManager implements ClusterStateListener {
                             if (cause instanceof ResourceAlreadyExistsException) {
                                 // the index already exists - it was probably just created so this
                                 // node hasn't yet received the cluster state update with the index
-                                andThen.run();
+                                try {
+                                    andThen.run();
+                                } catch (Exception e2) {
+                                    consumer.accept(e2);
+                                }
                             } else {
                                 consumer.accept(e);
                             }
@@ -382,14 +390,22 @@ public class SecurityIndexManager implements ClusterStateListener {
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), systemIndexDescriptor.getOrigin(), request,
                         ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                             if (putMappingResponse.isAcknowledged()) {
-                                andThen.run();
+                                try {
+                                    andThen.run();
+                                } catch (Exception e2) {
+                                    consumer.accept(e2);
+                                }
                             } else {
                                 consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
                             }
                         }, consumer), client.admin().indices()::putMapping);
                 }
             } else {
-                andThen.run();
+                try {
+                    andThen.run();
+                } catch (Exception e2) {
+                    consumer.accept(e2);
+                }
             }
         } catch (Exception e) {
             consumer.accept(e);

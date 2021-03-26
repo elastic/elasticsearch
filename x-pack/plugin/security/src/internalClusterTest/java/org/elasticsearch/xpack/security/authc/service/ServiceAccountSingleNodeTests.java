@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -20,11 +21,30 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private static final String BEARER_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc";
+
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        builder.put("xpack.security.http.ssl.enabled", true);
+        return builder.build();
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
+    protected boolean transportSSLEnabled() {
+        return true;
+    }
 
     @Override
     protected String configServiceTokens() {

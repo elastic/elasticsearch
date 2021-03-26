@@ -9,14 +9,21 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 
 import java.util.Collection;
 import java.util.Map;
@@ -31,9 +38,13 @@ public class ServiceAccountService {
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
     private final ServiceAccountsTokenStore serviceAccountsTokenStore;
+    private final boolean httpTlsEnabled;
+    private final boolean transportTlsEnabled;
 
-    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore) {
+    public ServiceAccountService(Settings settings, ServiceAccountsTokenStore serviceAccountsTokenStore) {
         this.serviceAccountsTokenStore = serviceAccountsTokenStore;
+        this.httpTlsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(settings);
+        this.transportTlsEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
     }
 
     public static boolean isServiceAccount(Authentication authentication) {
@@ -74,8 +85,22 @@ public class ServiceAccountService {
         }
     }
 
+    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountTokensResponse> listener) {
+        serviceAccountsTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
+            listener.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos));
+        }, listener::onFailure));
+    }
+
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
         logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
+        if (false == httpTlsEnabled || false == transportTlsEnabled) {
+            final ParameterizedMessage message = new ParameterizedMessage(
+                "Service account authentication requires TLS for both HTTP and Transport, " +
+                    "but got HTTP TLS: [{}] and Transport TLS: [{}]", httpTlsEnabled, transportTlsEnabled);
+            logger.debug(message);
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
+            return;
+        }
         if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
             logger.debug("only [{}] service accounts are supported, but received [{}]",
                 ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
@@ -103,7 +128,14 @@ public class ServiceAccountService {
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
-
+        if (false == httpTlsEnabled || false == transportTlsEnabled) {
+            final ParameterizedMessage message = new ParameterizedMessage(
+                "Service account role descriptor resolving requires TLS for both HTTP and Transport, " +
+                    "but got HTTP TLS: [{}] and Transport TLS: [{}]", httpTlsEnabled, transportTlsEnabled);
+            logger.debug(message);
+            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage(), RestStatus.UNAUTHORIZED));
+            return;
+        }
         final String principal = authentication.getUser().principal();
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {

@@ -13,12 +13,12 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRe
 public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return FsRepository.TYPE;
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
     }
 }

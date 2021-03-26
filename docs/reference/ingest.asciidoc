@@ -60,16 +60,18 @@ in the order specified.
 ----
 PUT _ingest/pipeline/my-pipeline
 {
-  "description": "My pipeline description",
+  "description": "My optional pipeline description",
   "processors": [
     {
       "set": {
+        "description": "My optional processor description",
         "field": "my-long-field",
         "value": 10
       }
     },
     {
       "set": {
+        "description": "Set 'my-boolean-field' to true",
         "field": "my-boolean-field",
         "value": true
       }
@@ -319,11 +321,13 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "dot_expander": {
+        "description": "Expand 'my-object-field.my-property'",
         "field": "my-object-field.my-property"
       }
     },
     {
       "set": {
+        "description": "Set 'my-object-field.my-property' to 10",
         "field": "my-object-field.my-property",
         "value": 10
       }
@@ -335,8 +339,7 @@ PUT _ingest/pipeline/my-pipeline
 [[template-snippets]]
 To access field values, enclose the field name in double curly brackets `{{ }}`
 to create a https://mustache.github.io[Mustache] template snippet. You can use
-template snippets to dynamically set field names. The following processor sets a
-field name as the `service` field value.
+template snippets to dynamically set field names.
 
 [source,console]
 ----
@@ -345,6 +348,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
+        "description": "Set dynamic '<service>' field to 'code' value",
         "field": "{{service}}",
         "value": "{{code}}"
       }
@@ -363,9 +367,6 @@ Processors can access the following metadata fields by name:
 * `_id`
 * `_routing`
 
-For example, the following `set` processor sets the document's routing value as
-the `geoip.country_iso_code` field value.
-
 [source,console]
 ----
 PUT _ingest/pipeline/my-pipeline
@@ -373,6 +374,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors" : [
     {
       "set" : {
+        "description": "Set '_routing' to 'geoip.country_iso_code' value",
         "field": "_routing",
         "value": "{{geoip.country_iso_code}}"
       }
@@ -410,7 +412,8 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "field": "received",
+        "description": "Index the ingest timestamp as 'event.ingested'",
+        "field": "event.ingested",
         "value": "{{_ingest.timestamp}}"
       }
     }
@@ -435,8 +438,9 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "rename": {
-        "field": "foo",
-        "target_field": "bar",
+        "description": "Rename 'provider' to 'cloud.provider'",
+        "field": "provider",
+        "target_field": "cloud.provider",
         "ignore_failure": true
       }
     }
@@ -456,13 +460,15 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "rename": {
-        "field": "foo",
-        "target_field": "bar",
+        "description": "Rename 'provider' to 'cloud.provider'",
+        "field": "provider",
+        "target_field": "cloud.provider",
         "on_failure": [
           {
             "set": {
+              "description": "Set 'error.message'",
               "field": "error.message",
-              "value": "field \"foo\" does not exist, cannot rename to \"bar\"",
+              "value": "Field 'provider' does not exist. Cannot rename to 'cloud.provider'",
               "override": false
             }
           }
@@ -482,17 +488,20 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "rename": {
-        "field": "foo",
-        "target_field": "bar",
+        "description": "Rename 'provider' to 'cloud.provider'",
+        "field": "provider",
+        "target_field": "cloud.provider",
         "on_failure": [
           {
             "set": {
+              "description": "Set 'error.message'",
               "field": "error.message",
-              "value": "field \"foo\" does not exist, cannot rename to \"bar\"",
+              "value": "Field 'provider' does not exist. Cannot rename to 'cloud.provider'",
               "override": false,
               "on_failure": [
                 {
                   "set": {
+                    "description": "Set 'error.message.multi'",
                     "field": "error.message.multi",
                     "value": "Document encountered multiple ingest errors",
                     "override": true
@@ -520,6 +529,7 @@ PUT _ingest/pipeline/my-pipeline
   "on_failure": [
     {
       "set": {
+        "description": "Index document to 'failed-<index>'",
         "field": "_index",
         "value": "failed-{{ _index }}"
       }
@@ -541,9 +551,6 @@ IMPORTANT: `if` condition scripts run in Painless's
 {painless}/painless-ingest-processor-context.html[ingest processor context]. In
 `if` conditions, `ctx` values are read-only.
 
-The following <<drop-processor,`drop`>> processor uses an `if` condition to drop
-documents with a `network_name` of `Guest`.
-
 [source,console]
 ----
 PUT _ingest/pipeline/my-pipeline
@@ -551,7 +558,8 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
-        "if": "ctx?.network_name == 'Guest'"
+        "description": "Drop documents with 'network.name' of 'Guest'",
+        "if": "ctx?.network?.name == 'Guest'"
       }
     }
   ]
@@ -573,8 +581,9 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "if": "ctx.href?.url =~ /^http[^s]/",
-        "field": "href.insecure",
+        "description": "If 'url.scheme' is 'http', set 'url.insecure' to true",
+        "if": "ctx.url?.scheme =~ /^http[^s]/",
+        "field": "url.insecure",
         "value": true
       }
     }
@@ -596,6 +605,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
+        "description": "Drop documents that don't contain 'prod' tag",
         "if": """
             Collection tags = ctx.tags;
             if(tags != null){
@@ -641,6 +651,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
+        "description": "If 'url.scheme' is 'http', set 'url.insecure' to true",
         "if": { "id": "my-stored-script" }
       }
     }
@@ -668,6 +679,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
+        "description": "Drop documents that contain 'network.name' of 'Guest'",
         "if": "ctx.network?.name != null && ctx.network.name.contains('Guest')"
       }
     }
@@ -685,9 +697,6 @@ pipeline as the <<set-default-pipeline,default pipeline>> in an
 <<index-templates,index template>> used to configure multiple data streams or
 indices.
 
-The following pipeline applies different pipelines to incoming documents based
-on the `service.name` field value.
-
 [source,console]
 ----
 PUT _ingest/pipeline/one-pipeline-to-rule-them-all
@@ -695,18 +704,21 @@ PUT _ingest/pipeline/one-pipeline-to-rule-them-all
   "processors": [
     {
       "pipeline": {
+        "description": "If 'service.name' is 'apache_httpd', use 'httpd_pipeline'",
         "if": "ctx.service?.name == 'apache_httpd'",
         "name": "httpd_pipeline"
       }
     },
     {
       "pipeline": {
+        "description": "If 'service.name' is 'syslog', use 'syslog_pipeline'",
         "if": "ctx.service?.name == 'syslog'",
         "name": "syslog_pipeline"
       }
     },
     {
       "fail": {
+        "description": "If 'service.name' is not 'apache_httpd' or 'syslog', return a failure message",
         "if": "ctx.service?.name != 'apache_httpd' && ctx.service?.name != 'syslog'",
         "message": "This pipeline requires service.name to be either `syslog` or `apache_httpd`"
       }

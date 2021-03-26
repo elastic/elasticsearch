@@ -11,37 +11,32 @@ package org.elasticsearch.gradle.fixtures;
 
 abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
-    void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackApis = [], List<String> xpackTests = []) {
+    void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {
         addSubProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
         addSubProject(":distribution:archives:integ-test-zip") << "configurations { extracted }"
         addSubProject(":rest-api-spec") << """
         configurations { restSpecs\nrestTests }
         artifacts {
           restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
-          restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+          restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
         }
         """
         addSubProject(":x-pack:plugin") << """
         configurations { restXpackSpecs\nrestXpackTests }
         artifacts {
-          //The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
-          restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
-          restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+          restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
         }
         """
 
-        xpackApis.each { api ->
-            file("x-pack/plugin/src/test/resources/rest-api-spec/api/" + api) << ""
-        }
         xpackTests.each { test ->
-            file("x-pack/plugin/src/test/resources/rest-api-spec/test/" + test) << ""
+            file("x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
         }
 
         apis.each { api ->
             file("rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
         }
         tests.each { test ->
-            file("rest-api-spec/src/main/resources/rest-api-spec/test/" + test) << ""
+            file("rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
         }
     }
 

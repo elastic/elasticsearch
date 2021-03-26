@@ -1,0 +1,212 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              voltage_percent:
+                type: double
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      emit(v / params.max);
+                    }
+                  params:
+                    max: 5.8
+              # Test fetching from _source
+              voltage_percent_from_source:
+                type: double
+                script:
+                  source: |
+                    emit(params._source.voltage / params.max);
+                  params:
+                    max: 5.8
+              # Test fetching many values
+              voltage_sqrts:
+                type: double
+                script:
+                  source: |
+                    for (double voltage : doc['voltage']) {
+                      double v = voltage;
+                      while (v > 1.2) {
+                        emit(v);
+                        v = Math.sqrt(v);
+                      }
+                    }
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: {sensor.mappings.runtime.voltage_percent.type: double }
+  - match:
+      sensor.mappings.runtime.voltage_percent.script.source: |
+        for (double v : doc['voltage']) {
+          emit(v / params.max);
+        }
+  - match: {sensor.mappings.runtime.voltage_percent.script.params: {max: 5.8} }
+  - match: {sensor.mappings.runtime.voltage_percent.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [voltage_percent, voltage_percent_from_source, voltage_sqrts]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
+  - match: {hits.hits.0.fields.voltage_percent_from_source: [0.6896551724137931] }
+  # Scripts that scripts that emit multiple values are supported and their results are sorted
+  - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
+  - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
+  - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }
+  - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
+  - match: {hits.hits.4.fields.voltage_percent: [1.0] }
+  - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [voltage_percent, voltage_percent_from_source, voltage_sqrts]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
+  - match: {hits.hits.0.fields.voltage_percent_from_source: [0.6896551724137931] }
+  # Scripts that scripts that emit multiple values are supported and their results are sorted
+  - match: {hits.hits.0.fields.voltage_sqrts: [1.4142135623730951, 2.0, 4.0] }
+  - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
+  - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }
+  - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
+  - match: {hits.hits.4.fields.voltage_percent: [1.0] }
+  - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+
+---
+"terms agg":
+  - do:
+      search:
+        index: sensor
+        body:
+          aggs:
+            v10:
+              terms:
+                field: voltage_percent
+  - match: {hits.total.value: 6}
+  - match: {aggregations.v10.buckets.0.key: 0.6896551724137931}
+  - match: {aggregations.v10.buckets.0.doc_count: 1}
+  - match: {aggregations.v10.buckets.1.key: 0.7241379310344828}
+  - match: {aggregations.v10.buckets.1.doc_count: 1}
+
+---
+"range query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                lt: .7
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 4.0}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gt: 1
+  - match: {hits.total.value: 0}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gte: 1
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gte: .7
+                lte: .8
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 4.2}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              voltage_percent: 1.0
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"explain term query":
+  - do:
+      search:
+        index: sensor
+        explain: true
+        body:
+          query:
+            term:
+              voltage_percent: 1.0
+  - match: {hits.hits.0._explanation.value: 1.0}
+  - match: {hits.hits.0._explanation.description: "voltage_percent:1.0"}
+  - match: {hits.hits.0._explanation.details.0.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
+  - match: {hits.hits.0._explanation.details.0.details.0.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.details.0.description: 'boost'}
+  - match: {hits.hits.0._explanation.details.0.details.1.value: 1.0}
+  - match: {hits.hits.0._explanation.details.0.details.1.description: 'runtime_field_score is always 1'}

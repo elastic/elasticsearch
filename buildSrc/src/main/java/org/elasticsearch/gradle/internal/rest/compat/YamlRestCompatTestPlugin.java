@@ -87,11 +87,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
-                task.setCoreConfig(bwcMinorConfig);
-                task.setXpackConfig(bwcMinorConfig);
+                task.setConfig(bwcMinorConfig);
                 task.setAdditionalConfig(bwcMinorConfig);
-                task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
-                task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
+                task.getInclude().set(extension.getRestApi().getInclude());
                 task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir(compatSpecsDir.toString()));
                 task.setSourceResourceDir(
                     yamlCompatTestSourceSet.getResources()
@@ -102,14 +100,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                         .orElse(null)
                 );
                 task.setSkipHasRestTestCheck(true);
-                task.setCoreConfigToFileTree(
+                task.setConfigToFileTree(
                     config -> project.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
-                    )
-                );
-                task.setXpackConfigToFileTree(
-                    config -> project.fileTree(
-                        config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_API_PATH)
                     )
                 );
                 task.setAdditionalConfigToFileTree(

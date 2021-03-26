@@ -14,22 +14,22 @@ To enable encryption, you need to perform the following steps on each node in
 the cluster:
 
 . Verify that the `xpack.security.enabled` setting is `true`. For more
-information, see <<security-settings>>. 
+information, see <<security-settings>>.
 
 . <<node-certificates, Generate a private key and X.509 certificate>>.
 
 . Configure each node to:
 .. Required: <<tls-transport,Enable TLS on the transport layer>>.
-.. Recommended: <<tls-http,Enable TLS on the HTTP layer>>.
+.. Recommended: <<encrypt-http-communication,Enable TLS on the HTTP layer>>.
 
-. If you are using Active Directory user authentication, 
-<<tls-active-directory,encrypt communications between {es} and your Active Directory server>>. 
+. If you are using Active Directory user authentication,
+<<tls-active-directory,encrypt communications between {es} and your Active Directory server>>.
 
-. If you are using LDAP user authentication, 
-<<tls-ldap,encrypt communications between {es} and your LDAP server>>. 
+. If you are using LDAP user authentication,
+<<tls-ldap,encrypt communications between {es} and your LDAP server>>.
 
 For more information about encrypting communications across the Elastic Stack,
-see <<encrypting-communications>>.
+see <<configuring-stack-security>>.
 
 include::node-certificates.asciidoc[]
 

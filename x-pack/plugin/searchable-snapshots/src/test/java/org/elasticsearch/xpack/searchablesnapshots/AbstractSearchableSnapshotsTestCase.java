@@ -14,7 +14,6 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -36,10 +35,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.cache.CacheFile;
-import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
+import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -48,10 +47,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,9 +69,9 @@ import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
-import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70763")
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 
     private static final ClusterSettings CLUSTER_SETTINGS = new ClusterSettings(
@@ -156,13 +155,13 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
@@ -216,16 +215,23 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING}
      */
     protected static ByteSizeValue randomCacheRangeSize() {
-        return new ByteSizeValue(
-            randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes())
+        return pageAligned(
+            new ByteSizeValue(
+                randomLongBetween(
+                    CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
+                    CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
+                )
+            )
         );
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return new ByteSizeValue(
-            randomLongBetween(
-                FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
+        return pageAligned(
+            new ByteSizeValue(
+                randomLongBetween(
+                    FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
+                    FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
+                )
             )
         );
     }

@@ -215,10 +215,10 @@ The API returns transformed documents:
 integrations. If needed, you can edit these pipelines using {kib}'s **Ingest
 Node Pipelines** feature.
 
-If you use {fleet}'s **Custom logs** integration, you can specify a pipeline to
-use. When adding or editing a **Custom logs** integration, click **Configure
-integration > Custom log file > Advanced options**. In **Custom
-Configurations**, specify `pipeline: <my-pipeline>`.
+If you use {fleet}'s **Custom logs** integration, you can specify a pipeline for
+your incoming log data. When adding or editing a **Custom logs** integration,
+click **Configure integration > Custom log file > Advanced options**. In
+**Custom Configurations**, specify `pipeline: <my-pipeline>`.
 
 [role="screenshot"]
 image::images/ingest/custom-logs-pipeline.png[Add pipeline for custom log file,align="center"]

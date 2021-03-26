@@ -195,7 +195,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testDateNanosFormatUpgrade() throws IOException {
-        assumeTrue("date_nanos was added in 7.0", UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
+        assumeTrue("date_nanos was added in 7.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0));
         final String indexName = "test_date_nanos";
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -260,7 +260,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        bulk.setJsonEntity(b.toString());
+        bulk.setJsoIndenEntity(b.toString());
         client().performRequest(bulk);
     }
 

@@ -7,7 +7,6 @@
 <titleabbrev>Create or update trained model aliases</titleabbrev>
 ++++
 
-beta::[]
 
 Creates or updates a trained model alias.
 

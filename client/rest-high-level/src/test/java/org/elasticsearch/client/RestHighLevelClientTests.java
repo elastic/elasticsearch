@@ -819,7 +819,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "scripts_painless_execute",
             "indices.simulate_template",
             "indices.resolve_index",
-            "indices.add_block"
+            "indices.add_block",
+            "open_point_in_time",
+            "close_point_in_time"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

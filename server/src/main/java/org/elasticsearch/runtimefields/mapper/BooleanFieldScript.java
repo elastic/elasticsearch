@@ -31,7 +31,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         BooleanFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new BooleanFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new BooleanFieldScript(
         field,
         params,
         lookup,

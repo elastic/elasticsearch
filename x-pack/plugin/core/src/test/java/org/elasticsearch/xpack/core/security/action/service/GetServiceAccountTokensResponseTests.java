@@ -68,7 +68,7 @@ public class GetServiceAccountTokensResponseTests extends AbstractWireSerializin
                         }
                         break;
                     case 1:
-                        tokenInfos.add(randomIntBetween(0, tokenInfos.size() - 1), randomTokenInfo());
+                        tokenInfos.add(randomIntBetween(0, tokenInfos.isEmpty() ? 0 : tokenInfos.size() - 1), randomTokenInfo());
                         break;
                     default:
                         if (false == tokenInfos.isEmpty()) {

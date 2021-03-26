@@ -11,12 +11,12 @@ description = 'Fixture for an external http service'
 
 // These directories are shared between the URL repository and the FS repository in integration tests
 project.ext {
-  fsRepositoryDirs = [
-    'nginx-fixture': new File(project.buildDir, "shared-repository"),
-  ]
+  fsRepositoryDir = file("${testFixturesDir}/fs-repository")
 }
 
-for (repoDir in project.ext.fsRepositoryDirs) {
-  delete(repoDir.value as File)
-  repoDir.value.mkdirs()
+tasks.named("preProcessFixture").configure {
+  doLast {
+    // tests expect to have an empty repo
+    project.ext.fsRepositoryDir.mkdirs()
+  }
 }

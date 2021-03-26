@@ -18,9 +18,7 @@ dependencies {
 
 // These directories are shared between the URL repository and the FS repository in integration tests
 project.ext {
-  fsRepositoryDirs = [
-    'url-fixture': new File(project.buildDir, "shared-repository")
-  ]
+  fsRepositoryDir = file("${testFixturesDir}/fs-repository")
 }
 
 tasks.named("preProcessFixture").configure {
@@ -32,8 +30,6 @@ tasks.named("preProcessFixture").configure {
       from configurations.runtimeClasspath
       into "${testFixturesDir}/shared"
     }
-    for (fsRepositoryDir in project.fsRepositoryDirs) {
-      fsRepositoryDir.value.mkdirs()
-    }
+    project.fsRepositoryDir.mkdirs()
   }
 }

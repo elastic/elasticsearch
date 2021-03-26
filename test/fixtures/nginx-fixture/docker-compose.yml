@@ -4,6 +4,6 @@ services:
     build:
       context: .
     volumes:
-      - ./build/shared-repository:/data
+      - ./testfixtures_shared/fs-repository:/data
     ports:
       - "80"

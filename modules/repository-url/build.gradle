@@ -51,7 +51,7 @@ def fixtureAddress = { fixtureName ->
   'http://127.0.0.1:' + ephemeralPort
 }
 
-File repositoryDir = fixture.fsRepositoryDirs["url-fixture"] as File
+File repositoryDir = fixture.fsRepositoryDir as File
 
 testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots

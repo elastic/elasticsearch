@@ -26,7 +26,7 @@ def fixtureAddress = { fixtureName ->
   'http://127.0.0.1:' + ephemeralPort
 }
 
-File repositoryDir = fixture.fsRepositoryDirs["nginx-fixture"] as File
+File repositoryDir = fixture.fsRepositoryDir as File
 
 tasks.named("integTest").configure {
   dependsOn fixture.getTasks().named("postProcessFixture")

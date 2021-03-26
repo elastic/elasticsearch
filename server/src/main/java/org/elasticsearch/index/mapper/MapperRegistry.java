@@ -65,6 +65,13 @@ public final class MapperRegistry {
     }
 
     /**
+     * Return a map of all meta mappers that have been registered in all compatible versions.
+     */
+    public Map<String, MetadataFieldMapper.TypeParser> getAllMetadataMapperParsers() {
+        return metadataMapperParsers;
+    }
+
+    /**
      * Returns a function that given an index name, returns a predicate that fields must match in order to be returned by get mappings,
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
      * The predicate receives the field name as input arguments. In case multiple plugins register a field filter through

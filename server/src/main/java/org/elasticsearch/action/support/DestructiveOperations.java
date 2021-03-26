@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
@@ -25,26 +24,11 @@ public final class DestructiveOperations {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DestructiveOperations.class);
 
-    private static final AtomicBoolean deprecationLogged = new AtomicBoolean(false);
-
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name",
-            (settings) -> {
-                if (deprecationLogged.getAndSet(true) == false) {
-                    deprecationLogger.deprecate(
-                        DeprecationCategory.SETTINGS,
-                        "destructive_requires_name_default",
-                        "setting [action.destructive_requires_name] will default to true in 8.0, " +
-                            "set to false to preserve current behavior"
-                    );
-                }
-                return "false";
-            },
-            Property.Dynamic,
-            Property.NodeScope);
+        Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
 
     /**
      * The "match none" pattern, "*,-*", will never actually be destructive
@@ -58,6 +42,14 @@ public final class DestructiveOperations {
     private volatile boolean destructiveRequiresName;
 
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
+        if (REQUIRES_NAME_SETTING.exists(settings) == false) {
+            deprecationLogger.deprecate(
+                DeprecationCategory.SETTINGS,
+                "destructive_requires_name_default",
+                "setting [action.destructive_requires_name] will default to true in 8.0, " +
+                    "set explicitly to false to preserve current behavior"
+            );
+        }
         destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
     }

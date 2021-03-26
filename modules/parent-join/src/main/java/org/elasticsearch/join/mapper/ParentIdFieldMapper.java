@@ -47,14 +47,22 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
+
+        private final boolean eagerGlobalOrdinals;
+
         public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return eagerGlobalOrdinals;
         }
 
         @Override

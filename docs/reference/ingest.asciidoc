@@ -96,7 +96,7 @@ to track changes to a pipeline.
 
 [source,console]
 ----
-PUT /_ingest/pipeline/my-pipeline-id
+PUT _ingest/pipeline/my-pipeline-id
 {
   "version" : 1,
   "processors": [ ... ]

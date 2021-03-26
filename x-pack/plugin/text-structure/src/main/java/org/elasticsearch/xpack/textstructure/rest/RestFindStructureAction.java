@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
-import org.elasticsearch.xpack.textstructure.structurefinder.FileStructureFinderManager;
+import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -29,12 +31,9 @@ public class RestFindStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return Collections.singletonList(new ReplacedRoute(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure"));
+        return List.of(
+            Route.builder(POST, BASE_PATH + "find_structure").replaces(POST, "/_ml/find_file_structure", RestApiVersion.V_8).build()
+        );
     }
 
     @Override
@@ -49,13 +48,13 @@ public class RestFindStructureAction extends BaseRestHandler {
         request.setLinesToSample(
             restRequest.paramAsInt(
                 FindStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
-                FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
+                TextStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
             )
         );
         request.setLineMergeSizeLimit(
             restRequest.paramAsInt(
                 FindStructureAction.Request.LINE_MERGE_SIZE_LIMIT.getPreferredName(),
-                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT
             )
         );
         request.setTimeout(

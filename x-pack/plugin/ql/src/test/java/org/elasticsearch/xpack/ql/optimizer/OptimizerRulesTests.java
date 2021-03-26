@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
@@ -1027,7 +1028,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression exp = rule.rule(or);
         assertEquals(r2, exp);
     }
-    
+
     public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
         FieldAttribute doubleOne = fieldAttribute("double", DOUBLE);
         FieldAttribute doubleTwo = fieldAttribute("double2", DOUBLE);
@@ -1045,12 +1046,12 @@ public class OptimizerRulesTests extends ESTestCase {
             new And(EMPTY, notEqualsOf(keywordOne, L("2021")), lessThanOrEqualOf(datetimeOne, L("2020-12-04T17:48:22.954240Z"))),
             // double > 10.1 AND double2 != -10.1
             new And(EMPTY, greaterThanOf(doubleOne, L(10.1d)), notEqualsOf(doubleTwo, L(-10.1d))));
-        
+
         for (And and : testCases) {
             CombineBinaryComparisons rule = new CombineBinaryComparisons();
             Expression exp = rule.rule(and);
             assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);
-        }   
+        }
     }
 
     // Equals & NullEquals

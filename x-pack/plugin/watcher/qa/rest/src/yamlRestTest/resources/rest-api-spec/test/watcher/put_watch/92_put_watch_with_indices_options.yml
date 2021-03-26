@@ -7,8 +7,8 @@ setup:
 ---
 "Test put watch with allow no indices":
   - skip:
-      version: "7.10.1 - 7.99.99"
-      reason: "watch parsing with partial indices options was broken in 7.10.1"
+      version: "7.10.1 - 7.10.2"
+      reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
   - do:
       watcher.put_watch:
         id: "my_watch_allow_no_indices"
@@ -53,8 +53,8 @@ setup:
 ---
 "Test put watch with expand wildcards":
   - skip:
-      version: "7.10.1 - 7.99.99"
-      reason: "watch parsing with partial indices options was broken in 7.10.1"
+      version: "7.10.1 - 7.10.2"
+      reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
   - do:
       watcher.put_watch:
         id: "my_watch_expand_wildcards"
@@ -99,8 +99,8 @@ setup:
 ---
 "Test put watch with ignore unavailable":
   - skip:
-      version: "7.10.1 - 7.99.99"
-      reason: "watch parsing with partial indices options was broken in 7.10.1"
+      version: "7.10.1 - 7.10.2"
+      reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
   - do:
       watcher.put_watch:
         id: "my_watch_ignore_unavailable"

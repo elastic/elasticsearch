@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
@@ -33,6 +34,7 @@ public class Influence implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Influence, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<Influence, Void> LENIENT_PARSER = createParser(true);
 
+    @SuppressWarnings({ "unchecked"})
     private static ConstructingObjectParser<Influence, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<Influence, Void> parser = new ConstructingObjectParser<>(INFLUENCER.getPreferredName(),
                 ignoreUnknownFields, a -> new Influence((String) a[0], (List<String>) a[1]));

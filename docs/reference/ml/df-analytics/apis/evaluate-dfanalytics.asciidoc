@@ -10,8 +10,6 @@
 
 Evaluates the {dfanalytics} for an annotated index.
 
-beta::[]
-
 
 [[ml-evaluate-dfanalytics-request]]
 == {api-request-title}

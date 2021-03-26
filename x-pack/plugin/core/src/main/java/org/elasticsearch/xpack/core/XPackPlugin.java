@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -75,12 +76,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.RestClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.RestOpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.TransportClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.TransportOpenPointInTimeAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
@@ -284,8 +279,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         actions.addAll(licensing.getActions());
         actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
-        actions.add(new ActionHandler<>(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class));
-        actions.add(new ActionHandler<>(ClosePointInTimeAction.INSTANCE, TransportClosePointInTimeAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         return actions;
@@ -326,8 +319,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         handlers.add(new RestReloadAnalyzersAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
-        handlers.add(new RestOpenPointInTimeAction());
-        handlers.add(new RestClosePointInTimeAction());
         return handlers;
     }
 
@@ -392,7 +383,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             DataTier.DATA_CONTENT_NODE_ROLE,
             DataTier.DATA_HOT_NODE_ROLE,
             DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE));
+            DataTier.DATA_COLD_NODE_ROLE,
+            DataTier.DATA_FROZEN_NODE_ROLE));
     }
 
     @Override

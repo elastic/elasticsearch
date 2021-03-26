@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
-import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -41,9 +45,9 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -72,7 +76,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
                 new ReplaceWildcards(),
                 new ReplaceSurrogateFunction(),
-                new ReplaceRegexMatch());
+                new ReplaceRegexMatch(),
+                new ReplaceNullChecks());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -81,11 +86,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanLiteralsOnTheRight(),
                 new BooleanFunctionEqualsElimination(),
                 // needs to occur before BinaryComparison combinations
-                new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
+                new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
@@ -114,26 +119,27 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
             return filter.transformExpressionsUp(InsensitiveBinaryComparison.class, cmp -> {
-                // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
                 Expression result = cmp;
-                Expression target = null;
-                String wildString = null;
+                if (cmp instanceof InsensitiveWildcardEquals || cmp instanceof InsensitiveWildcardNotEquals) {
+                    // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
+                    Expression target = null;
+                    String wildString = null;
 
-                // check only the right side
-                if (isWildcard(cmp.right())) {
-                    wildString = (String) cmp.right().fold();
-                    target = cmp.left();
-                }
-
-                if (target != null) {
-                    Expression like = new Like(cmp.source(), target, StringUtils.toLikePattern(wildString), true);
-                    if (cmp instanceof InsensitiveNotEquals) {
-                        like = new Not(cmp.source(), like);
+                    // check only the right side
+                    if (isWildcard(cmp.right())) {
+                        wildString = (String) cmp.right().fold();
+                        target = cmp.left();
                     }
 
-                    result = like;
-                }
+                    if (target != null) {
+                        Expression like = new Like(cmp.source(), target, StringUtils.toLikePattern(wildString), true);
+                        if (cmp instanceof InsensitiveWildcardNotEquals) {
+                            like = new Not(cmp.source(), like);
+                        }
 
+                        result = like;
+                    }
+                }
                 return result;
             });
         }
@@ -159,11 +165,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Expression result = cmp;
                 // expr == null || expr != null
                 if (cmp instanceof Equals || cmp instanceof NotEquals) {
+                    Expression comparableToNull = null;
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
+                        comparableToNull = cmp.left();
+                    } else if (cmp.left().foldable() && cmp.left().fold() == null) {
+                        comparableToNull = cmp.right();
+                    }
+                    if (comparableToNull != null) {
                         if (cmp instanceof Equals) {
-                            result = new IsNull(cmp.source(), cmp.left());
+                            result = new IsNull(cmp.source(), comparableToNull);
                         } else {
-                            result = new IsNotNull(cmp.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), comparableToNull);
                         }
                     }
                 }
@@ -188,6 +200,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return plan;
+        }
+    }
+
+    static class ReplaceRegexMatch extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch {
+        @Override
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return regexMatch.caseInsensitive()
+                ? new InsensitiveEquals(regexMatch.source(), regexMatch.field(), literal, null)
+                : new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 

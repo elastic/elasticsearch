@@ -1,28 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.url.http.HttpURLBlobContainer;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,9 +29,17 @@ import java.net.URL;
  */
 public class URLBlobStore implements BlobStore {
 
+    static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
+        "repositories.uri.buffer_size",
+        new ByteSizeValue(100, ByteSizeUnit.KB),
+        Setting.Property.NodeScope
+    );
+
+
     private final URL path;
 
     private final int bufferSizeInBytes;
+    private final CheckedFunction<BlobPath, BlobContainer, MalformedURLException> blobContainerFactory;
 
     /**
      * Constructs new read-only URL-based blob store
@@ -51,10 +53,19 @@ public class URLBlobStore implements BlobStore {
      * @param settings settings
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, URL path) {
+    public URLBlobStore(Settings settings, URL path, URLHttpClient httpClient, URLHttpClientSettings httpClientSettings) {
         this.path = path;
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.uri.buffer_size",
-            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) BUFFER_SIZE_SETTING.get(settings).getBytes();
+
+        final String protocol = this.path.getProtocol();
+        if (protocol.equals("http") || protocol.equals("https")) {
+            this.blobContainerFactory = (blobPath) ->
+                new HttpURLBlobContainer(this, blobPath, buildPath(blobPath), httpClient, httpClientSettings);
+        } else if (protocol.equals("file")) {
+            this.blobContainerFactory = (blobPath) -> new FileURLBlobContainer(this, blobPath, buildPath(blobPath));
+        } else {
+            this.blobContainerFactory = (blobPath) -> new URLBlobContainer(this, blobPath, buildPath(blobPath));
+        }
     }
 
     @Override
@@ -83,7 +94,7 @@ public class URLBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         try {
-            return new URLBlobContainer(this, path, buildPath(path));
+            return blobContainerFactory.apply(path);
         } catch (MalformedURLException ex) {
             throw new BlobStoreException("malformed URL " + path, ex);
         }

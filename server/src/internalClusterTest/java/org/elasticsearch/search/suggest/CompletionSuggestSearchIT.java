@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest;
 
@@ -37,9 +26,11 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -1226,6 +1217,58 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(INDEX).setExplain(true)
             .suggest(new SuggestBuilder().addSuggestion("foo", prefix)).get();
         assertSuggestions(searchResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
+    }
+
+    public void testCompletionWithCollapse() throws Exception {
+        String suggestField = "suggest_field";
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("collapse_field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject(suggestField)
+            .field("type", "completion")
+            .field("analyzer", "whitespace")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        String index = "test";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Settings.builder().put("index.number_of_shards", 2))
+                .setMapping(mapping)
+                .get()
+        );
+
+        int numDocs = 2;
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder builder = jsonBuilder().startObject();
+            builder.startObject(suggestField).field("input", "suggestion" + i).field("weight", i).endObject();
+            builder.field("collapse_field", "collapse me").endObject();  // all docs the same value for collapsing
+            client().prepareIndex(index).setId("" + i).setSource(builder).get();
+        }
+        client().admin().indices().prepareRefresh(index).get();
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(suggestField).prefix("sug").size(1);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setFrom(1)
+            .setSize(1)
+            .setCollapse(new CollapseBuilder("collapse_field"))
+            .suggest(new SuggestBuilder().addSuggestion("the_suggestion", prefix))
+            .get();
+        assertAllSuccessful(searchResponse);
+
+        assertThat(searchResponse.getSuggest().getSuggestion("the_suggestion"), is(notNullValue()));
+        Suggest.Suggestion<Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option>> suggestion = searchResponse.getSuggest()
+            .getSuggestion("the_suggestion");
+
+        List<String> suggestionList = getNames(suggestion.getEntries().get(0));
+        assertThat(suggestionList, contains("suggestion" + (numDocs - 1)));
+        assertEquals(0, searchResponse.getHits().getHits().length);
     }
 
     public static boolean isReservedChar(char c) {

@@ -1,31 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Function;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
@@ -42,24 +23,29 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
+
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
-    private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
-                   DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder) {
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
-        this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
     }
 
     ParsedDocument parseDocument(SourceToParse source,
                                  MappingLookup mappingLookup) throws MapperParsingException {
-        return parseDocument(source, mappingLookup.getMapping().metadataMappers, mappingLookup);
+        return parseDocument(source, mappingLookup.getMapping().getSortedMetadataMappers(), mappingLookup);
     }
 
     ParsedDocument parseDocument(SourceToParse source,
@@ -72,11 +58,10 @@ final class DocumentParser {
             context = new ParseContext.InternalParseContext(
                 mappingLookup,
                 dateParserContext,
-                dynamicRuntimeFieldsBuilder,
                 source,
                 parser);
             validateStart(parser);
-            internalParseDocument(mappingLookup.getMapping().root(), metadataFieldsMappers, context, parser);
+            internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -211,7 +196,7 @@ final class DocumentParser {
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
     static Mapping createDynamicUpdate(MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
-                                       List<RuntimeFieldType> dynamicRuntimeFields) {
+                                       List<RuntimeField> dynamicRuntimeFields) {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
             return null;
         }
@@ -219,7 +204,7 @@ final class DocumentParser {
         if (dynamicMappers.isEmpty() == false) {
             root = createDynamicUpdate(mappingLookup, dynamicMappers);
         } else {
-            root = mappingLookup.getMapping().root().copyAndReset();
+            root = mappingLookup.getMapping().getRoot().copyAndReset();
         }
         root.addRuntimeFields(dynamicRuntimeFields);
         return mappingLookup.getMapping().mappingUpdate(root);
@@ -235,7 +220,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mappingLookup.getMapping().root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(mappingLookup.getMapping().getRoot(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -445,7 +430,7 @@ final class DocumentParser {
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
-            if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
+            if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
                 addFields(indexVersion, nestedDoc, rootDoc);
             }
         }
@@ -651,7 +636,7 @@ final class DocumentParser {
 
     /** Creates instances of the fields that the current field should be copied to */
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
-        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+        if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
                 // In case of a hierarchy of nested documents, we need to figure out
@@ -814,16 +799,16 @@ final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeFieldType runtimeFieldType = context.root().getRuntimeFieldType(fieldPath);
-        if (runtimeFieldType != null) {
-            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeFieldType);
+        RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
+        if (runtimeField != null) {
+            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeField.asMappedFieldType().name());
         }
         return null;
     }
 
     private static class NoOpFieldMapper extends FieldMapper {
-        NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
-            super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+        NoOpFieldMapper(String simpleName, String fullName) {
+            super(simpleName, new MappedFieldType(fullName, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
                 public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();

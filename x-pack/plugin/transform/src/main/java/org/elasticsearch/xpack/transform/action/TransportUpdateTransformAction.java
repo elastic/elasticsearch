@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -179,6 +181,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             }
             return;
         }
+        TransformNodes.warnIfNoTransformNodes(clusterState);
+
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
 
@@ -236,7 +240,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 updatedConfig.getSource().getIndex(),
                 updatedConfig.getDestination().getIndex(),
                 updatedConfig.getDestination().getPipeline(),
-                request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
+                SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalValidations()),
                 ActionListener.wrap(
                     validationResponse -> {
                         checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), updateListener);
@@ -327,7 +331,12 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            auditor.info(config.getId(), "updated transform.");
+            auditor.info(config.getId(), "Updated transform.");
+            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
+            for (String warning : warnings) {
+                logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+                auditor.warning(config.getId(), warning);
+            }
             transformConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(r -> {
                 logger.trace("[{}] successfully deleted old transform configurations", request.getId());
                 listener.onResponse(new Response(config));

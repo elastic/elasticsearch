@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -48,6 +37,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -260,7 +250,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, null);
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally
@@ -277,7 +267,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
         DateFieldType dateFieldType = new DateFieldType("field");
-        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, !includeLower, null, formatter.toDateMathParser(), () -> 0);
+        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, includeLower == false, null, formatter.toDateMathParser(), () -> 0);
         if (includeLower == false) {
             ++lowerBoundLong;
         }

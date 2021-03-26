@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -53,6 +54,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
     public void testBranchStepKeyIsTheWrappedStepKey() {
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
             @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
+            @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {
             }
@@ -64,6 +70,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
     public void testBranchStepNextKeyOnCompleteResponse() {
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {
@@ -90,6 +101,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
     public void testBranchStepNextKeyOnInCompleteResponse() {
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {
@@ -119,6 +135,11 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
     public void testBranchStepPropagatesFailure() {
         NullPointerException failException = new NullPointerException("fail");
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
+            @Override
+            public boolean isRetryable() {
+                return true;
+            }
+
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                                       Listener listener) {

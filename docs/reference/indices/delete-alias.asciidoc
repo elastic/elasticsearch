@@ -6,7 +6,7 @@
 
 Deletes an existing index alias.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/indices/add-alias.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----

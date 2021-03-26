@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -40,11 +42,11 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<SourceConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SourceConfig, Void> LENIENT_PARSER = createParser(true);
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<SourceConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SourceConfig, Void> parser = new ConstructingObjectParser<>("data_frame_config_source",
             lenient,
             args -> {
-                @SuppressWarnings("unchecked")
                 String[] index = ((List<String>)args[0]).toArray(new String[0]);
                 // default handling: if the user does not specify a query, we default to match_all
                 QueryConfig queryConfig = args[1] == null ? QueryConfig.matchAll() : (QueryConfig) args[1];
@@ -114,6 +116,12 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     public Map<String, Object> getRuntimeMappings() {
         return runtimeMappings;
+    }
+
+    public Map<String, Object> getScriptBasedRuntimeMappings() {
+        return getRuntimeMappings().entrySet().stream()
+            .filter(e -> e.getValue() instanceof Map<?, ?> && ((Map<?, ?>) e.getValue()).containsKey("script"))
+            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public boolean isValid() {

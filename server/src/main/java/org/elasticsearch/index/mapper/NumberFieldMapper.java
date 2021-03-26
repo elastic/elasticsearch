@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -135,6 +124,18 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
+                final float result = parseToFloat(value);
+                // Reduce the precision to what we actually index
+                return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
+            }
+
+            /**
+             * Parse a query parameter or {@code _source} value to a float,
+             * keeping float precision. Used by queries which need more
+             * precise control over their rounding behavior that
+             * {@link #parse(Object, boolean)} provides.
+             */
+            private float parseToFloat(Object value) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -163,7 +164,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public Query termQuery(String field, Object value) {
-                float v = parse(value, false);
+                float v = parseToFloat(value);
                 return HalfFloatPoint.newExactQuery(field, v);
             }
 
@@ -172,7 +173,7 @@ public class NumberFieldMapper extends FieldMapper {
                 float[] v = new float[values.size()];
                 int pos = 0;
                 for (Object value: values) {
-                    v[pos++] = parse(value, false);
+                    v[pos++] = parseToFloat(value);
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -184,14 +185,14 @@ public class NumberFieldMapper extends FieldMapper {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm, false);
+                    l = parseToFloat(lowerTerm);
                     if (includeLower) {
                         l = HalfFloatPoint.nextDown(l);
                     }
                     l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm, false);
+                    u = parseToFloat(upperTerm);
                     if (includeUpper) {
                         u = HalfFloatPoint.nextUp(u);
                     }
@@ -225,7 +226,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             private void validateParsed(float value) {
-                if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
+                if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -321,7 +322,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             private void validateParsed(float value) {
-                if (!Float.isFinite(value)) {
+                if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -392,7 +393,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             private void validateParsed(double value) {
-                if (!Double.isFinite(value)) {
+                if (Double.isFinite(value) == false) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -405,7 +406,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
+                if (coerce == false && doubleValue % 1 != 0) {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
@@ -466,7 +467,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
+                if (coerce == false && doubleValue % 1 != 0) {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
@@ -523,7 +524,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
+                if (coerce == false && doubleValue % 1 != 0) {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
@@ -559,7 +560,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int upTo = 0;
 
                 for (Object value : values) {
-                    if (!hasDecimalPart(value)) {
+                    if (hasDecimalPart(value) == false) {
                         v[upTo++] = parse(value, true);
                     }
                 }
@@ -664,7 +665,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int upTo = 0;
 
                 for (Object value : values) {
-                    if (!hasDecimalPart(value)) {
+                    if (hasDecimalPart(value) == false) {
                         v[upTo++] = parse(value, true);
                     }
                 }
@@ -816,7 +817,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                 throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
             }
-            if (!coerce && doubleValue % 1 != 0) {
+            if (coerce == false && doubleValue % 1 != 0) {
                 throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
             }
 

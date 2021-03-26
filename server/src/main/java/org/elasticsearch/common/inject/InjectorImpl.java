@@ -147,7 +147,7 @@ class InjectorImpl implements Injector, Lookups {
      */
     static boolean isMembersInjector(Key<?> key) {
         return key.getTypeLiteral().getRawType().equals(MembersInjector.class)
-                && !key.hasAnnotationType();
+                && key.hasAnnotationType() == false;
     }
 
     private <T> BindingImpl<MembersInjector<T>> createMembersInjectorBinding(
@@ -248,7 +248,7 @@ class InjectorImpl implements Injector, Lookups {
         // Find a constant string binding.
         Key<String> stringKey = key.ofType(String.class);
         BindingImpl<String> stringBinding = state.getExplicitBinding(stringKey);
-        if (stringBinding == null || !stringBinding.isConstant()) {
+        if (stringBinding == null || stringBinding.isConstant() == false) {
             return null;
         }
 
@@ -480,7 +480,7 @@ class InjectorImpl implements Injector, Lookups {
                         errors, context, dependency);
                 try {
                     Object o = provider.get();
-                    if (o != null && !rawType.isInstance(o)) {
+                    if (o != null && rawType.isInstance(o) == false) {
                         throw errors.subtypeNotProvided(providerType, rawType).toException();
                     }
                     @SuppressWarnings("unchecked") // protected by isInstance() check above

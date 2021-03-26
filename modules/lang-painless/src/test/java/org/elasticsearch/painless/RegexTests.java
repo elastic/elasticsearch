@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -70,9 +59,9 @@ public class RegexTests extends ScriptTestCase {
 
     public void testInTernaryCondition()  {
         assertEquals(true, exec("return /foo/.matcher('foo').matches() ? true : false"));
-        assertEquals(1, exec("def i = 0; i += /foo/.matcher('foo').matches() ? 1 : 1; return i"));
+        assertEquals(1, exec("def i = 0; i += /foo/.matcher('foo').matches() ? 1 : 0; return i"));
         assertEquals(true, exec("return 'foo' ==~ /foo/ ? true : false"));
-        assertEquals(1, exec("def i = 0; i += 'foo' ==~ /foo/ ? 1 : 1; return i"));
+        assertEquals(1, exec("def i = 0; i += 'foo' ==~ /foo/ ? 1 : 0; return i"));
     }
 
     public void testInTernaryTrueArm()  {
@@ -243,6 +232,30 @@ public class RegexTests extends ScriptTestCase {
                 exec("'the quick brown fox'.replaceFirst(/[aeiou]/, m -> '$' + m.group().toUpperCase(Locale.ROOT))"));
     }
 
+    public void testStoreInMap()  {
+        assertEquals(true, exec("Map m = [:]; m.a = /foo/; m.a.matcher('foo').matches()"));
+    }
+
+    public void testStoreInMapDef()  {
+        assertEquals(true, exec("def m = [:]; m.a = /foo/; m.a.matcher('foo').matches()"));
+    }
+
+    public void testStoreInList()  {
+        assertEquals(true, exec("List l = [null]; l.0 = /foo/; l.0.matcher('foo').matches()"));
+    }
+
+    public void testStoreInListDef()  {
+        assertEquals(true, exec("def l = [null]; l.0 = /foo/; l.0.matcher('foo').matches()"));
+    }
+
+    public void testStoreInArray()  {
+        assertEquals(true, exec("Pattern[] a = new Pattern[1]; a[0] = /foo/; a[0].matcher('foo').matches()"));
+    }
+
+    public void testStoreInArrayDef()  {
+        assertEquals(true, exec("def a = new Pattern[1]; a[0] = /foo/; a[0].matcher('foo').matches()"));
+    }
+
     public void testCantUsePatternCompile() {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Pattern.compile('aa')");
@@ -254,12 +267,29 @@ public class RegexTests extends ScriptTestCase {
         ScriptException e = expectThrows(ScriptException.class, () -> {
             exec("/\\ujjjj/"); // Invalid unicode
         });
-        assertEquals("invalid regular expression: could not compile regex constant [\\ujjjj] with flags []", e.getCause().getMessage());
+        assertEquals(
+            "invalid regular expression: could not compile regex constant [\\ujjjj] with flags []: Illegal Unicode escape sequence",
+            e.getCause().getMessage()
+        );
 
         // And make sure the location of the error points to the offset inside the pattern
         assertScriptStack(e,
                 "/\\ujjjj/",
                 "   ^---- HERE");
+
+        e = expectThrows(ScriptException.class, () -> {
+            exec("/(?< >.+)/"); // Invalid capture name
+        });
+        assertEquals(
+            "invalid regular expression: could not compile regex constant [(?< >.+)] with flags []: "
+                + "capturing group name does not start with a Latin letter",
+            e.getCause().getMessage()
+        );
+
+        // And make sure the location of the error points to the offset inside the pattern
+        assertScriptStack(e,
+                "/(?< >.+)/",
+                "    ^---- HERE");
     }
 
     public void testRegexAgainstNumber() {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -83,18 +84,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {
                                 }),
-                                new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(DataExtractorFactory dataExtractorFactory) {
-                                        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-                                        threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        listener.onFailure(e);
-                                    }
-                                });
+                                listener.delegateFailure((l, dataExtractorFactory) -> {
+                                    DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
+                                    threadPool.generic().execute(() -> previewDatafeed(dataExtractor, l));
+                                }));
                         });
                     },
                     listener::onFailure));

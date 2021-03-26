@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -33,9 +34,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 
     public void testCurrentCapacity() throws Exception {
-        // see: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
         assertThat(capacity().results().keySet(), Matchers.empty());
         long memory = OsProbe.getInstance().getTotalPhysicalMemorySize();
         long storage = internalCluster().getInstance(NodeEnvironment.class).nodePaths()[0].fileStore.getTotalSpace();

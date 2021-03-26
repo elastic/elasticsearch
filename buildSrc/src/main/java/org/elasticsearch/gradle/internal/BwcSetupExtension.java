@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal;
@@ -37,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
 
@@ -47,18 +35,22 @@ import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
  * */
 public class BwcSetupExtension {
 
+    private static final String MINIMUM_COMPILER_VERSION_PATH = "buildSrc/src/main/resources/minimumCompilerVersion";
     private final Project project;
-
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+    private final Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider;
+
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
         Project project,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
+        Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
         Provider<File> checkoutDir
     ) {
         this.project = project;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
+        this.bwcTaskThrottleProvider = bwcTaskThrottleProvider;
         this.checkoutDir = checkoutDir;
     }
 
@@ -68,37 +60,14 @@ public class BwcSetupExtension {
 
     private TaskProvider<LoggedExec> createRunBwcGradleTask(Project project, String name, Action<LoggedExec> configAction) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
-            // TODO revisit
             loggedExec.dependsOn("checkoutBwcBranch");
+            loggedExec.usesService(bwcTaskThrottleProvider);
             loggedExec.setSpoolOutput(true);
             loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String javaVersionsString = readFromFile(new File(checkoutDir.get(), ".ci/java-versions.properties"));
-                loggedExec.environment(
-                    "JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            javaVersionsString.lines()
-                                .filter(l -> l.trim().startsWith("ES_BUILD_JAVA="))
-                                .map(l -> l.replace("ES_BUILD_JAVA=java", "").trim())
-                                .map(l -> l.replace("ES_BUILD_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
-                loggedExec.environment(
-                    "RUNTIME_JAVA_HOME",
-                    getJavaHome(
-                        Integer.parseInt(
-                            javaVersionsString.lines()
-                                .filter(l -> l.trim().startsWith("ES_RUNTIME_JAVA="))
-                                .map(l -> l.replace("ES_RUNTIME_JAVA=java", "").trim())
-                                .map(l -> l.replace("ES_RUNTIME_JAVA=openjdk", "").trim())
-                                .collect(Collectors.joining("!!"))
-                        )
-                    )
-                );
+                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), MINIMUM_COMPILER_VERSION_PATH));
+                loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
             });
 
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {

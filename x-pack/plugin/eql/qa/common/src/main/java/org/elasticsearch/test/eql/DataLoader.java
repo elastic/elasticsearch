@@ -1,9 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test.eql;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertThat;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
@@ -26,19 +40,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ql.TestUtils;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertThat;
-
 /**
  * Loads EQL dataset into ES.
  *
@@ -51,6 +52,7 @@ import static org.junit.Assert.assertThat;
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
+    public static final String DATE_NANOS_INDEX = "eql_date_nanos";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -89,6 +91,12 @@ public class DataLoader {
         // Aux Index
         //
         load(client, TEST_EXTRA_INDEX, false, p);
+        //
+        // Date_Nanos index
+        //
+        // The data for this index are identical to the endgame-140.data with only the values for @timestamp changed.
+        // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
+        load(client, DATE_NANOS_INDEX, false, p);
     }
 
     private static void load(RestHighLevelClient client, String indexName, boolean winFileTime,

@@ -1,7 +1,7 @@
 [[indices-templates-v1]]
-=== Put index template API
+=== Create or update index template API
 ++++
-<titleabbrev>Put index template (legacy)</titleabbrev>
+<titleabbrev>Create or update index template (legacy)</titleabbrev>
 ++++
 
 IMPORTANT: This documentation is about legacy index templates, 
@@ -61,9 +61,6 @@ privilege>> to use this API.
 
 [[put-index-template-v1-api-desc]]
 ==== {api-description-title}
-
-Use the PUT index template API
-to create or update an index template.
 
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
 that you can automatically apply when creating new indices.

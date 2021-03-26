@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -36,6 +37,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
         public static final ParseField FIELD_SELECTION = new ParseField("field_selection");
         public static final ParseField MEMORY_ESTIMATION = new ParseField("memory_estimation");
 
+        @SuppressWarnings({ "unchecked"})
         static final ConstructingObjectParser<Response, Void> PARSER =
             new ConstructingObjectParser<>(
                 TYPE.getPreferredName(),

@@ -9,8 +9,8 @@ used a cluster with a single {es} node to get up and running with the {stack}.
 
 You can add as many nodes as you want in a cluster but they must be able to
 communicate with each other. The communication between nodes in a cluster is
-handled by the <<modules-transport,transport module>>. To secure your
-cluster, you must ensure that the internode communications are encrypted.
+handled by the <<modules-network,transport module>>. To secure your cluster,
+you must ensure that the internode communications are encrypted.
 
 NOTE: In this tutorial, we add more nodes by installing more copies of {es} on
 the same machine. By default, {es} binds to loopback addresses for HTTP and

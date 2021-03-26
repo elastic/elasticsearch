@@ -2,22 +2,11 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.info.BuildParams
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.build'
@@ -28,6 +17,9 @@ apply plugin: 'elasticsearch.rest-resources'
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
+
+// HLRC is published under the Elastic License
+ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
@@ -57,6 +49,9 @@ dependencies {
   // (In order to serialize a server side class to a client side class or the other way around)
   testImplementation(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
+  }
+  testImplementation(project(':modules:ingest-geoip')) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
   }
   testImplementation(project(':x-pack:plugin:eql'))
 }
@@ -92,6 +87,8 @@ tasks.named("check").configure {
 testClusters.all {
   testDistribution = 'DEFAULT'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
+  systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
+  setting 'geoip.downloader.enabled', 'false'
   setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

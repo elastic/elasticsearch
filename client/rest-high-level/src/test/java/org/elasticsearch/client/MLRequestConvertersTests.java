@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -35,6 +24,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
@@ -70,6 +60,7 @@ import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -130,7 +121,9 @@ import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpda
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsNull.nullValue;
 
 public class MLRequestConvertersTests extends ESTestCase {
@@ -974,6 +967,52 @@ public class MLRequestConvertersTests extends ESTestCase {
             TrainedModelConfig parsedTrainedModelConfig = TrainedModelConfig.PARSER.apply(parser, null).build();
             assertThat(parsedTrainedModelConfig, equalTo(trainedModelConfig));
         }
+    }
+
+    public void testPutTrainedModelAlias() throws IOException {
+        PutTrainedModelAliasRequest putTrainedModelAliasRequest = new PutTrainedModelAliasRequest(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomBoolean()
+        );
+
+        Request request = MLRequestConverters.putTrainedModelAlias(putTrainedModelAliasRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(
+            request.getEndpoint(),
+            equalTo(
+                "/_ml/trained_models/"
+                    + putTrainedModelAliasRequest.getModelId()
+                    + "/model_aliases/"
+                    + putTrainedModelAliasRequest.getModelAlias()
+            )
+        );
+        if (putTrainedModelAliasRequest.getReassign() != null) {
+            assertThat(request.getParameters().get("reassign"), equalTo(putTrainedModelAliasRequest.getReassign().toString()));
+        } else {
+            assertThat(request.getParameters(), not(hasKey("reassign")));
+        }
+    }
+
+    public void testDeleteTrainedModelAlias() throws IOException {
+        DeleteTrainedModelAliasRequest deleteTrainedModelAliasRequest = new DeleteTrainedModelAliasRequest(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10)
+        );
+
+        Request request = MLRequestConverters.deleteTrainedModelAlias(deleteTrainedModelAliasRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertThat(
+            request.getEndpoint(),
+            equalTo(
+                "/_ml/trained_models/"
+                    + deleteTrainedModelAliasRequest.getModelId()
+                    + "/model_aliases/"
+                    + deleteTrainedModelAliasRequest.getModelAlias()
+            )
+        );
     }
 
     public void testPutFilter() throws IOException {

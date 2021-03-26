@@ -17,18 +17,13 @@ For example, you can use the enrich processor to:
 [[how-enrich-works]]
 === How the enrich processor works
 
-An <<ingest,ingest pipeline>> changes documents before they are actually
-indexed. You can think of an ingest pipeline as an assembly line made up of a
-series of workers, called <<ingest-processors,processors>>. Each processor makes
-specific changes, like lowercasing field values, to incoming documents before
-moving on to the next. When all the processors in a pipeline are done, the
-finished document is added to the target index.
+Most processors are self-contained and only change _existing_ data in incoming
+documents.
 
 image::images/ingest/ingest-process.svg[align="center"]
 
-Most processors are self-contained and only change _existing_ data in incoming
-documents. But the enrich processor adds _new_ data to incoming documents
-and requires a few special components:
+The enrich processor adds _new_ data to incoming documents and requires a few
+special components:
 
 image::images/ingest/enrich/enrich-process.svg[align="center"]
 
@@ -55,9 +50,6 @@ Before it can be used with an enrich processor, an enrich policy must be
 enrich data from the policy's source indices to create a streamlined system
 index called the _enrich index_. The processor uses this index to match and
 enrich incoming documents.
-
-See <<enrich-policy-definition>> for a full list of enrich policy types and
-configuration options.
 --
 
 [[source-index]]
@@ -107,8 +99,8 @@ and <<update-enrich-policies, update your enrich policies>>.
 
 [IMPORTANT]
 ====
-The enrich processor performs several operations
-and may impact the speed of your <<pipeline,ingest pipeline>>.
+The enrich processor performs several operations and may impact the speed of
+your ingest pipeline.
 
 We strongly recommend testing and benchmarking your enrich processors
 before deploying them in production.
@@ -141,14 +133,8 @@ automatically send and index documents to your source indices. See
 [[create-enrich-policy]]
 ==== Create an enrich policy
 
-After adding enrich data to your source indices, you can
-<<enrich-policy-definition,define an enrich policy>>. When defining the enrich
-policy, you should include at least the following:
-
-include::enrich.asciidoc[tag=enrich-policy-fields]
-
-You can use this definition to create the enrich policy with the
-<<put-enrich-policy-api,put enrich policy API>>.
+After adding enrich data to your source indices, use the
+<<put-enrich-policy-api,create enrich policy API>> to create an enrich policy.
 
 [WARNING]
 ====
@@ -177,7 +163,7 @@ your policy.
 image::images/ingest/enrich/enrich-processor.svg[align="center"]
 
 Define an <<enrich-processor,enrich processor>> and add it to an ingest
-pipeline using the <<put-pipeline-api,put pipeline API>>.
+pipeline using the <<put-pipeline-api,create or update pipeline API>>.
 
 When defining the enrich processor, you must include at least the following:
 
@@ -193,7 +179,7 @@ added as an array.
 
 See <<enrich-processor>> for a full list of configuration options.
 
-You also can add other <<ingest-processors,processors>> to your ingest pipeline.
+You also can add other <<processors,processors>> to your ingest pipeline.
 
 [[ingest-enrich-docs]]
 ==== Ingest and enrich documents
@@ -231,74 +217,6 @@ Instead, you can:
 .   Use the <<delete-enrich-policy-api, delete enrich policy>> API
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
-
-[role="xpack"]
-[testenv="basic"]
-[[enrich-policy-definition]]
-=== Enrich policy definition
-
-<<enrich-policy,Enrich policies>> are defined as JSON objects like the
-following:
-
-[source,js]
-----
-{
-  "<enrich_policy_type>": {
-    "indices": [ "..." ],
-    "match_field": "...",
-    "enrich_fields": [ "..." ],
-    "query": {... }
-  }
-}
-----
-// NOTCONSOLE
-
-[[enrich-policy-parms]]
-==== Parameters
-
-`<enrich_policy_type>`::
-+
---
-(Required, enrich policy object)
-The enrich policy type determines how enrich data is matched to incoming
-documents.
-
-Supported enrich policy types include:
-
-<<geo-match-enrich-policy-type,`geo_match`>>:::
-Matches enrich data to incoming documents based on a geographic location using
-a <<query-dsl-geo-shape-query,`geo_shape` query>>. For an example, see
-<<geo-match-enrich-policy-type>>.
-
-<<match-enrich-policy-type,`match`>>:::
-Matches enrich data to incoming documents based on a precise value, such as an
-email address or ID, using a <<query-dsl-term-query,`term` query>>. For an
-example, see <<match-enrich-policy-type>>.
---
-
-`indices`::
-+
---
-(Required, String or array of strings)
-Source indices used to create the enrich index.
-
-If multiple indices are provided, they must share a common `match_field`, which
-the enrich processor can use to match incoming documents.
---
-
-`match_field`::
-(Required, string)
-Field in the source indices used to match incoming documents.
-
-`enrich_fields`::
-(Required, Array of strings)
-Fields to add to matching incoming documents. These fields must be present in
-the source indices.
-
-`query`::
-(Optional, <<query-dsl,Query DSL query object>>)
-Query used to filter documents in the enrich index for matching. Defaults to
-a <<query-dsl-match-all-query,`match_all`>> query.
 
 [role="xpack"]
 [testenv="basic"]
@@ -348,8 +266,8 @@ PUT /postal_codes/_doc/1?refresh=wait_for
 ----
 // TEST[continued]
 
-Use the <<put-enrich-policy-api,put enrich policy API>> to create an enrich
-policy with the `geo_match` policy type. This policy must include:
+Use the <<put-enrich-policy-api,create or update enrich policy API>> to create
+an enrich policy with the `geo_match` policy type. This policy must include:
 
 * One or more source indices
 * A `match_field`,
@@ -379,8 +297,9 @@ POST /_enrich/policy/postal_policy/_execute
 ----
 // TEST[continued]
 
-Use the <<put-pipeline-api,put pipeline API>> to create an ingest pipeline. In
-the pipeline, add an <<enrich-processor,enrich processor>> that includes:
+Use the <<put-pipeline-api,create or update pipeline API>> to create an ingest
+pipeline. In the pipeline, add an <<enrich-processor,enrich processor>> that
+includes:
 
 * Your enrich policy.
 * The `field` of incoming documents used to match the geo_shape of documents
@@ -396,10 +315,10 @@ the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 ----
 PUT /_ingest/pipeline/postal_lookup
 {
-  "description": "Enrich postal codes",
   "processors": [
     {
       "enrich": {
+        "description": "Add 'geo_data' based on 'geo_location'",
         "policy_name": "postal_policy",
         "field": "geo_location",
         "target_field": "geo_data",
@@ -504,8 +423,8 @@ PUT /users/_doc/1?refresh=wait_for
 }
 ----
 
-Use the put enrich policy API to create an enrich policy with the `match`
-policy type. This policy must include:
+Use the create or update enrich policy API to create an enrich policy with the
+`match` policy type. This policy must include:
 
 * One or more source indices
 * A `match_field`,
@@ -536,8 +455,9 @@ POST /_enrich/policy/users-policy/_execute
 // TEST[continued]
 
 
-Use the <<put-pipeline-api,put pipeline API>> to create an ingest pipeline. In
-the pipeline, add an <<enrich-processor,enrich processor>> that includes:
+Use the <<put-pipeline-api,create or update pipeline API>> to create an ingest
+pipeline. In the pipeline, add an <<enrich-processor,enrich processor>> that
+includes:
 
 * Your enrich policy.
 * The `field` of incoming documents used to match documents
@@ -550,10 +470,10 @@ the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 ----
 PUT /_ingest/pipeline/user_lookup
 {
-  "description" : "Enriching user details to messages",
   "processors" : [
     {
       "enrich" : {
+        "description": "Add 'user' data based on 'email'",
         "policy_name": "users-policy",
         "field" : "email",
         "target_field": "user",

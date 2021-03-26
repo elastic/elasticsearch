@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -159,7 +160,7 @@ public class Email implements ToXContentObject {
 
         Email email = (Email) o;
 
-        if (!id.equals(email.id)) return false;
+        if (id.equals(email.id) == false) return false;
 
         return true;
     }
@@ -580,7 +581,7 @@ public class Email implements ToXContentObject {
 
             AddressList addresses1 = (AddressList) o;
 
-            if (!addresses.equals(addresses1.addresses)) return false;
+            if (addresses.equals(addresses1.addresses) == false) return false;
 
             return true;
         }

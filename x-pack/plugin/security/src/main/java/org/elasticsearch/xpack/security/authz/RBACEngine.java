@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz;
@@ -36,7 +37,7 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -308,7 +309,7 @@ public class RBACEngine implements AuthorizationEngine {
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                assert !resolvedIndices.isEmpty()
+                assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 //'-*' matches no indices so we allow the request to go through, which will yield an empty response
@@ -325,7 +326,7 @@ public class RBACEngine implements AuthorizationEngine {
                 ActionListener.wrap(indexAuthorizationResult -> {
                     if (indexAuthorizationResult.isGranted()) {
                         indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                            assert !resolvedIndices.isEmpty()
+                            assert resolvedIndices.isEmpty() == false
                                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                             //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                             //'-*' matches no indices so we allow the request to go through, which will yield an empty response

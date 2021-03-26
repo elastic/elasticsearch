@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -172,7 +173,7 @@ public class Exporters extends AbstractLifecycleComponent {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
             Exporter.Config config = new Exporter.Config(name, type, settings, clusterService, licenseState);
-            if (!config.enabled()) {
+            if (config.enabled() == false) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
                     logger.debug("exporter [{}/{}] is disabled", type, name);
@@ -198,7 +199,7 @@ public class Exporters extends AbstractLifecycleComponent {
         // NOTE:    if there are exporters configured and they're all disabled, we don't
         //          fallback on the default
         //
-        if (exporters.isEmpty() && !hasDisabled) {
+        if (exporters.isEmpty() && hasDisabled == false) {
             Exporter.Config config =
                     new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, clusterService, licenseState);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));

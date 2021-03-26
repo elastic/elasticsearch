@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -427,7 +416,7 @@ public class CompletionFieldMapper extends FieldMapper {
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
+                    if (ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName) == false) {
                         throw new IllegalArgumentException("unknown field name [" + currentFieldName
                             + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
@@ -485,7 +474,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                     contextMapping = contextMappings.get(fieldName);
                                 } else {
                                     assert fieldName != null;
-                                    assert !contextsMap.containsKey(fieldName);
+                                    assert contextsMap.containsKey(fieldName) == false;
                                     contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
                                 }
                             }
@@ -537,7 +526,7 @@ public class CompletionFieldMapper extends FieldMapper {
     public void doValidate(MappingLookup mappers) {
         if (fieldType().hasContextMappings()) {
             for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
-                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypes().get(s));
+                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypesLookup().get(s));
             }
         }
     }

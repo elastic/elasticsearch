@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Locale;
 
@@ -37,7 +39,14 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
 
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
+            if (dataStream.getIndices().size() == 1 && dataStream.getIndices().get(0).equals(indexMetadata)) {
+                // This is the last index in the data stream, the entire stream
+                // needs to be deleted, because we can't have an empty data stream
+                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[]{dataStream.getName()});
+                getClient().execute(DeleteDataStreamAction.INSTANCE, deleteReq,
+                    ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+                return;
+            } else if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
                 String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s]. " +
                         "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the" +
                         " index will resume the execution of the policy as the index will not be the data stream's write index anymore",

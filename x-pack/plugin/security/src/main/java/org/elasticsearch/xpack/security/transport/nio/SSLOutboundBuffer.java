@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.Page;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
 
 public class SSLOutboundBuffer implements AutoCloseable {
@@ -48,10 +50,6 @@ public class SSLOutboundBuffer implements AutoCloseable {
     }
 
     FlushOperation buildNetworkFlushOperation() {
-        return buildNetworkFlushOperation((r, e) -> {});
-    }
-
-    FlushOperation buildNetworkFlushOperation(BiConsumer<Void, Exception> listener) {
         int pageCount = pages.size();
         ByteBuffer[] byteBuffers = new ByteBuffer[pageCount];
         Page[] pagesToClose = new Page[pageCount];
@@ -62,8 +60,15 @@ public class SSLOutboundBuffer implements AutoCloseable {
         }
 
         return new FlushOperation(byteBuffers, (r, e) -> {
-            IOUtils.closeWhileHandlingException(pagesToClose);
-            listener.accept(r, e);
+            try {
+                IOUtils.close(pagesToClose);
+            } catch (Exception ex) {
+                if (e != null) {
+                    ex.addSuppressed(e);
+                }
+                assert false : ex;
+                throw new ElasticsearchException(ex);
+            }
         });
     }
 
@@ -73,7 +78,24 @@ public class SSLOutboundBuffer implements AutoCloseable {
 
     @Override
     public void close() {
-        IOUtils.closeWhileHandlingException(currentPage);
-        IOUtils.closeWhileHandlingException(pages);
+        Exception closeException = null;
+        try {
+            IOUtils.close(currentPage);
+        } catch (Exception e) {
+            closeException = e;
+        }
+        currentPage = null;
+        Page p;
+        while ((p = pages.pollFirst()) != null) {
+            try {
+                p.close();
+            } catch (Exception ex) {
+                closeException = ExceptionsHelper.useOrSuppress(closeException, ex);
+            }
+        }
+        if (closeException != null) {
+            assert false : closeException;
+            throw new ElasticsearchException(closeException);
+        }
     }
 }

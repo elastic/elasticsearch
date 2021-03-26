@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -149,7 +150,12 @@ public class TransformStats implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeString(id);
-            out.writeEnum(state);
+            // 7.13 introduced the waiting state, in older version report the state as started
+            if (out.getVersion().before(Version.V_7_13_0) && state.equals(State.WAITING)) {
+                out.writeEnum(State.STARTED);
+            } else {
+                out.writeEnum(state);
+            }
             out.writeOptionalString(reason);
             if (node != null) {
                 out.writeBoolean(true);
@@ -246,7 +252,8 @@ public class TransformStats implements Writeable, ToXContentObject {
         ABORTING,
         STOPPING,
         STOPPED,
-        FAILED;
+        FAILED,
+        WAITING;
 
         public static State fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -289,10 +296,16 @@ public class TransformStats implements Writeable, ToXContentObject {
             out.writeEnum(this);
         }
 
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
 
+        // only used when speaking to nodes < 7.4 (can be removed for 8.0)
         public Tuple<TransformTaskState, IndexerState> toComponents() {
 
             switch (this) {

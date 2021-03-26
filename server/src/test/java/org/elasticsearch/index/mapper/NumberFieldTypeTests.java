@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -288,7 +277,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Value [2147483648] is out of range for an integer", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(10000000000000000000d, true));
         assertEquals("Value [1.0E19] is out of range for a long", e.getMessage());
-        assertEquals(1.1f, NumberType.HALF_FLOAT.parse(1.1, true));
+        assertEquals(1.0996094f, NumberType.HALF_FLOAT.parse(1.1, true));  // Half float loses a bit of precision even on 1.1....
         assertEquals(1.1f, NumberType.FLOAT.parse(1.1, true));
         assertEquals(1.1d, NumberType.DOUBLE.parse(1.1, true));
     }
@@ -650,6 +639,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
+        assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
 
         MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
             .nullValue(2.71f)
@@ -657,5 +647,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             .fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testFetchHalfFloatFromSource() throws IOException {
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, false, true)
+            .build(new ContentPath())
+            .fieldType();
+        /*
+         * Half float loses a fair bit of precision compared to float but
+         * we still do floating point comparisons. The "funny" trailing
+         * {@code .000625} is, for example, the precision loss of using
+         * a half float reflected back into a float.
+         */
+        assertEquals(List.of(3.140625F), fetchSourceValue(mapper, 3.14));
+        assertEquals(List.of(3.140625F), fetchSourceValue(mapper, 3.14F));
+        assertEquals(List.of(3.0F), fetchSourceValue(mapper, 3));
+        assertEquals(List.of(42.90625F), fetchSourceValue(mapper, "42.9"));
+        assertEquals(List.of(47.125F), fetchSourceValue(mapper, 47.1231234));
+        assertEquals(List.of(3.140625F, 42.90625F), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchbusinessrules;
@@ -166,8 +167,8 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         long numHits = searchResponse.getHits().getTotalHits().value;
         assertThat(numHits, equalTo(2L));
-    }    
-    
+    }
+
     public void testExplain() throws Exception {
         assertAcked(prepareCreate("test").setMapping(
                 jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
@@ -197,7 +198,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
 
     }
-    
+
     public void testHighlight() throws Exception {
         // Issue raised in https://github.com/elastic/elasticsearch/issues/53699
         assertAcked(prepareCreate("test").setMapping(
@@ -208,7 +209,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         refresh();
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR), "2");
-        
+
         HighlightBuilder testHighlighter = new HighlightBuilder();
         testHighlighter.field("field1");
 
@@ -220,6 +221,6 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertThat(highlights.size(), equalTo(1));
         HighlightField highlight = highlights.get("field1");
         assertThat(highlight.fragments()[0].toString(), equalTo("<em>the</em> <em>quick</em> <em>brown</em> fox"));
-    }  
+    }
 }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -178,7 +167,7 @@ public class TextFieldMapper extends FieldMapper {
             Defaults.INDEX_PREFIX_MIN_CHARS);
         int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"),
             Defaults.INDEX_PREFIX_MAX_CHARS);
-        DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix);
+        MappingParser.checkNoRemainingFields(propName, indexPrefix);
         return new PrefixConfig(minChars, maxChars);
     }
 
@@ -233,7 +222,7 @@ public class TextFieldMapper extends FieldMapper {
         double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
         double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);
         int minSegmentSize = XContentMapValues.nodeIntegerValue(frequencyFilter.remove("min_segment_size"), 0);
-        DocumentMapperParser.checkNoRemainingFields(name, frequencyFilter);
+        MappingParser.checkNoRemainingFields(name, frequencyFilter);
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
@@ -315,7 +304,7 @@ public class TextFieldMapper extends FieldMapper {
         private TextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
-            if (analyzers.positionIncrementGap.get() != TextParams.POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
                         + name + "] without positions enabled");
@@ -969,8 +958,9 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         // this is a pain, but we have to do this to maintain BWC
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.field("type", contentType());
         this.builder.index.toXContent(builder, includeDefaults);
         this.builder.store.toXContent(builder, includeDefaults);

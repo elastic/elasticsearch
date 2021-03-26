@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -295,7 +296,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         for (Map.Entry<String, List<SnapshotInfo>> entry : snapshotsToDelete.entrySet()) {
             String repo = entry.getKey();
             List<SnapshotInfo> snapshots = entry.getValue();
-            deleteSnapshots(slmStats, deleted, failed, repo, snapshots, allDeletesListener);
+            if (snapshots.isEmpty() == false) {
+                deleteSnapshots(slmStats, deleted, failed, repo, snapshots, allDeletesListener);
+            }
         }
     }
 

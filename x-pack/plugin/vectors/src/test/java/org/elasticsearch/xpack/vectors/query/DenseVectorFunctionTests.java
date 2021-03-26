@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.vectors.query;
@@ -49,14 +50,14 @@ public class DenseVectorFunctionTests extends ESTestCase {
             ScoreScript scoreScript = mock(ScoreScript.class);
             when(scoreScript._getIndexVersion()).thenReturn(indexVersion);
             when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, docValues));
-            
+
             testDotProduct(scoreScript);
             testCosineSimilarity(scoreScript);
             testL1Norm(scoreScript);
             testL2Norm(scoreScript);
         }
     }
-    
+
     private void testDotProduct(ScoreScript scoreScript) {
         DotProduct function = new DotProduct(scoreScript, queryVector, field);
         double result = function.dotProduct();
@@ -66,7 +67,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::dotProduct);
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
-    
+
     private void testCosineSimilarity(ScoreScript scoreScript) {
         CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, field);
         double result = function.cosineSimilarity();

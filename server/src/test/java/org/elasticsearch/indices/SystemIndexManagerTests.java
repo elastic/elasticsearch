@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -83,6 +72,8 @@ public class SystemIndexManagerTests extends ESTestCase {
         .setOrigin("FAKE_ORIGIN")
         .build();
 
+    private static final SystemIndices.Feature FEATURE = new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR));
+
     private Client client;
 
     @Before
@@ -109,7 +100,9 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of("index 1", List.of(d1), "index 2", List.of(d2)));
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -145,7 +138,9 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of("index 1", List.of(d1), "index 2", List.of(d2)));
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))));;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -160,7 +155,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade closed indices.
      */
     public void testManagerSkipsClosedIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
@@ -172,7 +167,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade unhealthy indices.
      */
     public void testManagerSkipsIndicesWithRedStatus() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState();
@@ -186,7 +181,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(5);
@@ -199,7 +194,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade indices where their mappings are already up-to-date.
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState();
@@ -212,7 +207,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));
@@ -222,10 +217,23 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     /**
+     * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
+     */
+    public void testManagerProcessesIndicesWithNullVersionMetadata() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+
+        final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings(null)));
+        markShardsAvailable(clusterStateBuilder);
+
+        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE));
+    }
+
+    /**
      * Check that the manager submits the expected request for an index whose mappings are out-of-date.
      */
     public void testManagerSubmitsPutRequest() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -68,6 +69,10 @@ public class TransformAggregationsTests extends ESTestCase {
         // geo_bounds
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", "geo_shape"));
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", null));
+
+        // geo_line
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", "geo_shape"));
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", null));
 
         // scripted_metric
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", null));

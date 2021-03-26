@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -39,8 +27,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -130,7 +121,7 @@ public class MetadataRolloverService {
             case ALIAS:
                 return resolveAliasRolloverNames((IndexAbstraction.Alias) indexAbstraction, newIndexName);
             case DATA_STREAM:
-                return resolveDataStreamRolloverNames(currentState, (IndexAbstraction.DataStream) indexAbstraction);
+                return resolveDataStreamRolloverNames((IndexAbstraction.DataStream) indexAbstraction);
             default:
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -162,11 +153,10 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private NameResolution resolveDataStreamRolloverNames(ClusterState currentState, IndexAbstraction.DataStream dataStream) {
-        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
+    private NameResolution resolveDataStreamRolloverNames(IndexAbstraction.DataStream dataStream) {
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        final DataStream rolledDataStream = ds.rollover("uuid");
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, rolledDataStream.getWriteIndex().getName());
     }
 
@@ -207,12 +197,23 @@ public class MetadataRolloverService {
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream dataStream, String dataStreamName,
                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                               boolean silent, boolean onlyValidate) throws Exception {
+
+        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+            // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
+            // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
+            // rollover
+            throw new SnapshotInProgressException(
+                    "Cannot roll over data stream that is being snapshotted: "
+                            + dataStream.getName()
+                            + ". Try again after snapshot finishes or cancel the currently running snapshot."
+            );
+        }
+
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
-        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        DataStream rolledDataStream = ds.rollover("uuid");
         createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
@@ -221,7 +222,7 @@ public class MetadataRolloverService {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareDataStreamCreateIndexRequest(dataStreamName, rolledDataStream.getWriteIndex().getName(), createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndexUUID(), minNodeVersion)));
+            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndexUUID())));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -303,24 +304,25 @@ public class MetadataRolloverService {
      */
     static void checkNoDuplicatedAliasInIndexTemplate(Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
                                                       @Nullable Boolean isHidden) {
-        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
-        for (IndexTemplateMetadata template : matchedTemplates) {
-            if (template.aliases().containsKey(rolloverRequestAlias)) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
-                    rolloverRequestAlias, template.aliases().keys(), template.name()));
-            }
-        }
-
         final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
-            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template, false);
+            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
             for (Map<String, AliasMetadata> aliasConfig : aliases) {
                 if (aliasConfig.containsKey(rolloverRequestAlias)) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias, aliasConfig.keySet(), matchedV2Template));
                 }
+            }
+            return;
+        }
+
+        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
+        for (IndexTemplateMetadata template : matchedTemplates) {
+            if (template.aliases().containsKey(rolloverRequestAlias)) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
+                    rolloverRequestAlias, template.aliases().keys(), template.name()));
             }
         }
     }

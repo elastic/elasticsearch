@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.azure;
 
@@ -39,6 +28,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -75,6 +65,7 @@ import java.util.stream.Collectors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
@@ -168,11 +159,6 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             }
 
             @Override
-            long getSizeThresholdForMultiBlockUpload() {
-                return ByteSizeUnit.MB.toBytes(1);
-            }
-
-            @Override
             int getMaxReadRetries(String clientName) {
                 return maxRetries;
             }
@@ -183,6 +169,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), "container")
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
                 .build());
 
         return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service));
@@ -352,9 +339,11 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
+                assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
+
                 if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
                     blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);

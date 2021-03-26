@@ -175,7 +175,10 @@ for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
 is the same as `like`.
 
 `fields`::
-A list of fields to fetch and analyze the text from.
+A list of fields to fetch and analyze the text from. Defaults to the
+`index.query.default_field` index setting, which has a default value of `*`. The
+`*` value matches all fields eligible for <<term-level-queries,term-level
+queries>>, excluding metadata fields.
 
 [discrete]
 [[mlt-query-term-selection]]
@@ -202,12 +205,11 @@ such as stop words. Defaults to unbounded (`Integer.MAX_VALUE`, which is `2^31-1
 or 2147483647).
 
 `min_word_length`::
-The minimum word length below which the terms will be ignored. The old name
-`min_word_len` is deprecated. Defaults to `0`.
+The minimum word length below which the terms will be ignored. Defaults to `0`.
 
 `max_word_length`::
-The maximum word length above which the terms will be ignored. The old name
-`max_word_len` is deprecated. Defaults to unbounded (`0`).
+The maximum word length above which the terms will be ignored. Defaults to
+unbounded (`0`).
 
 `stop_words`::
 An array of stop words. Any word in this set is considered "uninteresting" and

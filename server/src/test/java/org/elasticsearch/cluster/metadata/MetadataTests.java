@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -46,9 +35,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -61,6 +52,7 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -503,7 +495,7 @@ public class MetadataTests extends ESTestCase {
     public void testMetadataGlobalStateChangesOnClusterUUIDChanges() {
         final Metadata metadata1 = Metadata.builder().clusterUUID(UUIDs.randomBase64UUID()).clusterUUIDCommitted(randomBoolean()).build();
         final Metadata metadata2 = Metadata.builder(metadata1).clusterUUID(UUIDs.randomBase64UUID()).build();
-        final Metadata metadata3 = Metadata.builder(metadata1).clusterUUIDCommitted(!metadata1.clusterUUIDCommitted()).build();
+        final Metadata metadata3 = Metadata.builder(metadata1).clusterUUIDCommitted(metadata1.clusterUUIDCommitted() == false).build();
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata3));
         final Metadata metadata4 = Metadata.builder(metadata2).clusterUUID(metadata1.clusterUUID()).build();
@@ -1022,6 +1014,38 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
     }
 
+    public void testOverlappingDataStreamNamesWithBackingIndexDatePattern() {
+        final String dataStreamName1 = "logs-foobar-2021.01.13";
+        Metadata.Builder b = Metadata.builder();
+        IndexMetadata ds1Index1 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName1, 1))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        b.put(ds1Index1, false);
+        IndexMetadata ds1Index2 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName1, 2))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        b.put(ds1Index2, false);
+        b.put(new DataStream(dataStreamName1, createTimestampField("@timestamp"),
+            Arrays.asList(ds1Index1.getIndex(), ds1Index2.getIndex()), 2, null));
+
+        final String dataStreamName2 = "logs-foobar";
+        IndexMetadata ds2Index1 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName2, 1))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        b.put(ds2Index1, false);
+        b.put(new DataStream(dataStreamName2, createTimestampField("@timestamp"),
+            Collections.singletonList(ds2Index1.getIndex()), 1, null));
+
+        Metadata metadata = b.build();
+        assertThat(metadata.dataStreams().size(), equalTo(2));
+    }
+
     public void testBuildIndicesLookupForDataStreams() {
         Metadata.Builder b = Metadata.builder();
         int numDataStreams = randomIntBetween(2, 8);
@@ -1211,7 +1235,6 @@ public class MetadataTests extends ESTestCase {
         validateDataStreams(indicesLookup, dataStreamMetadata);
     }
 
-
     public void testValidateDataStreamsForNullDataStreamMetadata() {
         Metadata metadata = Metadata.builder().put(
             IndexMetadata.builder("foo-index")
@@ -1227,7 +1250,58 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests for the implementation of data stream snapshot reconciliation are located in {@link DataStreamTests#testSnapshot()}
+     */
+    public void testSnapshot() {
+        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        List<String> indicesInSnapshot = new ArrayList<>();
+        for (var dsName : dataStreamsToSnapshot) {
+            // always include at least one backing index per data stream
+            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
+            indicesInSnapshot.addAll(
+                randomSubsetOf(
+                    randomIntBetween(1, ds.getIndices().size()),
+                    ds.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+                )
+            );
+        }
+        var reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
+        assertThat(reconciledMetadata.dataStreams().size(), equalTo(postSnapshotMetadata.dataStreams().size()));
+        for (DataStream ds : reconciledMetadata.dataStreams().values()) {
+            assertThat(ds.getIndices().size(), greaterThanOrEqualTo(1));
+        }
+    }
+
+    public void testSnapshotWithMissingDataStream() {
+        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        List<String> indicesInSnapshot = new ArrayList<>();
+        for (var dsName : dataStreamsToSnapshot) {
+            // always include at least one backing index per data stream
+            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
+            indicesInSnapshot.addAll(
+                randomSubsetOf(
+                    randomIntBetween(1, ds.getIndices().size()),
+                    ds.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+                )
+            );
+        }
+        String missingDataStream = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        dataStreamsToSnapshot.add(missingDataStream);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot)
+        );
+        assertThat(e.getMessage(), containsString("unable to find data stream [" + missingDataStream + "]"));
+    }
+
     public static Metadata randomMetadata() {
+        return randomMetadata(1);
+    }
+
+    public static Metadata randomMetadata(int numDataStreams) {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
@@ -1249,11 +1323,13 @@ public class MetadataTests extends ESTestCase {
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
-        DataStream randomDataStream = DataStreamTestHelper.randomInstance();
-        for (Index index : randomDataStream.getIndices()) {
-            md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+        for (int k = 0; k < numDataStreams; k++) {
+            DataStream randomDataStream = DataStreamTestHelper.randomInstance();
+            for (Index index : randomDataStream.getIndices()) {
+                md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+            }
+            md.put(randomDataStream);
         }
-        md.put(randomDataStream);
 
         return md.build();
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -43,7 +32,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -792,6 +780,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return true;
     }
 
+    /**
+     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
+     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
+     * or deleting a backing index may result in situations where some reconciliation is required.
+     *
+     * @return Reconciled {@link Metadata} instance
+     */
+    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
+        var builder = Metadata.builder(metadata);
+        for (var dsName : dataStreams) {
+            var dataStream = metadata.dataStreams().get(dsName);
+            if (dataStream == null) {
+                // should never occur since data streams cannot be deleted while they have snapshots underway
+                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
+            }
+            builder.put(dataStream.snapshot(indices));
+        }
+        return builder.build();
+    }
+
     @Override
     public Diff<Metadata> diff(Metadata previousState) {
         return new MetadataDiff(previousState, this);
@@ -1446,6 +1454,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                             .keySet().stream()
                             .filter(s -> BACKING_INDEX_SUFFIX.matcher(s.substring(prefix.length())).matches())
                             .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
+                            .filter(indexName -> {
+                                // Logic to avoid marking backing indices of other data streams as conflict:
+
+                                // Backing index pattern is either .ds-[ds-name]-[date]-[generation] for 7.11 and up or
+                                // .ds-[ds-name]-[generation] for 7.9 to 7.10.2. So two step process to capture the data stream name:
+                                String dataStreamName =
+                                    indexName.substring(DataStream.BACKING_INDEX_PREFIX.length(), indexName.lastIndexOf('-'));
+                                if (dsMetadata.dataStreams().containsKey(dataStreamName)) {
+                                    return false;
+                                }
+                                dataStreamName = indexName.substring(0, indexName.lastIndexOf('-'));
+                                if (dsMetadata.dataStreams().containsKey(dataStreamName)) {
+                                    return false;
+                                } else {
+                                    return true;
+                                }
+                            })
                             .collect(Collectors.toSet());
 
                     if (conflicts.size() > 0) {
@@ -1470,14 +1495,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(IndexAbstraction::getName)
                     .collect(Collectors.toList());
                 if (conflictingAliases.isEmpty() == false) {
-                    // After backporting throw an IllegalStateException instead of logging a warning:
-                    // (in 7.x there might be aliases that refer to backing indices of a data stream and
-                    // throwing an exception here would avoid the cluster from functioning)
-                    String warning = "aliases " + conflictingAliases + " cannot refer to backing indices of data streams";
-                    // log as debug, this method is executed each time a new cluster state is created and could result
-                    // in many logs:
-                    logger.debug(warning);
-                    HeaderWarning.addWarning(warning);
+                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
                 }
             }
         }
@@ -1499,7 +1517,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             metadata.coordinationMetadata().toXContent(builder, params);
             builder.endObject();
 
-            if (context != XContentContext.API && !metadata.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
                 builder.startObject("settings");
                 metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();

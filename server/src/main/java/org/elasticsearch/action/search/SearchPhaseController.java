@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -108,7 +97,7 @@ public final class SearchPhaseController {
 
             }
 
-            assert !lEntry.fieldStatistics().containsKey(null);
+            assert lEntry.fieldStatistics().containsKey(null) == false;
             final Object[] keys = lEntry.fieldStatistics().keys;
             final Object[] values = lEntry.fieldStatistics().values;
             for (int i = 0; i < keys.length; i++) {
@@ -160,8 +149,8 @@ public final class SearchPhaseController {
         final TopDocs mergedTopDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
         final ScoreDoc[] mergedScoreDocs = mergedTopDocs == null ? EMPTY_DOCS : mergedTopDocs.scoreDocs;
         ScoreDoc[] scoreDocs = mergedScoreDocs;
+        int numSuggestDocs = 0;
         if (reducedCompletionSuggestions.isEmpty() == false) {
-            int numSuggestDocs = 0;
             for (CompletionSuggestion completionSuggestion : reducedCompletionSuggestions) {
                 assert completionSuggestion != null;
                 numSuggestDocs += completionSuggestion.getOptions().size();
@@ -191,7 +180,7 @@ public final class SearchPhaseController {
                 isSortedByField = true;
             }
         }
-        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues);
+        return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, collapseField, collapseValues, numSuggestDocs);
     }
 
     static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
@@ -275,7 +264,7 @@ public final class SearchPhaseController {
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
         if (reducedQueryPhase.suggest != null) {
-            if (!fetchResults.isEmpty()) {
+            if (fetchResults.isEmpty() == false) {
                 int currentOffset = hits.getHits().length;
                 for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
                     final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
@@ -327,10 +316,11 @@ public final class SearchPhaseController {
         int from = ignoreFrom ? 0 : reducedQueryPhase.from;
         int numSearchHits = (int) Math.min(reducedQueryPhase.fetchHits - from, reducedQueryPhase.size);
         // with collapsing we can have more fetch hits than sorted docs
-        numSearchHits = Math.min(sortedTopDocs.scoreDocs.length, numSearchHits);
+        // also we need to take into account that we potentially have completion suggestions stored in the scoreDocs array
+        numSearchHits = Math.min(sortedTopDocs.scoreDocs.length - sortedTopDocs.numberOfCompletionsSuggestions, numSearchHits);
         // merge hits
         List<SearchHit> hits = new ArrayList<>();
-        if (!fetchResults.isEmpty()) {
+        if (fetchResults.isEmpty() == false) {
             for (int i = 0; i < numSearchHits; i++) {
                 ScoreDoc shardDoc = sortedTopDocs.scoreDocs[i];
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
@@ -659,7 +649,7 @@ public final class SearchPhaseController {
                 }
             }
             fetchHits += topDocs.topDocs.scoreDocs.length;
-            if (!Float.isNaN(topDocs.maxScore)) {
+            if (Float.isNaN(topDocs.maxScore) == false) {
                 maxScore = Math.max(maxScore, topDocs.maxScore);
             }
             if (timedOut) {
@@ -676,7 +666,7 @@ public final class SearchPhaseController {
     }
 
     static final class SortedTopDocs {
-        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null);
+        static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null, 0);
         // the searches merged top docs
         final ScoreDoc[] scoreDocs;
         // <code>true</code> iff the result score docs is sorted by a field (not score), this implies that <code>sortField</code> is set.
@@ -685,14 +675,16 @@ public final class SearchPhaseController {
         final SortField[] sortFields;
         final String collapseField;
         final Object[] collapseValues;
+        final int numberOfCompletionsSuggestions;
 
         SortedTopDocs(ScoreDoc[] scoreDocs, boolean isSortedByField, SortField[] sortFields,
-                      String collapseField, Object[] collapseValues) {
+                      String collapseField, Object[] collapseValues, int numberOfCompletionsSuggestions) {
             this.scoreDocs = scoreDocs;
             this.isSortedByField = isSortedByField;
             this.sortFields = sortFields;
             this.collapseField = collapseField;
             this.collapseValues = collapseValues;
+            this.numberOfCompletionsSuggestions = numberOfCompletionsSuggestions;
         }
     }
 }

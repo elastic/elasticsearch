@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster;
 
@@ -35,6 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
+import static org.elasticsearch.cluster.metadata.DataStream.DATE_FORMATTER;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -42,9 +33,30 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public final class DataStreamTestHelper {
 
+    private static final Version DATE_IN_BACKING_INDEX_VERSION = Version.V_7_11_0;
     private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
+
+    public static String getLegacyDefaultBackingIndexName(
+        String dataStreamName,
+        long generation,
+        long epochMillis,
+        Version minNodeVersion) {
+        if (minNodeVersion.onOrAfter(DATE_IN_BACKING_INDEX_VERSION)) {
+            return String.format(Locale.ROOT,
+                BACKING_INDEX_PREFIX + "%s-%s-%06d",
+                dataStreamName,
+                DATE_FORMATTER.formatMillis(epochMillis),
+                generation);
+        } else {
+            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
+        }
+    }
+
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
+    }
 
     public static IndexMetadata.Builder createFirstBackingIndex(String dataStreamName) {
         return createBackingIndex(dataStreamName, 1, System.currentTimeMillis());

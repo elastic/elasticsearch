@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -98,7 +99,7 @@ public class Literal extends LeafExpression {
      * Throws an exception if the expression is not foldable.
      */
     public static Literal of(Expression foldable) {
-        if (!foldable.foldable()) {
+        if (foldable.foldable() == false) {
             throw new QlIllegalArgumentException("Foldable expression required for Literal creation; received unfoldable " + foldable);
         }
 

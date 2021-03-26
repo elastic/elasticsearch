@@ -1,23 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ilm;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -38,7 +28,11 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
     }
 
     static ShrinkAction randomInstance() {
-        return new ShrinkAction(randomIntBetween(1, 100));
+        if (randomBoolean()) {
+            return new ShrinkAction(randomIntBetween(1, 100), null);
+        } else {
+            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+        }
     }
 
     @Override
@@ -47,7 +41,17 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
     }
 
     public void testNonPositiveShardNumber() {
-        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0)));
+        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0), null));
         assertThat(e.getMessage(), equalTo("[number_of_shards] must be greater than 0"));
+    }
+
+    public void testMaxPrimaryShardSize() {
+        ByteSizeValue maxPrimaryShardSize1 = new ByteSizeValue(10);
+        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1));
+        assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
+
+        ByteSizeValue maxPrimaryShardSize2 = new ByteSizeValue(0);
+        Exception e2 = expectThrows(Exception.class, () -> new org.elasticsearch.client.ilm.ShrinkAction(null, maxPrimaryShardSize2));
+        assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
 }

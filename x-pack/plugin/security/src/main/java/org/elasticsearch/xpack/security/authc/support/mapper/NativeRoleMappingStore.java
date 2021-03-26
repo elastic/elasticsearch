@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
@@ -267,20 +268,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
-            getMappings(new ActionListener<List<ExpressionRoleMapping>>() {
-                @Override
-                public void onResponse(List<ExpressionRoleMapping> mappings) {
-                    final List<ExpressionRoleMapping> filtered = mappings.stream()
-                            .filter(m -> names.contains(m.getName()))
-                            .collect(Collectors.toList());
-                    listener.onResponse(filtered);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            getMappings(listener.delegateFailure((l, mappings) -> {
+                final List<ExpressionRoleMapping> filtered = mappings.stream()
+                        .filter(m -> names.contains(m.getName()))
+                        .collect(Collectors.toList());
+                l.onResponse(filtered);
+            }));
         }
     }
 
@@ -290,11 +283,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
-                logger.debug("Security Index [{}] [exists: {}] [available: {}] [mapping up to date: {}]",
+                logger.debug("Security Index [{}] [exists: {}] [available: {}]",
                         SECURITY_MAIN_ALIAS,
                         securityIndex.indexExists(),
-                        securityIndex.isAvailable(),
-                        securityIndex.isMappingUpToDate()
+                        securityIndex.isAvailable()
                 );
             }
             listener.onResponse(Collections.emptyList());
@@ -326,8 +318,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState) ||
-            previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+        if (isMoveFromRedToNonRed(previousState, currentState)
+            || isIndexDeleted(previousState, currentState)
+            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             refreshRealms(NO_OP_ACTION_LISTENER, null);
         }
     }

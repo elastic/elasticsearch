@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc;
@@ -390,11 +391,11 @@ public class ApiKeyService {
         final String docId = credentials.getId();
 
         Consumer<ApiKeyDoc> validator = apiKeyDoc ->
-            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+            validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener.delegateResponse((l, e) -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
-                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                    l.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
                 } else {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
             }));
 
@@ -778,24 +779,25 @@ public class ApiKeyService {
         }
 
         @Override
-        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, usedName, apiKeyId, modernName);
+                "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, oldName, apiKeyId, currentName);
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, usedName, apiKeyId, replacedWith);
+                "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, oldName, apiKeyId, replacedName);
         }
 
         @Override
-        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
-                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, usedName, apiKeyId);
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                prefix, removedName, apiKeyId);
         }
     }
 

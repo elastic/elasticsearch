@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
@@ -2062,51 +2051,52 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         Location location = userRegexNode.getLocation();
 
-        int constant = 0;
+        int regexFlags = 0;
 
         for (int i = 0; i < flags.length(); ++i) {
             char flag = flags.charAt(i);
 
             switch (flag) {
                 case 'c':
-                    constant |= Pattern.CANON_EQ;
+                    regexFlags |= Pattern.CANON_EQ;
                     break;
                 case 'i':
-                    constant |= Pattern.CASE_INSENSITIVE;
+                    regexFlags |= Pattern.CASE_INSENSITIVE;
                     break;
                 case 'l':
-                    constant |= Pattern.LITERAL;
+                    regexFlags |= Pattern.LITERAL;
                     break;
                 case 'm':
-                    constant |= Pattern.MULTILINE;
+                    regexFlags |= Pattern.MULTILINE;
                     break;
                 case 's':
-                    constant |= Pattern.DOTALL;
+                    regexFlags |= Pattern.DOTALL;
                     break;
                 case 'U':
-                    constant |= Pattern.UNICODE_CHARACTER_CLASS;
+                    regexFlags |= Pattern.UNICODE_CHARACTER_CLASS;
                     break;
                 case 'u':
-                    constant |= Pattern.UNICODE_CASE;
+                    regexFlags |= Pattern.UNICODE_CASE;
                     break;
                 case 'x':
-                    constant |= Pattern.COMMENTS;
+                    regexFlags |= Pattern.COMMENTS;
                     break;
                 default:
                     throw new IllegalArgumentException("invalid regular expression: unknown flag [" + flag + "]");
             }
         }
 
+        Pattern compiled;
         try {
-            Pattern.compile(pattern, constant);
+            compiled = Pattern.compile(pattern, regexFlags);
         } catch (PatternSyntaxException pse) {
             throw new Location(location.getSourceName(), location.getOffset() + 1 + pse.getIndex()).createError(
                     new IllegalArgumentException("invalid regular expression: " +
-                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]", pse));
+                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]: " + pse.getDescription(), pse));
         }
 
         semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
-        semanticScope.putDecoration(userRegexNode, new StandardConstant(constant));
+        semanticScope.putDecoration(userRegexNode, new StandardConstant(compiled));
     }
 
     /**
@@ -2548,7 +2538,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                         if (getter != null || setter != null) {
-                            if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
+                            if (getter != null && (getter.returnType == void.class || getter.typeParameters.isEmpty() == false)) {
                                 throw userDotNode.createError(new IllegalArgumentException(
                                         "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
                             }
@@ -2594,7 +2584,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 }
 
                                 if (getter != null && setter != null &&
-                                        (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
+                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
                                         getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                                     throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                                 }
@@ -2638,8 +2628,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                             "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."));
                                 }
 
-                                if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
-                                        || !getter.returnType.equals(setter.typeParameters.get(1)))) {
+                                if (getter != null && setter != null &&
+                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                                            || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                                     throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                                 }
 
@@ -2755,7 +2746,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "Illegal map set shortcut for type [" + canonicalClassName + "]."));
             }
 
-            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
+            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
                     getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
@@ -2801,8 +2792,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "Illegal list set shortcut for type [" + canonicalClassName + "]."));
             }
 
-            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
-                    || !getter.returnType.equals(setter.typeParameters.get(1)))) {
+            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                    || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.topmetrics;
@@ -226,9 +227,9 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
 
     private ValuesSourceConfig toConfig(SortedSetDocValues values) throws IOException {
         ValuesSource.Bytes.WithOrdinals source = mock(ValuesSource.Bytes.WithOrdinals.class);
-        when(source.globalOrdinalsValues(null)).thenReturn(values);
+        when(source.ordinalsValues(null)).thenReturn(values);
         ValuesSourceConfig config = toConfig(source, CoreValuesSourceType.KEYWORD, DocValueFormat.RAW, true);
-        when(config.hasGlobalOrdinals()).thenReturn(true);
+        when(config.hasOrdinals()).thenReturn(true);
         return config;
     }
 

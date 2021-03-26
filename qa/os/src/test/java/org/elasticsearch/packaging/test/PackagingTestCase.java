@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -28,6 +17,7 @@ import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -62,9 +52,11 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
@@ -172,8 +164,8 @@ public abstract class PackagingTestCase extends Assert {
 
         sh.reset();
         if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
-            Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
+            Platforms.onLinux(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
+            Platforms.onWindows(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
         }
         if (installation != null && distribution.isDocker() == false) {
             setHeap("1g");
@@ -223,6 +215,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
@@ -304,6 +297,7 @@ public abstract class PackagingTestCase extends Assert {
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -323,6 +317,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -331,7 +326,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
@@ -343,6 +338,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:
@@ -476,6 +472,46 @@ public abstract class PackagingTestCase extends Assert {
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING
             );
+        }
+    }
+
+    /**
+     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     */
+    public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
+        assertBusy(codeBlock, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Runs the code block for the provided interval, waiting for no assertions to trip.
+     */
+    public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
+        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        // In case you've forgotten your high-school studies, log10(x) / log10(y) == log y(x)
+        long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
+        long timeInMillis = 1;
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        for (int i = 0; i < iterations; i++) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += timeInMillis;
+            Thread.sleep(timeInMillis);
+            timeInMillis *= 2;
+        }
+        timeInMillis = maxTimeInMillis - sum;
+        Thread.sleep(Math.max(timeInMillis, 0));
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
         }
     }
 }

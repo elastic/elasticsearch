@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -14,9 +15,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -43,7 +41,6 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,18 +61,17 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
-import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -85,7 +81,6 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
-import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -198,9 +193,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Perform memory usage estimation for this config
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
-            startContext -> {
-                estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener);
-            },
+            startContext -> estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener),
             listener::onFailure
         );
 
@@ -592,13 +585,11 @@ public class TransportStartDataFrameAnalyticsAction
         private final Client client;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
-        private final IndexTemplateConfig inferenceIndexTemplate;
 
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
-                            IndexTemplateConfig inferenceIndexTemplate) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 MachineLearning.UTILITY_THREAD_POOL_NAME,
                 settings,
@@ -608,7 +599,6 @@ public class TransportStartDataFrameAnalyticsAction
             this.client = Objects.requireNonNull(client);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
-            this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -624,7 +614,8 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params, ClusterState clusterState) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+                getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
             if (optionalAssignment.isPresent()) {
                 return optionalAssignment.get();
             }
@@ -681,47 +672,26 @@ public class TransportStartDataFrameAnalyticsAction
             );
 
             // Get stats to initialize in memory stats tracking
-            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
+            ActionListener<Boolean> indexCheckListener = ActionListener.wrap(
                 ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
                     new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
                         new ParameterizedMessage(
-                            "[{}] failed to create internal index template [{}]",
+                            "[{}] failed to create internal index [{}]",
                             params.getId(),
-                            inferenceIndexTemplate.getTemplateName()),
+                            InferenceIndexConstants.LATEST_INDEX_NAME),
                         cause);
                     dfaTask.setFailed(error);
                 }
             );
 
-            MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
-        }
-
-        private void searchProgressFromIndex(String jobId, ActionListener<StoredProgress> listener) {
-            SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
-            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-            searchRequest.source().size(1);
-            searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(jobId)));
-            searchRequest.allowPartialSearchResults(false);
-
-            ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-                searchResponse -> {
-                    SearchHit[] hits = searchResponse.getHits().getHits();
-                    if (hits.length == 0) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] No stored progress found", jobId));
-                        listener.onResponse(null);
-                    } else {
-                        StoredProgress storedProgress = MlParserUtils.parse(hits[0], StoredProgress.PARSER);
-                        logger.debug(() -> new ParameterizedMessage("[{}] Found stored progress {}", jobId, storedProgress.get().get(0)));
-                        listener.onResponse(storedProgress);
-                    }
-                },
-                listener::onFailure
-            );
-
-            executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchListener);
+            // Create the system index explicitly.  Although the master node would create it automatically on first use,
+            // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
+            // might use outdated mappings.
+            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
+                indexCheckListener);
         }
 
         private void executeTask(DataFrameAnalyticsTask task) {

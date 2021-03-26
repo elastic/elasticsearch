@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -9,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -17,13 +17,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.TaskExecutor;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
@@ -93,9 +92,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         assertThat(
             assignment.getExplanation(),
             allOf(
-                containsString("Not opening job [data_frame_id] on node [_node_name0], because this node isn't a ml node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name1], because this node isn't a ml node."),
-                containsString("Not opening job [data_frame_id] on node [_node_name2], because this node isn't a ml node.")));
+                containsString("Not opening job [data_frame_id] on node [_node_name0]. Reason: This node isn't a machine learning node."),
+                containsString("Not opening job [data_frame_id] on node [_node_name1]. Reason: This node isn't a machine learning node."),
+                containsString("Not opening job [data_frame_id] on node [_node_name2]. Reason: This node isn't a machine learning node.")));
     }
 
     // Cannot assign the node because none of the existing nodes is appropriate:
@@ -165,8 +164,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
             mock(MlMemoryTracker.class),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            mock(IndexTemplateConfig.class));
+            TestIndexNameExpressionResolver.newInstance());
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion) {

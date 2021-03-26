@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
@@ -417,22 +406,26 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (nodeName.length() > 0) {
-            sb.append('{').append(nodeName).append('}');
-        }
-        sb.append('{').append(nodeId).append('}');
-        sb.append('{').append(ephemeralId).append('}');
-        sb.append('{').append(hostName).append('}');
-        sb.append('{').append(address).append('}');
-        if (roles.isEmpty() == false) {
-            sb.append('{');
-            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(sb::append);
-            sb.append('}');
-        }
+        appendDescriptionWithoutAttributes(sb);
         if (attributes.isEmpty() == false) {
             sb.append(attributes);
         }
         return sb.toString();
+    }
+
+    public void appendDescriptionWithoutAttributes(StringBuilder stringBuilder) {
+        if (nodeName.length() > 0) {
+            stringBuilder.append('{').append(nodeName).append('}');
+        }
+        stringBuilder.append('{').append(nodeId).append('}');
+        stringBuilder.append('{').append(ephemeralId).append('}');
+        stringBuilder.append('{').append(hostName).append('}');
+        stringBuilder.append('{').append(address).append('}');
+        if (roles.isEmpty() == false) {
+            stringBuilder.append('{');
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+            stringBuilder.append('}');
+        }
     }
 
     @Override

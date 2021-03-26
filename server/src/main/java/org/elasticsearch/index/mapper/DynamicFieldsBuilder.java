@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -26,6 +15,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
+import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -204,13 +198,13 @@ final class DynamicFieldsBuilder {
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
         if (dynamicTemplate.isRuntimeMapping()) {
             Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
-            RuntimeFieldType.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
+            RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
             String fullName = context.path().pathAsText(name);
             if (parser == null) {
                 throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + fullName + "]");
             }
-            RuntimeFieldType runtimeFieldType = parser.parse(fullName, mapping, parserContext);
-            Runtime.createDynamicField(runtimeFieldType, context);
+            RuntimeField runtimeField = parser.parse(fullName, mapping, parserContext);
+            Runtime.createDynamicField(runtimeField, context);
         } else {
             Mapper.Builder builder = parseDynamicTemplateMapping(name, mappingType, mapping, dateFormatter, context);
             CONCRETE.createDynamicField(builder, context);
@@ -318,43 +312,38 @@ final class DynamicFieldsBuilder {
      * @see Dynamic
      */
     private static final class Runtime implements Strategy {
-        static void createDynamicField(RuntimeFieldType runtimeFieldType, ParseContext context) {
-            context.addDynamicRuntimeField(runtimeFieldType);
+        static void createDynamicField(RuntimeField runtimeField, ParseContext context) {
+            context.addDynamicRuntimeField(runtimeField);
         }
 
         @Override
         public void newDynamicStringField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicStringField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new KeywordScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicLongField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicLongField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new LongScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicDoubleField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDoubleField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new DoubleScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicBooleanField(fullName);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new BooleanScriptFieldType(fullName), context);
         }
 
         @Override
         public void newDynamicDateField(ParseContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            RuntimeFieldType runtimeFieldType = context.getDynamicRuntimeFieldsBuilder().newDynamicDateField(fullName, dateFormatter);
-            createDynamicField(runtimeFieldType, context);
+            createDynamicField(new DateScriptFieldType(fullName, dateFormatter), context);
         }
     }
 }

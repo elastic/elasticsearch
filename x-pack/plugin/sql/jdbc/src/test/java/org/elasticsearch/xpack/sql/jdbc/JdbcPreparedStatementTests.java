@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -18,7 +19,6 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.Date;
@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.lang.String.format;
+import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BINARY;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BYTE;
@@ -369,21 +370,32 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     public void testSettingTimestampValues() throws SQLException {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
+        int randomNanos = randomInt(999999999);
+
         Timestamp someTimestamp = new Timestamp(randomLong());
+        someTimestamp.setNanos(randomNanos);
         jps.setTimestamp(1, someTimestamp);
-        assertEquals(someTimestamp.getTime(), ((Date)value(jps)).getTime());
+        assertEquals(someTimestamp.getTime(), ((ZonedDateTime) value(jps)).toInstant().toEpochMilli());
+        assertEquals(someTimestamp.getNanos(), ((ZonedDateTime) value(jps)).getNano());
         assertEquals(DATETIME, jdbcType(jps));
 
         Calendar nonDefaultCal = randomCalendar();
         // February 29th, 2016. 01:17:55 GMT = 1456708675000 millis since epoch
-        jps.setTimestamp(1, new Timestamp(1456708675000L), nonDefaultCal);
-        assertEquals(1456708675000L, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
+        Timestamp someTimestamp2 = new Timestamp(1456708675000L);
+        someTimestamp2.setNanos(randomNanos);
+        jps.setTimestamp(1, someTimestamp2, nonDefaultCal);
+        ZonedDateTime zdt = (ZonedDateTime) value(jps);
+        assertEquals(someTimestamp2.getTime(), convertFromUTCtoCalendar(zdt, nonDefaultCal));
+        assertEquals(someTimestamp2.getNanos(), zdt.getNano());
         assertEquals(DATETIME, jdbcType(jps));
 
         long beforeEpochTime = randomLongBetween(Long.MIN_VALUE, 0);
-        jps.setTimestamp(1, new Timestamp(beforeEpochTime), nonDefaultCal);
-        assertEquals(beforeEpochTime, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertTrue(value(jps) instanceof java.util.Date);
+        Timestamp someTimestamp3 = new Timestamp(beforeEpochTime);
+        someTimestamp3.setNanos(randomNanos);
+        jps.setTimestamp(1, someTimestamp3, nonDefaultCal);
+        zdt = (ZonedDateTime) value(jps);
+        assertEquals(someTimestamp3.getTime(), convertFromUTCtoCalendar(zdt, nonDefaultCal));
+        assertEquals(someTimestamp3.getNanos(), zdt.getNano());
 
         jps.setObject(1, someTimestamp, Types.VARCHAR);
         assertEquals(someTimestamp.toString(), value(jps).toString());
@@ -589,13 +601,20 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         return Calendar.getInstance(randomTimeZone(), Locale.ROOT);
     }
 
-    /*
+    /**
+     * @see #convertFromUTCtoCalendar(ZonedDateTime, Calendar)
+     */
+    private long convertFromUTCtoCalendar(Date date, Calendar nonDefaultCal) {
+        return convertFromUTCtoCalendar(ZonedDateTime.ofInstant(date.toInstant(), UTC), nonDefaultCal);
+    }
+
+    /**
      * Converts from UTC to the provided Calendar.
      * Helps checking if the converted date/time values using Calendars in set*(...,Calendar) methods did convert
      * the values correctly to UTC.
      */
-    private long convertFromUTCtoCalendar(Date date, Calendar nonDefaultCal) throws SQLException {
-        return ZonedDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC)
+    private long convertFromUTCtoCalendar(ZonedDateTime zdt, Calendar nonDefaultCal) {
+        return zdt.withZoneSameInstant(UTC)
                 .withZoneSameLocal(nonDefaultCal.getTimeZone().toZoneId())
                 .toInstant().toEpochMilli();
     }

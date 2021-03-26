@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -213,6 +214,10 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
     }
 
+    protected String configServiceTokens() {
+        return SECURITY_DEFAULT_SETTINGS.configServiceTokens();
+    }
+
     /**
      * Allows to override the node client username
      */
@@ -258,6 +263,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         @Override
         protected String configOperatorUsers() {
             return SecuritySingleNodeTestCase.this.configOperatorUsers();
+        }
+
+        @Override
+        protected String configServiceTokens() {
+            return SecuritySingleNodeTestCase.this.configServiceTokens();
         }
 
         @Override

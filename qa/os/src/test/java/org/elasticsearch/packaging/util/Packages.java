@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -88,7 +77,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
         if (result.exitCode != 0) {
@@ -98,7 +87,7 @@ public class Packages {
         Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
         return installation;
     }
@@ -123,7 +112,7 @@ public class Packages {
 
     private static Result runPackageManager(Distribution distribution, Shell sh, PackageManagerCommand command) {
         final String distributionArg = command == PackageManagerCommand.QUERY || command == PackageManagerCommand.REMOVE
-            ? distribution.flavor.name
+            ? "elasticsearch"
             : distribution.path.toString();
 
         if (Platforms.isRPM()) {
@@ -161,9 +150,7 @@ public class Packages {
 
     public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
         verifyOssInstallation(installation, distribution, sh);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution);
-        }
+        verifyDefaultInstallation(installation, distribution);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
@@ -205,7 +192,7 @@ public class Packages {
         if (distribution.packaging == Distribution.Packaging.RPM) {
             assertThat(es.home.resolve("LICENSE.txt"), file(File, "root", "root", p644));
         } else {
-            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/" + distribution.flavor.name).stdout.trim());
+            Path copyrightDir = Paths.get(sh.run("readlink -f /usr/share/doc/elasticsearch").stdout.trim());
             assertThat(copyrightDir, file(Directory, "root", "root", p755));
             assertThat(copyrightDir.resolve("copyright"), file(File, "root", "root", p644));
         }
@@ -233,6 +220,7 @@ public class Packages {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"

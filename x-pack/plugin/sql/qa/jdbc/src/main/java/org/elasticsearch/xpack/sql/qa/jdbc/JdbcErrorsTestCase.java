@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -137,7 +138,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
                 SQLException.class,
                 () -> c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000").executeQuery()
             );
-            assertEquals("The maximum LIMIT for aggregate sorting is [65535], received [120000]", e.getMessage());
+            assertEquals("The maximum LIMIT for aggregate sorting is [65536], received [120000]", e.getMessage());
         }
     }
 }

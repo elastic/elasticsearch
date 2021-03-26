@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
@@ -56,18 +57,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
-            if (in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
-                this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            }
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
-            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
-                indicesOptions.writeIndicesOptions(out);
-            }
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override

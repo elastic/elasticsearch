@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
@@ -361,6 +350,42 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots(repo);
             assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
         }
+    }
+
+    public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
+        createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
+
+        createIndexWithContent("test-idx-1");
+        ensureGreen();
+
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
+
+        logger.info("--> wait for data nodes to get blocked");
+        waitForBlockOnAnyDataNode("test-repo");
+        awaitNumberOfSnapshotsInProgress(1);
+
+        GetSnapshotsResponse response1 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
+            .setIgnoreUnavailable(true)
+            .get();
+        List<SnapshotInfo> snapshotInfoList = response1.getSnapshots("test-repo");
+        assertEquals(1, snapshotInfoList.size());
+        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
+
+        String notExistedSnapshotName = "snapshot_not_exist";
+        GetSnapshotsResponse response2 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName)
+            .setIgnoreUnavailable(true)
+            .get();
+        assertEquals(0, response2.getSnapshots("test-repo").size());
+
+        GetSnapshotsResponse response3 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName)
+            .setIgnoreUnavailable(false)
+            .get();
+        expectThrows(SnapshotMissingException.class, () -> response3.getSnapshots("test-repo"));
+
+        logger.info("--> unblock all data nodes");
+        unblockAllDataNodes("test-repo");
+
+        assertSuccessful(createSnapshotResponseActionFuture);
     }
 
     public void testSnapshotStatusOnFailedSnapshot() throws Exception {

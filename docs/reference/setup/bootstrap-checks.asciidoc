@@ -24,11 +24,11 @@ documented individually.
 [[dev-vs-prod-mode]]
 === Development vs. production mode
 
-By default, Elasticsearch binds to loopback addresses for <<modules-http,HTTP>>
-and <<modules-transport,transport (internal)>> communication. This is fine for
-downloading and playing with Elasticsearch as well as everyday development, but
-it's useless for production systems. To join a cluster, an Elasticsearch node
-must be reachable via transport communication. To join a cluster via a
+By default, {es} binds to loopback addresses for
+<<modules-network,HTTP and transport (internal) communication>>. This is fine
+for downloading and playing with {es} as well as everyday development,
+but it's useless for production systems. To join a cluster, an {es}
+node must be reachable via transport communication. To join a cluster via a
 non-loopback address, a node must bind transport to a non-loopback address and
 not be using <<single-node-discovery,single-node discovery>>. Thus, we consider
 an Elasticsearch node to be in development mode if it can not form a cluster
@@ -36,7 +36,7 @@ with another machine via a non-loopback address, and is otherwise in production
 mode if it can join a cluster via non-loopback addresses.
 
 Note that HTTP and transport can be configured independently via
-<<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>; this
+<<http-settings,`http.host`>> and <<transport-settings,`transport.host`>>; this
 can be useful for configuring a single node to be reachable via HTTP for testing
 purposes without triggering production mode.
 

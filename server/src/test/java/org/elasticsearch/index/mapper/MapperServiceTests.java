@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -50,12 +39,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
     public void testMappingLookup() throws IOException {
         MapperService service = createMapperService(mapping(b -> {}));
         MappingLookup oldLookup = service.mappingLookup();
-        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
+        assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
 
         merge(service, mapping(b -> b.startObject("cat").field("type", "keyword").endObject()));
         MappingLookup newLookup = service.mappingLookup();
-        assertThat(newLookup.fieldTypes().get("cat"), not(nullValue()));
-        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
+        assertThat(newLookup.fieldTypesLookup().get("cat"), not(nullValue()));
+        assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
     }
 
     /**
@@ -263,6 +252,43 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }
             assertTrue("Expected " + builtIn + " to be a metadata field for version " + version,
                 mapperService.isMetadataField(builtIn));
+        }
+    }
+
+    public void testMappingUpdateChecks() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // Text fields are not stored by default, so an incoming update that is identical but
+            // just has `stored:false` should not require an update
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"false\"}}}");
+            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
+        }
+
+        {
+            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+            Settings settings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            builder.settings(settings);
+
+            // However, an update that really does need a rebuild will throw an exception
+            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"true\"}}}");
+            Exception e = expectThrows(IllegalStateException.class,
+                () -> mapperService.assertNoUpdateRequired(builder.build()));
+
+            assertThat(e.getMessage(), containsString("expected current mapping ["));
+            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
         }
     }
 

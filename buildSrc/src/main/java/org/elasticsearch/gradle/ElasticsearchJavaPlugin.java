@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
@@ -40,6 +29,7 @@ import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
@@ -54,7 +44,9 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.util.Util.toStringable;
 
@@ -130,9 +122,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             });
         };
 
+        // disable transitive dependency management
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        GradleUtils.disableTransitiveDependenciesForSourceSet(project, sourceSets.getByName("main"));
-        GradleUtils.disableTransitiveDependenciesForSourceSet(project, sourceSets.getByName("test"));
+        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
     /**
@@ -291,5 +283,17 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
+    }
+
+    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
+        Stream.of(
+            sourceSet.getApiConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getCompileOnlyConfigurationName(),
+            sourceSet.getRuntimeOnlyConfigurationName()
+        )
+            .map(name -> project.getConfigurations().findByName(name))
+            .filter(Objects::nonNull)
+            .forEach(GradleUtils::disableTransitiveDependencies);
     }
 }

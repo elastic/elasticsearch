@@ -208,6 +208,26 @@ The API returns transformed documents:
 // TESTRESPONSE[s/"2099-02-30T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
 
 [discrete]
+[[manage-pipelines-for-fleet-elastic-agent]]
+=== Manage pipelines for {fleet} and {agent}
+
+{fleet-guide}/index.html[{fleet}] automatically adds ingest pipelines for its
+integrations. If needed, you can edit these pipelines using {kib}'s **Ingest
+Node Pipelines** feature.
+
+If you use {fleet}'s **Custom logs** integration, you can specify a pipeline to
+use. When adding or editing a **Custom logs** integration, click **Configure
+integration > Custom log file > Advanced options**. In **Custom
+Configurations**, specify `pipeline: <my-pipeline>`.
+
+[role="screenshot"]
+image::images/ingest/custom-logs-pipeline.png[Add pipeline for custom log file,align="center"]
+
+If you use run {agent} standalone, specify `pipeline: <my-pipeline>` in your
+`elastic-agent.yml` configuration. See
+{fleet-guide}/run-elastic-agent-standalone.html[Run {agent} standalone].
+
+[discrete]
 [[add-pipeline-to-indexing-request]]
 === Add a pipeline to an indexing request
 

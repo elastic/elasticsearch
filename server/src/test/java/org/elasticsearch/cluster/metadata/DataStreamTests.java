@@ -48,7 +48,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID());
+        DataStream rolledDs = ds.rollover(Metadata.EMPTY_METADATA, UUIDs.randomBase64UUID());
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -57,6 +57,25 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
     }
+
+    /*
+    public void testRolloverWithConflictingBackingIndexName() {
+        DataStream ds = DataStreamTestHelper.randomInstance(() -> 0L).promoteDataStream();
+
+        Metadata.builder()
+
+        DataStream rolledDs = ds.rollover(Metadata.EMPTY_METADATA, UUIDs.randomBase64UUID());
+
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+
+    }
+
+     */
 
     public void testRemoveBackingIndex() {
         int numBackingIndices = randomIntBetween(2, 32);

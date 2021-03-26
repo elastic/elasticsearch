@@ -960,21 +960,6 @@ public class MetadataTests extends ESTestCase {
                 "]) conflicts with data stream]"));
     }
 
-    public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
-        final String dataStreamName = "my-data-stream";
-        IndexMetadata validIdx = createFirstBackingIndex(dataStreamName).build();
-        final String conflictingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-        IndexMetadata invalidIdx = createBackingIndex(dataStreamName, 2).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(validIdx, false)
-            .put(invalidIdx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(validIdx.getIndex())));
-
-        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
-            "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingIndex + "'"));
-    }
-
     public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
@@ -986,8 +971,8 @@ public class MetadataTests extends ESTestCase {
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
-            "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingName + "'"));
+        assertThat(e.getMessage(), containsString("aliases [" + conflictingName +
+            "] cannot refer to backing indices of data streams"));
     }
 
     public void testBuilderForDataStreamWithRandomlyNumberedBackingIndices() {
@@ -1011,38 +996,6 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-    }
-
-    public void testOverlappingDataStreamNamesWithBackingIndexDatePattern() {
-        final String dataStreamName1 = "logs-foobar-2021.01.13";
-        Metadata.Builder b = Metadata.builder();
-        IndexMetadata ds1Index1 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName1, 1))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        b.put(ds1Index1, false);
-        IndexMetadata ds1Index2 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName1, 2))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        b.put(ds1Index2, false);
-        b.put(new DataStream(dataStreamName1, createTimestampField("@timestamp"),
-            Arrays.asList(ds1Index1.getIndex(), ds1Index2.getIndex()), 2, null));
-
-        final String dataStreamName2 = "logs-foobar";
-        IndexMetadata ds2Index1 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName2, 1))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        b.put(ds2Index1, false);
-        b.put(new DataStream(dataStreamName2, createTimestampField("@timestamp"),
-            Collections.singletonList(ds2Index1.getIndex()), 1, null));
-
-        Metadata metadata = b.build();
-        assertThat(metadata.dataStreams().size(), equalTo(2));
     }
 
     public void testBuildIndicesLookupForDataStreams() {
@@ -1110,41 +1063,6 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
         validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
-    }
-
-    public void testValidateDataStreamsThrowsExceptionOnConflict() {
-        String dataStreamName = "foo-datastream";
-        int generations = 10;
-        List<IndexMetadata> backingIndices = new ArrayList<>(generations);
-        for (int i = 1; i <= generations; i++) {
-            IndexMetadata idx = createBackingIndex(dataStreamName, i).build();
-            backingIndices.add(idx);
-        }
-        DataStream dataStream = new DataStream(
-            dataStreamName,
-            createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
-        );
-
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
-        // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method and would fail
-        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-        for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
-        }
-
-        // add the offending index to the indices lookup
-        IndexMetadata standaloneIndexConflictingWithBackingIndices = createBackingIndex(dataStreamName, 2 * generations).build();
-        Index index = standaloneIndexConflictingWithBackingIndices.getIndex();
-        indicesLookup.put(index.getName(), new IndexAbstraction.Index(standaloneIndexConflictingWithBackingIndices, null));
-
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
-
-        IllegalStateException illegalStateException =
-            expectThrows(IllegalStateException.class, () -> validateDataStreams(indicesLookup, dataStreamMetadata));
-        assertThat(illegalStateException.getMessage(),
-            is("data stream [foo-datastream] could create backing indices that conflict with 1 existing index(s) or alias(s) " +
-                "including '" + index.getName() + "'"));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {

@@ -34,16 +34,13 @@ import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
-        @Override
-        protected RuntimeField buildFieldType() {
-            if (script.get() == null) {
-                return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
+        new Builder<>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
+            @Override
+            RuntimeField newRuntimeField(LongFieldScript.Factory scriptFactory) {
+                return new LongScriptFieldType(name, scriptFactory, getScript(), meta(), this);
             }
-            LongFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), LongFieldScript.CONTEXT);
-            return new LongScriptFieldType(name, factory, getScript(), meta(), this);
-        }
-    });
+        });
 
     public LongScriptFieldType(String name) {
         this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);

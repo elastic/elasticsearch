@@ -7,7 +7,6 @@
 [id="{upid}-{api}"]
 === Delete {dfanalytics-jobs} API
 
-beta::[]
 
 Delete an existing {dfanalytics-job}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.

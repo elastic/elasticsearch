@@ -11,7 +11,7 @@ ingest pipelines.
 
 The logs you want to parse look similar to this:
 
-[source,js]
+[source,log]
 ----
 212.87.37.154 - - [30/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\"
 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6)
@@ -37,9 +37,9 @@ image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines lis
 .. Set the field input to `message` and enter the following <<grok-basics,grok
 pattern>>:
 +
-[source,js]
+[source,grok]
 ----
-%{IPORHOST:client.ip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:@timestamp}\] "%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:user_agent}
+%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \[%{HTTPDATE:@timestamp}\] "%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}
 ----
 // NOTCONSOLE
 +
@@ -50,32 +50,45 @@ field to each processor type:
 +
 --
 * <<date-processor,**Date**>>: `@timestamp`
-* <<geoip-processor,**GeoIP**>>: `client.ip`
+* <<geoip-processor,**GeoIP**>>: `source.ip`
 * <<user-agent-processor,**User agent**>>: `user_agent`
 
 In the **Date** processor, specify the date format you want to use:
 `dd/MMM/yyyy:HH:mm:ss Z`.
---
+
+In the **GeoIP** processor, specify the target field as `source.geo`.
+
 Your form should look similar to this:
-+
+
 [role="screenshot"]
 image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Node Pipelines,align="center"]
-+
+
 The four processors will run sequentially: +
 Grok > Date > GeoIP > User agent +
 You can reorder processors using the arrow icons.
-+
+
 Alternatively, you can click the **Import processors** link and define the
 processors as JSON:
-+
-[source,console]
+
+[source,js]
 ----
 {
+include::common-log-format-example.asciidoc[tag=common-log-pipeline]
+}
+----
+// NOTCONSOLE
+
+////
+[source,console]
+----
+PUT /_ingest/pipeline/my-pipeline
+{
+// tag::common-log-pipeline[]
   "processors": [
     {
       "grok": {
         "field": "message",
-        "patterns": ["%{IPORHOST:client.ip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:user_agent}"]
+        "patterns": ["%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}"]
       }
     },
     {
@@ -86,7 +99,8 @@ processors as JSON:
     },
     {
       "geoip": {
-        "field": "client.ip"
+        "field": "source.ip",
+        "target_field": "source.geo"
       }
     },
     {
@@ -95,9 +109,11 @@ processors as JSON:
       }
     }
   ]
+// end::common-log-pipeline[]
 }
 ----
-// TEST[s/^/PUT _ingest\/pipeline\/my-pipeline\n/]
+////
+--
 
 . To test the pipeline, click **Add documents**.
 
@@ -120,77 +136,117 @@ processors as JSON:
 . If everything looks correct, close the panel, and then click **Create
 pipeline**.
 +
-You’re now ready to load the logs data using the <<docs-index_,index API>>.
+You’re now ready to index the logs data to a <<data-streams,data stream>>.
+
+. Create an <<index-templates,index template>> with
+<<create-a-data-stream-template,data stream enabled>>.
++
+[source,console]
+----
+PUT /_index_template/my-data-stream-template
+{
+  "index_patterns": [ "my-data-stream*" ],
+  "data_stream": { },
+  "priority": 500
+}
+----
+// TEST[continued]
 
 . Index a document with the pipeline you created.
 +
 [source,console]
 ----
-PUT my-index/_doc/1?pipeline=my-pipeline
+POST /my-data-stream/_doc?pipeline=my-pipeline
 {
   "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
 }
 ----
+// TEST[s/my-pipeline/my-pipeline&refresh=wait_for/]
 // TEST[continued]
 
-. To verify, run:
+. To verify, search the data stream to retrieve the document. The following
+search uses <<common-options-response-filtering,`filter_path`>> to return only
+the <<mapping-source-field,document source>>.
 +
+--
 [source,console]
 ----
-GET my-index/_doc/1
+GET /my-data-stream/_search?filter_path=hits.hits._source
 ----
 // TEST[continued]
 
-////
+The API returns:
+
 [source,console-result]
 ----
 {
-  "_index": "my-index",
-  "_id": "1",
-  "_version": 1,
-  "_seq_no": 0,
-  "_primary_term": 1,
-  "found": true,
-  "_source": {
-    "request": "/favicon.ico",
-    "geoip": {
-      "continent_name": "Europe",
-      "region_iso_code": "DE-BE",
-      "city_name": "Berlin",
-      "country_iso_code": "DE",
-      "country_name": "Germany",
-      "region_name": "Land Berlin",
-      "location": {
-        "lon": 13.4978,
-        "lat": 52.411
+  "hits": {
+    "hits": [
+      {
+        "_source": {
+          "@timestamp": "2099-05-05T16:21:15.000Z",
+          "http": {
+            "request": {
+              "referrer": "\"-\"",
+              "method": "GET"
+            },
+            "response": {
+              "status_code": 200,
+              "body": {
+                "bytes": 3638
+              }
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "212.87.37.154",
+            "geo": {
+              "continent_name": "Europe",
+              "region_iso_code": "DE-BE",
+              "city_name": "Berlin",
+              "country_iso_code": "DE",
+              "country_name": "Germany",
+              "region_name": "Land Berlin",
+              "location": {
+                "lon": 13.4978,
+                "lat": 52.411
+              }
+            }
+          },
+          "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+          "url": {
+            "original": "/favicon.ico"
+          },
+          "user": {
+            "name": "-",
+            "id": "-"
+          },
+          "user_agent": {
+            "original": "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+            "os": {
+              "name": "Mac OS X",
+              "version": "10.11.6",
+              "full": "Mac OS X 10.11.6"
+            },
+            "name": "Chrome",
+            "device": {
+              "name": "Mac"
+            },
+            "version": "52.0.2743.116"
+          }
+        }
       }
-    },
-    "auth": "-",
-    "ident": "-",
-    "verb": "GET",
-    "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
-    "referrer": "\"-\"",
-    "@timestamp": "2099-05-05T16:21:15.000Z",
-    "response": 200,
-    "bytes": 3638,
-    "client": {
-      "ip": "212.87.37.154"
-    },
-    "httpversion": "1.1",
-    "user_agent": {
-      "original": "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
-      "os": {
-        "name": "Mac OS X",
-        "version": "10.11.6",
-        "full": "Mac OS X 10.11.6"
-      },
-      "name": "Chrome",
-      "device": {
-        "name": "Mac"
-      },
-      "version": "52.0.2743.116"
-    }
+    ]
   }
 }
 ----
+--
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+DELETE /_index_template/*
+----
+// TEST[continued]
 ////

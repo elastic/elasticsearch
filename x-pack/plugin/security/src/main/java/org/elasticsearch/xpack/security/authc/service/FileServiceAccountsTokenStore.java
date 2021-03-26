@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -26,19 +28,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore {
+public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenStore {
 
     private static final Logger logger = LogManager.getLogger(FileServiceAccountsTokenStore.class);
 
     private final Path file;
-    private final CopyOnWriteArrayList<Runnable> listeners;
+    private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
-    public FileServiceAccountsTokenStore(Environment env, ResourceWatcherService resourceWatcherService) {
+    public FileServiceAccountsTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool) {
+        super(env.settings(), threadPool);
         file = resolveFile(env);
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
@@ -52,20 +57,24 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load service_tokens file [" + file + "]", e);
         }
-        listeners = new CopyOnWriteArrayList<>();
+        refreshListeners = new CopyOnWriteArrayList<>(List.of(this::invalidateAll));
     }
 
     @Override
-    public boolean authenticate(ServiceAccountToken token) {
-        return false;
+    public void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+        // This is done on the current thread instead of using a dedicated thread pool like API key does
+        // because it is not expected to have a large number of service tokens.
+        listener.onResponse(Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
+            .map(hash -> Hasher.verifyHash(token.getSecret(), hash))
+            .orElse(false));
     }
 
     public void addListener(Runnable listener) {
-        listeners.add(listener);
+        refreshListeners.add(listener);
     }
 
     private void notifyRefresh() {
-        listeners.forEach(Runnable::run);
+        refreshListeners.forEach(Runnable::run);
     }
 
     private void tryReload() {
@@ -133,4 +142,5 @@ public class FileServiceAccountsTokenStore implements ServiceAccountsTokenStore 
         SecurityFiles.writeFileAtomically(
             path, tokenHashes, e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
     }
+
 }

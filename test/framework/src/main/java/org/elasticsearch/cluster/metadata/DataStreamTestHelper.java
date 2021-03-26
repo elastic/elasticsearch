@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.cluster;
+package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;

@@ -8,8 +8,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common'
-    includeXpack 'autoscaling'
+    include '_common', 'autoscaling'
   }
 }
 

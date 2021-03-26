@@ -34,16 +34,13 @@ import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser((name, parserContext) -> new Builder(name) {
-        @Override
-        protected RuntimeField buildFieldType() {
-            if (script.get() == null) {
-                return new DoubleScriptFieldType(name, DoubleFieldScript.PARSE_FROM_SOURCE, getScript(), meta(), this);
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
+        new Builder<>(name, DoubleFieldScript.CONTEXT, DoubleFieldScript.PARSE_FROM_SOURCE) {
+            @Override
+            RuntimeField newRuntimeField(DoubleFieldScript.Factory scriptFactory) {
+                return new DoubleScriptFieldType(name, scriptFactory, getScript(), meta(), this);
             }
-            DoubleFieldScript.Factory factory = parserContext.scriptCompiler().compile(script.getValue(), DoubleFieldScript.CONTEXT);
-            return new DoubleScriptFieldType(name, factory, getScript(), meta(), this);
-        }
-    });
+        });
 
     public DoubleScriptFieldType(String name) {
         this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);

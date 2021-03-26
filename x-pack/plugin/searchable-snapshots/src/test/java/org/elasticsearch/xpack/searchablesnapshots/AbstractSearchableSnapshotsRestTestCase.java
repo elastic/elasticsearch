@@ -43,26 +43,54 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
-    private static final String REPOSITORY_NAME = "repository";
+    private static final String WRITE_REPOSITORY_NAME = "repository";
+    private static final String READ_REPOSITORY_NAME = "read-repository";
     private static final String SNAPSHOT_NAME = "searchable-snapshot";
 
-    protected abstract String repositoryType();
+    protected abstract String writeRepositoryType();
 
-    protected abstract Settings repositorySettings();
+    protected abstract Settings writeRepositorySettings();
+
+    protected boolean useReadRepository() {
+        return false;
+    }
+
+    protected String readRepositoryType() {
+        return writeRepositoryType();
+    }
+
+    protected Settings readRepositorySettings() {
+        return writeRepositorySettings();
+    }
 
     private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody) throws Exception {
         runSearchableSnapshotsTest(testCaseBody, false);
     }
 
     private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody, boolean sourceOnly) throws Exception {
-        final String repositoryType = repositoryType();
-        Settings repositorySettings = repositorySettings();
+        final String repositoryType = writeRepositoryType();
+        Settings repositorySettings = writeRepositorySettings();
         if (sourceOnly) {
             repositorySettings = Settings.builder().put("delegate_type", repositoryType).put(repositorySettings).build();
         }
 
-        logger.info("creating repository [{}] of type [{}]", REPOSITORY_NAME, repositoryType);
-        registerRepository(REPOSITORY_NAME, sourceOnly ? "source" : repositoryType, true, repositorySettings);
+        logger.info("creating repository [{}] of type [{}]", WRITE_REPOSITORY_NAME, repositoryType);
+        registerRepository(WRITE_REPOSITORY_NAME, sourceOnly ? "source" : repositoryType, true, repositorySettings);
+
+        final String readRepository;
+        if (useReadRepository()) {
+            final String readRepositoryType = readRepositoryType();
+            Settings readRepositorySettings = readRepositorySettings();
+            if (sourceOnly) {
+                readRepositorySettings = Settings.builder().put("delegate_type", readRepositoryType).put(readRepositorySettings).build();
+            }
+
+            logger.info("creating read repository [{}] of type [{}]", READ_REPOSITORY_NAME, readRepositoryType);
+            registerRepository(READ_REPOSITORY_NAME, sourceOnly ? "source" : readRepositoryType, true, readRepositorySettings);
+            readRepository = READ_REPOSITORY_NAME;
+        } else {
+            readRepository = WRITE_REPOSITORY_NAME;
+        }
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -112,14 +140,14 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         deleteSnapshot(SNAPSHOT_NAME, true);
 
         logger.info("creating snapshot [{}]", SNAPSHOT_NAME);
-        createSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, true);
+        createSnapshot(WRITE_REPOSITORY_NAME, SNAPSHOT_NAME, true);
 
         logger.info("deleting index [{}]", indexName);
         deleteIndex(indexName);
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, SNAPSHOT_NAME, restoredIndexName);
-        mountSnapshot(indexName, restoredIndexName);
+        mountSnapshot(indexName, restoredIndexName, readRepository);
 
         ensureGreen(restoredIndexName);
 
@@ -261,7 +289,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             // useful for third party tests that runs the test against a real external service.
             deleteSnapshot(snapshot2Name, true);
 
-            final Request snapshotRequest = new Request(HttpPut.METHOD_NAME, "_snapshot/" + REPOSITORY_NAME + '/' + snapshot2Name);
+            final Request snapshotRequest = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + snapshot2Name);
             snapshotRequest.addParameter("wait_for_completion", "true");
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
@@ -275,7 +303,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final List<Map<String, Map<String, Object>>> snapshotShardsStats = extractValue(
                 responseAsMap(
                     client().performRequest(
-                        new Request(HttpGet.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + snapshot2Name + "/_status")
+                        new Request(HttpGet.METHOD_NAME, "/_snapshot/" + WRITE_REPOSITORY_NAME + "/" + snapshot2Name + "/_status")
                     )
                 ),
                 "snapshots.indices." + restoredIndexName + ".shards"
@@ -289,7 +317,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             deleteIndex(restoredIndexName);
 
-            restoreSnapshot(REPOSITORY_NAME, snapshot2Name, true);
+            restoreSnapshot(WRITE_REPOSITORY_NAME, snapshot2Name, true);
             ensureGreen(restoredIndexName);
 
             deleteSnapshot(snapshot2Name, false);
@@ -339,10 +367,13 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static void deleteSnapshot(String snapshot, boolean ignoreMissing) throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + REPOSITORY_NAME + '/' + snapshot);
+        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + snapshot);
         try {
             final Response response = client().performRequest(request);
-            assertAcked("Failed to delete snapshot [" + snapshot + "] in repository [" + REPOSITORY_NAME + "]: " + response, response);
+            assertAcked(
+                "Failed to delete snapshot [" + snapshot + "] in repository [" + WRITE_REPOSITORY_NAME + "]: " + response,
+                response
+            );
         } catch (IOException e) {
             if (ignoreMissing && e instanceof ResponseException) {
                 Response response = ((ResponseException) e).getResponse();
@@ -353,8 +384,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void mountSnapshot(String snapshotIndexName, String mountIndexName) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME + "/_mount");
+    protected static void mountSnapshot(String snapshotIndexName, String mountIndexName, String repositoryName) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + "/" + SNAPSHOT_NAME + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(true));
         request.addParameter("storage", randomFrom("full_copy", "shared_cache"));
 
@@ -367,7 +398,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final Response response = client().performRequest(request);
         assertThat(
-            "Failed to restore snapshot [" + SNAPSHOT_NAME + "] in repository [" + REPOSITORY_NAME + "]: " + response,
+            "Failed to restore snapshot [" + SNAPSHOT_NAME + "] in repository [" + repositoryName + "]: " + response,
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );

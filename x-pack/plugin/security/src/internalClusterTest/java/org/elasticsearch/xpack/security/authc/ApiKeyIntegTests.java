@@ -1199,7 +1199,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 (m, i) -> m.put(responses.get(i).getId(), metadatas.get(i)),
                 HashMap::putAll);
             for (ApiKey apiKey : response.getApiKeyInfos()) {
-                assertThat(apiKey.getMetadata(), equalTo(idToMetadata.get(apiKey.getId())));
+                final Map<String, Object> metadata = idToMetadata.get(apiKey.getId());
+                assertThat(apiKey.getMetadata(), equalTo(metadata == null ? Map.of() : metadata));
             }
         }
     }

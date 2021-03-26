@@ -75,81 +75,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
         toXContent.toXContent(builder, params);
     }
 
-    /**
-     * Create a script leaf factory.
-     */
-    protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(name(), script.getParams(), searchLookup);
-    }
-
-    /**
-     * Create a script leaf factory for queries.
-     */
-    protected final LeafFactory leafFactory(SearchExecutionContext context) {
-        /*
-         * Forking here causes us to count this field in the field data loop
-         * detection code as though we were resolving field data for this field.
-         * We're not, but running the query is close enough.
-         */
-        return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
-    }
-
-    // Placeholder Script for source-only fields
-    // TODO rework things so that we don't need this
-    private static final Script DEFAULT_SCRIPT = new Script("");
-
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
-        private final ScriptContext<Factory> scriptContext;
-        private final Factory parseFromSourceFactory;
-
-        final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
-            "script",
-            true,
-            () -> null,
-            Builder::parseScript,
-            initializerNotSupported()
-        ).setSerializerCheck((id, ic, v) -> ic);
-
-        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
-            super(name);
-            this.scriptContext = scriptContext;
-            this.parseFromSourceFactory = parseFromSourceFactory;
-        }
-
-        abstract RuntimeField newRuntimeField(Factory scriptFactory);
-
-        @Override
-        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
-            if (script.get() == null) {
-                return newRuntimeField(parseFromSourceFactory);
-            }
-            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
-            return newRuntimeField(factory);
-        }
-
-        @Override
-        protected List<FieldMapper.Parameter<?>> getParameters() {
-            List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
-            parameters.add(script);
-            return Collections.unmodifiableList(parameters);
-        }
-
-        protected final Script getScript() {
-            if (script.get() == null) {
-                return DEFAULT_SCRIPT;
-            }
-            return script.get();
-        }
-
-        private static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
-            Script script = Script.parse(scriptObject);
-            if (script.getType() == ScriptType.STORED) {
-                throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
-            }
-            return script;
-        }
-    }
-
     @Override
     public final boolean isSearchable() {
         return true;
@@ -264,5 +189,80 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     @Override
     public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+    }
+
+    /**
+     * Create a script leaf factory.
+     */
+    protected final LeafFactory leafFactory(SearchLookup searchLookup) {
+        return factory.apply(name(), script.getParams(), searchLookup);
+    }
+
+    /**
+     * Create a script leaf factory for queries.
+     */
+    protected final LeafFactory leafFactory(SearchExecutionContext context) {
+        /*
+         * Forking here causes us to count this field in the field data loop
+         * detection code as though we were resolving field data for this field.
+         * We're not, but running the query is close enough.
+         */
+        return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
+    }
+
+    // Placeholder Script for source-only fields
+    // TODO rework things so that we don't need this
+    private static final Script DEFAULT_SCRIPT = new Script("");
+
+    abstract static class Builder<Factory> extends RuntimeField.Builder {
+        private final ScriptContext<Factory> scriptContext;
+        private final Factory parseFromSourceFactory;
+
+        final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
+            "script",
+            true,
+            () -> null,
+            Builder::parseScript,
+            initializerNotSupported()
+        ).setSerializerCheck((id, ic, v) -> ic);
+
+        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
+            super(name);
+            this.scriptContext = scriptContext;
+            this.parseFromSourceFactory = parseFromSourceFactory;
+        }
+
+        abstract RuntimeField newRuntimeField(Factory scriptFactory);
+
+        @Override
+        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+            if (script.get() == null) {
+                return newRuntimeField(parseFromSourceFactory);
+            }
+            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
+            return newRuntimeField(factory);
+        }
+
+        @Override
+        protected List<FieldMapper.Parameter<?>> getParameters() {
+            List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
+            parameters.add(script);
+            return Collections.unmodifiableList(parameters);
+        }
+
+        protected final Script getScript() {
+            if (script.get() == null) {
+                return DEFAULT_SCRIPT;
+            }
+            return script.get();
+        }
+
+        private static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
+            Script script = Script.parse(scriptObject);
+            if (script.getType() == ScriptType.STORED) {
+                throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
+            }
+            return script;
+        }
     }
 }

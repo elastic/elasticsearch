@@ -9,8 +9,6 @@
 
 Retrieves configuration information for {dfanalytics-jobs}.
 
-beta::[]
-
 
 [[ml-get-dfanalytics-request]]
 == {api-request-title}

@@ -8,12 +8,12 @@ The {odbc} can be installed on Microsoft Windows using an MSI package. The insta
 [[prerequisites]]
 ==== Installation Prerequisites
 
-The recommended installation platform is Windows 10 64 bit _or_ Windows Server 2016 64 bit.
+The recommended installation platform is Windows 10 64 bit or Windows Server 2016 64 bit.
 
 Before you install the {odbc} you need to meet the following prerequisites;
 
 * .NET Framework 4.0 full - https://www.microsoft.com/en-au/download/details.aspx?id=17718
-* Microsoft Visual C++ Redistributable for Visual Studio 2017 - https://support.microsoft.com/en-au/help/2977003/the-latest-supported-visual-c-downloads
+* Microsoft Visual C++ Redistributable for Visual Studio 2017 or later - https://support.microsoft.com/en-au/help/2977003/the-latest-supported-visual-c-downloads
 - The 64 bit driver requires the x64 redistributable
 - The 32 bit driver requires the x86 or the x64 redistributable (the latter also installs the components needed for the 32 bit driver)
 * Elevated privileges (administrator) for the User performing the installation.
@@ -26,6 +26,11 @@ NOTE: When installing the MSI, the Windows Defender SmartScreen might warn
 about running an unrecognized app. If the MSI has been downloaded from
 Elastic's web site, it is safe to acknowledge the message by allowing the
 installation to continue (`Run anyway`).
+
+[[odbc-compatibility]]
+==== Version compatibility
+
+include::../version-compat.asciidoc[]
 
 [[download]]
 ==== Download the `.msi` package(s)

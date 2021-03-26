@@ -31,7 +31,7 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         DateFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup, formatter) -> (LeafFactory) ctx -> new DateFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup, formatter) -> (LeafFactory) ctx -> new DateFieldScript(
         field,
         params,
         lookup,

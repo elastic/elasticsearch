@@ -23,7 +23,7 @@ class TarInputStream extends FilterInputStream {
 
     private TarEntry currentEntry;
     private long remaining;
-    private long size;
+    private long reminder;
     private final byte[] buf = new byte[512];
 
     TarInputStream(InputStream in) {
@@ -34,7 +34,6 @@ class TarInputStream extends FilterInputStream {
         if (currentEntry != null) {
             //go to the end of the current entry
             skipN(remaining);
-            long reminder = size % 512;
             if (reminder != 0) {
                 skipN(512 - reminder);
             }
@@ -53,13 +52,12 @@ class TarInputStream extends FilterInputStream {
         String name = getString(0, 100);
 
         String sizeString = getString(124, 12);
-        size = sizeString.isEmpty() ? 0 : Long.parseLong(sizeString, 8);
-        remaining = size;
+        remaining = sizeString.isEmpty() ? 0 : Long.parseLong(sizeString, 8);
+        reminder = remaining % 512;
 
         boolean notFile = (buf[156] != 0 && buf[156] != '0') || name.endsWith("/");
         currentEntry = new TarEntry(name, notFile);
         if (notFile) {
-            size = 0;
             remaining = 0;
         }
         return currentEntry;

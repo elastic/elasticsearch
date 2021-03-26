@@ -161,7 +161,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final SecureString bearerString4 = createBearerString(List.of(
                 magicBytes,
                 (randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
-                    + "/" + ServiceAccountTokenTests.randomInvalidTokenName()
+                    + "/" + randomValueOtherThanMany(n -> n.contains("/"), ServiceAccountTokenTests::randomInvalidTokenName)
                     + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
             ));
             assertNull(ServiceAccountService.tryParseToken(bearerString4));

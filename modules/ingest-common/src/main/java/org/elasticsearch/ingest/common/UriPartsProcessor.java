@@ -15,6 +15,8 @@ import org.elasticsearch.ingest.Processor;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.MalformedURLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,20 +58,53 @@ public class UriPartsProcessor extends AbstractProcessor {
         String value = ingestDocument.getFieldValue(field, String.class);
 
         URI uri;
+        URL url;
+        Strign scheme = null;
+        String domain = null;
+        String fragment = null;
+        String path = null;
+        Integer port = -1;
+        String query = null;
+        String userInfo = null;
         try {
             uri = new URI(value);
+            scheme = uri.getScheme();
+            domain = uri.getHost();
+            fragment = uri.getFragment();
+            path = uri.getPath();
+            port = uri.getPort();
+            query = uri.getQuery();
+            userInfo = uri.getUserInfo();
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("unable to parse URI [" + value + "]");
         }
+        try {
+            url = new URL(value);
+            scheme = url.getScheme();
+            domain = url.getHost();
+            // fragment = url.getFragment();
+            path = url.getPath();
+            port = url.getPort();
+            query = url.getQuery();
+            userInfo = url.getUserInfo();
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("unable to parse URL [" + value + "]");
+        }
         var uriParts = new HashMap<String, Object>();
-        uriParts.put("domain", uri.getHost());
-        if (uri.getFragment() != null) {
-            uriParts.put("fragment", uri.getFragment());
+        if (domain != null) {
+            uriParts.put("domain", domain);
+        }
+        if (fragment != null) {
+            uriParts.put("fragment", fragment);
+        } else {
+            if (value.contains("#")) {
+                int hashIndex = value.lastIndexOf('#');
+                fragment = hashIndex < value.length() ? value.substring(hashIndex + 1) : "";
+            }
         }
         if (keepOriginal) {
             uriParts.put("original", value);
         }
-        final String path = uri.getPath();
         if (path != null) {
             uriParts.put("path", path);
             if (path.contains(".")) {
@@ -77,14 +112,15 @@ public class UriPartsProcessor extends AbstractProcessor {
                 uriParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
             }
         }
-        if (uri.getPort() != -1) {
-            uriParts.put("port", uri.getPort());
+        if (port != -1) {
+            uriParts.put("port", port);
         }
-        if (uri.getQuery() != null) {
-            uriParts.put("query", uri.getQuery());
+        if (query != null) {
+            uriParts.put("query", query);
         }
-        uriParts.put("scheme", uri.getScheme());
-        final String userInfo = uri.getUserInfo();
+        if (scheme != null) {
+            uriParts.put("scheme", scheme);
+        }
         if (userInfo != null) {
             uriParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {

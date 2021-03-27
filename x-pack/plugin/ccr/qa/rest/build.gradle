@@ -2,8 +2,7 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'info'
-    includeXpack 'ccr'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'info', 'ccr'
   }
 }
 

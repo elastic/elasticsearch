@@ -246,7 +246,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     e.getCause().getMessage(), containsString(item.message));
             }
         }
+    }
 
+    @Override
+    protected final Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumber();
+        return randomBoolean() ? n : n.toString();
     }
 
     @Override
@@ -275,4 +280,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
         }
     }
+
+    protected abstract Number randomNumber();
+
 }

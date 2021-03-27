@@ -15,7 +15,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'rank_eval'
+    include '_common', 'indices', 'index', 'rank_eval'
   }
 }
 

@@ -13,17 +13,21 @@ restResources {
   }
 }
 
+// REST API specifications are published under the Apache 2.0 License
+ext.projectLicenses = ['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0']
+ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+
 artifacts {
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
-  restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 testClusters.all {
   module ':modules:mapper-extras'
 }
 
-tasks.named("test").configure {enabled = false }
-tasks.named("jarHell").configure {enabled = false }
+tasks.named("test").configure { enabled = false }
+tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("yamlRestCompatTest").configure {
   onlyIf {
@@ -356,3 +360,15 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })
+
+tasks.register('enforceYamlTestConvention').configure {
+  doLast {
+    if (fileTree('src/main/resources/rest-api-spec/test').files) {
+      throw new GradleException("There are YAML tests in src/main source set. These should be moved to src/yamlRestTest.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention'
+}

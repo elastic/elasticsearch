@@ -50,9 +50,18 @@ query>>. If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
 or index alias.
 
+////
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+DELETE /_data_stream/*
+DELETE /_index_template/*
+----
+// TEARDOWN
+////
+
+[source,console]
+----
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -79,7 +88,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
     },
     "events": [
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "OQmfCaduce8zoHT93o4H",
         "_source": {
           "@timestamp": "2099-12-07T11:07:09.000Z",
@@ -97,7 +106,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
         }
       },
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "xLkCaj4EujzdNSxfYLbO",
         "_source": {
           "@timestamp": "2099-12-07T11:07:10.000Z",
@@ -119,6 +128,7 @@ milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
@@ -126,7 +136,7 @@ Use the `size` parameter to get a smaller or larger set of hits:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -149,7 +159,7 @@ only the timestamp and PID from the `_source` of each matching event.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
+GET /my-data-stream/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -200,7 +210,7 @@ field. The request also uses the `filter_path` query parameter to exclude the
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search?filter_path=-hits.events._source
+GET /my-data-stream/_eql/search?filter_path=-hits.events._source
 {
   "query": """
     process where process.name == "regsvr32.exe"
@@ -235,7 +245,7 @@ The values are returned as a flat list in the `fields` section of each hit:
     },
     "events": [
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "OQmfCaduce8zoHT93o4H",
         "fields": {
           "process.name": [
@@ -265,7 +275,7 @@ The values are returned as a flat list in the `fields` section of each hit:
         }
       },
       {
-        "_index": "my-index-000001",
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
         "_id": "xLkCaj4EujzdNSxfYLbO",
         "fields": {
           "process.name": [
@@ -296,6 +306,7 @@ The values are returned as a flat list in the `fields` section of each hit:
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
 // TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
@@ -309,7 +320,7 @@ with the most recent event listed last:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence
@@ -339,7 +350,7 @@ sequences.
       {
         "events": [
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
@@ -357,7 +368,7 @@ sequences.
             }
           },
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
@@ -384,6 +395,7 @@ sequences.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
@@ -392,7 +404,7 @@ matching sequences to a timespan:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence with maxspan=1h
@@ -408,7 +420,7 @@ same field values:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence with maxspan=1h
@@ -424,7 +436,7 @@ keyword. The following query is equivalent to the previous one.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence by process.pid with maxspan=1h
@@ -456,7 +468,7 @@ The `hits.sequences.join_keys` property contains the shared field values.
         ],
         "events": [
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "OQmfCaduce8zoHT93o4H",
             "_source": {
               "@timestamp": "2099-12-07T11:07:09.000Z",
@@ -474,7 +486,7 @@ The `hits.sequences.join_keys` property contains the shared field values.
             }
           },
           {
-            "_index": "my-index-000001",
+            "_index": ".ds-my-data-stream-2099.12.07-000001",
             "_id": "yDwnGIJouOYGBzP0ZE9n",
             "_source": {
               "@timestamp": "2099-12-07T11:07:10.000Z",
@@ -501,6 +513,7 @@ The `hits.sequences.join_keys` property contains the shared field values.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
@@ -509,7 +522,7 @@ event for sequences. Matching sequences must end before this event.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "query": """
     sequence by process.pid with maxspan=1h
@@ -531,7 +544,7 @@ The EQL search API uses the `@timestamp` and `event.category` fields from the
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "timestamp_field": "file.accessed",
   "event_category_field": "file.type",
@@ -566,7 +579,7 @@ the {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "tiebreaker_field": "event.sequence",
   "query": """
@@ -585,13 +598,13 @@ which an EQL query runs.
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "filter": {
     "range": {
-      "file.size": {
-        "gte": 1,
-        "lte": 1000000
+      "@timestamp": {
+        "gte": "now-1d/d",
+        "lt": "now/d"
       }
     }
   },
@@ -608,16 +621,15 @@ GET /my-index-000001/_eql/search
 
 By default, EQL search requests are synchronous and wait for complete results
 before returning a response. However, complete results can take longer for
-searches across <<frozen-indices,frozen indices>> or
-<<modules-cross-cluster-search,multiple clusters>>.
+searches across large data sets, <<data-tiers,cold>> or <<data-tiers,frozen>>
+data, or <<modules-cross-cluster-search,multiple clusters>>.
 
-To avoid long waits, run an async EQL search. Set the
-`wait_for_completion_timeout` parameter to a duration you'd like to wait for
-synchronous results.
-
+To avoid long waits, run an async EQL search. Set `wait_for_completion_timeout`
+to a duration you'd like to wait for synchronous results.
++
 [source,console]
 ----
-GET /frozen-my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "wait_for_completion_timeout": "2s",
   "query": """
@@ -626,7 +638,6 @@ GET /frozen-my-index-000001/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-// TEST[s/frozen-my-index-000001/my-index-000001/]
 
 If the request doesn't finish within the timeout period, the search becomes async
 and returns a response that includes:
@@ -719,7 +730,7 @@ parameter to change this retention period:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "keep_alive": "2d",
   "wait_for_completion_timeout": "2s",
@@ -761,7 +772,7 @@ search, set `keep_on_completion` to `true`:
 
 [source,console]
 ----
-GET /my-index-000001/_eql/search
+GET /my-data-stream/_eql/search
 {
   "keep_on_completion": true,
   "wait_for_completion_timeout": "2s",

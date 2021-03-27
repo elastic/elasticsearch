@@ -41,4 +41,15 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     protected boolean allowsIndexTimeScript() {
         return true;
     }
+
+    @Override
+    protected Number randomNumber() {
+        /*
+         * The source parser and doc values round trip will both increase
+         * the precision to 64 bits if the value is less precise.
+         * randomDoubleBetween will smear the values out across a wide
+         * range of valid values.
+         */
+        return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+    }
 }

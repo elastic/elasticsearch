@@ -200,6 +200,7 @@ public final class TokenService {
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
+
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -379,30 +380,12 @@ public final class TokenService {
     }
 
     /**
-     * Looks in the context to see if the request provided a header with a user token and if so the
-     * token is validated, which might include authenticated decryption and verification that the token
-     * has not been revoked or is expired.
+     * If the token is non-null, then it is validated, which might include authenticated decryption and
+     * verification that the token has not been revoked or is expired.
      */
-    void getAndValidateToken(ThreadContext ctx, ActionListener<UserToken> listener) {
-        if (isEnabled()) {
-            final String token = getFromHeader(ctx);
-            if (token == null) {
-                listener.onResponse(null);
-            } else {
-                decodeToken(token, ActionListener.wrap(userToken -> {
-                    if (userToken != null) {
-                        checkIfTokenIsValid(userToken, listener);
-                    } else {
-                        listener.onResponse(null);
-                    }
-                }, e -> {
-                    if (isShardNotAvailableException(e)) {
-                        listener.onResponse(null);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }));
-            }
+    void tryAuthenticateToken(SecureString token, ActionListener<UserToken> listener) {
+        if (isEnabled() && token != null) {
+            decodeAndValidateToken(token, listener);
         } else {
             listener.onResponse(null);
         }
@@ -416,29 +399,13 @@ public final class TokenService {
      * {@code null} authentication object.
      */
     public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
-        ensureEnabled();
-        decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
-            if (userToken != null) {
-                checkIfTokenIsValid(userToken, ActionListener.wrap(
-                    token -> {
-                        if (token == null) {
-                            // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
-                            // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
-                            listener.onFailure(new IllegalArgumentException("Cannot validate access token"));
-                        } else {
-                            listener.onResponse(token.getAuthentication());
-                        }
-                    },
-                    listener::onFailure
-                ));
+        decodeAndValidateToken(tokenString, listener.map(token -> {
+            if (token == null) {
+                // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
+                // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
+                throw new IllegalArgumentException("Cannot validate access token");
             } else {
-                listener.onFailure(new IllegalArgumentException("Cannot decode access token"));
-            }
-        }, e -> {
-            if (isShardNotAvailableException(e)) {
-                listener.onResponse(null);
-            } else {
-                listener.onFailure(e);
+                return token.getAuthentication();
             }
         }));
     }
@@ -511,6 +478,23 @@ public final class TokenService {
                         }), client::get)
                 );
         }
+    }
+
+    private void decodeAndValidateToken(SecureString tokenString, ActionListener<UserToken> listener) {
+        ensureEnabled();
+        decodeToken(tokenString.toString(), ActionListener.wrap(userToken -> {
+            if (userToken != null) {
+                checkIfTokenIsValid(userToken, listener);
+            } else {
+                listener.onResponse(null);
+            }
+        }, e -> {
+            if (isShardNotAvailableException(e)) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     /**
@@ -1711,24 +1695,24 @@ public final class TokenService {
      * Gets the token from the <code>Authorization</code> header if the header begins with
      * <code>Bearer </code>
      */
-    private String getFromHeader(ThreadContext threadContext) {
+    public SecureString extractBearerTokenFromHeader(ThreadContext threadContext) {
         String header = threadContext.getHeader("Authorization");
         if (Strings.hasText(header) && header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
             && header.length() > "Bearer ".length()) {
-            return header.substring("Bearer ".length());
+            char[] chars = new char[header.length() - "Bearer ".length()];
+            header.getChars("Bearer ".length(), header.length(), chars, 0);
+            return new SecureString(chars);
         }
         return null;
     }
 
     String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {
         if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
-                 OutputStream base64 = Base64.getEncoder().wrap(os);
-                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
+            try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setVersion(version);
                 Version.writeVersion(version, out);
                 out.writeString(accessToken);
-                return new String(os.toByteArray(), StandardCharsets.UTF_8);
+                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
         } else {
             // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
@@ -1756,13 +1740,12 @@ public final class TokenService {
     }
 
     public static String prependVersionAndEncodeRefreshToken(Version version, String payload) {
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream();
-             OutputStream base64 = Base64.getEncoder().wrap(os);
-             StreamOutput out = new OutputStreamStreamOutput(base64)) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             Version.writeVersion(version, out);
             out.writeString(payload);
-            return new String(os.toByteArray(), StandardCharsets.UTF_8);
+            return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when working with small in-memory streams", e);
         }

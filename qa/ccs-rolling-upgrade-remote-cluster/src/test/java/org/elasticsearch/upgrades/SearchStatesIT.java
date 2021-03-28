@@ -72,7 +72,7 @@ public class SearchStatesIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-    private static final String REMOTE_CLUSTER = "remote_cluster";
+    private static final String CLUSTER_ALIAS = "remote_cluster";
 
     static class Node {
         final String id;
@@ -140,7 +140,7 @@ public class SearchStatesIT extends ESRestTestCase {
 
     public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
         assertThat(remoteNodes, hasSize(3));
-        final String remoteClusterSettingPrefix = "cluster.remote." + REMOTE_CLUSTER + ".";
+        final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
         try (RestHighLevelClient localClient = newLocalClient()) {
             final Settings remoteConnectionSettings;
             if (UPGRADE_FROM_VERSION.before(Version.V_7_6_0) || randomBoolean()) {
@@ -179,8 +179,8 @@ public class SearchStatesIT extends ESRestTestCase {
                 final Response resp = localClient.getLowLevelClient().performRequest(new Request("GET", "/_remote/info"));
                 assertOK(resp);
                 final ObjectPath objectPath = ObjectPath.createFromResponse(resp);
-                assertNotNull(objectPath.evaluate(REMOTE_CLUSTER));
-                assertTrue(objectPath.evaluate(REMOTE_CLUSTER + ".connected"));
+                assertNotNull(objectPath.evaluate(CLUSTER_ALIAS));
+                assertTrue(objectPath.evaluate(CLUSTER_ALIAS + ".connected"));
             }, 60, TimeUnit.SECONDS);
         }
     }
@@ -254,7 +254,7 @@ public class SearchStatesIT extends ESRestTestCase {
             configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
-                verifySearch(localIndex, localNumDocs, REMOTE_CLUSTER + ":" + remoteIndex, remoteNumDocs);
+                verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs);
             }
             localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
             remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);

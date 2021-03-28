@@ -146,7 +146,10 @@ Following creates an API key
 ------------------------------------------------------------
 POST /_security/api_key
 {
-  "name": "my-api-key-1"
+  "name": "my-api-key-1",
+  "metadata": {
+    "application": "my-application"
+  }
 }
 ------------------------------------------------------------
 
@@ -182,7 +185,10 @@ A successful call returns a JSON structure that contains the information of one 
       "expiration": 1548551550158, <5>
       "invalidated": false, <6>
       "username": "myuser", <7>
-      "realm": "native1" <8>
+      "realm": "native1", <8>
+      "metadata": { <9>
+        "application": "myapp"
+      }
     },
     {
       "id": "api-key-id-2",
@@ -190,7 +196,8 @@ A successful call returns a JSON structure that contains the information of one 
       "creation": 1548550550158,
       "invalidated": false,
       "username": "user-y",
-      "realm": "realm-2"
+      "realm": "realm-2",
+      "metadata": {}
     }
   ]
 }
@@ -206,3 +213,4 @@ A successful call returns a JSON structure that contains the information of one 
 a value of `true`. Otherwise, it is `false`.
 <7> Principal for which this API key was created
 <8> Realm name of the principal for which this API key was created
+<9> Metadata of the API key

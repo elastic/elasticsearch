@@ -74,6 +74,11 @@ authentication; it will not have authority to call {es} APIs.
 (Optional, string) Expiration time for the API key. By default, API keys never
 expire.
 
+`metadata`::
+(object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, keys beginning with `_` are reserved for
+system usage.
 
 [[security-api-create-api-key-example]]
 ==== {api-examples-title}
@@ -104,6 +109,14 @@ POST /_security/api_key
           "privileges": ["all"]
         }
       ]
+    }
+  },
+  "metadata": {
+    "application": "my-application",
+    "environment": {
+       "level": 1,
+       "trusted": true,
+       "tags": ["dev", "staging"]
     }
   }
 }

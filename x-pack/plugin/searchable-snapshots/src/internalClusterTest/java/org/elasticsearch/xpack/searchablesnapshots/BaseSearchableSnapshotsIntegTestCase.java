@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -86,15 +87,15 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         builder.put(
             FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
-                ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
                 FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         if (randomBoolean()) {

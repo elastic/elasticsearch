@@ -209,6 +209,7 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenS
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -499,6 +500,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
+        final TlsRuntimeCheck tlsRuntimeCheck = new TlsRuntimeCheck(settings);
+        components.add(tlsRuntimeCheck);
+
         final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore = new IndexServiceAccountsTokenStore(
             settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
         components.add(indexServiceAccountsTokenStore);
@@ -506,9 +510,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final FileServiceAccountsTokenStore fileServiceAccountsTokenStore =
             new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(settings,
-            new CompositeServiceAccountsTokenStore(List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore),
-                threadPool.getThreadContext()));
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(
+            List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore), threadPool.getThreadContext()),
+            tlsRuntimeCheck);
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,

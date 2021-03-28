@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -46,7 +47,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
             .build();
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            settings, indexServiceAccountsTokenStore, securityContext);
+            indexServiceAccountsTokenStore, securityContext, new TlsRuntimeCheck(settings));
     }
 
     public void testAuthenticationIsRequired() {
@@ -75,12 +76,11 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
             .build();
         TransportCreateServiceAccountTokenAction action = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            settings, indexServiceAccountsTokenStore, securityContext);
+            indexServiceAccountsTokenStore, securityContext, new TlsRuntimeCheck(settings));
 
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), mock(CreateServiceAccountTokenRequest.class), future);
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
-        assertThat(e.getCause().getClass(), is(ElasticsearchSecurityException.class));
-        assertThat(e.getMessage(), containsString("Service account APIs require TLS for both HTTP and Transport"));
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("[create service account token] requires TLS for both HTTP and Transport"));
     }
 }

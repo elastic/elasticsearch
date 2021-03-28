@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
@@ -59,7 +61,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.transport.ssl.enabled", true)
             .build();
-        serviceAccountService = new ServiceAccountService(settings, serviceAccountsTokenStore);
+        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore, new TlsRuntimeCheck(settings));
     }
 
     public void testIsServiceAccount() {
@@ -400,8 +402,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             Map.of("_token_name", randomAlphaOfLengthBetween(3, 8)));
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         serviceAccountService.getRoleDescriptor(auth2, future2);
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());
-        assertThat(e.getCause().getClass(), is(ElasticsearchSecurityException.class));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
         assertThat(e.getMessage(), containsString(
             "cannot load role for service account [" + username + "] - no such service account"));
     }
@@ -412,13 +413,12 @@ public class ServiceAccountServiceTests extends ESTestCase {
             .put("xpack.security.http.ssl.enabled", httpTls)
             .put("xpack.security.transport.ssl.enabled", randomFrom(false == httpTls, false))
             .build();
-        final ServiceAccountService service = new ServiceAccountService(settings, serviceAccountsTokenStore);
+        final ServiceAccountService service = new ServiceAccountService(serviceAccountsTokenStore, new TlsRuntimeCheck(settings));
 
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
         service.authenticateToken(mock(ServiceAccountToken.class), randomAlphaOfLengthBetween(3, 8), future1);
-        final ExecutionException e1 = expectThrows(ExecutionException.class, () -> future1.get());
-        assertThat(e1.getCause().getClass(), is(ElasticsearchSecurityException.class));
-        assertThat(e1.getMessage(), containsString("Service account authentication requires TLS for both HTTP and Transport"));
+        final ElasticsearchException e1 = expectThrows(ElasticsearchException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("[service account authentication] requires TLS for both HTTP and Transport"));
 
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         final Authentication authentication = new Authentication(mock(User.class),
@@ -426,9 +426,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 randomAlphaOfLengthBetween(3, 8)),
             null);
         service.getRoleDescriptor(authentication, future2);
-        final ExecutionException e2 = expectThrows(ExecutionException.class, () -> future2.get());
-        assertThat(e2.getCause().getClass(), is(ElasticsearchSecurityException.class));
-        assertThat(e2.getMessage(), containsString("Service account role descriptor resolving requires TLS for both HTTP and Transport"));
+        final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);
+        assertThat(e2.getMessage(), containsString("[service account role descriptor resolving] requires TLS for both HTTP and Transport"));
     }
 
     private SecureString createBearerString(List<byte[]> bytesList) throws IOException {

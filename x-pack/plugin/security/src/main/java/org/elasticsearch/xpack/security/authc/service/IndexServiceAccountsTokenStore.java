@@ -188,7 +188,8 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
     }
 
     private TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
-        final String prefix = SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/";
-        return TokenInfo.indexToken(Strings.substring(docId, prefix.length(), docId.length()));
+        // Prefix is SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/"
+        final int prefixLength = SERVICE_ACCOUNT_TOKEN_DOC_TYPE.length() + accountId.asPrincipal().length() + 2;
+        return TokenInfo.indexToken(Strings.substring(docId, prefixLength, docId.length()));
     }
 }

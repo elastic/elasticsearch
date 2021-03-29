@@ -996,21 +996,13 @@ public class MetadataTests extends ESTestCase {
                 "]) conflicts with data stream]"));
     }
 
-    public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
+    public void testBuilderWarnsAboutDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-        IndexMetadata idx = createFirstBackingIndex(dataStreamName)
-            .putAlias(new AliasMetadata.Builder(conflictingName))
-            .build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(idx.getIndex())));
-
-        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex())));
+        b.build();
         assertWarnings("aliases [" + conflictingName + "] cannot refer to backing indices of data streams");
-        assertThat(e.getMessage(), containsString("aliases [" + conflictingName +
-            "] cannot refer to backing indices of data streams"));
     }
 
     public void testBuilderForDataStreamWithRandomlyNumberedBackingIndices() {

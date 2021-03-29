@@ -174,7 +174,7 @@ setupMyIndex('my_index_huge', 1200)
 
 tasks.named("buildRestTests").configure {buildRestTests ->
 
-setups['my_data_stream_templates'] = '''
+setups['my_data_stream_template'] = '''
   - do:
       indices.put_index_template:
         name: my-data-stream-template
@@ -186,7 +186,7 @@ setups['my_data_stream_templates'] = '''
           }
 '''
 
-setups['my_data_stream'] = setups['my_data_stream_templates'] + '''
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
   - do:
       raw:
         method: PUT

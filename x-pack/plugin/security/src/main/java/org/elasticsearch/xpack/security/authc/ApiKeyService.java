@@ -285,7 +285,7 @@ public class ApiKeyService {
                         indexResponse -> listener.onResponse(
                             new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
                         listener::onFailure))));
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
@@ -334,8 +334,17 @@ public class ApiKeyService {
         builder.endObject();
 
         builder.field("name", name)
-            .field("version", version.id)
-            .field("metadata_flattened", metadata)
+            .field("version", version.id);
+        final Version masterNodeVersion = clusterService.state().nodes().getMasterNode().getVersion();
+        if (masterNodeVersion.onOrAfter(Version.V_7_13_0)) {
+            builder.field("metadata_flattened", metadata);
+        } else {
+            if (metadata != null && false == metadata.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "api key metadata requires master node to be on version [7.13] or later, got [" + masterNodeVersion + "]");
+            }
+        }
+        builder
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("full_name", authentication.getUser().fullName())

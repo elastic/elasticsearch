@@ -154,7 +154,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         if (metadata != null && false == metadata.isEmpty()) {
             if (out.getVersion().before(Version.V_7_13_0)) {
                 throw new IllegalArgumentException(
-                    "api key metadata requires minimum node version to be [7.13.0], got: [" + out.getVersion() + "]");
+                    "api key metadata requires minimum node version to be [7.13], got: [" + out.getVersion() + "]");
             } else {
                 out.writeMap(metadata);
             }

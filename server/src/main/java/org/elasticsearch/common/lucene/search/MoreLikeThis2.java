@@ -1,5 +1,4 @@
 /* @notice
-/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -15,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.lucene.queries.mlt;
+package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -39,6 +38,7 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -46,18 +46,18 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * Generate "more like this" similarity queries.
  * Based on this mail:
- * <pre><code>
+ * <pre>
  * Lucene does let you access the document frequency of terms, with IndexReader.docFreq().
  * Term frequencies can be computed by re-tokenizing the text, which, for a single document,
  * is usually fast enough.  But looking up the docFreq() of every term in the document is
  * probably too slow.
- *
  * You can use some heuristics to prune the set of terms, to avoid calling docFreq() too much,
  * or at all.  Since you're trying to maximize a tf*idf score, you're probably most interested
  * in terms with a high tf. Choosing a tf threshold even as low as two or three will radically
@@ -66,38 +66,34 @@ import java.util.Set;
  * number of characters, not selecting anything less than, e.g., six or seven characters.
  * With these sorts of heuristics you can usually find small set of, e.g., ten or fewer terms
  * that do a pretty good job of characterizing a document.
- *
  * It all depends on what you're trying to do.  If you're trying to eek out that last percent
  * of precision and recall regardless of computational difficulty so that you can win a TREC
  * competition, then the techniques I mention above are useless.  But if you're trying to
  * provide a "more like this" button on a search results page that does a decent job and has
  * good performance, such techniques might be useful.
- *
  * An efficient, effective "more-like-this" query generator would be a great contribution, if
  * anyone's interested.  I'd imagine that it would take a Reader or a String (the document's
  * text), analyzer Analyzer, and return a set of representative terms using heuristics like those
  * above.  The frequency and length thresholds could be parameters, etc.
- *
  * Doug
- * </code></pre>
- * <h3>Initial Usage</h3>
+ * </pre>
+ * <h2>Initial Usage</h2>
  * <p>
  * This class has lots of options to try to make it efficient and flexible.
  * The simplest possible usage is as follows. The bold
  * fragment is specific to this class.
- * <br>
  * <pre class="prettyprint">
  * IndexReader ir = ...
  * IndexSearcher is = ...
- *
+
  * MoreLikeThis mlt = new MoreLikeThis(ir);
  * Reader target = ... // orig source of doc you want to find similarities to
  * Query query = mlt.like( target);
- *
+
  * Hits hits = is.search(query);
  * // now the usual iteration thru 'hits' - the only thing to watch for is to make sure
  * //you ignore the doc if it matches your 'target' document, as it should be similar to itself
- *
+
  * </pre>
  * <p>
  * Thus you:
@@ -108,7 +104,6 @@ import java.util.Set;
  * <li> then call one of the like() calls to generate a similarity query
  * <li> call the searcher to find the similar docs
  * </ol>
- * <br>
  * <h3>More Advanced Usage</h3>
  * <p>
  * You may want to use {@link #setFieldNames setFieldNames(...)} so you can examine
@@ -128,7 +123,6 @@ import java.util.Set;
  * <li> {@link #setMaxNumTokensParsed setMaxNumTokensParsed(...)}
  * <li> {@link #setStopWords setStopWord(...)}
  * </ul>
- * <br>
  * <hr>
  * <pre>
  * Changes: Mark Harwood 29/02/04
@@ -140,7 +134,7 @@ import java.util.Set;
  * - optimise: when no termvector support available - used maxNumTermsParsed to limit amount of tokenization
  * </pre>
  */
-public final class MoreLikeThis {
+public final class MoreLikeThis2 {
 
   /**
    * Default maximum number of tokens to parse in each example doc field that is not stored with TermVector support.
@@ -181,6 +175,11 @@ public final class MoreLikeThis {
    * @see #setBoost
    */
   public static final boolean DEFAULT_BOOST = false;
+
+  /**
+   * Current set of skip terms.
+   */
+  private Set<Term> skipTerms = null;
 
   /**
    * Default field names. Null is used to specify that the field names should be looked
@@ -311,14 +310,18 @@ public final class MoreLikeThis {
     this.boostFactor = boostFactor;
   }
 
+  public void setSkipTerms(Set<Term> skipTerms) {
+      this.skipTerms = skipTerms;
+  }
+
   /**
    * Constructor requiring an IndexReader.
    */
-  public MoreLikeThis(IndexReader ir) {
+  public MoreLikeThis2(IndexReader ir) {
     this(ir, new ClassicSimilarity());
   }
 
-  public MoreLikeThis(IndexReader ir, TFIDFSimilarity sim) {
+  public MoreLikeThis2(IndexReader ir, TFIDFSimilarity sim) {
     this.ir = ir;
     this.similarity = sim;
   }
@@ -614,11 +617,50 @@ public final class MoreLikeThis {
     return createQuery(createQueue(perFieldTermFrequencies));
   }
 
+  /*
+   * Return a query that will return docs like the passed Fields.
+   *
+   * @return a query that will return docs like the passed Fields.
+   */
+  public Query like(Fields... likeFields) throws IOException {
+      // get all field names
+      Set<String> fieldNames = new HashSet<>();
+      for (Fields fields : likeFields) {
+          for (String fieldName : fields) {
+              fieldNames.add(fieldName);
+          }
+      }
+      // term selection is per field, then appended to a single boolean query
+      BooleanQuery.Builder bq = new BooleanQuery.Builder();
+      for (String fieldName : fieldNames) {
+          Map<String, Map<String, Int>> field2termFreqMap = new HashMap<>();
+          for (Fields fields : likeFields) {
+              Terms vector = fields.terms(fieldName);
+              if (vector != null) {
+                  addTermFrequencies(field2termFreqMap, vector, fieldName);
+              }
+          }
+          addToQuery(createQueue(field2termFreqMap), bq);
+      }
+      return bq.build();
+  }
+
   /**
    * Create the More like query from a PriorityQueue
    */
   private Query createQuery(PriorityQueue<ScoreTerm> q) {
-    BooleanQuery.Builder query = new BooleanQuery.Builder();
+      BooleanQuery.Builder query = new BooleanQuery.Builder();
+      addToQuery(q, query);
+      return query.build();
+  }
+
+  /**
+   * Create the More like query from a PriorityQueue
+   */
+  /**
+   * Add to an existing boolean query the More Like This query from this PriorityQueue
+   */
+  private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery.Builder query) {
     ScoreTerm scoreTerm;
     float bestScore = -1;
 
@@ -640,7 +682,6 @@ public final class MoreLikeThis {
         break;
       }
     }
-    return query.build();
   }
 
   /**
@@ -798,7 +839,16 @@ public final class MoreLikeThis {
       if (isNoiseWord(term)) {
         continue;
       }
+      if (isSkipTerm(fieldName, term)) {
+          continue;
+      }
       final int freq = (int) termsEnum.totalTermFreq();
+      // TODO in XMoreLikeThis we use the following, not entirely sure why
+//      final PostingsEnum docs = termsEnum.postings(null);
+//      int freq = 0;
+//      while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+//          freq += docs.freq();
+//      }
 
       // increment frequency
       Int cnt = termFreqMap.get(term);
@@ -841,6 +891,9 @@ public final class MoreLikeThis {
         if (isNoiseWord(word)) {
           continue;
         }
+        if (isSkipTerm(fieldName, word)) {
+            continue;
+        }
 
         // increment frequency
         Int cnt = termFreqMap.get(word);
@@ -872,6 +925,12 @@ public final class MoreLikeThis {
     return stopWords != null && stopWords.contains(term);
   }
 
+  /**
+   * determines if the passed term is to be skipped all together
+   */
+  private boolean isSkipTerm(@Nullable String field, String value) {
+      return field != null && skipTerms != null && skipTerms.contains(new Term(field, value));
+  }
 
   /**
    * Find words for a more-like-this query former.

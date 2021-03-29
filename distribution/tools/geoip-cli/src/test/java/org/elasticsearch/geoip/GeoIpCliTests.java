@@ -44,8 +44,8 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     private Path tempPath;
 
-    @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        super.setUp();
         tempPath = createTempDir();
     }
 

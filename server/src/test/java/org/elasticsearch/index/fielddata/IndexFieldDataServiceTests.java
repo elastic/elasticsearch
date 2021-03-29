@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -49,7 +50,11 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.*;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.BYTE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.INTEGER;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -87,7 +92,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", FLOAT, null, false, true)
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberType.FLOAT, null, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> {
@@ -309,8 +314,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", DOUBLE));
-        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", DOUBLE,
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE));
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE,
             true, false, false, false, null, Collections.emptyMap(), null));
     }
 

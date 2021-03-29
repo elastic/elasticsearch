@@ -268,7 +268,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, restApiVersion);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -492,40 +492,33 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final RestApiVersion restApiVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
-                                    RestApiVersion restApiVersion) {
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.restApiVersion = restApiVersion;
         }
 
         @Override
         public XContentBuilder newBuilder() throws IOException {
-            return delegate.newBuilder()
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newBuilder();
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
-            return delegate.newErrorBuilder()
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newErrorBuilder();
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newBuilder(xContentType, useFiltering);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
             throws IOException {
-            return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleVersion(restApiVersion);
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
         }
 
         @Override

@@ -15,7 +15,6 @@ configurations {
 
 dependencies {
   apis project(path: ':rest-api-spec', configuration: 'restSpecs')
-  apis project(path: ':x-pack:plugin', configuration: 'restXpackSpecs')
   freeTests project(path: ':rest-api-spec', configuration: 'restTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
 }

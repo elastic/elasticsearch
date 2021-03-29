@@ -342,7 +342,7 @@ PUT _index_template/template_1
 {
   "index_patterns": ["logs-my_app-*"],
   "data_stream": { },
-  "priority": 500,
+  "priority": 90,
   "composed_of": ["my-settings-component-template", "my-mappings-component-template"]
 }
 ----
@@ -399,7 +399,8 @@ include::ingest.asciidoc[tag=create-name-custom-logs-pipeline]
 
 include::ingest.asciidoc[tag=name-custom-logs-dataset]
 
-. In **Custom Configurations**, specify `pipeline: <my-pipeline>`.
+. In **Custom Configurations**, specify your pipeline in the `pipeline` policy
+setting.
 +
 [role="screenshot"]
 image::images/ingest/custom-logs-pipeline.png[Custom pipeline configuration for custom log integration,align="center"]
@@ -408,7 +409,7 @@ image::images/ingest/custom-logs-pipeline.png[Custom pipeline configuration for 
 
 If you run {agent} standalone, you can apply pipelines using an
 <<index-templates,index template>> that includes <<set-default-pipeline,pipeline
-index settings>>. You can also specify `pipeline: <my-pipeline>` in your
+index settings>>. You can also specify the `pipeline` policy setting in your
 `elastic-agent.yml` configuration. See
 {fleet-guide}/run-elastic-agent-standalone.html[Run {agent} standalone].
 

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
@@ -42,6 +43,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      */
     public static final Version NEW_FEATURES_VERSION = Version.V_7_11_0;
 
+    private final LongSupplier timeProvider;
     private final String name;
     private final TimestampField timeStampField;
     private final List<Index> indices;
@@ -56,6 +58,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
                       boolean hidden, boolean replicated) {
+        this(name, timeStampField, indices, generation, metadata, hidden, replicated, System::currentTimeMillis);
+    }
+
+    // visible for testing
+    DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata,
+        boolean hidden, boolean replicated, LongSupplier timeProvider) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
@@ -63,6 +71,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.metadata = metadata;
         this.hidden = hidden;
         this.replicated = replicated;
+        this.timeProvider = timeProvider;
         assert indices.size() > 0;
     }
 
@@ -113,21 +122,27 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
+     * @param clusterMetadata Cluster metadata
      * @param writeIndexUuid UUID for the data stream's new write index
      * @param minNodeVersion minimum cluster node version
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(String writeIndexUuid, Version minNodeVersion) {
+    public DataStream rollover(Metadata clusterMetadata, String writeIndexUuid, Version minNodeVersion) {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);
-        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), getGeneration() + 1, minNodeVersion);
+        String newWriteIndexName;
+        long generation = this.generation;
+        long currentTimeMillis = timeProvider.getAsLong();
+        do {
+            newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis, minNodeVersion);
+        } while (clusterMetadata.getIndicesLookup().containsKey(newWriteIndexName));
         backingIndices.add(new Index(newWriteIndexName, writeIndexUuid));
-        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated);
+        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated);
     }
 
     /**
@@ -170,7 +185,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(name, timeStampField, indices, getGeneration(), metadata, hidden, false);
+        return new DataStream(name, timeStampField, indices, getGeneration(), metadata, hidden, false, timeProvider);
     }
 
     /**

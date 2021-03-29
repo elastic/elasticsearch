@@ -196,7 +196,6 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
 
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse1 = future1.get();
         assertNotNull(createServiceAccountTokenResponse1);
-        assertThat(createServiceAccountTokenResponse1.isCreated(), is(true));
         assertThat(createServiceAccountTokenResponse1.getName(), equalTo(request.getTokenName()));
         assertNotNull(createServiceAccountTokenResponse1.getValue());
 

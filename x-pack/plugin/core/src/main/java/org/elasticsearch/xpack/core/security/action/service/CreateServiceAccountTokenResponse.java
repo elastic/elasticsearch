@@ -20,27 +20,20 @@ import java.util.Objects;
 
 public class CreateServiceAccountTokenResponse extends ActionResponse implements ToXContentObject {
 
-    private final boolean created;
     @Nullable
     private final String name;
     @Nullable
     private final SecureString value;
 
     private CreateServiceAccountTokenResponse(boolean created, String name, SecureString value) {
-        this.created = created;
         this.name = name;
         this.value = value;
     }
 
     public CreateServiceAccountTokenResponse(StreamInput in) throws IOException {
         super(in);
-        this.created = in.readBoolean();
         this.name = in.readOptionalString();
         this.value = in.readOptionalSecureString();
-    }
-
-    public boolean isCreated() {
-        return created;
     }
 
     public String getName() {
@@ -53,22 +46,19 @@ public class CreateServiceAccountTokenResponse extends ActionResponse implements
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("created", created);
-        if (created) {
-            builder.field("token");
-            builder.startObject();
-            builder.field("name", name);
-            builder.field("value", value.toString());
-            builder.endObject();
-        }
-        builder.endObject();
+        builder.startObject()
+            .field("created", true)
+            .field("token")
+            .startObject()
+            .field("name", name)
+            .field("value", value.toString())
+            .endObject()
+            .endObject();
         return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(created);
         out.writeOptionalString(name);
         out.writeOptionalSecureString(value);
     }
@@ -80,12 +70,12 @@ public class CreateServiceAccountTokenResponse extends ActionResponse implements
         if (o == null || getClass() != o.getClass())
             return false;
         CreateServiceAccountTokenResponse that = (CreateServiceAccountTokenResponse) o;
-        return created == that.created && Objects.equals(name, that.name) && Objects.equals(value, that.value);
+        return Objects.equals(name, that.name) && Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(created, name, value);
+        return Objects.hash(name, value);
     }
 
     public static CreateServiceAccountTokenResponse created(String name, SecureString value) {

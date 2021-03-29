@@ -20,29 +20,29 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTok
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 public class TransportGetServiceAccountTokensAction
     extends HandledTransportAction<GetServiceAccountTokensRequest, GetServiceAccountTokensResponse> {
 
     private final ServiceAccountService serviceAccountService;
-    private final TlsRuntimeCheck tlsRuntimeCheck;
+    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
     private final String nodeName;
 
     @Inject
     public TransportGetServiceAccountTokensAction(TransportService transportService, ActionFilters actionFilters,
                                                   Settings settings,
                                                   ServiceAccountService serviceAccountService,
-                                                  TlsRuntimeCheck tlsRuntimeCheck) {
+                                                  HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         super(GetServiceAccountTokensAction.NAME, transportService, actionFilters, GetServiceAccountTokensRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.serviceAccountService = serviceAccountService;
-        this.tlsRuntimeCheck = tlsRuntimeCheck;
+        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     @Override
     protected void doExecute(Task task, GetServiceAccountTokensRequest request, ActionListener<GetServiceAccountTokensResponse> listener) {
-        tlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service account tokens", () -> {
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service account tokens", () -> {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             serviceAccountService.findTokensFor(accountId, nodeName, listener);
         });

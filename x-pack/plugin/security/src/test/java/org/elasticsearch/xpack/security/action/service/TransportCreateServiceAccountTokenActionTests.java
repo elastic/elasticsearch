@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
-import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -43,20 +43,18 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         securityContext = mock(SecurityContext.class);
         final Settings settings = Settings.builder()
             .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.transport.ssl.enabled", true)
             .build();
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            indexServiceAccountsTokenStore, securityContext, new TlsRuntimeCheck(settings));
+            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(settings));
     }
 
     public void testAuthenticationIsRequired() {
         when(securityContext.getAuthentication()).thenReturn(null);
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), mock(CreateServiceAccountTokenRequest.class), future);
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
-        assertThat(e.getCause().getClass(), is(IllegalStateException.class));
-        assertThat(e.getCause().getMessage(), containsString("authentication is required"));
+        final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("authentication is required"));
     }
 
     public void testExecutionWillDelegate() {
@@ -69,18 +67,16 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     }
 
     public void testTlsRequired() {
-        final boolean httpTls = randomBoolean();
         final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", httpTls)
-            .put("xpack.security.transport.ssl.enabled", randomFrom(false == httpTls, false))
+            .put("xpack.security.http.ssl.enabled", false)
             .build();
         TransportCreateServiceAccountTokenAction action = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            indexServiceAccountsTokenStore, securityContext, new TlsRuntimeCheck(settings));
+            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(settings));
 
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), mock(CreateServiceAccountTokenRequest.class), future);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("[create service account token] requires TLS for both HTTP and Transport"));
+        assertThat(e.getMessage(), containsString("[create service account token] requires TLS for the HTTP interface"));
     }
 }

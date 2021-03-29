@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
@@ -61,7 +61,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.transport.ssl.enabled", true)
             .build();
-        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore, new TlsRuntimeCheck(settings));
+        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore, new HttpTlsRuntimeCheck(settings));
     }
 
     public void testIsServiceAccount() {
@@ -413,7 +413,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             .put("xpack.security.http.ssl.enabled", httpTls)
             .put("xpack.security.transport.ssl.enabled", randomFrom(false == httpTls, false))
             .build();
-        final ServiceAccountService service = new ServiceAccountService(serviceAccountsTokenStore, new TlsRuntimeCheck(settings));
+        final ServiceAccountService service = new ServiceAccountService(serviceAccountsTokenStore, new HttpTlsRuntimeCheck(settings));
 
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
         service.authenticateToken(mock(ServiceAccountToken.class), randomAlphaOfLengthBetween(3, 8), future1);

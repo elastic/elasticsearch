@@ -19,30 +19,30 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
-import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 public class TransportCreateServiceAccountTokenAction
     extends HandledTransportAction<CreateServiceAccountTokenRequest, CreateServiceAccountTokenResponse> {
 
     private final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
     private final SecurityContext securityContext;
-    private final TlsRuntimeCheck tlsRuntimeCheck;
+    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
     @Inject
     public TransportCreateServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
                                                     IndexServiceAccountsTokenStore indexServiceAccountsTokenStore,
                                                     SecurityContext securityContext,
-                                                    TlsRuntimeCheck tlsRuntimeCheck) {
+                                                    HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         super(CreateServiceAccountTokenAction.NAME, transportService, actionFilters, CreateServiceAccountTokenRequest::new);
         this.indexServiceAccountsTokenStore = indexServiceAccountsTokenStore;
         this.securityContext = securityContext;
-        this.tlsRuntimeCheck = tlsRuntimeCheck;
+        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     @Override
     protected void doExecute(Task task, CreateServiceAccountTokenRequest request,
                              ActionListener<CreateServiceAccountTokenResponse> listener) {
-        tlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "create service account token", () -> {
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "create service account token", () -> {
             final Authentication authentication = securityContext.getAuthentication();
             if (authentication == null) {
                 listener.onFailure(new IllegalStateException("authentication is required"));

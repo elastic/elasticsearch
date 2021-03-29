@@ -28,9 +28,12 @@ public class CreateServiceAccountTokenResponseTests extends AbstractWireSerializ
 
     @Override
     protected CreateServiceAccountTokenResponse mutateInstance(CreateServiceAccountTokenResponse instance) throws IOException {
-        return randomBoolean()
-        ? CreateServiceAccountTokenResponse.created(randomAlphaOfLength(10), instance.getValue())
-        : CreateServiceAccountTokenResponse.created(instance.getName(), new SecureString(randomAlphaOfLength(22).toCharArray()))
-        ;
+        if (randomBoolean()) {
+            return CreateServiceAccountTokenResponse.created(
+                randomValueOtherThan(instance.getName(), () -> randomAlphaOfLengthBetween(3, 8)), instance.getValue());
+        } else {
+            return CreateServiceAccountTokenResponse.created(instance.getName(),
+                randomValueOtherThan(instance.getValue(), () -> new SecureString(randomAlphaOfLength(22).toCharArray())));
+        }
     }
 }

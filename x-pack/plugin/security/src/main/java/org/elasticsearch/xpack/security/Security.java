@@ -204,12 +204,13 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -500,8 +501,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final TlsRuntimeCheck tlsRuntimeCheck = new TlsRuntimeCheck(settings);
-        components.add(tlsRuntimeCheck);
+        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings);
+        components.add(httpTlsRuntimeCheck);
 
         final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore = new IndexServiceAccountsTokenStore(
             settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
@@ -511,8 +512,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool);
 
         final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(
-            List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore), threadPool.getThreadContext()),
-            tlsRuntimeCheck);
+            List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore), threadPool.getThreadContext()), httpTlsRuntimeCheck);
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
@@ -736,6 +736,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
         settingsList.add(OPERATOR_PRIVILEGES_ENABLED);
+        settingsList.add(CachingServiceAccountsTokenStore.CACHE_TTL_SETTING);
+        settingsList.add(CachingServiceAccountsTokenStore.CACHE_HASH_ALGO_SETTING);
+        settingsList.add(CachingServiceAccountsTokenStore.CACHE_MAX_TOKENS_SETTING);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),

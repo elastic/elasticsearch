@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.TlsRuntimeCheck;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
 import java.util.Map;
@@ -34,11 +34,11 @@ public class ServiceAccountService {
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
     private final ServiceAccountsTokenStore serviceAccountsTokenStore;
-    private final TlsRuntimeCheck tlsRuntimeCheck;
+    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
-    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore, TlsRuntimeCheck tlsRuntimeCheck) {
+    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         this.serviceAccountsTokenStore = serviceAccountsTokenStore;
-        this.tlsRuntimeCheck = tlsRuntimeCheck;
+        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     public static boolean isServiceAccount(Authentication authentication) {
@@ -87,7 +87,7 @@ public class ServiceAccountService {
 
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
         logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
-        tlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account authentication", () -> {
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account authentication", () -> {
             if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
                 logger.debug("only [{}] service accounts are supported, but received [{}]",
                     ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
@@ -116,7 +116,7 @@ public class ServiceAccountService {
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
-        tlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account role descriptor resolving", () -> {
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account role descriptor resolving", () -> {
             final String principal = authentication.getUser().principal();
             final ServiceAccount account = ACCOUNTS.get(principal);
             if (account == null) {

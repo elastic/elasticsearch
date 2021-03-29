@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler {
 
@@ -34,6 +35,7 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}"),
+            new Route(PUT, "/_security/service/{namespace}/{service}/credential/token/{name}"),
             new Route(POST, "/_security/service/{namespace}/{service}/credential/token"));
     }
 

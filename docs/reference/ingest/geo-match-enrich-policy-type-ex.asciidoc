@@ -140,6 +140,7 @@ The API returns the following response:
 {
   "found": true,
   "_index": "users",
+  "_type": "_doc",
   "_id": "0",
   "_version": 1,
   "_seq_no": 55,

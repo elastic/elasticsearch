@@ -122,6 +122,7 @@ The API returns the following response:
 {
   "found": true,
   "_index": "my-index-000001",
+  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 55,

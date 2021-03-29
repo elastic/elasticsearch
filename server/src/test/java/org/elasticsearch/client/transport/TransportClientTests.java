@@ -9,7 +9,6 @@
 package org.elasticsearch.client.transport;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -36,9 +35,7 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class TransportClientTests extends ESTestCase {
 
     public void testThatUsingAClosedClientThrowsAnException() throws ExecutionException, InterruptedException {
-        final TransportClient client =  new MockTransportClient(Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-                .build());
+        final TransportClient client =  new MockTransportClient(Settings.EMPTY);
         client.close();
         final IllegalStateException e =
             expectThrows(IllegalStateException.class, () -> client.admin().cluster().health(new ClusterHealthRequest()).actionGet());
@@ -53,8 +50,7 @@ public class TransportClientTests extends ESTestCase {
     public void testPluginNamedWriteablesRegistered() {
         Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-            .build();
+                .build();
         try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
             assertNotNull(client.namedWriteableRegistry.getReader(MockPlugin.MockNamedWriteable.class, MockPlugin.MockNamedWriteable.NAME));
         }
@@ -63,7 +59,6 @@ public class TransportClientTests extends ESTestCase {
     public void testSettingsContainsTransportClient() {
         final Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .build();
         try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
             final Settings settings = TransportSettings.DEFAULT_FEATURES_SETTING.get(client.settings());
@@ -75,8 +70,7 @@ public class TransportClientTests extends ESTestCase {
     public void testDefaultHeader() {
         final Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-            .build();
+                .build();
         try (TransportClient client = new MockTransportClient(baseSettings, Arrays.asList(MockPlugin.class))) {
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             assertEquals("true", threadContext.getHeader("test"));

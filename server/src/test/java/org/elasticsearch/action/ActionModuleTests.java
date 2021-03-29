@@ -117,9 +117,6 @@ public class ActionModuleTests extends ESTestCase {
                 }
             }));
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
-
-        assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
-            "set explicitly to false to preserve current behavior");
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
@@ -148,9 +145,6 @@ public class ActionModuleTests extends ESTestCase {
                 singletonList(dupsMainAction), null, null, usageService, null);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
-
-            assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
-                "set explicitly to false to preserve current behavior");
         } finally {
             threadPool.shutdown();
         }
@@ -198,9 +192,6 @@ public class ActionModuleTests extends ESTestCase {
                     }
                 }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
-
-            assertWarnings("setting [action.destructive_requires_name] will default to true in 8.0, " +
-                "set explicitly to false to preserve current behavior");
         } finally {
             threadPool.shutdown();
         }

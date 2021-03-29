@@ -41,20 +41,16 @@ public final class DestructiveOperations {
 
     private volatile boolean destructiveRequiresName;
 
+    private volatile boolean isDestructiveRequiresNameSet;
+
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
-        if (REQUIRES_NAME_SETTING.exists(settings) == false) {
-            deprecationLogger.deprecate(
-                DeprecationCategory.SETTINGS,
-                "destructive_requires_name_default",
-                "setting [action.destructive_requires_name] will default to true in 8.0, " +
-                    "set explicitly to false to preserve current behavior"
-            );
-        }
         destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
+        isDestructiveRequiresNameSet = REQUIRES_NAME_SETTING.exists(settings);
         clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
     }
 
     private void setDestructiveRequiresName(boolean destructiveRequiresName) {
+        this.isDestructiveRequiresNameSet = true;
         this.destructiveRequiresName = destructiveRequiresName;
     }
 
@@ -62,22 +58,32 @@ public final class DestructiveOperations {
      * Fail if there is wildcard usage in indices and the named is required for destructive operations.
      */
     public void failDestructive(String[] aliasesOrIndices) {
-        if (destructiveRequiresName == false) {
-            return;
-        }
-
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
-            throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+            handleWildcardOperation();
         } else if (aliasesOrIndices.length == 1) {
             if (hasWildcardUsage(aliasesOrIndices[0])) {
-                throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                handleWildcardOperation();
             }
         } else if (Arrays.equals(aliasesOrIndices, MATCH_NONE_PATTERN) == false) {
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
-                    throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                    handleWildcardOperation();
                 }
             }
+        }
+    }
+
+    private void handleWildcardOperation() {
+        if (isDestructiveRequiresNameSet == false) {
+            deprecationLogger.deprecate(
+                DeprecationCategory.SETTINGS,
+                "destructive_requires_name_default",
+                "setting [action.destructive_requires_name] will default to true in 8.0, " +
+                    "set explicitly to false to preserve current behavior"
+            );
+        }
+        if (destructiveRequiresName) {
+            throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
         }
     }
 

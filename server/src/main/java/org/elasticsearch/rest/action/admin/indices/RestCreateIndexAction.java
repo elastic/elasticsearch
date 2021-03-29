@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -89,6 +90,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
             Map<String, Object> newSource = new HashMap<>();
 
             String typeName = mappings.keySet().iterator().next();
+            if (Strings.hasText(typeName) == false) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> typedMappings = (Map<String, Object>) mappings.get(typeName);
 

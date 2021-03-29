@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;
@@ -21,16 +22,16 @@ import org.gradle.api.tasks.Optional;
  */
 public class ReplaceTextual implements RestTestTransformByParentObject {
     private final String replaceKey;
-    private final JsonNode replacementNode;
+    private final TextNode replacementNode;
     private final String testName;
 
-    public ReplaceTextual(String replaceKey, JsonNode replacementNode) {
+    public ReplaceTextual(String replaceKey, TextNode replacementNode) {
         this.replaceKey = replaceKey;
         this.replacementNode = replacementNode;
         this.testName = null;
     }
 
-    public ReplaceTextual(String replaceKey, JsonNode replacementNode, String testName) {
+    public ReplaceTextual(String replaceKey, TextNode replacementNode, String testName) {
         this.replaceKey = replaceKey;
         this.replacementNode = replacementNode;
         this.testName = testName;
@@ -54,7 +55,6 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
 
     @Override
     public void transformTest(ObjectNode matchParent) {
-        // ObjectNode matchNode = (ObjectNode) matchParent.get(getKeyToFind());
         matchParent.set(getKeyToFind(), replacementNode);
     }
 
@@ -73,4 +73,10 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
     public String getTestName() {
         return testName;
     }
+
+    @Override
+    public boolean matches(JsonNode child) {
+        return child.asText().equals(requiredChildKey());
+    }
+
 }

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.Version;
@@ -103,7 +104,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void replaceIsTrue(String subKey, Object value) {
-        transformations.add(new ReplaceTextual(subKey, MAPPER.convertValue(value, JsonNode.class)));
+        transformations.add(new ReplaceTextual(subKey, MAPPER.convertValue(value, TextNode.class)));
     }
 
     /**

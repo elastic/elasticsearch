@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.gradle.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
@@ -31,7 +32,7 @@ public class ReplaceTextualTests extends TransformTests {
     public void testReplaceAll() throws Exception {
         String testName = "/rest/transform/match/is_true.yml";
         List<ObjectNode> tests = getTests(testName);
-        JsonNode replacementNode = MAPPER.convertValue("test_index.mappings._doc", JsonNode.class);
+        TextNode replacementNode = MAPPER.convertValue("test_index.mappings._doc", TextNode.class);
         validateTest(tests, true, true);
         List<ObjectNode> transformedTests = transformTests(
             new LinkedList<>(tests),

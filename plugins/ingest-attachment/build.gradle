@@ -68,7 +68,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'ingest', 'index', 'get'
+    include '_common', 'cluster', 'nodes', 'ingest', 'index', 'get'
   }
 }
 

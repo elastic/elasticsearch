@@ -37,13 +37,13 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
-import org.elasticsearch.runtimefields.mapper.DateFieldScript;
-import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
-import org.elasticsearch.runtimefields.mapper.IpFieldScript;
-import org.elasticsearch.runtimefields.mapper.LongFieldScript;
-import org.elasticsearch.runtimefields.mapper.StringFieldScript;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
@@ -118,7 +118,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private static List<Whitelist> getRuntimeFieldWhitelist(String fieldType) {
         List<Whitelist> scriptField = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         Whitelist whitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class,
-            "org.elasticsearch.runtimefields." + fieldType + ".txt");
+            "org.elasticsearch.script." + fieldType + ".txt");
         scriptField.add(whitelist);
         return scriptField;
     }

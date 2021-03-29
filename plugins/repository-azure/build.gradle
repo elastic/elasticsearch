@@ -97,7 +97,7 @@ tasks.named("internalClusterTestJar").configure {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
   }
 }
 

@@ -165,7 +165,6 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(BytesRef value) {
             return Base64.getEncoder()
-                    .withoutPadding()
                     .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
         }
 

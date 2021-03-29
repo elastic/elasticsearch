@@ -84,7 +84,6 @@ roll over data streams when the write index reaches a specified age or size.
 If needed, you can also <<manually-roll-over-a-data-stream,manually roll over>>
 a data stream.
 
-
 [discrete]
 [[data-streams-generation]]
 == Generation

@@ -15,9 +15,8 @@ artifacts {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
-                'index', 'put_script', 'ingest', 'count'
-    includeXpack 'watcher', 'xpack'
+    include '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
+                'index', 'put_script', 'ingest', 'count', 'watcher', 'xpack'
   }
 }
 

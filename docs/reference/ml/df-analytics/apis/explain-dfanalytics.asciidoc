@@ -10,8 +10,6 @@
 
 Explains a {dataframe-analytics-config}.
 
-beta::[]
-
 
 [[ml-explain-dfanalytics-request]]
 == {api-request-title}

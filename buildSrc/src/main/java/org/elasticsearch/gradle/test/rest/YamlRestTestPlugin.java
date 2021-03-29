@@ -64,10 +64,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             );
         });
 
-        project.getTasks()
-            .named(yamlTestSourceSet.getProcessResourcesTaskName())
-            .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
-
         // Register rest resources with source set
         yamlTestSourceSet.getOutput()
             .dir(

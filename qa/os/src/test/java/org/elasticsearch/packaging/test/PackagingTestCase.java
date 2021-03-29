@@ -219,6 +219,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
@@ -300,6 +301,7 @@ public abstract class PackagingTestCase extends Assert {
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -319,6 +321,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -339,6 +342,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:

@@ -9,7 +9,6 @@
 
 Instantiates a {dfanalytics-job}.
 
-beta::[]
 
 [[ml-put-dfanalytics-request]]
 == {api-request-title}

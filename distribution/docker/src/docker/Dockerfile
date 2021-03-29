@@ -64,7 +64,12 @@ RUN set -eux ; \\
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-${source_elasticsearch}
+<% /*
+  Fetch the appropriate Elasticsearch distribution for this architecture.
+  Keep this command on one line - it is replaced with a `COPY` during local builds.
+  It uses the `arch` command to fetch the correct distro for the build machine.
+*/ %>
+RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
@@ -109,7 +114,7 @@ FROM ${base_image}
 %>
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
     ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip unzip && \\
+      nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
 <% } else { %>
@@ -190,6 +195,10 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 <% } else if (docker_base == 'iron_bank') { %>
 RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
+<% } %>
+
+<% if (docker_base == 'iron_bank') { %>
+USER elasticsearch:root
 <% } %>
 
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]

@@ -118,7 +118,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private static List<Whitelist> getRuntimeFieldWhitelist(String fieldType) {
         List<Whitelist> scriptField = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         Whitelist whitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class,
-            "org.elasticsearch.runtimefields." + fieldType + ".txt");
+            "org.elasticsearch.script." + fieldType + ".txt");
         scriptField.add(whitelist);
         return scriptField;
     }

@@ -11,12 +11,15 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.Response> {
 
@@ -55,21 +58,33 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
+        List<SingleNodeShutdownMetadata> shutdownStatuses = Collections.emptyList();
+
+        public Response(List<SingleNodeShutdownMetadata> shutdownStatuses) {
+            this.shutdownStatuses = shutdownStatuses;
+        }
 
         public Response(StreamInput in) throws IOException {
-
+            in.readList(SingleNodeShutdownMetadata::new);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            {
+                builder.startArray("nodes");
+                for (SingleNodeShutdownMetadata nodeMetadata : shutdownStatuses) {
+                    nodeMetadata.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-
+            out.writeList(shutdownStatuses);
         }
     }
 }

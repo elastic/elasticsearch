@@ -45,15 +45,15 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return new SingleNodeShutdownMetadata(
-            randomAlphaOfLength(5),
-            randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART,
-            randomAlphaOfLength(5),
-            randomStatus(),
-            randomNonNegativeLong(),
-            randomComponentStatus(),
-            randomComponentStatus(),
-            randomComponentStatus());
+        return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
+            .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+            .setReason(randomAlphaOfLength(5))
+            .setStatus(randomStatus())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setShardMigrationStatus(randomComponentStatus())
+            .setPersistentTasksStatus(randomComponentStatus())
+            .setPluginsStatus(randomComponentStatus())
+            .build();
     }
 
     private SingleNodeShutdownMetadata.Status randomStatus() {

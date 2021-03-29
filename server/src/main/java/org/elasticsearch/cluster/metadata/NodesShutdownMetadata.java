@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +22,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,11 +83,42 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     /**
-     * Retrieve the data about nodes which are currently in the process of shutting down.
-     * @return A map of node IDs to information about the node's shutdown status.
+     * Retrieve metadata for a single node.
+     * @param nodeId The node ID to get the shutdown metadata for.
+     * @return The shutdown metadata for this node, if it exists, or {@code null} if it does not.
      */
-    public Map<String, SingleNodeShutdownMetadata> getPerNodeInfo() {
-        return Collections.unmodifiableMap(nodes);
+    @Nullable
+    public SingleNodeShutdownMetadata getNodeMetadata(String nodeId) {
+        return nodes.get(nodeId);
+    }
+
+    /**
+     * @return All {@link SingleNodeShutdownMetadata}s that currently exist.
+     */
+    public List<SingleNodeShutdownMetadata> getAllNodeMetadata() {
+        return new ArrayList<>(nodes.values());
+    }
+
+    /**
+     * Add or update the shutdown metadata for a single node.
+     * @param nodeShutdownMetadata The single node shutdown metadata to add or update.
+     * @return A new {@link NodesShutdownMetadata} that reflects the updated value.
+     */
+    public NodesShutdownMetadata putSingleNodeMetadata(SingleNodeShutdownMetadata nodeShutdownMetadata) {
+        HashMap<String, SingleNodeShutdownMetadata> newNodes = new HashMap<>(nodes);
+        newNodes.put(nodeShutdownMetadata.getNodeId(), nodeShutdownMetadata);
+        return new NodesShutdownMetadata(newNodes);
+    }
+
+    /**
+     * Removes all shutdown metadata for a particular node ID.
+     * @param nodeId The node ID to remove shutdown metadata for.
+     * @return A new {@link NodesShutdownMetadata} that does not contain shutdown metadata for the given node.
+     */
+    public NodesShutdownMetadata removeSingleNodeMetadata(String nodeId) {
+        HashMap<String, SingleNodeShutdownMetadata> newNodes = new HashMap<>(nodes);
+        newNodes.remove(nodeId);
+        return new NodesShutdownMetadata(newNodes);
     }
 
     @Override
@@ -113,12 +146,12 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         if (this == o) return true;
         if ((o instanceof NodesShutdownMetadata) == false) return false;
         NodesShutdownMetadata that = (NodesShutdownMetadata) o;
-        return getPerNodeInfo().equals(that.getPerNodeInfo());
+        return nodes.equals(that.nodes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPerNodeInfo());
+        return Objects.hash(nodes);
     }
 
     @Override
@@ -150,7 +183,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(
-                nodesDiff.apply(((NodesShutdownMetadata) part).getPerNodeInfo())
+                nodesDiff.apply(((NodesShutdownMetadata) part).nodes)
             );
             return new NodesShutdownMetadata(newNodes);
         }

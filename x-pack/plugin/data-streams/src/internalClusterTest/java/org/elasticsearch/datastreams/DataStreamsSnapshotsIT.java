@@ -181,10 +181,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
-        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[]{"*"});
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).get();
-        assertThat(ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
-            contains(equalTo("ds"), equalTo("other-ds")));
+        assertThat(
+            ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+            contains(equalTo("ds"), equalTo("other-ds"))
+        );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
         assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(DS_BACKING_INDEX_NAME));
         backingIndices = ds.getDataStreams().get(1).getDataStream().getIndices();
@@ -231,9 +233,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
-        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[]{"ds"});
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[] { "ds" });
         GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).actionGet();
-        assertThat(ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()), contains(equalTo("ds")));
+        assertThat(
+            ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+            contains(equalTo("ds"))
+        );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
         assertThat(ds.getDataStreams().get(0).getDataStream().getIndices(), hasSize(1));
         assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(DS_BACKING_INDEX_NAME)));

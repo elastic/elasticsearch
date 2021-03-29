@@ -151,6 +151,10 @@ public class MlDailyMaintenanceService implements Releasable {
                 LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
                 return;
             }
+            if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
+                LOGGER.warn("skipping scheduled [ML] maintenance tasks because reset mode is enabled");
+                return;
+            }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
 
             // Step 3: Log any error that could have happened

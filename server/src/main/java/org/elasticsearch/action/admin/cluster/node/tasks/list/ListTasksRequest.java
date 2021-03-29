@@ -68,13 +68,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     @Override
     public boolean match(Task task) {
-        if (super.match(task) == false) {
-            return false;
-        }
-        if (isEmpty(getDescriptions()) == false && simpleMatch(getDescriptions(), task.getDescription()) == false) {
-            return false;
-        }
-        return true;
+        return super.match(task)
+            && (isEmpty(getDescriptions()) || simpleMatch(getDescriptions(), task.getDescription()));
     }
 
     /**

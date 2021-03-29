@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
+import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 
@@ -84,8 +85,11 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         };
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
-                Collections.singletonList(new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1")));
+                Collections.singletonList(
+                    new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)));
 
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
@@ -126,7 +130,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 assertThat(actual.getApiKeyInfos().length, is(0));
             } else {
                 assertThat(actual.getApiKeyInfos(),
-                        arrayContaining(new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1")));
+                        arrayContaining(
+                            new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)));
             }
         }
 
@@ -155,9 +160,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final ApiKey apiKey1 = new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false,
-            "user-x", "realm-1");
+            "user-x", "realm-1", ApiKeyTests.randomMetadata());
         final ApiKey apiKey2 = new ApiKey("api-key-name-2", "api-key-id-2", creation, expiration, false,
-            "user-y", "realm-1");
+            "user-y", "realm-1", ApiKeyTests.randomMetadata());
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 

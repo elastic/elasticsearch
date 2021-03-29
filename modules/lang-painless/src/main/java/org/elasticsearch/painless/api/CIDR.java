@@ -81,6 +81,8 @@ public class CIDR {
             Arrays.compareUnsigned(upper, addr) >= 0;
     }
 
+    // Borrowed from Lucene to make this consistent IP fields matching for the mix of IPv4 and IPv6 values
+    // Modified signature to avoid extra conversions
     private static byte[] encode(byte[] address) {
         final byte[] IPV4_PREFIX = new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1};
         if (address.length == 4) {

@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

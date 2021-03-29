@@ -58,9 +58,9 @@ public class ReplaceTextualTests extends TransformTests {
             JsonNode matchObject = childObject.get("is_true");
             if (matchObject != null) {
                 firstTestHasMatchObject.set(true);
-                if (firstTestHasTypeMatch.get() == false ) {
+                if (firstTestHasTypeMatch.get() == false) {
                     firstTestHasTypeMatch.set(true);
-                }/*&& matchObject.asText().equals("test_index.mappings.type_1")*/
+                } /*&& matchObject.asText().equals("test_index.mappings.type_1")*/
                 if (/*matchObject.get("_type") != null && */beforeTransformation == false && allTests) {
                     assertThat(matchObject.asText(), CoreMatchers.is("test_index.mappings._doc"));
                 }
@@ -82,9 +82,9 @@ public class ReplaceTextualTests extends TransformTests {
             JsonNode matchObject = childObject.get("is_true");
             if (matchObject != null) {
                 lastTestHasMatchObject.set(true);
-                if (lastTestHasTypeMatch.get() == false ) {
+                if (lastTestHasTypeMatch.get() == false) {
                     lastTestHasTypeMatch.set(true);
-                }/*&& matchObject.asText().equals("test_index.mappings.type_1")*/
+                } /*&& matchObject.asText().equals("test_index.mappings.type_1")*/
                 if (/*matchObject.get("_type") != null && */beforeTransformation == false && allTests) {
                     assertThat(matchObject.asText(), CoreMatchers.is("test_index.mappings._doc"));
                 }
@@ -93,25 +93,25 @@ public class ReplaceTextualTests extends TransformTests {
         assertTrue(lastTestHasMatchObject.get());
         assertTrue(lastTestHasTypeMatch.get());
 
-//        // exclude setup, teardown, first test, and last test
-//        for (int i = 3; i <= tests.size() - 2; i++) {
-//            ObjectNode otherTest = tests.get(i);
-//            JsonNode otherTestChild = otherTest.get(otherTest.fields().next().getKey());
-//            assertThat(otherTestChild, CoreMatchers.instanceOf(ArrayNode.class));
-//            ArrayNode otherTestParentArray = (ArrayNode) otherTestChild;
-//            otherTestParentArray.elements().forEachRemaining(node -> {
-//                assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
-//                ObjectNode childObject = (ObjectNode) node;
-//                JsonNode matchObject = childObject.get("match");
-//                if (matchObject != null) {
-//                    if (matchObject.get("_type") != null) {
-//                        if (matchObject.get("_type") != null && beforeTransformation == false && allTests) {
-//                            assertThat(matchObject.get("_type").asText(), CoreMatchers.is("_replaced_type"));
-//                        }
-//                    }
-//                }
-//            });
-//        }
+        // // exclude setup, teardown, first test, and last test
+        // for (int i = 3; i <= tests.size() - 2; i++) {
+        // ObjectNode otherTest = tests.get(i);
+        // JsonNode otherTestChild = otherTest.get(otherTest.fields().next().getKey());
+        // assertThat(otherTestChild, CoreMatchers.instanceOf(ArrayNode.class));
+        // ArrayNode otherTestParentArray = (ArrayNode) otherTestChild;
+        // otherTestParentArray.elements().forEachRemaining(node -> {
+        // assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
+        // ObjectNode childObject = (ObjectNode) node;
+        // JsonNode matchObject = childObject.get("match");
+        // if (matchObject != null) {
+        // if (matchObject.get("_type") != null) {
+        // if (matchObject.get("_type") != null && beforeTransformation == false && allTests) {
+        // assertThat(matchObject.get("_type").asText(), CoreMatchers.is("_replaced_type"));
+        // }
+        // }
+        // }
+        // });
+        // }
     }
 
     @Override

@@ -127,6 +127,7 @@ public class FileTokensToolTests extends CommandTestCase {
             "Expected two arguments, service-account-principal and token-name, found extra:"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70959")
     public void testCreateToken() throws Exception {
         final String tokenName1 = ServiceAccountTokenTests.randomTokenName();
         execute("create", pathHomeParameter, "elastic/fleet", tokenName1);

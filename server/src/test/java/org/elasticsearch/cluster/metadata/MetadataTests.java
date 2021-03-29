@@ -959,7 +959,7 @@ public class MetadataTests extends ESTestCase {
                 "]) conflicts with data stream]"));
     }
 
-    public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
+    public void testBuilderRejectsAliasThatRefersToDataStreamBackingIndex() {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName)

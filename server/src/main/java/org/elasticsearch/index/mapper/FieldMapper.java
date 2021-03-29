@@ -173,9 +173,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Returns a post-parse executor for this field mapper, or {@code null} if none is defined
+     * Returns an index time script for this field mapper, or {@code null} if none is defined
      */
-    public PostParseExecutor getPostParseExecutor() {
+    public IndexTimeScript getIndexTimeScript() {
         return null;
     }
 

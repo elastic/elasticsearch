@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -21,14 +22,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -108,12 +115,60 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
-        PostParsePhase.executePostParsePhases(context);
+        executeIndexTimeScripts(context);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
         }
     }
+
+    private static void executeIndexTimeScripts(ParseContext context) {
+        Map<String, IndexTimeScript> indexTimeScripts = context.mappingLookup().indexTimeScripts();
+        if (indexTimeScripts.isEmpty()) {
+            return;
+        }
+        SearchLookup searchLookup = new SearchLookup(
+            context.mappingLookup().indexTimeLookup()::get,
+            (ft, s) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), s).build(
+                new IndexFieldDataCache.None(),
+                new NoneCircuitBreakerService())
+        );
+        Map<String, Consumer<LeafReaderContext>> oneTimeScripts = new HashMap<>();
+        indexTimeScripts.forEach((k, c) -> {
+            OneTimeFieldExecutor executor = new OneTimeFieldExecutor(c, searchLookup, context);
+            oneTimeScripts.put(k, executor::execute);
+        });
+        DocumentLeafReader reader = new DocumentLeafReader(context.rootDoc(), oneTimeScripts);
+
+        for (Consumer<LeafReaderContext> script : oneTimeScripts.values()) {
+            script.accept(reader.getContext());
+        }
+    }
+
+    // field scripts can be called both by executeIndexTimeScripts() and via the document reader,
+    // so to ensure that we don't run field scripts multiple times we guard them with
+    // this one-time executor class
+    private static class OneTimeFieldExecutor {
+
+        IndexTimeScript executor;
+        boolean executed = false;
+        final SearchLookup searchLookup;
+        final ParseContext parseContext;
+
+        OneTimeFieldExecutor(IndexTimeScript executor, SearchLookup searchLookup, ParseContext parseContext) {
+            this.executor = executor;
+            this.searchLookup = searchLookup;
+            this.parseContext = parseContext;
+        }
+
+        void execute(LeafReaderContext ctx) {
+            if (executed == false) {
+                executor.execute(searchLookup, ctx, parseContext);
+                executed = true;
+            }
+        }
+    }
+
 
     private static void validateStart(XContentParser parser) throws IOException {
         // will result in START_OBJECT

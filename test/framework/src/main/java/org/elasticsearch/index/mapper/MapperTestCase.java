@@ -38,6 +38,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -615,29 +616,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             fieldData.setNextDocId(0);
 
-            PostParseExecutor indexTimeExecutor = context -> {
+            IndexTimeScript indexTimeExecutor = (lookup, context, pc) -> {
                 ScriptDocValues<?> indexData = fieldType
                     .fielddataBuilder("test", () -> {
                         throw new UnsupportedOperationException();
                     })
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-                    .load(context.leafReaderContext)
+                    .load(context)
                     .getScriptValues();
-                indexData.setNextDocId(0);
+                try {
+                    indexData.setNextDocId(0);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
 
                 // compare index and search time fielddata
                 assertThat(fieldData, equalTo(indexData));
             };
 
-            ParseContext pc = mock(ParseContext.class);
-            when(pc.rootDoc()).thenReturn(doc.rootDoc());
-            when(pc.sourceToParse()).thenReturn(source);
-
-            PostParsePhase postParsePhase = new PostParsePhase(
-                Map.of("test", indexTimeExecutor),
-                mapperService::fieldType,
-                pc);
-            postParsePhase.execute();
+            DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
+            indexTimeExecutor.execute(null, reader.getContext(), null);
         });
     }
 
@@ -674,22 +672,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             LeafStoredFieldsLookup storedFields = lookup.getLeafSearchLookup(ctx).fields();
             storedFields.setDocument(0);
 
-            PostParseExecutor indexTimeExecutor = context -> {
-                LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(context.leafReaderContext).fields();
+            IndexTimeScript indexTimeExecutor = (l, context, pc) -> {
+                LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(context).fields();
                 indexStoredFields.setDocument(0);
 
                 // compare index and search time stored fields
                 assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
             };
 
-            ParseContext pc = mock(ParseContext.class);
-            when(pc.rootDoc()).thenReturn(doc.rootDoc());
-
-            PostParsePhase postParsePhase = new PostParsePhase(
-                Map.of("test", indexTimeExecutor),
-                mapperService::fieldType,
-                pc);
-            postParsePhase.execute();
+            DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
+            indexTimeExecutor.execute(null, reader.getContext(), null);
         });
     }
 

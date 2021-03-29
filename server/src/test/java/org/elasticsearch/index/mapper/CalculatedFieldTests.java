@@ -133,8 +133,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         }));
 
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertEquals("failed to parse", e.getMessage());
-        assertEquals("Error executing script on field [field1]", e.getCause().getMessage());
+        assertEquals("Error executing script on field [field1]", e.getMessage());
 
         Throwable root = e.getCause();
         while (root.getCause() != null) {
@@ -165,8 +164,8 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         }));
 
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertEquals("Error executing script on field [index-field]", e.getCause().getMessage());
-        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getCause().getMessage());
+        assertEquals("Error executing script on field [index-field]", e.getMessage());
+        assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }
 
     public void testScriptErrorParameterRequiresScript() {
@@ -220,9 +219,8 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         }));
 
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
-        assertThat(e.getMessage(), equalTo("failed to parse"));
-        assertThat(e.getCause().getMessage(), equalTo("Error executing script on field [message_error]"));
-        assertThat(e.getCause().getCause().getMessage(), equalTo("Oops!"));
+        assertThat(e.getMessage(), equalTo("Error executing script on field [message_error]"));
+        assertThat(e.getCause().getMessage(), equalTo("Oops!"));
     }
 
     @Override

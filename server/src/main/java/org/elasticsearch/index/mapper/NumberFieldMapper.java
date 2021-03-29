@@ -1241,22 +1241,18 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public PostParseExecutor getPostParseExecutor() {
+    public IndexTimeScript getIndexTimeScript() {
         if (this.script == null) {
             return null;
         }
-        return context -> {
+        return (lookup, ctx, pc) -> {
             try {
-                script.executeAndEmit(
-                    context.searchLookup,
-                    context.leafReaderContext,
-                    0,
-                    v -> indexValue(context.pc, v));
+                script.executeAndEmit(lookup, ctx, 0, v -> indexValue(pc, v));
             } catch (Exception e) {
                 if ("ignore".equals(onScriptError)) {
-                    context.pc.addIgnoredField(name());
+                    pc.addIgnoredField(name());
                 } else {
-                    throw new IOException("Error executing script on field [" + name() + "]", e);
+                    throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
                 }
             }
         };

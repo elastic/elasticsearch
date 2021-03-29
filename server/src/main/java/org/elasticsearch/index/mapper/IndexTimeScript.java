@@ -8,13 +8,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
  * Runs after a document has been parsed
  */
-public interface PostParseExecutor {
+public interface IndexTimeScript {
 
-    void execute(PostParseContext context) throws IOException;
+    void execute(SearchLookup searchLookup, LeafReaderContext ctx, ParseContext pc);
 
 }

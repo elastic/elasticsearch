@@ -56,7 +56,7 @@ public final class MappingLookup {
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
-    private final Map<String, PostParseExecutor> postParsePhases = new HashMap<>();
+    private final Map<String, IndexTimeScript> indexTimeScripts = new HashMap<>();
     private final DocumentParser documentParser;
     private final Mapping mapping;
     private final IndexSettings indexSettings;
@@ -139,9 +139,9 @@ public final class MappingLookup {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
-            PostParseExecutor postParsePhase = mapper.getPostParseExecutor();
-            if (postParsePhase != null) {
-                postParsePhases.put(mapper.fieldType().name(), postParsePhase);
+            IndexTimeScript indexTimeScript = mapper.getIndexTimeScript();
+            if (indexTimeScript != null) {
+                indexTimeScripts.put(mapper.fieldType().name(), indexTimeScript);
             }
         }
 
@@ -155,7 +155,7 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = postParsePhases.isEmpty() ? null : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        this.indexTimeLookup = indexTimeScripts.isEmpty() ? null : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -174,12 +174,12 @@ public final class MappingLookup {
         return fieldTypeLookup;
     }
 
-    PostParsePhase buildPostParsePhase(ParseContext pc) {
-        if (postParsePhases.isEmpty()) {
-            return null;
-        }
-        assert indexTimeLookup != null;
-        return new PostParsePhase(postParsePhases, indexTimeLookup::get, pc);
+    FieldTypeLookup indexTimeLookup() {
+        return indexTimeLookup;
+    }
+
+    Map<String, IndexTimeScript> indexTimeScripts() {
+        return indexTimeScripts;
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {

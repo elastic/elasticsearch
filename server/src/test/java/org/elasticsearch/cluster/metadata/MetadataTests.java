@@ -1000,7 +1000,14 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
-        Metadata.Builder b = Metadata.builder().put(idx, false).put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex())));
+        Metadata.Builder b =
+            Metadata
+                .builder()
+                .put(idx, false)
+                .put(new DataStream(
+                    dataStreamName,
+                    createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex()))
+                );
         b.build();
         assertWarnings("aliases [" + conflictingName + "] cannot refer to backing indices of data streams");
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
@@ -53,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -146,7 +149,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
     }
 
-    public void testSnapshotAndRestoreInPlace() throws Exception {
+    public void testSnapshotAndRestoreAllDataStreamsInPlace() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot(REPO, SNAPSHOT)
@@ -178,13 +181,70 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
-        GetDataStreamAction.Response ds = client.execute(
-            GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(new String[] { "ds" })
-        ).get();
-        assertEquals(1, ds.getDataStreams().size());
-        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[]{"*"});
+        GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).get();
+        assertThat(ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+            contains(equalTo("ds"), equalTo("other-ds")));
+        List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(DS_BACKING_INDEX_NAME));
+        backingIndices = ds.getDataStreams().get(1).getDataStream().getIndices();
+        String expectedBackingIndexName = DataStream.getDefaultBackingIndexName("other-ds", 1);
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(expectedBackingIndexName));
+    }
+
+    public void testSnapshotAndRestoreInPlace() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+
+        // A rollover after taking snapshot. The new backing index should be a standalone index after restoring
+        // and not part of the data stream:
+        RolloverRequest rolloverRequest = new RolloverRequest("ds", null);
+        RolloverResponse rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
+        assertThat(rolloverResponse.isRolledOver(), is(true));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 2)));
+
+        // Close all backing indices of ds data stream:
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(".ds-ds-*");
+        closeIndexRequest.indicesOptions(IndicesOptions.strictExpandHidden());
+        assertAcked(client.admin().indices().close(closeIndexRequest).actionGet());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get();
+        assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[]{"ds"});
+        GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).actionGet();
+        assertThat(ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()), contains(equalTo("ds")));
+        List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
+        assertThat(ds.getDataStreams().get(0).getDataStream().getIndices(), hasSize(1));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(DS_BACKING_INDEX_NAME)));
+
+        // The backing index created as part of rollover should still exist (but just not part of the data stream)
+        assertThat(indexExists(DataStream.getDefaultBackingIndexName("ds", 2)), is(true));
+        // An additional rollover should create a new backing index (3th generation) and leave .ds-ds-...-2 index as is:
+        rolloverRequest = new RolloverRequest("ds", null);
+        rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
+        assertThat(rolloverResponse.isRolledOver(), is(true));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 3)));
     }
 
     public void testSnapshotAndRestoreAll() throws Exception {

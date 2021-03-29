@@ -18,21 +18,20 @@ keyword connects them.
 event_category where condition
 ----
 
-For example, the following EQL query matches `process` events with a
-`process.name` field value of `svchost.exe`:
+An event category is an indexed value of the <<eql-required-fields,event
+category field>>. By default, the <<eql-search-api,EQL search API>> uses the
+`event.category` field from the {ecs-ref}[Elastic Common Schema (ECS)]. You can
+specify another event category field using the API's
+<<specify-a-timestamp-or-event-category-field,`event_category_field`>>
+parameter.
+
+For example, the following EQL query matches events with an event category of
+`process` and a `process.name` of `svchost.exe`:
 
 [source,eql]
 ----
 process where process.name == "svchost.exe"
 ----
-
-[discrete]
-[[eql-syntax-event-categories]]
-=== Event categories
-
-An event category is a valid, indexed value of the
-<<eql-required-fields,event category field>>. You can set the event category
-field using the `event_category_field` parameter of the EQL search API.
 
 [discrete]
 [[eql-syntax-match-any-event-category]]

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -38,7 +39,15 @@ public class TarInputStreamTests extends ESTestCase {
                 TarInputStream.TarEntry tarEntry = tis.getNextEntry();
                 assertEquals(entry.name, tarEntry.getName());
                 if (entry.notFile == false) {
-                    assertEquals(entry.data, new String(tis.readAllBytes(), StandardCharsets.UTF_8));
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+                    int nRead;
+                    byte[] data = new byte[16384];
+
+                    while ((nRead = tis.read(data, 0, data.length)) != -1) {
+                        buffer.write(data, 0, nRead);
+                    }
+                    assertEquals(entry.data, new String(buffer.toByteArray(), StandardCharsets.UTF_8));
                 }
                 assertEquals(entry.notFile, tarEntry.isNotFile());
             }

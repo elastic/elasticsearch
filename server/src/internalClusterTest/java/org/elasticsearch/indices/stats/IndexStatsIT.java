@@ -85,6 +85,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1066,7 +1067,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55485")
     public void testBulkStats() throws Exception {
         final String index = "test";
         assertAcked(prepareCreate(index).setSettings(settingsBuilder().put("index.number_of_shards", 2)
@@ -1086,15 +1086,15 @@ public class IndexStatsIT extends ESIntegTestCase {
         IndicesStatsResponse stats = client().admin().indices().prepareStats(index).setBulk(true).get();
 
         assertThat(stats.getTotal().bulk.getTotalOperations(), equalTo(4L));
-        assertThat(stats.getTotal().bulk.getTotalTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getTotal().bulk.getTotalTimeInMillis(), greaterThanOrEqualTo(0L));
         assertThat(stats.getTotal().bulk.getTotalSizeInBytes(), greaterThan(0L));
-        assertThat(stats.getTotal().bulk.getAvgTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getTotal().bulk.getAvgTimeInMillis(), greaterThanOrEqualTo(0L));
         assertThat(stats.getTotal().bulk.getAvgSizeInBytes(), greaterThan(0L));
 
         assertThat(stats.getPrimaries().bulk.getTotalOperations(), equalTo(2L));
-        assertThat(stats.getPrimaries().bulk.getTotalTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getPrimaries().bulk.getTotalTimeInMillis(), greaterThanOrEqualTo(0L));
         assertThat(stats.getPrimaries().bulk.getTotalSizeInBytes(), greaterThan(0L));
-        assertThat(stats.getPrimaries().bulk.getAvgTimeInMillis(), greaterThan(0L));
+        assertThat(stats.getPrimaries().bulk.getAvgTimeInMillis(), greaterThanOrEqualTo(0L));
         assertThat(stats.getPrimaries().bulk.getAvgSizeInBytes(), greaterThan(0L));
     }
 

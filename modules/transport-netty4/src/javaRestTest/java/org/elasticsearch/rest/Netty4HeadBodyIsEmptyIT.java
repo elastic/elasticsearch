@@ -112,6 +112,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             builder.endObject();
 
             Request request = new Request("PUT", "/_template/template");
+            // The warnings only need to be checked in FIPS mode because we run default distribution for FIPS,
+            // while the integ-test distribution is used otherwise.
             if (inFipsJvm()) {
                 request.setOptions(expectWarnings(
                     "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +

@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -72,7 +72,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         client().prepareIndex(MlConfigIndex.indexName())
             .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)

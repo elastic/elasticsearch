@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put datafeeds API
+=== Create datafeeds API
 
 Creates a new {ml} datafeed in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put datafeeds request
+==== Request
 
 A +{request}+ requires the following argument:
 

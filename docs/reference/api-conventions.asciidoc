@@ -79,19 +79,17 @@ IMPORTANT: Direct access to system indices is deprecated and
 will no longer be allowed in the next major version.
 
 [[date-math-index-names]]
-=== Date math support in index names
+=== Date math support in index and index alias names
 
-Date math index name resolution enables you to search a range of time series indices, rather
-than searching all of your time series indices and filtering the results or maintaining aliases.
-Limiting the number of indices that are searched reduces the load on the cluster and improves
-execution performance. For example, if you are searching for errors in your
-daily logs, you can use a date math name template to restrict the search to the past
-two days.
+Date math name resolution lets you to search a range of time series indices or
+index aliases rather than searching all of your indices and filtering the
+results. Limiting the number of searched indices reduces cluster load and
+improves search performance. For example, if you are searching for errors in
+your daily logs, you can use a date math name template to restrict the search to
+the past two days.
 
-Almost all APIs that have an `index` parameter support date math in the `index` parameter
-value.
-
-A date math index name takes the following form:
+Most APIs that accept an index or index alias argument support date math. A date
+math name takes the following form:
 
 [source,txt]
 ----------------------------------------------------------------------
@@ -101,10 +99,10 @@ A date math index name takes the following form:
 Where:
 
 [horizontal]
-`static_name`:: is the static text part of the name
-`date_math_expr`:: is a dynamic date math expression that computes the date dynamically
-`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
-`time_zone`:: is the optional time zone. Defaults to `utc`.
+`static_name`:: Static text
+`date_math_expr`:: Dynamic date math expression that computes the date dynamically
+`date_format`:: Optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
+`time_zone`:: Optional time zone. Defaults to `UTC`.
 
 NOTE: Pay attention to the usage of small vs capital letters used in the `date_format`. For example:
 `mm` denotes minute of hour, while `MM` denotes month of year. Similarly `hh` denotes the hour in the
@@ -113,8 +111,8 @@ NOTE: Pay attention to the usage of small vs capital letters used in the `date_f
 Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
 calendars than the Gregorian calendar.
 
-You must enclose date math index name expressions within angle brackets, and
-all special characters should be URI encoded. For example:
+You must enclose date math names in angle brackets. If you use the name in a
+request path, special characters must be URI encoded. For example:
 
 [source,console]
 ----
@@ -139,8 +137,8 @@ The special characters used for date rounding must be URI encoded as follows:
 `,`:: `%2C`
 ======================================================
 
-The following example shows different forms of date math index names and the final index names
-they resolve to given the current time is 22nd March 2024 noon utc.
+The following example shows different forms of date math names and the final names
+they resolve to given the current time is 22nd March 2024 noon UTC.
 
 [options="header"]
 |======
@@ -152,7 +150,7 @@ they resolve to given the current time is 22nd March 2024 noon utc.
 | `<logstash-{now/d{yyyy.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
-To use the characters `{` and `}` in the static part of an index name template, escape them
+To use the characters `{` and `}` in the static part of a name template, escape them
 with a backslash `\`, for example:
 
  * `<elastic\\{ON\\}-{now/M}>` resolves to `elastic{ON}-2024.03.01`

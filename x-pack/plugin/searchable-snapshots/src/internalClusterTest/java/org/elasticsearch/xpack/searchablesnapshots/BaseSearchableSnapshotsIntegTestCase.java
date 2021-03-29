@@ -16,6 +16,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -23,19 +24,22 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
@@ -73,7 +77,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
             rarely()
                 ? randomBoolean()
                     ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
@@ -81,17 +85,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
         );
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
-                ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
         );
         if (randomBoolean()) {
             builder.put(
-                SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
-                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
             );
         }
         if (randomBoolean()) {
@@ -101,6 +105,13 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         return builder.build();
+    }
+
+    @After
+    public void waitForBlobCacheFillsToComplete() {
+        for (BlobStoreCacheService blobStoreCacheService : internalCluster().getDataNodeInstances(BlobStoreCacheService.class)) {
+            assertTrue(blobStoreCacheService.waitForInFlightCacheFillsToComplete(30L, TimeUnit.SECONDS));
+        }
     }
 
     protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)
@@ -117,6 +128,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         String restoredIndexName,
         Settings restoredIndexSettings
     ) throws Exception {
+        mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, restoredIndexSettings, Storage.FULL_COPY);
+    }
+
+    protected void mountSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings restoredIndexSettings,
+        final Storage storage
+    ) throws Exception {
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             restoredIndexName,
             repositoryName,
@@ -128,10 +150,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 .build(),
             Strings.EMPTY_ARRAY,
             true,
-            MountSearchableSnapshotRequest.Storage.FULL_COPY
+            storage
         );
 
-        final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();
+        final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(getNumShards(restoredIndexName).numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -188,6 +189,15 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                 .setIndices(List.of(index))
                 .setEvaluation(evaluation);
         return client().execute(EvaluateDataFrameAction.INSTANCE, request).actionGet();
+    }
+
+    protected PreviewDataFrameAnalyticsAction.Response previewDataFrame(String id) {
+        List<DataFrameAnalyticsConfig> analytics = getAnalytics(id);
+        assertThat(analytics, hasSize(1));
+        return client().execute(
+            PreviewDataFrameAnalyticsAction.INSTANCE,
+            new PreviewDataFrameAnalyticsAction.Request(analytics.get(0))
+        ).actionGet();
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,

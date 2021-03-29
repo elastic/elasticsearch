@@ -131,8 +131,8 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
-            delegate.beforeIndexShardCreated(shardId, indexSettings);
+        public void beforeIndexShardCreated(ShardRouting shardrouting, Settings indexSettings) {
+            delegate.beforeIndexShardCreated(shardrouting, indexSettings);
         }
 
         @Override

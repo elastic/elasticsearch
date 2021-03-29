@@ -148,6 +148,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) throws Exception {
+        TransformNodes.warnIfNoTransformNodes(state);
+
         final AtomicReference<TransformTaskParams> transformTaskHolder = new AtomicReference<>();
         final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 

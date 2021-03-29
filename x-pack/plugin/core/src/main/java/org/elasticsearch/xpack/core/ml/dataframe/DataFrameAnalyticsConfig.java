@@ -40,6 +40,9 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
+    public static final String BLANK_ID = "blank_data_frame_id";
+    public static final String BLANK_DEST_INDEX = "blank_dest_index";
+
     public static final String TYPE = "data_frame_analytics_config";
 
     public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = ByteSizeValue.ofGb(1);
@@ -456,10 +459,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
          */
         public DataFrameAnalyticsConfig buildForExplain() {
             return new DataFrameAnalyticsConfig(
-                id != null ? id : "dummy",
+                id != null ? id : BLANK_ID,
                 description,
                 source,
-                dest != null ? dest : new DataFrameAnalyticsDest("dummy", null),
+                dest != null ? dest : new DataFrameAnalyticsDest(BLANK_DEST_INDEX, null),
                 analysis,
                 headers,
                 modelMemoryLimit,

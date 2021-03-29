@@ -1027,43 +1027,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             deleteFromContainer(blobContainer(), blobsToDelete);
             return blobsToDelete;
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage(
                 "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
                 metadata.name(), blobsToDelete), e);
-        } catch (Exception e) {
-            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
-            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
-            //       bubbling up and breaking the snapshot functionality.
-            assert false : e;
-            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of root level blobs", metadata.name()), e);
         }
         return Collections.emptyList();
     }
 
     private DeleteResult cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds) {
         DeleteResult deleteResult = DeleteResult.ZERO;
-        try {
-            for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
-                final String indexSnId = indexEntry.getKey();
-                try {
-                    if (survivingIndexIds.contains(indexSnId) == false) {
-                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
-                        deleteResult = deleteResult.add(indexEntry.getValue().delete());
-                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
-                    }
-                } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage(
-                        "[{}] index {} is no longer part of any snapshots in the repository, " +
-                            "but failed to clean up their index folders", metadata.name(), indexSnId), e);
+        for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
+            final String indexSnId = indexEntry.getKey();
+            try {
+                if (survivingIndexIds.contains(indexSnId) == false) {
+                    logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
+                    deleteResult = deleteResult.add(indexEntry.getValue().delete());
+                    logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                 }
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage(
+                        "[{}] index {} is no longer part of any snapshot in the repository, " +
+                                "but failed to clean up its index folder", metadata.name(), indexSnId), e);
             }
-        } catch (Exception e) {
-            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
-            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
-            //       bubbling up and breaking the snapshot functionality.
-            assert false : e;
-            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of stale indices", metadata.name()), e);
         }
         return deleteResult;
     }
@@ -2752,6 +2738,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public boolean supportURLRepo() {
         return supportURLRepo;
+    }
+
+    /**
+     * @return whether this repository performs overwrites atomically. In practice we only overwrite the `index.latest` blob so this
+     * is not very important, but the repository analyzer does test that overwrites happen atomically. It will skip those tests if the
+     * repository overrides this method to indicate that it does not support atomic overwrites.
+     */
+    public boolean hasAtomicOverwrites() {
+        return true;
     }
 
     /**

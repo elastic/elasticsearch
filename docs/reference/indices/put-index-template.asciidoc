@@ -1,7 +1,7 @@
 [[indices-put-template]]
-=== Put index template API
+=== Create or update index template API
 ++++
-<titleabbrev>Put index template</titleabbrev>
+<titleabbrev>Create or update index template</titleabbrev>
 ++++
 
 Creates or updates an index template.

@@ -304,7 +304,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         final CheckedSupplier<DatabaseReader, IOException> loader =
             () -> new DatabaseReader.Builder(databaseInputStreamSupplier.get()).build();
         final GeoIpCache cache = new GeoIpCache(1000);
-        DatabaseReaderLazyLoader lazyLoader = new DatabaseReaderLazyLoader(cache, PathUtils.get(path), loader) {
+        DatabaseReaderLazyLoader lazyLoader = new DatabaseReaderLazyLoader(cache, PathUtils.get(path), null, loader) {
 
             @Override
             long databaseFileSize() throws IOException {

@@ -485,7 +485,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         index("{\"a\": 1, \"b\": 2}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000"),
-            containsString("The maximum LIMIT for aggregate sorting is [65535], received [120000]")
+            containsString("The maximum LIMIT for aggregate sorting is [65536], received [120000]")
         );
     }
 
@@ -924,6 +924,35 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testNextPageCSV() throws IOException {
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
+    }
+
+    public void testCSVWithDelimiterParameter() throws IOException {
+        String format = randomFrom("txt", "tsv", "json", "yaml", "smile", "cbor");
+        String query = "SELECT * FROM test";
+        index("{\"foo\":1}");
+
+        Request badRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        badRequest.addParameter("format", format);
+        badRequest.addParameter("delimiter", ";");
+        badRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(badRequest);
+            return Collections.emptyMap();
+        }, containsString("request [/_sql] contains unrecognized parameter: [delimiter]"));
+
+        Request csvRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT + "?format=csv&delimiter=%3B");
+        csvRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        assertOK(client().performRequest(csvRequest));
     }
 
     public void testQueryInTSV() throws IOException {

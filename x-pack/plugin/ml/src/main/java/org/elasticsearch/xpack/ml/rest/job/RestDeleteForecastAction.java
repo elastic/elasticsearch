@@ -14,21 +14,20 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestDeleteForecastAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/"),
-            new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"),
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}")
         );
     }
 

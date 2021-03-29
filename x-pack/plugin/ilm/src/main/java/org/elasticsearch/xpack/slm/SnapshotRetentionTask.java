@@ -296,7 +296,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         for (Map.Entry<String, List<SnapshotInfo>> entry : snapshotsToDelete.entrySet()) {
             String repo = entry.getKey();
             List<SnapshotInfo> snapshots = entry.getValue();
-            deleteSnapshots(slmStats, deleted, failed, repo, snapshots, allDeletesListener);
+            if (snapshots.isEmpty() == false) {
+                deleteSnapshots(slmStats, deleted, failed, repo, snapshots, allDeletesListener);
+            }
         }
     }
 

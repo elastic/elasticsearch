@@ -2538,7 +2538,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 "set" + Character.toUpperCase(index.charAt(0)) + index.substring(1), 0);
 
                         if (getter != null || setter != null) {
-                            if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
+                            if (getter != null && (getter.returnType == void.class || getter.typeParameters.isEmpty() == false)) {
                                 throw userDotNode.createError(new IllegalArgumentException(
                                         "Illegal get shortcut on field [" + index + "] for type [" + prefixCanonicalTypeName + "]."));
                             }
@@ -2584,7 +2584,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                 }
 
                                 if (getter != null && setter != null &&
-                                        (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
+                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
                                         getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                                     throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                                 }
@@ -2628,8 +2628,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                                             "Illegal list set shortcut for type [" + prefixCanonicalTypeName + "]."));
                                 }
 
-                                if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
-                                        || !getter.returnType.equals(setter.typeParameters.get(1)))) {
+                                if (getter != null && setter != null &&
+                                        (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                                            || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                                     throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                                 }
 
@@ -2745,7 +2746,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "Illegal map set shortcut for type [" + canonicalClassName + "]."));
             }
 
-            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) ||
+            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false ||
                     getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
@@ -2791,8 +2792,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         "Illegal list set shortcut for type [" + canonicalClassName + "]."));
             }
 
-            if (getter != null && setter != null && (!getter.typeParameters.get(0).equals(setter.typeParameters.get(0))
-                    || !getter.returnType.equals(setter.typeParameters.get(1)))) {
+            if (getter != null && setter != null && (getter.typeParameters.get(0).equals(setter.typeParameters.get(0)) == false
+                    || getter.returnType.equals(setter.typeParameters.get(1)) == false)) {
                 throw userBraceNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
             }
 

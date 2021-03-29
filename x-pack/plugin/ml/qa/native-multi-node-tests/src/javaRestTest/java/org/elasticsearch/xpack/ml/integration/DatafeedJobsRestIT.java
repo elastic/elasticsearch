@@ -819,7 +819,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
-                "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data] on indices [network-data]"));
+                "action [indices:data/read/search] is unauthorized" +
+                " for user [ml_admin_plus_data]" +
+                " with roles [machine_learning_admin,test_data_access]" +
+                " on indices [network-data]"));
     }
 
     public void testLookbackWithPipelineBucketAgg() throws Exception {
@@ -967,8 +970,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
-            "action [indices:data/read/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data] " +
-            "on indices [airline-data-aggs-rollup]"));
+            "action [indices:data/read/xpack/rollup/search] is unauthorized" +
+            " for user [ml_admin_plus_data]" +
+            " with roles [machine_learning_admin,test_data_access]" +
+            " on indices [airline-data-aggs-rollup]"));
     }
 
     public void testLookbackWithSingleBucketAgg() throws Exception {

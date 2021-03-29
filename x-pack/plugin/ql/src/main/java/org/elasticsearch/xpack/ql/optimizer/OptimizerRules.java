@@ -255,7 +255,7 @@ public final class OptimizerRules {
         }
 
         private Expression literalToTheRight(BinaryOperator<?, ?, ?, ?> be) {
-            return be.left() instanceof Literal && !(be.right() instanceof Literal) ? be.swapLeftAndRight() : be;
+            return be.left() instanceof Literal && (be.right() instanceof Literal) == false ? be.swapLeftAndRight() : be;
         }
     }
 
@@ -355,7 +355,7 @@ public final class OptimizerRules {
                                  // eq outside the lower boundary
                                  compare > 0 ||
                                  // eq matches the boundary but should not be included
-                                 (compare == 0 && !range.includeLower()))
+                                 (compare == 0 && range.includeLower() == false))
                             ) {
                                 return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                             }
@@ -366,7 +366,7 @@ public final class OptimizerRules {
                                  // eq outside the upper boundary
                                  compare < 0 ||
                                  // eq matches the boundary but should not be included
-                                 (compare == 0 && !range.includeUpper()))
+                                 (compare == 0 && range.includeUpper() == false))
                             ) {
                                 return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                             }
@@ -747,14 +747,14 @@ public final class OptimizerRules {
                                 // (2 < a < 3) AND (1 < a < 3) -> (2 < a < 3)
                                 lower = comp > 0 ||
                                 // (2 < a < 3) AND (2 <= a < 3) -> (2 < a < 3)
-                                        (comp == 0 && !main.includeLower() && other.includeLower());
+                                        (comp == 0 && main.includeLower() == false && other.includeLower());
                             }
                             // OR
                             else {
                                 // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
                                 lower = comp < 0 ||
                                 // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
-                                        (comp == 0 && main.includeLower() && !other.includeLower()) || lowerEq;
+                                        (comp == 0 && main.includeLower() && other.includeLower() == false) || lowerEq;
                             }
                         }
                     }
@@ -773,14 +773,14 @@ public final class OptimizerRules {
                                 // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
                                 upper = comp < 0 ||
                                 // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
-                                        (comp == 0 && !main.includeUpper() && other.includeUpper());
+                                        (comp == 0 && main.includeUpper() == false && other.includeUpper());
                             }
                             // OR
                             else {
                                 // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
                                 upper = comp > 0 ||
                                 // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
-                                        (comp == 0 && main.includeUpper() && !other.includeUpper()) || upperEq;
+                                        (comp == 0 && main.includeUpper() && other.includeUpper() == false) || upperEq;
                             }
                         }
                     }
@@ -913,7 +913,7 @@ public final class OptimizerRules {
                                             (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
                                     ||
                                     // OR
-                                    (!conjunctive &&
+                                    (conjunctive == false &&
                                     // a > 2 OR a > 3 -> a > 2
                                             (compare < 0 ||
                                             // a >= 2 OR a > 2 -> a >= 2
@@ -944,7 +944,7 @@ public final class OptimizerRules {
                                   (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual)))
                                 ||
                                     // OR
-                                    (!conjunctive &&
+                                    (conjunctive == false &&
                                     // a < 2 OR a < 3 -> a < 3
                                     (compare > 0 ||
                                     // a <= 2 OR a < 2 -> a <= 2

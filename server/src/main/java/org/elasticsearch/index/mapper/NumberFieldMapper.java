@@ -124,6 +124,18 @@ public class NumberFieldMapper extends FieldMapper {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
+                final float result = parseToFloat(value);
+                // Reduce the precision to what we actually index
+                return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
+            }
+
+            /**
+             * Parse a query parameter or {@code _source} value to a float,
+             * keeping float precision. Used by queries which need more
+             * precise control over their rounding behavior that
+             * {@link #parse(Object, boolean)} provides.
+             */
+            private float parseToFloat(Object value) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -152,7 +164,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public Query termQuery(String field, Object value) {
-                float v = parse(value, false);
+                float v = parseToFloat(value);
                 return HalfFloatPoint.newExactQuery(field, v);
             }
 
@@ -161,7 +173,7 @@ public class NumberFieldMapper extends FieldMapper {
                 float[] v = new float[values.size()];
                 int pos = 0;
                 for (Object value: values) {
-                    v[pos++] = parse(value, false);
+                    v[pos++] = parseToFloat(value);
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -173,14 +185,14 @@ public class NumberFieldMapper extends FieldMapper {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm, false);
+                    l = parseToFloat(lowerTerm);
                     if (includeLower) {
                         l = HalfFloatPoint.nextDown(l);
                     }
                     l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm, false);
+                    u = parseToFloat(upperTerm);
                     if (includeUpper) {
                         u = HalfFloatPoint.nextUp(u);
                     }

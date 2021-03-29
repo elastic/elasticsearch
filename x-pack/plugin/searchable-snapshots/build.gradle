@@ -12,6 +12,7 @@ archivesBaseName = 'x-pack-searchable-snapshots'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  implementation project(path: 'preallocate')
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 

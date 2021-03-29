@@ -27,7 +27,7 @@ than 10 completion contexts will return an error.
 [%collapsible]
 ====
 *Details* +
-The typed REST endpoints of the Put Mapping, Get Mapping and Get Field mapping
+The typed REST endpoints of the update mapping, get mapping and get field mapping
 APIs have been removed in favour of their typeless REST endpoints, since indexes
 no longer contain types, these typed endpoints are obsolete.
 

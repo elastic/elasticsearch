@@ -40,7 +40,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             maxPrimaryShardSize = new ByteSizeValue(between(1,100));
         }
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize, shrunkIndexPrefix);
+        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -49,9 +49,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey nextKey = instance.getNextStepKey();
         Integer numberOfShards = instance.getNumberOfShards();
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
-        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
 
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
@@ -66,20 +65,17 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 maxPrimaryShardSize = new ByteSizeValue(maxPrimaryShardSize.getBytes() + 1);
             }
             break;
-        case 3:
-            shrunkIndexPrefix += randomAlphaOfLength(5);
-            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize, shrunkIndexPrefix);
+        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
     public ShrinkStep copyInstance(ShrinkStep instance) {
         return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards(),
-            instance.getMaxPrimaryShardSize(), instance.getShrunkIndexPrefix());
+            instance.getMaxPrimaryShardSize());
     }
 
     public void testPerformAction() throws Exception {

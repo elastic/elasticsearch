@@ -14,7 +14,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryOperation;
@@ -166,7 +165,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                     builder.value(snapshot.getName());
                 }
                 builder.endArray();
-                builder.humanReadableField("start_time_millis", "start_time", new TimeValue(entry.startTime));
+                builder.timeField("start_time_millis", "start_time", entry.startTime);
                 builder.field("repository_state_id", entry.repositoryStateId);
             }
             builder.endObject();

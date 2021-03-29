@@ -32,8 +32,6 @@ public class OperatorOnlyRegistry {
         // Autoscaling does not publish its actions to core, literal strings are needed.
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",
-        "cluster:admin/autoscaling/get_autoscaling_policy",
-        "cluster:admin/autoscaling/get_autoscaling_capacity",
         // Repository analysis actions are not mentioned in core, literal strings are needed.
         "cluster:admin/repository/analyze",
         "cluster:admin/repository/analyze/blob",

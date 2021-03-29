@@ -53,7 +53,7 @@ PUT my-index-000001/_doc/match_value
 
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
-add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
+add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,update mapping>> APIs.
 
 =====================================
 

@@ -105,12 +105,6 @@ teardown:
   - match: { transforms.0.state: "stopped" }
   - match: { transforms.0.checkpointing.last.checkpoint: 1 }
 
-  # workaround: refresh dest index, to be removed, see gh #51154
-  - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
-      indices.refresh:
-        index: simple-remote-transform
-
   - do:
       headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
       search:
@@ -272,12 +266,6 @@ teardown:
   - match: { transforms.0.id: "simple-local-remote-transform" }
   - match: { transforms.0.state: "stopped" }
   - match: { transforms.0.checkpointing.last.checkpoint: 1 }
-
-  # workaround: refresh dest index, to be removed, see gh #51154
-  - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
-      indices.refresh:
-        index: simple-local-remote-transform
 
   - do:
       headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }

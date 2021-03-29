@@ -32,11 +32,13 @@ public final class Features {
             "stash_in_path",
             "stash_path_replace",
             "warnings",
+            "warnings_regex",
             "yaml",
             "contains",
             "transform_and_set",
             "arbitrary_key",
-            "allowed_warnings");
+            "allowed_warnings",
+            "allowed_warnings_regex");
 
     private Features() {
 

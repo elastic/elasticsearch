@@ -364,8 +364,12 @@ class ClientTransformIndexer extends TransformIndexer {
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
-                        logger.trace("[{}] deleted old transform stats and state document", getJobId());
+                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(deletedDocs -> {
+                        logger.trace(
+                            "[{}] deleted old transform stats and state document, deleted: [{}] documents",
+                            getJobId(),
+                            deletedDocs
+                        );
                         listener.onResponse(null);
                     }, e -> {
                         String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", getJobId());

@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -60,6 +61,10 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
             Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope);
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
+        // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
+        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+        public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING =
+            Setting.byteSizeSetting("max_single_part_upload_size", DEFAULT_MAX_SINGLE_UPLOAD_SIZE, Property.NodeScope);
     }
 
     private final ByteSizeValue chunkSize;

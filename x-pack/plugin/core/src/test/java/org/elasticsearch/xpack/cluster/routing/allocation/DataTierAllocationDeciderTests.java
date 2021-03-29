@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import joptsimple.internal.Strings;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -27,14 +28,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -42,6 +47,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -702,6 +708,53 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(d.getExplanation(),
             containsString("node does not match any cluster setting [cluster.routing.allocation.include._tier] " +
                 "tier filters [data_hot,data_warm]"));
+    }
+
+    public void testFrozenIllegalForRegularIndices() {
+        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
+        if (tierList.contains(DATA_FROZEN) == false) {
+            tierList.add(DATA_FROZEN);
+        }
+        Randomness.shuffle(tierList);
+
+        String value = Strings.join(tierList, ",");
+        Setting<String> setting = randomTierSetting();
+        Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
+        if (randomBoolean()) {
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        }
+
+        Settings settings = builder.build();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(exception.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+    }
+
+    public void testFrozenLegalForPartialSnapshot() {
+        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
+        if (tierList.contains(DATA_FROZEN) == false) {
+            tierList.add(DATA_FROZEN);
+        }
+        Randomness.shuffle(tierList);
+
+        String value = Strings.join(tierList, ",");
+        Setting<String> setting = randomTierSetting();
+        Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+        Settings settings = builder.build();
+
+        // validate do not throw
+        assertThat(setting.get(settings), equalTo(value));
+    }
+
+    public Setting<String> randomTierSetting() {
+        //noinspection unchecked
+        return randomFrom(
+            DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
+            DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
+            DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
+            DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
     }
 
     private ClusterState prepareState(ClusterState initialState) {

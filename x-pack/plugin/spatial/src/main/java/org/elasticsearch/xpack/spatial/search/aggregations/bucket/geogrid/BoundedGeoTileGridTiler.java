@@ -76,6 +76,17 @@ public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
     }
 
     @Override
+    protected long getMaxTilesAtPrecision(int finalPrecision) {
+        if (crossesDateline) {
+            return numTilesFromPrecision(finalPrecision, boundsWestLeft, boundsWestRight, boundsBottom, boundsTop)
+                + numTilesFromPrecision(finalPrecision, boundsEastLeft, boundsEastRight, boundsBottom, boundsTop);
+
+        } else {
+            return numTilesFromPrecision(finalPrecision, boundsEastLeft, boundsEastRight, boundsBottom, boundsTop);
+        }
+    }
+
+    @Override
     protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex,
                                                  int targetPrecision) {
         zTile++;
@@ -83,12 +94,12 @@ public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
             for (int j = 0; j < 2; j++) {
                 int nextX = 2 * xTile + i;
                 int nextY = 2 * yTile + j;
-                if (zTile == targetPrecision) {
-                    if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(nextX, nextY, zTile))) {
+                if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(nextX, nextY, zTile))) {
+                    if (zTile == targetPrecision) {
                         values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
+                    } else {
+                        valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
                     }
-                } else {
-                    valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
                 }
             }
         }

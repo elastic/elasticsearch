@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,7 +96,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testFullPolicy() throws Exception {
         String originalIndex = index + "-000001";
-        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+        String shrunkenOriginalIndex = SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
         createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -163,16 +164,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69340")
     public void testAllocateOnlyAllocation() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String allocateNodeName = "javaRestTest-" + randomFrom(0, 1);
-        AllocateAction allocateAction = new AllocateAction(null, null, null, singletonMap("_name", allocateNodeName));
+        String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
+        AllocateAction allocateAction = new AllocateAction(null, singletonMap("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
         updatePolicy(client(), index, policy);
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey())));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey())),
+            30, TimeUnit.SECONDS);
         ensureGreen(index);
     }
 

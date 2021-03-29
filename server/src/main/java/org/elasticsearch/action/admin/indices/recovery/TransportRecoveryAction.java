@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -89,12 +90,14 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     }
 
     @Override
-    protected RecoveryState shardOperation(RecoveryRequest request, ShardRouting shardRouting, Task task) {
-        assert task instanceof CancellableTask;
-        runOnShardOperation();
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        return indexShard.recoveryState();
+    protected void shardOperation(RecoveryRequest request, ShardRouting shardRouting, Task task, ActionListener<RecoveryState> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert task instanceof CancellableTask;
+            runOnShardOperation();
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            return indexShard.recoveryState();
+        });
     }
 
     @Override

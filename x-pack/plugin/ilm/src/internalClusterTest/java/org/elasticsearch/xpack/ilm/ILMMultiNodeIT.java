@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -107,15 +108,24 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            String name = "shrink-" + DataStream.getDefaultBackingIndexName(index, 1);
             ExplainLifecycleResponse explain =
                 client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*")).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
-            IndexLifecycleExplainResponse indexResp = explain.getIndexResponses().get(name);
-            assertNotNull(indexResp);
-            assertThat(indexResp.getPhase(), equalTo("warm"));
-            assertThat(indexResp.getStep(), equalTo("complete"));
+            String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
+            IndexLifecycleExplainResponse indexResp = null;
+            for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
+                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) &&
+                    indexNameAndResp.getKey().contains(backingIndexName)) {
+                    indexResp = indexNameAndResp.getValue();
+                    assertNotNull(indexResp);
+                    assertThat(indexResp.getPhase(), equalTo("warm"));
+                    assertThat(indexResp.getStep(), equalTo("complete"));
+                    break;
+                }
+            }
+
+            assertNotNull("Unable to find an ilm explain output for the shrunk index of " + index, indexResp);
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -340,17 +340,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 }
             }
             return true;
-        }, request.getTimeout(), new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean result) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }, request.getTimeout(), listener.delegateFailure((l, result) -> l.onResponse(response)));
     }
 
     @Override

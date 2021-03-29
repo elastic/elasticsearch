@@ -60,7 +60,7 @@ Valid columns are:
 `s` (content node),
 `t` ({transform} node),
 `v` (voting-only node),
-`w` (warm node), and 
+`w` (warm node), and
 `-` (coordinating node only).
 +
 For example, `dim` indicates a master-eligible data and ingest node. See
@@ -316,6 +316,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [[cat-nodes-api-example]]
 ==== {api-examples-title}

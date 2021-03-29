@@ -81,6 +81,12 @@ NOTE: Search after requests have optimizations that make them faster when the so
 order is `_shard_doc` and total hits are not tracked. If you want to iterate over all documents regardless of the
 order, this is the most efficient option.
 
+IMPORTANT: If the `sort` field is a <<date,`date`>> in some target data streams or indices
+but a <<date_nanos,`date_nanos`>> field in other targets, use the `numeric_type` parameter
+to convert the values to a single resolution and the `format` parameter to specify a
+<<mapping-date-format, date format>> for the `sort` field. Otherwise, {es} won't interpret
+the search after parameter correctly in each request.
+
 [source,console]
 ----
 GET /_search
@@ -96,7 +102,7 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [ <2>
-    {"@timestamp": "asc"}
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos", "numeric_type" : "date_nanos" }}
   ]
 }
 ----
@@ -107,7 +113,7 @@ GET /_search
 
 The search response includes an array of `sort` values for each hit. If you used
 a PIT, a tiebreaker is included as the last `sort` values for each hit.
-This tiebreaker called `_shard_doc` is added automically on every search requests that use a PIT.
+This tiebreaker called `_shard_doc` is added automatically on every search requests that use a PIT.
 The `_shard_doc` value is the combination of the shard index within the PIT and the Lucene's internal doc ID,
 it is unique per document and constant within a PIT.
 You can also add the tiebreaker explicitly in the search request to customize the order:
@@ -127,7 +133,7 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [ <2>
-    {"@timestamp": "asc"},
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}},
     {"_shard_doc": "desc"}
   ]
 }
@@ -156,7 +162,7 @@ GET /_search
         "_score" : null,
         "_source" : ...,
         "sort" : [                                <2>
-          4098435132000,
+          "2021-05-20T05:30:04.832Z",
           4294967298                              <3>
         ]
       }
@@ -190,10 +196,10 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [
-    {"@timestamp": "asc"}
+    {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}}
   ],
   "search_after": [                                <2>
-    4098435132000,
+    "2021-05-20T05:30:04.832Z",
     4294967298
   ],
   "track_total_hits": false                        <3>

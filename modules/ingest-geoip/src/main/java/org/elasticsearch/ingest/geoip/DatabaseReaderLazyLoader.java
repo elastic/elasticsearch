@@ -49,6 +49,7 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
+    private final String md5;
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
@@ -57,15 +58,17 @@ class DatabaseReaderLazyLoader implements Closeable {
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
+    private volatile boolean deleteDatabaseFileOnClose;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
-    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
-        this(cache, databasePath, createDatabaseLoader(databasePath));
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
+        this(cache, databasePath, md5, createDatabaseLoader(databasePath));
     }
 
-    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5, CheckedSupplier<DatabaseReader, IOException> loader) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
+        this.md5 = md5;
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
@@ -202,6 +205,15 @@ class DatabaseReaderLazyLoader implements Closeable {
         return databaseReader.get();
     }
 
+    String getMd5() {
+        return md5;
+    }
+
+    public void close(boolean deleteDatabaseFileOnClose) throws IOException {
+        this.deleteDatabaseFileOnClose = deleteDatabaseFileOnClose;
+        close();
+    }
+
     @Override
     public void close() throws IOException {
         if (currentUsages.updateAndGet(u -> -1 - u) == -1) {
@@ -213,6 +225,10 @@ class DatabaseReaderLazyLoader implements Closeable {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
         LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
+        if (deleteDatabaseFileOnClose) {
+            LOGGER.info("deleting [{}]", databasePath);
+            Files.delete(databasePath);
+        }
     }
 
     private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {

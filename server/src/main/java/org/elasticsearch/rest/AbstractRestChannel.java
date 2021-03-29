@@ -126,7 +126,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseMediaType);
+                includes, excludes, responseMediaType, request.getRestApiVersion());
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

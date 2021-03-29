@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.gradle;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,6 +22,7 @@ public final class Version implements Comparable<Version> {
     private final int minor;
     private final int revision;
     private final int id;
+    private final List<String> labels;
 
     /**
      * Specifies how a version string should be parsed.
@@ -36,11 +40,15 @@ public final class Version implements Comparable<Version> {
         RELAXED
     }
 
-    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
+    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)((?:-alpha\\d+|-beta\\d+|-rc\\d+)?(?:-SNAPSHOT)?)?");
 
-    private static final Pattern relaxedPattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-[a-zA-Z0-9_]+)*?");
+    private static final Pattern relaxedPattern = Pattern.compile("v?(\\d+)\\.(\\d+)\\.(\\d+)((?:-[a-zA-Z0-9_]+)*)?");
 
     public Version(int major, int minor, int revision) {
+        this(major, minor, revision, List.of());
+    }
+
+    public Version(int major, int minor, int revision, List<String> labels) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
@@ -50,13 +58,8 @@ public final class Version implements Comparable<Version> {
 
         // currently snapshot is not taken into account
         this.id = major * 10000000 + minor * 100000 + revision * 1000;
-    }
 
-    private static int parseSuffixNumber(String substring) {
-        if (substring.isEmpty()) {
-            throw new IllegalArgumentException("Invalid suffix, must contain a number e.x. alpha2");
-        }
-        return Integer.parseInt(substring);
+        this.labels = new ArrayList<>(labels);
     }
 
     public static Version fromString(final String s) {
@@ -73,12 +76,25 @@ public final class Version implements Comparable<Version> {
             throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);
         }
 
-        return new Version(Integer.parseInt(matcher.group(1)), parseSuffixNumber(matcher.group(2)), parseSuffixNumber(matcher.group(3)));
+        String labelString = matcher.group(4);
+        List<String> labels;
+        if (labelString == null || labelString.isEmpty()) {
+            labels = List.of();
+        } else {
+            labels = Arrays.asList(labelString.substring(1).split("-"));
+        }
+
+        return new Version(
+            Integer.parseInt(matcher.group(1)),
+            Integer.parseInt(matcher.group(2)),
+            Integer.parseInt(matcher.group(3)),
+            labels
+        );
     }
 
     @Override
     public String toString() {
-        return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision());
+        return getMajor() + "." + getMinor() + "." + getRevision();
     }
 
     public boolean before(Version compareTo) {
@@ -144,6 +160,10 @@ public final class Version implements Comparable<Version> {
 
     protected int getId() {
         return id;
+    }
+
+    public List<String> getLabels() {
+        return labels;
     }
 
     @Override

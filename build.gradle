@@ -26,6 +26,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
+  id 'elasticsearch.release-tools'
   id "com.diffplug.spotless" version "5.9.0" apply false
 }
 

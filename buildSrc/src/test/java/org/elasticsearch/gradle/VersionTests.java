@@ -12,9 +12,14 @@ import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
+import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItems;
 
 public class VersionTests extends GradleUnitTestCase {
 
@@ -41,29 +46,30 @@ public class VersionTests extends GradleUnitTestCase {
 
     public void testCompareWithStringVersions() {
         assertTrue("1.10.20 is not interpreted as before 2.0.0", Version.fromString("1.10.20").before("2.0.0"));
-        assertTrue(
+        assertEquals(
             "7.0.0-alpha1 should be equal to 7.0.0-alpha1",
-            Version.fromString("7.0.0-alpha1").equals(Version.fromString("7.0.0-alpha1"))
+            Version.fromString("7.0.0-alpha1"),
+            Version.fromString("7.0.0-alpha1")
         );
-        assertTrue(
+        assertEquals(
             "7.0.0-SNAPSHOT should be equal to 7.0.0-SNAPSHOT",
-            Version.fromString("7.0.0-SNAPSHOT").equals(Version.fromString("7.0.0-SNAPSHOT"))
+            Version.fromString("7.0.0-SNAPSHOT"),
+            Version.fromString("7.0.0-SNAPSHOT")
         );
     }
 
     public void testCollections() {
-        assertTrue(
-            Arrays.asList(
-                Version.fromString("5.2.0"),
-                Version.fromString("5.2.1-SNAPSHOT"),
-                Version.fromString("6.0.0"),
-                Version.fromString("6.0.1"),
-                Version.fromString("6.1.0")
-            ).containsAll(Arrays.asList(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")))
+        List<Version> aList = asList(
+            Version.fromString("5.2.0"),
+            Version.fromString("5.2.1-SNAPSHOT"),
+            Version.fromString("6.0.0"),
+            Version.fromString("6.0.1"),
+            Version.fromString("6.1.0")
         );
-        Set<Version> versions = new HashSet<>();
-        versions.addAll(
-            Arrays.asList(
+        assertThat(aList, hasItems(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")));
+
+        Set<Version> aSet = new HashSet<>(
+            asList(
                 Version.fromString("5.2.0"),
                 Version.fromString("5.2.1-SNAPSHOT"),
                 Version.fromString("6.0.0"),
@@ -71,9 +77,7 @@ public class VersionTests extends GradleUnitTestCase {
                 Version.fromString("6.1.0")
             )
         );
-        Set<Version> subset = new HashSet<>();
-        subset.addAll(Arrays.asList(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")));
-        assertTrue(versions.containsAll(subset));
+        assertThat(aSet, hasItems(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT")));
     }
 
     public void testToString() {
@@ -95,6 +99,20 @@ public class VersionTests extends GradleUnitTestCase {
         expectedEx.expect(IllegalArgumentException.class);
         expectedEx.expectMessage("Invalid version format");
         Version.fromString("foo.bar.baz");
+    }
+
+    public void testLabels() {
+        Version v = Version.fromString("1.2.3");
+        assertThat(v.getLabels(), empty());
+
+        v = Version.fromString("1.2.3-rc1");
+        assertThat(v.getLabels(), contains("rc1"));
+
+        v = Version.fromString("1.2.3-rc1-SNAPSHOT");
+        assertThat(v.getLabels(), contains("rc1", "SNAPSHOT"));
+
+        v = Version.fromString("1.2.3-SNAPSHOT");
+        assertThat(v.getLabels(), contains("SNAPSHOT"));
     }
 
     private void assertOrder(Version smaller, Version bigger) {

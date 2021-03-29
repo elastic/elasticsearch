@@ -30,6 +30,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -261,6 +262,25 @@ public final class DatabaseRegistry implements Closeable {
                 decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+                // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
+                // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
+                try (TarInputStream is = new TarInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpFile)))) {
+                    TarInputStream.TarEntry entry;
+                    while ((entry = is.getNextEntry()) != null) {
+                        //there might be ./ entry in tar, we should skip it
+                        if (entry.isNotFile()) {
+                            continue;
+                        }
+                        // flatten structure, remove any directories present from the path (should be ./ only)
+                        String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                        if (name.startsWith(databaseName)) {
+                            Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
+                        } else {
+                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                }
+
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
                 Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
                 updateDatabase(databaseName, recordedMd5, databaseFile);

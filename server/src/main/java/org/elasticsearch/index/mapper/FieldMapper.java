@@ -26,8 +26,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
@@ -860,14 +858,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         /**
          * Defines a script parameter
-         * @param compiler      a function that produces a compiled script, given a {@link Script} and {@link ScriptService}
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
-         * @param <T>           the type of the compiled script
          * @return a script parameter
          */
-        public static <T> FieldMapper.Parameter<MapperScript<T>> scriptParam(
-            BiFunction<Script, ScriptCompiler, MapperScript<T>> compiler,
-            Function<FieldMapper, MapperScript<T>>initializer
+        public static FieldMapper.Parameter<Script> scriptParam(
+            Function<FieldMapper, Script> initializer
         ) {
             return new FieldMapper.Parameter<>(
                 "script",
@@ -881,7 +876,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     if (script.getType() == ScriptType.STORED) {
                         throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
                     }
-                    return compiler.apply(script, c.scriptCompiler());
+                    return script;
                 },
                 initializer
             ).acceptsNull();

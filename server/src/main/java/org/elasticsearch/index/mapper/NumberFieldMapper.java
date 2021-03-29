@@ -80,7 +80,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Number> nullValue;
 
-        private final Parameter<MapperScript<Number>> script;
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.restrictedStringParam(
             "on_script_error",
             true,
@@ -91,30 +91,30 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
+        private final ScriptCompiler compiler;
 
-        public Builder(String name, NumberType type, Settings settings) {
-            this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+        public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
+            this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
-            Builder builder = new Builder(name, type, false, false);
+            Builder builder = new Builder(name, type, null, false, false);
             builder.indexed.setValue(false);
             return builder;
         }
 
-        public Builder(String name, NumberType type, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.type = type;
+            this.compiler = compiler;
+
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             this.coerce
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
-            this.script = Parameter.scriptParam(
-                type.compiler(name),
-                m -> toType(m).script
-            );
+
             this.onScriptError.requiresParameters(this.script);
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
         }
@@ -129,6 +129,14 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
+        private MapperScript mapperScript() {
+            if (this.script.get() == null) {
+                return null;
+            }
+            assert compiler != null;
+            return type.compiler(name).apply(script.get(), compiler);
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
             return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta);
@@ -139,6 +147,10 @@ public class NumberFieldMapper extends FieldMapper {
             MappedFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
+    }
+
+    public interface MapperScript {
+        void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter);
     }
 
     public enum NumberType {
@@ -172,7 +184,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -289,7 +301,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -383,8 +395,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
-                return (script, compiler) -> new MapperScript<>(script) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
+                return (script, compiler) -> new MapperScript() {
 
                     final DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
 
@@ -478,7 +490,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -551,7 +563,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -615,7 +627,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
                 return (s, ss) -> {
                     throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
                 };
@@ -727,8 +739,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
-                return (script, compiler) -> new MapperScript<>(script) {
+            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
+                return (script, compiler) -> new MapperScript() {
 
                     final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
 
@@ -816,7 +828,7 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.getSettings()));
+            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings()));
         }
 
         /** Get the associated type name. */
@@ -830,7 +842,7 @@ public class NumberFieldMapper extends FieldMapper {
         public final TypeParser parser() {
             return parser;
         }
-        public abstract BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName);
+        public abstract BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName);
         public abstract Query termQuery(String field, Object value);
         public abstract Query termsQuery(String field, Collection<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
@@ -994,11 +1006,11 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
         private final boolean coerce;
         private final Number nullValue;
-        private final MapperScript<Number> script;
+        private final MapperScript script;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
                                boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
-                               MapperScript<Number> script) {
+                               MapperScript script) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
@@ -1009,7 +1021,7 @@ public class NumberFieldMapper extends FieldMapper {
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
-                builder.script.get());
+                builder.mapperScript());
         }
 
         public NumberFieldType(String name, NumberType type) {
@@ -1128,6 +1140,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
+    private final Builder builder;
     private final NumberType type;
 
     private final boolean indexed;
@@ -1136,7 +1149,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
-    private final MapperScript<Number> script;
+    private final MapperScript mapperScript;
     private final String onScriptError;
 
     private final boolean ignoreMalformedByDefault;
@@ -1158,8 +1171,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
-        this.script = builder.script.get();
+        this.mapperScript = builder.mapperScript();
         this.onScriptError = builder.onScriptError.get();
+        this.builder = builder;
     }
 
     boolean coerce() {
@@ -1187,7 +1201,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
 
-        if (this.script != null) {
+        if (this.mapperScript != null) {
             throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
         }
 
@@ -1242,12 +1256,12 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public IndexTimeScript getIndexTimeScript() {
-        if (this.script == null) {
+        if (this.mapperScript == null) {
             return null;
         }
         return (lookup, ctx, pc) -> {
             try {
-                script.executeAndEmit(lookup, ctx, 0, v -> indexValue(pc, v));
+                mapperScript.executeAndEmit(lookup, ctx, 0, v -> indexValue(pc, v));
             } catch (Exception e) {
                 if ("ignore".equals(onScriptError)) {
                     pc.addIgnoredField(name());
@@ -1260,6 +1274,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, builder.compiler, ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 }

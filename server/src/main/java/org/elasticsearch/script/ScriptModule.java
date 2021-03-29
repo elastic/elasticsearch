@@ -12,13 +12,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
-import org.elasticsearch.runtimefields.mapper.DateFieldScript;
-import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
-import org.elasticsearch.runtimefields.mapper.IpFieldScript;
-import org.elasticsearch.runtimefields.mapper.LongFieldScript;
-import org.elasticsearch.runtimefields.mapper.StringFieldScript;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;

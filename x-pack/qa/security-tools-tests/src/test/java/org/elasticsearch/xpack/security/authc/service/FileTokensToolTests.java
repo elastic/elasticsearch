@@ -140,6 +140,7 @@ public class FileTokensToolTests extends CommandTestCase {
         assertThat(output, containsString("SERVICE_TOKEN elastic/fleet/" + tokenName2 + " = "));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70959")
     public void testCreateTokenWithInvalidTokenName() throws Exception {
         final String tokenName = ServiceAccountTokenTests.randomInvalidTokenName();
         final UserException e = expectThrows(UserException.class,

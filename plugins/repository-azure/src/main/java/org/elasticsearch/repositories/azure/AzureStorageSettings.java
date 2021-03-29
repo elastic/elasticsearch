@@ -22,7 +22,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -56,7 +59,7 @@ final class AzureStorageSettings {
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
      */
     public static final AffixSetting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
-        key -> Setting.simpleString(key, Property.NodeScope), () -> ACCOUNT_SETTING, () -> KEY_SETTING);
+        key -> Setting.simpleString(key, Property.NodeScope));
 
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "timeout",
         (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), () -> ACCOUNT_SETTING, () -> KEY_SETTING);
@@ -148,7 +151,7 @@ final class AzureStorageSettings {
         if (hasKey) {
             connectionStringBuilder.append(";AccountKey=").append(key);
         } else {
-            connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
+            connectionStringBuilder.append(";SharedAccessSignature=").append(escapeSasToken(sasToken));
         }
         if (Strings.hasText(endpointSuffix)) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
@@ -156,6 +159,37 @@ final class AzureStorageSettings {
         return connectionStringBuilder.toString();
     }
 
+    private static String escapeSasToken(String sasToken) {
+        StringBuilder escapedSasToken = new StringBuilder();
+        final String[] queryParams = sasToken.split("&");
+        for (int i = 0; i < queryParams.length; i++) {
+            String unescapedQueryParam = queryParams[i];
+            final String[] keyValue = unescapedQueryParam.split("=");
+            if (keyValue.length != 2) {
+                throw new IllegalArgumentException("Unable to parse sas token");
+            }
+
+            final String key = keyValue[0];
+            final String val = keyValue[1];
+            escapedSasToken.append(isAlreadyEncoded(key) ? key : encodeQueryParam(key));
+            escapedSasToken.append("=");
+            escapedSasToken.append(isAlreadyEncoded(val) ? val : encodeQueryParam(val));
+
+            if (i < queryParams.length - 1) {
+                escapedSasToken.append("&");
+            }
+        }
+
+        return escapedSasToken.toString();
+    }
+
+    private static boolean isAlreadyEncoded(String s) {
+        return URLDecoder.decode(s, StandardCharsets.UTF_8).equals(s) == false;
+    }
+
+    private static String encodeQueryParam(String token) {
+        return URLEncoder.encode(token, StandardCharsets.UTF_8);
+    }
 
     @Override
     public String toString() {

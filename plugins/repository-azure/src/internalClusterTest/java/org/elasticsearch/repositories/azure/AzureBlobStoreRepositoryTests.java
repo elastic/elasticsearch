@@ -83,11 +83,25 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accountName = DEFAULT_ACCOUNT_NAME;
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);
-        secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
+
+        if (randomBoolean()) {
+            final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
+            secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
+        } else {
+            final String sasToken;
+            if (randomBoolean()) {
+                final String urlReservedChar = randomFrom(";", "/", "?", ":", "@", "&", "=", "+", "$", ",", " ");
+                sasToken =
+                    "si=ece" + urlReservedChar + "temp&sv=2020-02-10&sr=c&sig=56XYkD31%2F6pRXV5s%2BVkl444m9S5shABCSnB75%3D";
+            } else {
+                sasToken = "sv=2020-02-10&ss=bfqt&srt=sco&sp=rwdlacupx&se=2021-03-29T18:24:59Z&st=2021-03-29T10:24:59Z&spr=https&" +
+                    "sig=56XYkD31%2F6pRXV5s%2BVkl444m9S5shABCSnB75%3D";
+            }
+            secureSettings.setString(AzureStorageSettings.SAS_TOKEN_SETTING.getConcreteSettingForNamespace("test").getKey(), sasToken);
+        }
 
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;

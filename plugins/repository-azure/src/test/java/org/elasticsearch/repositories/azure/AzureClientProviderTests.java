@@ -8,6 +8,8 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.azure.storage.common.implementation.connectionstring.StorageAuthenticationSettings;
+import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -17,12 +19,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+
+import static com.azure.storage.common.implementation.connectionstring.StorageAuthenticationSettings.Type.SAS_TOKEN;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AzureClientProviderTests extends ESTestCase {
     private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> { };
@@ -93,6 +101,33 @@ public class AzureClientProviderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> {
             azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
         });
+    }
+
+    public void testSasTokenIsEscaped() throws Exception {
+        final String urlReservedChar = randomFrom(";", "/", "?", ":", "@", "&", "=", "+", "$", ",", " ");
+        String sasTokenWithReservedChars =
+            "si=ece" + urlReservedChar + "temp&sv=2020-02-10&sr=c&sig=56XYkD31%2F6pRXV5s%2BVkl444m9S5shABCSnB75%3D";
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings.setString("azure.client.azure1.sas_token", sasTokenWithReservedChars);
+        final String endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net";
+
+        final Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.azure1.endpoint_suffix", endpoint)
+            .build();
+
+        Map<String, AzureStorageSettings> clientSettings = AzureStorageSettings.load(settings);
+        AzureStorageSettings storageSettings = clientSettings.get("azure1");
+
+        final String connectString = storageSettings.getConnectString();
+        final StorageConnectionString storageConnectionString = StorageConnectionString.create(connectString, null);
+        final StorageAuthenticationSettings storageAuthSettings = storageConnectionString.getStorageAuthSettings();
+        assertThat(storageAuthSettings.getType(), equalTo(SAS_TOKEN));
+        final String sasToken = storageAuthSettings.getSasToken();
+
+        final URI uri = new URI("http", "localhost", "", sasToken, "");
+        assertThat(uri, is(notNullValue()));
     }
 
     private static String encodeKey(final String value) {

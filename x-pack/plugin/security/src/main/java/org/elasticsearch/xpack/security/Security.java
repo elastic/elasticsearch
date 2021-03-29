@@ -349,6 +349,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
+    private final SetOnce<Transport> transportReference = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -501,7 +502,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings);
+        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);
         components.add(httpTlsRuntimeCheck);
 
         final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore = new IndexServiceAccountsTokenStore(
@@ -1042,7 +1043,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         return Map.of(
                 // security based on Netty 4
                 SecurityField.NAME4,
-                () -> new SecurityNetty4ServerTransport(
+                () -> {
+                    transportReference.set(new SecurityNetty4ServerTransport(
                         settings,
                         Version.CURRENT,
                         threadPool,
@@ -1052,10 +1054,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                         circuitBreakerService,
                         ipFilter,
                         getSslService(),
-                        getNettySharedGroupFactory(settings)),
+                        getNettySharedGroupFactory(settings)));
+                    return transportReference.get();
+                },
                 // security based on NIO
                 SecurityField.NIO,
-                () -> new SecurityNioTransport(settings,
+                () -> {
+                    transportReference.set(new SecurityNioTransport(settings,
                         Version.CURRENT,
                         threadPool,
                         networkService,
@@ -1065,6 +1070,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                         ipFilter,
                         getSslService(),
                         getNioGroupFactory(settings)));
+                    return transportReference.get();
+                });
     }
 
     @Override

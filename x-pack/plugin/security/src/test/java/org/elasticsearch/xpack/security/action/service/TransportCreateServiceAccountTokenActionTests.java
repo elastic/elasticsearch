@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -21,12 +25,13 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
+import org.mockito.Mockito;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,17 +41,31 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     private IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
     private SecurityContext securityContext;
     private TransportCreateServiceAccountTokenAction transportCreateServiceAccountTokenAction;
+    private Transport transport;
 
     @Before
-    public void init() {
+    public void init() throws IOException {
         indexServiceAccountsTokenStore = mock(IndexServiceAccountsTokenStore.class);
         securityContext = mock(SecurityContext.class);
-        final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", true)
-            .build();
+        final Settings.Builder builder = Settings.builder()
+            .put("xpack.security.enabled", true);
+        transport = mock(Transport.class);
+        final TransportAddress transportAddress;
+        if (randomBoolean()) {
+            transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
+        } else {
+            transportAddress = new TransportAddress(InetAddress.getLocalHost(), 9300);
+        }
+        if (randomBoolean()) {
+            builder.put("xpack.security.http.ssl.enabled", true);
+        } else {
+            builder.put("discovery.type", "single-node");
+        }
+        when(transport.boundAddress()).thenReturn(
+            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(settings));
+            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
     }
 
     public void testAuthenticationIsRequired() {
@@ -67,12 +86,17 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     }
 
     public void testTlsRequired() {
+        Mockito.reset(transport);
         final Settings settings = Settings.builder()
             .put("xpack.security.http.ssl.enabled", false)
             .build();
+        final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
+        when(transport.boundAddress()).thenReturn(
+            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
+
         TransportCreateServiceAccountTokenAction action = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(settings));
+            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
 
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), mock(CreateServiceAccountTokenRequest.class), future);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
@@ -19,9 +20,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -31,6 +35,8 @@ import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -46,22 +52,37 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ServiceAccountServiceTests extends ESTestCase {
 
     private ThreadContext threadContext;
     private ServiceAccountsTokenStore serviceAccountsTokenStore;
     private ServiceAccountService serviceAccountService;
+    private Transport transport;
 
     @Before
-    public void init() {
+    public void init() throws UnknownHostException {
         threadContext = new ThreadContext(Settings.EMPTY);
         serviceAccountsTokenStore = mock(ServiceAccountsTokenStore.class);
-        final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.transport.ssl.enabled", true)
-            .build();
-        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore, new HttpTlsRuntimeCheck(settings));
+        final Settings.Builder builder = Settings.builder()
+            .put("xpack.security.enabled", true);
+        transport = mock(Transport.class);
+        final TransportAddress transportAddress;
+        if (randomBoolean()) {
+            transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
+        } else {
+            transportAddress = new TransportAddress(InetAddress.getLocalHost(), 9300);
+        }
+        if (randomBoolean()) {
+            builder.put("xpack.security.http.ssl.enabled", true);
+        } else {
+            builder.put("discovery.type", "single-node");
+        }
+        when(transport.boundAddress()).thenReturn(
+            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
+        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore,
+            new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
     }
 
     public void testIsServiceAccount() {
@@ -407,18 +428,21 @@ public class ServiceAccountServiceTests extends ESTestCase {
             "cannot load role for service account [" + username + "] - no such service account"));
     }
 
-    public void testTlsIsRequired() {
-        final boolean httpTls = randomBoolean();
+    public void testTlsRequired() {
         final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.enabled", httpTls)
-            .put("xpack.security.transport.ssl.enabled", randomFrom(false == httpTls, false))
+            .put("xpack.security.http.ssl.enabled", false)
             .build();
-        final ServiceAccountService service = new ServiceAccountService(serviceAccountsTokenStore, new HttpTlsRuntimeCheck(settings));
+        final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
+        when(transport.boundAddress()).thenReturn(
+            new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
+
+        final ServiceAccountService service = new ServiceAccountService(serviceAccountsTokenStore,
+            new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
 
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();
         service.authenticateToken(mock(ServiceAccountToken.class), randomAlphaOfLengthBetween(3, 8), future1);
         final ElasticsearchException e1 = expectThrows(ElasticsearchException.class, future1::actionGet);
-        assertThat(e1.getMessage(), containsString("[service account authentication] requires TLS for both HTTP and Transport"));
+        assertThat(e1.getMessage(), containsString("[service account authentication] requires TLS for the HTTP interface"));
 
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         final Authentication authentication = new Authentication(mock(User.class),
@@ -427,7 +451,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             null);
         service.getRoleDescriptor(authentication, future2);
         final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);
-        assertThat(e2.getMessage(), containsString("[service account role descriptor resolving] requires TLS for both HTTP and Transport"));
+        assertThat(e2.getMessage(), containsString("[service account role descriptor resolving] requires TLS for the HTTP interface"));
     }
 
     private SecureString createBearerString(List<byte[]> bytesList) throws IOException {

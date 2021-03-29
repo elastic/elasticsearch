@@ -9,8 +9,8 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.search.QueryVisitor;
-import org.elasticsearch.index.mapper.BooleanFieldScript;
-import org.elasticsearch.index.mapper.DoubleFieldScript;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 
 /**

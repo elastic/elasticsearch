@@ -12,7 +12,7 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.index.mapper.GeoPointFieldScript;
+import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;

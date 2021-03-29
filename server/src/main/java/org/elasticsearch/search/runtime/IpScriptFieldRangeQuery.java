@@ -10,7 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.mapper.IpFieldScript;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.net.InetAddress;

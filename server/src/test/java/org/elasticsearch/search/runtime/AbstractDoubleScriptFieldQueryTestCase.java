@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.index.mapper.DoubleFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 
 import static org.mockito.Mockito.mock;
 

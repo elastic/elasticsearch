@@ -6,15 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.script;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.net.Inet4Address;

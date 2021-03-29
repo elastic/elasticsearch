@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.index.mapper.GeoPointFieldScript;
+import org.elasticsearch.script.GeoPointFieldScript;
 
 import static org.mockito.Mockito.mock;
 

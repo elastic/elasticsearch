@@ -9,9 +9,8 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.index.mapper.AbstractFieldScript;
+import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

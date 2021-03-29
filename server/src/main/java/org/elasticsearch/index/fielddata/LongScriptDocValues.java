@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.index.mapper.AbstractLongFieldScript;
+import org.elasticsearch.script.AbstractLongFieldScript;
 
 import java.util.Arrays;
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.IpFieldScript;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 
 public class IpScriptFieldExistsQuery extends AbstractIpScriptFieldQuery {

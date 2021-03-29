@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
+import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;

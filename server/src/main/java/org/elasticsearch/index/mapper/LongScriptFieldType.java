@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermQuery;

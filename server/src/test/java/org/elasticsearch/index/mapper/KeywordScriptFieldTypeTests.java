@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;

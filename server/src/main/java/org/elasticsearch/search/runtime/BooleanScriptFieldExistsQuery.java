@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.index.mapper.BooleanFieldScript;
+import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.Script;
 
 public class BooleanScriptFieldExistsQuery extends AbstractBooleanScriptFieldQuery {

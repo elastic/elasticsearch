@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.index.mapper.GeoPointFieldScript;
+import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 
 public class GeoPointScriptFieldExistsQuery extends AbstractGeoPointScriptFieldQuery {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.search.runtime.DoubleScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.DoubleScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.DoubleScriptFieldTermQuery;

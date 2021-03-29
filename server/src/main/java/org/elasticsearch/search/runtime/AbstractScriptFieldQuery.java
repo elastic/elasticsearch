@@ -19,7 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.mapper.AbstractFieldScript;
+import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;

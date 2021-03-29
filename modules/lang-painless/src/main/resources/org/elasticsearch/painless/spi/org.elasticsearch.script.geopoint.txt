@@ -6,16 +6,15 @@
 # Side Public License, v 1.
 #
 
-# The whitelist for double-valued runtime fields
+# The whitelist for ip-valued runtime fields
 
 # These two whitelists are required for painless to find the classes
-class org.elasticsearch.runtimefields.mapper.DoubleFieldScript @no_import {
+class org.elasticsearch.script.GeoPointFieldScript @no_import {
 }
-class org.elasticsearch.runtimefields.mapper.DoubleFieldScript$Factory @no_import {
+class org.elasticsearch.script.GeoPointFieldScript$Factory @no_import {
 }
 
 static_import {
     # The `emit` callback to collect values for the field
-    void emit(org.elasticsearch.runtimefields.mapper.DoubleFieldScript, double) bound_to org.elasticsearch.runtimefields.mapper.DoubleFieldScript$Emit
+    void emit(org.elasticsearch.script.GeoPointFieldScript, double, double) bound_to org.elasticsearch.script.GeoPointFieldScript$Emit
 }
-

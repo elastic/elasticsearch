@@ -21,7 +21,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.index.mapper.AbstractLongFieldScript;
+import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;

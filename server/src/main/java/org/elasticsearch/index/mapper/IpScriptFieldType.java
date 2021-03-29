@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.search.runtime.IpScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldTermQuery;

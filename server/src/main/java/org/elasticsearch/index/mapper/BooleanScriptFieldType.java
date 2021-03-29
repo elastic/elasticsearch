@@ -18,6 +18,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
+import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.search.runtime.BooleanScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 import org.elasticsearch.script.Script;

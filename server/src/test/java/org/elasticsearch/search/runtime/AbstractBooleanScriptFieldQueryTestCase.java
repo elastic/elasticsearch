@@ -12,7 +12,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.index.mapper.BooleanFieldScript;
+import org.elasticsearch.script.BooleanFieldScript;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
+import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;

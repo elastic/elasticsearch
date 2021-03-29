@@ -12,8 +12,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.IpFieldScript;
-import org.elasticsearch.index.mapper.StringFieldScript;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.net.InetAddress;

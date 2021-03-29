@@ -10,7 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.QueryVisitor;
-import org.elasticsearch.index.mapper.StringFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.List;

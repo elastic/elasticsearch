@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.index.mapper.DoubleFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Objects;

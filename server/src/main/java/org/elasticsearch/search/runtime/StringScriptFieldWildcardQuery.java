@@ -13,7 +13,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.mapper.StringFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Objects;

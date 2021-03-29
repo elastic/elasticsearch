@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
-import org.elasticsearch.index.mapper.StringFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.List;

@@ -10,7 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.QueryVisitor;
-import org.elasticsearch.index.mapper.AbstractLongFieldScript;
+import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.function.Function;

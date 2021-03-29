@@ -13,7 +13,7 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.index.mapper.GeoPointFieldScript;
+import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;

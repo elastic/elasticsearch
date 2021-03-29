@@ -20,8 +20,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.index.mapper.AbstractLongFieldScript;
-import org.elasticsearch.index.mapper.GeoPointFieldScript;
+import org.elasticsearch.script.AbstractLongFieldScript;
+import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 

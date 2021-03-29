@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.index.mapper.DoubleFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 
 import java.util.Arrays;
 

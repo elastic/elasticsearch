@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.index.mapper.IpFieldScript;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 

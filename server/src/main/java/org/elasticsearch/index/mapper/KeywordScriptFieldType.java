@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.runtime.StringScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;

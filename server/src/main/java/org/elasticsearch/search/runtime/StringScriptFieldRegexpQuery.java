@@ -10,7 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.index.mapper.StringFieldScript;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Objects;

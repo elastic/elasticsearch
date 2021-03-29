@@ -9,7 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.IpFieldScript;
+import org.elasticsearch.script.IpFieldScript;
 
 import java.util.Arrays;
 

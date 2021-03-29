@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.index.mapper.BooleanFieldScript;
+import org.elasticsearch.script.BooleanFieldScript;
 
 public final class BooleanScriptDocValues extends AbstractSortedNumericDocValues {
     private final BooleanFieldScript script;

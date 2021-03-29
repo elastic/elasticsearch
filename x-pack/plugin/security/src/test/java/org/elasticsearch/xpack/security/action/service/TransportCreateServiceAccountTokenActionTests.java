@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -44,6 +45,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     private Transport transport;
 
     @Before
+    @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws IOException {
         indexServiceAccountsTokenStore = mock(IndexServiceAccountsTokenStore.class);
         securityContext = mock(SecurityContext.class);

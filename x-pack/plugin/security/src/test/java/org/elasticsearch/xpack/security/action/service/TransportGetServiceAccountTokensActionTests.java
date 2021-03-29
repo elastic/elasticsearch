@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -44,6 +45,7 @@ public class TransportGetServiceAccountTokensActionTests extends ESTestCase {
     private Transport transport;
 
     @Before
+    @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws UnknownHostException {
         final Settings.Builder builder = Settings.builder()
             .put("node.name", "node_name")

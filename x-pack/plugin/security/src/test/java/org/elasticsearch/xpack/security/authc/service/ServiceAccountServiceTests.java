@@ -17,6 +17,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -62,6 +63,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     private Transport transport;
 
     @Before
+    @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws UnknownHostException {
         threadContext = new ThreadContext(Settings.EMPTY);
         serviceAccountsTokenStore = mock(ServiceAccountsTokenStore.class);

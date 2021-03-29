@@ -1,0 +1,15 @@
+// tag::cloud[]
+{ess} supports repositories for the following providers:
+
+* {cloud}/ec-gcs-snapshotting.html[Google Cloud Storage (GCS)]
+* {cloud}/ec-azure-snapshotting.html[Azure Blob Storage]
+* {cloud}/ec-aws-custom-repository.html[Amazon Web Services (AWS)]
+// end::cloud[]
+
+// tag::self-managed[]
+Use one of our official snapshot repository plugins:
+
+* {plugins}/repository-gcs.html[Google Cloud Storage (GCS)]
+* {plugins}/repository-azure.html[Azure Blob Storage]
+* {plugins}/repository-s3.html[Amazon Web Services (AWS)]
+// end::self-managed[]

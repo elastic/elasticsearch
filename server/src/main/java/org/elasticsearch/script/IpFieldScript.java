@@ -49,26 +49,6 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         IpFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new IpFieldScript(
-        field,
-        params,
-        lookup,
-        ctx
-    ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof String) {
-                    try {
-                        emit((String) v);
-                    } catch (Exception e) {
-                        // ignore parsing exceptions
-                    }
-                }
-            }
-        }
-    };
-
     private BytesRef[] values = new BytesRef[1];
     private int count;
 

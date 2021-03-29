@@ -31,7 +31,7 @@ public abstract class AbstractFieldScript {
     /**
      * The maximum number of values a script should be allowed to emit.
      */
-    static final int MAX_VALUES = 100;
+    public static final int MAX_VALUES = 100;
 
     static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(

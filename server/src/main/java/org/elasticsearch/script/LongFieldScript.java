@@ -9,7 +9,6 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -27,24 +26,6 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
     public interface LeafFactory {
         LongFieldScript newInstance(LeafReaderContext ctx);
     }
-
-    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new LongFieldScript(
-        field,
-        params,
-        lookup,
-        ctx
-    ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                try {
-                    emit(NumberFieldMapper.NumberType.objectToLong(v, true));
-                } catch (Exception e) {
-                    // ignore;
-                }
-            }
-        }
-    };
 
     public LongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);

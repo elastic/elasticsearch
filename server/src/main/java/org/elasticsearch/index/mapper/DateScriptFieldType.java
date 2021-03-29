@@ -18,19 +18,19 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -40,12 +40,34 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
+    static final DateFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup, formatter) -> (DateFieldScript.LeafFactory) ctx -> new DateFieldScript
+        (
+            field,
+            params,
+            lookup,
+            formatter,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                try {
+                    emit(formatter.parseMillis(Objects.toString(v)));
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
+    };
+
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, DateFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
             private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
                 "format",
                 true,
@@ -90,7 +112,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     private final DateMathParser dateMathParser;
 
     public DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
-        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
+        this(name, PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
             if (DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern().equals(dateTimeFormatter.pattern()) == false) {
                 builder.field("format", dateTimeFormatter.pattern());
             }

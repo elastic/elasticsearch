@@ -9,7 +9,6 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -28,28 +27,6 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     public interface LeafFactory {
         BooleanFieldScript newInstance(LeafReaderContext ctx);
     }
-
-    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new BooleanFieldScript(
-        field,
-        params,
-        lookup,
-        ctx
-    ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Boolean) {
-                    emit((Boolean) v);
-                } else if (v instanceof String) {
-                    try {
-                        emit(Booleans.parseBoolean((String) v));
-                    } catch (IllegalArgumentException e) {
-                        // ignore
-                    }
-                }
-            }
-        }
-    };
 
     private int trues;
     private int falses;

@@ -347,7 +347,7 @@ PUT _component_template/logs-my_app-settings
 }
 
 # Creates an index template matching `logs-my_app-*`
-PUT _index_template/template_1
+PUT _index_template/logs-my_app-template
 {
   "index_patterns": ["logs-my_app-*"],
   "data_stream": { },

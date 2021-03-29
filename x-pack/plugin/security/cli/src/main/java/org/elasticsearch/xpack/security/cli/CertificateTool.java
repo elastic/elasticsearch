@@ -101,7 +101,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      */
     private static final CharsetEncoder ASCII_ENCODER = StandardCharsets.US_ASCII.newEncoder();
 
-    private static final int DEFAULT_DAYS = 3 * 365;
+    private static final int DEFAULT_DAYS = 397;
     private static final int FILE_EXTENSION_LENGTH = 4;
     static final int MAX_FILENAME_LENGTH = 255 - FILE_EXTENSION_LENGTH;
     private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =

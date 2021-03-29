@@ -155,23 +155,17 @@ tasks.named("yamlRestCompatTest").configure {
     'get_source/86_source_missing_with_types/Missing document source with catch',
     'get_source/86_source_missing_with_types/Missing document source with ignore',
     'indices.clone/10_basic/Clone index via API',
-    'indices.create/10_basic/Create index with explicit _doc type',
     'indices.create/10_basic/Create index without soft deletes',
-    'indices.create/11_basic_with_types/Create index',
-    'indices.create/11_basic_with_types/Create index with aliases',
+    // 5 below await retrofitting Removes typed URLs from mapping APIs #41676
     'indices.create/11_basic_with_types/Create index with mappings',
-    'indices.create/11_basic_with_types/Create index with settings',
-    'indices.create/11_basic_with_types/Create index with wait_for_active_shards set to all',
-    'indices.create/11_basic_with_types/Create index with write aliases',
     'indices.create/20_mix_typeless_typeful/Create a typed index while there is a typeless template',
     'indices.create/20_mix_typeless_typeful/Create a typeless index while there is a typed template',
     'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
     'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
+    //
     'indices.flush/10_basic/Flush stats',
     'indices.flush/10_basic/Index synced flush rest test',
     'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
-//    'indices.get/11_basic_with_types/Test include_type_name',
-//    'indices.get/11_basic_with_types/Test include_type_name dafaults to false',
     'indices.get_field_mapping/10_basic/Get field mapping with local is deprecated',
     'indices.get_field_mapping/11_basic_with_types/Get field mapping by index only',
     'indices.get_field_mapping/11_basic_with_types/Get field mapping by type & field',
@@ -353,4 +347,6 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceIsTrue("test_index.mappings.type_1", "test_index.mappings._doc")
+  task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
+  task.replaceIsFalse("test-1.mappings.my_type", "test-1.mappings._doc")
 })

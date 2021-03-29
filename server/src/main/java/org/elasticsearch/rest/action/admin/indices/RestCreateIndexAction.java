@@ -61,14 +61,13 @@ public class RestCreateIndexAction extends BaseRestHandler {
     CreateIndexRequest prepareRequestV7(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
             deprecationLogger.compatibleApiWarning("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
-
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
             sourceAsMap = prepareMappingsV7(sourceAsMap, request);
 
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
@@ -86,9 +85,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
 
-        if (includeTypeName && mappings.size() == 1) {
+        if (includeTypeName && mappings != null && mappings.size() == 1) {
             Map<String, Object> newSource = new HashMap<>();
-
+            newSource.putAll(source); // mappings will be overridden. Aliases, settings stay the same
             String typeName = mappings.keySet().iterator().next();
             if (Strings.hasText(typeName) == false) {
                 throw new IllegalArgumentException("name cannot be empty string");
@@ -132,7 +131,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
         if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-            throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
+            throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
+                "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
         }
 
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));

@@ -10,7 +10,9 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,7 +27,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
-
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying include_type_name in put index template requests is deprecated."+
+        " The parameter will be removed in the next major version.";
     @Override
     public List<Route> routes() {
         return List.of(
@@ -50,7 +55,19 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
             request.getXContentType()).v2();
-        sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+        if(request.getRestApiVersion() == RestApiVersion.V_7) {
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) ) {
+                deprecationLogger.compatibleApiWarning("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+            }
+            if(includeTypeName) {
+                sourceAsMap = RestCreateIndexAction.prepareMappingsV7(sourceAsMap, request);
+            } else {
+                sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+            }
+        } else {
+            sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+        }
         putRequest.source(sourceAsMap);
 
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));

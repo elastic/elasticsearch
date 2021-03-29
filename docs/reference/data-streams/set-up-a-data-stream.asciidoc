@@ -9,8 +9,8 @@ To set up a data stream, follow these steps:
 . <<create-a-data-stream>>.
 . <<secure-a-data-stream>>.
 
-You can also <<convert-an-index-alias-to-a-data-stream,convert an existing index
-alias to a data stream>>.
+You can also <<convert-an-index-alias-to-a-data-stream,convert an index alias to
+a data stream>>.
 
 [discrete]
 [[configure-a-data-stream-ilm-policy]]
@@ -189,9 +189,12 @@ the stream. This index also acts as the stream's first write index.
 [[convert-an-index-alias-to-a-data-stream]]
 === Convert an index alias to a data stream
 
+// tag::time-series-alias-tip[]
 Prior to {es} 7.9, you would typically use an <<indices-aliases,index alias>>
-with a write index to manage time series data. Data streams replace most of
-this functionality and usually require less maintenance.
+with a write index to manage time series data. Data streams replace this
+functionality, require less maintenance, and automatically integrate with
+<<data-tiers,data tiers>>.
+// end::time-series-alias-tip[]
 
 To convert an index alias with a write index to a new data stream with the same
 name, use the <<indices-migrate-to-data-stream,migrate to data stream API>>.

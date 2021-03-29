@@ -79,7 +79,7 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
         final String principal = accountId.asPrincipal();
         final List<TokenInfo> tokenInfos = tokenHashes.keySet()
             .stream()
-            .filter(k -> k.startsWith(principal))
+            .filter(k -> k.startsWith(principal + "/"))
             .map(k -> TokenInfo.fileToken(Strings.substring(k, principal.length() + 1, k.length())))
             .collect(Collectors.toUnmodifiableList());
         listener.onResponse(tokenInfos);

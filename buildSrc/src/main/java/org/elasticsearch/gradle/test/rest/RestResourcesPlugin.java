@@ -115,7 +115,10 @@ public class RestResourcesPlugin implements Plugin<Project> {
                     task.setCoreConfig(testConfig);
                     task.setXpackConfig(xpackTestConfig);
                 }
-                task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
+                // If this is the rest spec project, don't copy the tests again
+                if (project.getPath().equals(":rest-api-spec") == false) {
+                    task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
+                }
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
                 task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/yamlTests"));
             });

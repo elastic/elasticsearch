@@ -38,14 +38,23 @@ class TarInputStream extends FilterInputStream {
                 skipN(512 - reminder);
             }
         }
-        int read = in.readNBytes(buf, 0, 512);
+        int read = readNBytes(in, buf, 0, 512);
         if (read == 0) {
             return null;
         }
         if (read != 512) {
             throw new EOFException();
         }
-        if (Arrays.compare(buf, new byte[512]) == 0) {
+
+        boolean allZero = true;
+        for (byte b : buf) {
+            if (b != 0) {
+                allZero = false;
+                break;
+            }
+        }
+
+        if (allZero) {
             return null;
         }
 
@@ -53,7 +62,7 @@ class TarInputStream extends FilterInputStream {
 
         boolean notFile = (buf[156] != 0 && buf[156] != '0') || name.endsWith("/");
 
-        if(notFile){
+        if (notFile) {
             remaining = 0;
             reminder = 0;
         } else {
@@ -101,6 +110,17 @@ class TarInputStream extends FilterInputStream {
             }
             n -= skip;
         }
+    }
+
+    private int readNBytes(InputStream in, byte[] b, int off, int len) throws IOException {
+        int n = 0;
+        while (n < len) {
+            int count = in.read(b, off + n, len - n);
+            if (count < 0)
+                break;
+            n += count;
+        }
+        return n;
     }
 
     static class TarEntry {

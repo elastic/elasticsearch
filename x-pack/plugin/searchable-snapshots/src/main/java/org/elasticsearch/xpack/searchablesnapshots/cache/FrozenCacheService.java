@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -97,10 +96,8 @@ public class FrozenCacheService implements Releasable {
                     @SuppressWarnings("unchecked")
                     final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
                     if (DataTier.isFrozenNode(Set.of(roles.toArray(DiscoveryNodeRole[]::new))) == false) {
-                        deprecationLogger.deprecate(
-                            DeprecationCategory.SETTINGS,
-                            "shared_cache",
-                            "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",
+                        throw new SettingsException(
+                            "setting [{}] to be positive [{}] is only permitted on nodes with the data_frozen role, roles are [{}]",
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))

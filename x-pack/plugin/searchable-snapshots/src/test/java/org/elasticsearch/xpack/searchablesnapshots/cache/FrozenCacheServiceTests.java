@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,6 +27,9 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
@@ -196,7 +200,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testCacheSizeDeprecatedOnNonFrozenNodes() {
+    public void testCacheSizeRejectedOnNonFrozenNodes() {
         DiscoveryNode.setAdditionalRoles(
             Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
         );
@@ -205,11 +209,19 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
             .build();
-        FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        assertWarnings(
-            "setting ["
-                + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-                + "] to be positive [500b] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
+        );
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                "setting ["
+                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                    + "] to be positive [500b] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
+            )
         );
     }
 

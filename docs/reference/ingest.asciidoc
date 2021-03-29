@@ -281,19 +281,45 @@ WARNING: Do not change {fleet}'s ingest pipelines or use custom pipelines for
 your {fleet} integrations. Doing so can break your {fleet} data streams.
 
 {fleet} doesn't provide an ingest pipeline for the **Custom logs** integration.
-You can safely specify a pipeline for this integration in one of two ways:
+You can safely specify a pipeline for this integration in one of two ways: an
+<<pipeline-custom-logs-index-template,index template>> or a
+<<pipeline-custom-logs-configuration,custom configuration>>.
 
+[[pipeline-custom-logs-index-template]]
 **Option 1: Index template**
 
-. Create an <<index-templates,index template>> that includes
-<<set-default-pipeline,pipeline index settings>>. You can create this template
-using {kib}'s <<manage-index-templates,**Index Management**>> feature or the
-<<indices-put-template,create index template API>>. Ensure the index template is
-<<create-a-data-stream-template,data stream enabled>>.
+// tag::create-name-custom-logs-pipeline[]
+. <<create-manage-ingest-pipelines,Create>> and <<test-pipeline,test>> your
+ingest pipeline. Name your pipeline `logs-<dataset-name>-default`. This follows
+{fleet}'s naming convention and makes tracking the pipeline for each integration
+easier.
 +
 --
-To avoid naming collisions, the template's index pattern should match
-`logs-<dataset-name>-*`.
+For example, the following request creates a pipeline for the `my-app` dataset.
+The pipeline's name is `logs-my_app-default`.
+
+[source,console]
+----
+PUT _ingest/pipeline/logs-my_app-default
+{
+  "description": "Pipeline for `my_app` dataset",
+  "processors": [ ... ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+--
+// end::create-name-custom-logs-pipeline[]
+
+. Create an <<index-templates,index template>> that includes your pipeline in
+the <<index-default-pipeline,`index.default_pipeline`>> or
+<<index-final-pipeline,`index.final_pipeline`>> index setting. Ensure the
+template is <<create-a-data-stream-template,data stream enabled>>. The
+template's index pattern should match `logs-<dataset-name>-*`.
++
+--
+You can create this template using {kib}'s <<manage-index-templates,**Index
+Management**>> feature or the <<indices-put-template,create index template
+API>>. 
 
 For example, the following request creates a template matching `logs-my_app-*`.
 The template uses a component template that contains the
@@ -306,7 +332,7 @@ PUT _component_template/my-settings-component-template
 {
   "template": {
     "settings": {
-      "index.default_pipeline": "my-pipeline"
+      "index.default_pipeline": "logs-my_app-default"
     }
   }
 }
@@ -320,9 +346,10 @@ PUT _index_template/template_1
   "composed_of": ["my-settings-component-template", "my-mappings-component-template"]
 }
 ----
+// TEST[continued]
 // TEST[s/, "my-mappings-component-template"//]
 --
-
+// tag::name-custom-logs-dataset[]
 . When adding or editing your **Custom logs** integration in {fleet},
 click **Configure integration > Custom log file > Advanced options**.
 
@@ -331,6 +358,7 @@ for the integration to the resulting `logs-<dataset-name>-default` data stream.
 +
 For example, if your dataset's name was `my_app`, {fleet} adds new data to the
 `logs-my_app-default` data stream.
+// end::name-custom-logs-dataset[]
 +
 [role="screenshot"]
 image::images/ingest/custom-logs.png[Set up custom log integration in Fleet,align="center"]
@@ -364,16 +392,12 @@ DELETE _index_template/*
 ////
 --
 
+[[pipeline-custom-logs-configuration]]
 **Option 2: Custom configuration**
 
-. When adding or editing your **Custom logs** integration in {fleet},
-click **Configure integration > Custom log file > Advanced options**.
+include::ingest.asciidoc[tag=create-name-custom-logs-pipeline]
 
-. In **Dataset name**, specify your dataset's name. {fleet} will add new data
-for the integration to the resulting `logs-<dataset-name>-default` data stream.
-+
-For example, if your dataset's name was `my_app`, {fleet} adds new data to the
-`logs-my_app-default` data stream.
+include::ingest.asciidoc[tag=name-custom-logs-dataset]
 
 . In **Custom Configurations**, specify `pipeline: <my-pipeline>`.
 +

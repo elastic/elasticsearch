@@ -48,6 +48,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -356,7 +357,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .sorted(Comparator.comparing(minAndMaxes::get, MinAndMax.getComparator(order)).thenComparing(shardIds::get))
                 .map(shardIds::get)
                 .toArray(ShardId[]::new);
-
+            if (shardToSkip.size() == expected.length) {
+                // we need at least one shard to produce the empty result for aggs
+                shardToSkip.remove(new ShardId("logs", "_na_", 0));
+            }
             int pos = 0;
             for (SearchShardIterator i : result.get()) {
                 assertEquals(shardToSkip.contains(i.shardId()), i.skip());

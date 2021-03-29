@@ -26,13 +26,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLongArray;
 
 public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsAction.Response> {
 
@@ -44,7 +47,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         super(NAME, GetGlobalCheckpointsAction.Response::new);
     }
 
-    public static class Response extends ActionResponse {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private final long[] globalCheckpoints;
 
@@ -59,7 +62,14 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLongArray(globalCheckpoints);
+            throw new AssertionError("GetGlobalCheckpointsAction should not be sent over the wire.");
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.array("global_checkpoints", globalCheckpoints);
+            return builder.endObject();
         }
     }
 
@@ -68,15 +78,13 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         private final String index;
         private final boolean waitForAdvance;
         private final long[] currentCheckpoints;
+        private final TimeValue pollTimeout;
 
-        Request(String index, boolean waitForAdvance, long[] currentCheckpoints) {
+        public Request(String index, boolean waitForAdvance, long[] currentCheckpoints, TimeValue pollTimeout) {
             this.index = index;
             this.waitForAdvance = waitForAdvance;
             this.currentCheckpoints = currentCheckpoints;
-        }
-
-        Request(StreamInput in) throws IOException {
-            throw new AssertionError("GetGlobalCheckpointsAction should not be registered with the transport service.");
+            this.pollTimeout = pollTimeout;
         }
 
         @Override
@@ -85,14 +93,13 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         }
 
         public TimeValue pollTimeout() {
-            return null;
+            return pollTimeout;
         }
 
         public boolean waitForAdvance() {
             return waitForAdvance;
         }
 
-        // TODO: Name
         public long[] currentCheckpoints() {
             return currentCheckpoints;
         }
@@ -114,9 +121,9 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         private final NodeClient client;
 
         @Inject
-        public TransportGetGlobalCheckpointsAction(final ActionFilters actionFilters, final TaskManager taskManager,
+        public TransportGetGlobalCheckpointsAction(final ActionFilters actionFilters, final TransportService transportService,
                                                    final ClusterService clusterService, final NodeClient client) {
-            super(NAME, actionFilters, taskManager);
+            super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.client = client;
         }
@@ -132,12 +139,19 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             }
 
             final int numberOfShards = indexMetadata.getNumberOfShards();
-            if (request.currentCheckpoints != null) {
-                int actualNumberOfShards = request.currentCheckpoints.length;
-                if (actualNumberOfShards != numberOfShards) {
-                    listener.onFailure(new ElasticsearchException("Current checkpoints must equal number of shards. " +
-                        "[Index Shard Count: " + numberOfShards + ", Current Checkpoints: " + actualNumberOfShards + "]"));
+            final long[] currentCheckpoints;
+            final int currentCheckpointCount = request.currentCheckpoints().length;
+            if (currentCheckpointCount != 0) {
+                if (currentCheckpointCount != numberOfShards) {
+                    listener.onFailure(new ElasticsearchException("current_checkpoints must equal number of shards. " +
+                        "[shard count: " + numberOfShards + ", current_checkpoints: " + currentCheckpointCount + "]"));
                     return;
+                }
+                currentCheckpoints = request.currentCheckpoints();
+            } else {
+                currentCheckpoints = new long[numberOfShards];
+                for (int i = 0; i < numberOfShards; ++i) {
+                    currentCheckpoints[i] = SequenceNumbers.NO_OPS_PERFORMED;
                 }
             }
 
@@ -147,7 +161,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 final int shardIndex = i;
                 GetGlobalCheckpointAction.Request shardChangesRequest =
                     new GetGlobalCheckpointAction.Request(new ShardId(indexMetadata.getIndex(), shardIndex), request.waitForAdvance(),
-                        request.currentCheckpoints()[shardIndex], request.pollTimeout());
+                        currentCheckpoints[shardIndex], request.pollTimeout());
 
                 client.execute(GetGlobalCheckpointAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
                     @Override

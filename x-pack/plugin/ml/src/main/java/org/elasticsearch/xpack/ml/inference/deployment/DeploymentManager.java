@@ -53,7 +53,7 @@ public class DeploymentManager {
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task) {
-        logger.info("[{}] Starting model deployment", task.getModelId());
+        logger.debug("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task.getModelId());
 

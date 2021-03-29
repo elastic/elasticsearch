@@ -66,7 +66,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         }
 
         public void setTimeout(TimeValue timeout) {
-            this.timeout = timeout;
+            this.timeout = ExceptionsHelper.requireNonNull(timeout, TIMEOUT);
         }
 
         public TimeValue getTimeout() {
@@ -117,7 +117,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
     public static class TaskParams implements PersistentTaskParams {
 
-        public static final Version VERSION_INTRODUCED = Version.V_7_13_0;
+        public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
 
         private final String modelId;
 

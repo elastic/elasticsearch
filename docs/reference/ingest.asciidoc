@@ -408,10 +408,11 @@ image::images/ingest/custom-logs-pipeline.png[Custom pipeline configuration for 
 **{agent} standalone**
 
 If you run {agent} standalone, you can apply pipelines using an
-<<index-templates,index template>> that includes <<set-default-pipeline,pipeline
-index settings>>. You can also specify the `pipeline` policy setting in your
-`elastic-agent.yml` configuration. See
-{fleet-guide}/run-elastic-agent-standalone.html[Run {agent} standalone].
+<<index-templates,index template>> that includes the
+<<index-default-pipeline,`index.default_pipeline`>> or
+<<index-final-pipeline,`index.final_pipeline`>> index setting. You can also
+specify the `pipeline` policy setting in your `elastic-agent.yml` configuration.
+See {fleet-guide}/run-elastic-agent-standalone.html[Run {agent} standalone].
 
 [discrete]
 [[access-source-fields]]

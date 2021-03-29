@@ -92,7 +92,7 @@ public class RollupActionIT extends ESRestTestCase {
      * @throws IOException if request fails
      */
     private String getRollupIndexName(String index) throws IOException {
-        Response response = client().performRequest(new Request("GET", "/rollup-" + index + "-*"));
+        Response response = client().performRequest(new Request("GET", "/rollup-*-" + index));
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];

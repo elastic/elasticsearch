@@ -19,20 +19,24 @@ import javax.inject.Inject;
  */
 public class RestResourcesExtension {
 
-    final RestResourcesSpec restApi;
-    final RestResourcesSpec restTests;
+    private final RestResourcesSpec restApi;
+    private final XpackRestResourcesSpec restTests;
 
     @Inject
     public RestResourcesExtension(ObjectFactory objects) {
         restApi = new RestResourcesSpec(objects);
-        restTests = new RestResourcesSpec(objects);
+        restTests = new XpackRestResourcesSpec(objects);
     }
 
     void restApi(Action<? super RestResourcesSpec> spec) {
         spec.execute(restApi);
     }
 
-    void restTests(Action<? super RestResourcesSpec> spec) {
+    void restTests(Action<? super XpackRestResourcesSpec> spec) {
+        if (BuildParams.isInternal() == false) {
+            // TODO: Separate this out into an "internal" plugin so we don't even expose this API to external folks
+            throw new UnsupportedOperationException("Including tests is not supported from external builds.");
+        }
         spec.execute(restTests);
     }
 
@@ -40,16 +44,33 @@ public class RestResourcesExtension {
         return restApi;
     }
 
-    public RestResourcesSpec getRestTests() {
+    public XpackRestResourcesSpec getRestTests() {
         return restTests;
     }
 
     public static class RestResourcesSpec {
 
+        private final ListProperty<String> include;
+
+        RestResourcesSpec(ObjectFactory objects) {
+            include = objects.listProperty(String.class);
+        }
+
+        public void include(String... include) {
+            this.include.addAll(include);
+        }
+
+        public ListProperty<String> getInclude() {
+            return include;
+        }
+    }
+
+    public static class XpackRestResourcesSpec {
+
         private final ListProperty<String> includeCore;
         private final ListProperty<String> includeXpack;
 
-        RestResourcesSpec(ObjectFactory objects) {
+        XpackRestResourcesSpec(ObjectFactory objects) {
             includeCore = objects.listProperty(String.class);
             includeXpack = objects.listProperty(String.class);
         }
@@ -59,9 +80,6 @@ public class RestResourcesExtension {
         }
 
         public void includeXpack(String... include) {
-            if (BuildParams.isInternal() == false) {
-                throw new IllegalStateException("Can not include x-pack rest resources from an external build.");
-            }
             this.includeXpack.addAll(include);
         }
 

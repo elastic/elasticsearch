@@ -30,7 +30,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
         LongFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new LongFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new LongFieldScript(
         field,
         params,
         lookup,

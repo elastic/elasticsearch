@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,11 +50,8 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -171,6 +169,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
+    }
+
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
@@ -178,12 +180,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
-        );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
+
+
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
@@ -192,7 +191,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
             idFieldDataEnabled,
-            scriptService
+            this::compileScript
         );
     }
 

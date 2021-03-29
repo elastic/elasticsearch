@@ -215,11 +215,6 @@ The number of documents that have been processed from the source index of
 the {transform}.
 end::docs-processed[]
 
-tag::enrich-policy[]
-Enrich policy name
-used to limit the request.
-end::enrich-policy[]
-
 tag::ds-expand-wildcards[]
 `expand_wildcards`::
 +

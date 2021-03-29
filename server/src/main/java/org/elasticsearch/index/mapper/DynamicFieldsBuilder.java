@@ -198,13 +198,13 @@ final class DynamicFieldsBuilder {
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
         if (dynamicTemplate.isRuntimeMapping()) {
             Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
-            RuntimeFieldType.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
+            RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
             String fullName = context.path().pathAsText(name);
             if (parser == null) {
                 throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + fullName + "]");
             }
-            RuntimeFieldType runtimeFieldType = parser.parse(fullName, mapping, parserContext);
-            Runtime.createDynamicField(runtimeFieldType, context);
+            RuntimeField runtimeField = parser.parse(fullName, mapping, parserContext);
+            Runtime.createDynamicField(runtimeField, context);
         } else {
             Mapper.Builder builder = parseDynamicTemplateMapping(name, mappingType, mapping, dateFormatter, context);
             CONCRETE.createDynamicField(builder, context);
@@ -312,8 +312,8 @@ final class DynamicFieldsBuilder {
      * @see Dynamic
      */
     private static final class Runtime implements Strategy {
-        static void createDynamicField(RuntimeFieldType runtimeFieldType, ParseContext context) {
-            context.addDynamicRuntimeField(runtimeFieldType);
+        static void createDynamicField(RuntimeField runtimeField, ParseContext context) {
+            context.addDynamicRuntimeField(runtimeField);
         }
 
         @Override

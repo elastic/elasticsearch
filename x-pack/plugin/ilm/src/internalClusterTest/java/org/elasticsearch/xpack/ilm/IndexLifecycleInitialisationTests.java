@@ -473,6 +473,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             super(current, next);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         public ObservableClusterStateWaitStep(StreamInput in) throws IOException {
             this(new StepKey(in.readString(), in.readString(), in.readString()), readOptionalNextStepKey(in));
         }

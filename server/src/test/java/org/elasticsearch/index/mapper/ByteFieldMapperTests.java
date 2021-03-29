@@ -35,4 +35,15 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "byte");
     }
+
+    @Override
+    protected Number randomNumber() {
+        if (randomBoolean()) {
+            return randomByte();
+        }
+        if (randomBoolean()) {
+            return randomDouble();
+        }
+        return randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true);
+    }
 }

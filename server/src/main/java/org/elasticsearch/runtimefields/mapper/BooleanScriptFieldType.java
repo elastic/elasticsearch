@@ -12,13 +12,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.runtimefields.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.runtimefields.query.BooleanScriptFieldExistsQuery;
@@ -27,7 +26,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,23 +34,16 @@ import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
-    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldType.Parser((name, parserContext) -> new Builder(name) {
-        @Override
-        protected AbstractScriptFieldType<?> buildFieldType() {
-            if (script.get() == null) {
-                return new BooleanScriptFieldType(name, BooleanFieldScript.PARSE_FROM_SOURCE, this);
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
+        new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
+            @Override
+            RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
+                return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
             }
-            BooleanFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), BooleanFieldScript.CONTEXT);
-            return new BooleanScriptFieldType(name, factory, this);
-        }
-    });
-
-    private BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Builder builder) {
-        super(name, scriptFactory::newFactory, builder);
-    }
+        });
 
     public BooleanScriptFieldType(String name) {
-        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
+        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     BooleanScriptFieldType(
@@ -60,7 +51,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         BooleanFieldScript.Factory scriptFactory,
         Script script,
         Map<String, String> meta,
-        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+        ToXContent toXContent
     ) {
         super(name, scriptFactory::newFactory, script, meta, toXContent);
     }

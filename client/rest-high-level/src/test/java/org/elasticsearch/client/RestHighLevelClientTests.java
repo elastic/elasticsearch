@@ -807,6 +807,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70041")
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
@@ -819,7 +820,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "scripts_painless_execute",
             "indices.simulate_template",
             "indices.resolve_index",
-            "indices.add_block"
+            "indices.add_block",
+            "open_point_in_time",
+            "close_point_in_time"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

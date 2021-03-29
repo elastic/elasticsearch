@@ -1017,13 +1017,13 @@ public class MetadataTests extends ESTestCase {
     public void testOverlappingDataStreamNamesWithBackingIndexDatePattern() {
         final String dataStreamName1 = "logs-foobar-2021.01.13";
         Metadata.Builder b = Metadata.builder();
-        IndexMetadata ds1Index1 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName1, 1, Version.V_7_10_2))
+        IndexMetadata ds1Index1 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName1, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
         b.put(ds1Index1, false);
-        IndexMetadata ds1Index2 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName1, 2, Version.V_7_10_2))
+        IndexMetadata ds1Index2 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName1, 2))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1)
@@ -1033,7 +1033,7 @@ public class MetadataTests extends ESTestCase {
             Arrays.asList(ds1Index1.getIndex(), ds1Index2.getIndex()), 2, null));
 
         final String dataStreamName2 = "logs-foobar";
-        IndexMetadata ds2Index1 = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName2, 1, Version.V_7_10_2))
+        IndexMetadata ds2Index1 = IndexMetadata.builder(DataStreamTestHelper.getLegacyDefaultBackingIndexName(dataStreamName2, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1)

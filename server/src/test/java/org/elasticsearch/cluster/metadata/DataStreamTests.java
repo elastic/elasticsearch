@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -49,7 +48,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID());
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -57,19 +56,6 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-    }
-
-    public void testRolloverWithLegacyBackingIndexNames() {
-        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
-
-        assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
-        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertThat(rolledDs.getWriteIndex().getName(),
-            equalTo(DataStream.getLegacyDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1)));
     }
 
     public void testRemoveBackingIndex() {

@@ -410,6 +410,14 @@ double quote (`"`), must be escaped with a preceding backslash (`\`).
 |`\"`             | Double quote (`"`)
 |====
 
+You can escape Unicode characters using a hexadecimal `\u{XXXXXXXX}` escape
+sequence. The hexadecimal value can be 2-8 characters and is case-insensitive.
+Values shorter than 8 characters are zero-padded. You can use these escape
+sequences to include non-printable or right-to-left (RTL) characters in your
+strings. For example, you can escape a
+{wikipedia}/Right-to-left_mark[right-to-left mark (RLM)] as `\u{200f}`,
+`\u{200F}`, or `\u{0000200f}`.
+
 IMPORTANT: The single quote (`'`) character is reserved for future use. You
 cannot use an escaped single quote (`\'`) for literal strings. Use an escaped
 double quote (`\"`) instead.
@@ -827,7 +835,7 @@ sub-fields of a `nested` field. However, data streams and indices containing
 follows:
 
 * In {es} EQL, most operators are case-sensitive. For example,
-`process_name == "cmd.exe"` is not equivalent to 
+`process_name == "cmd.exe"` is not equivalent to
 `process_name == "Cmd.exe"`.
 
 * In {es} EQL, functions are case-sensitive. To make a function

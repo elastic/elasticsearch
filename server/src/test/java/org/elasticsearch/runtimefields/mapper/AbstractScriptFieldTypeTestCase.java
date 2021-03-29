@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -25,18 +24,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -48,9 +42,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     private static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
-    protected abstract MappedFieldType simpleMappedFieldType() throws IOException;
+    protected abstract MappedFieldType simpleMappedFieldType();
 
-    protected abstract MappedFieldType loopFieldType() throws IOException;
+    protected abstract MappedFieldType loopFieldType();
 
     protected abstract String typeName();
 
@@ -313,45 +307,28 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new TestScriptPlugin());
-    }
-
-    private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new TestScriptEngine() {
-                @Override
-                protected Object buildScriptFactory(ScriptContext<?> context) {
-                    if (context == BooleanFieldScript.CONTEXT) {
-                        return BooleanFieldScriptTests.DUMMY;
-                    }
-                    if (context == DateFieldScript.CONTEXT) {
-                        return DateFieldScriptTests.DUMMY;
-                    }
-                    if (context == DoubleFieldScript.CONTEXT) {
-                        return DoubleFieldScriptTests.DUMMY;
-                    }
-                    if (context == IpFieldScript.CONTEXT) {
-                        return IpFieldScriptTests.DUMMY;
-                    }
-                    if (context == LongFieldScript.CONTEXT) {
-                        return LongFieldScriptTests.DUMMY;
-                    }
-                    if (context == StringFieldScript.CONTEXT) {
-                        return StringFieldScriptTests.DUMMY;
-                    }
-                    if (context == GeoPointFieldScript.CONTEXT) {
-                        return GeoPointFieldScriptTests.DUMMY;
-                    }
-                    throw new IllegalArgumentException("Unsupported context: " + context);
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Collections.emptySet();
-                }
-            };
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context == BooleanFieldScript.CONTEXT) {
+            return (T) BooleanFieldScriptTests.DUMMY;
         }
+        if (context == DateFieldScript.CONTEXT) {
+            return (T) DateFieldScriptTests.DUMMY;
+        }
+        if (context == DoubleFieldScript.CONTEXT) {
+            return (T) DoubleFieldScriptTests.DUMMY;
+        }
+        if (context == IpFieldScript.CONTEXT) {
+            return (T) IpFieldScriptTests.DUMMY;
+        }
+        if (context == LongFieldScript.CONTEXT) {
+            return (T) LongFieldScriptTests.DUMMY;
+        }
+        if (context == StringFieldScript.CONTEXT) {
+            return (T) StringFieldScriptTests.DUMMY;
+        }
+        if (context == GeoPointFieldScript.CONTEXT) {
+            return (T) GeoPointFieldScriptTests.DUMMY;
+        }
+        throw new IllegalArgumentException("Unsupported context: " + context);
     }
 }

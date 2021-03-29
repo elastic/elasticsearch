@@ -41,7 +41,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         GeoPointFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new GeoPointFieldScript(
+    static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new GeoPointFieldScript(
         field,
         params,
         lookup,

@@ -48,6 +48,13 @@ same mechanisms as for regular indices. For example, you could use
 <<shard-allocation-filtering>> to restrict {search-snap} shards to a subset of
 your nodes.
 
+The speed of recovery of a {search-snap} index is limited by the repository
+setting `max_restore_bytes_per_sec` and the node setting
+`indices.recovery.max_bytes_per_sec` just like a normal restore operation. By
+default `max_restore_bytes_per_sec` is unlimited, but the default for
+`indices.recovery.max_bytes_per_sec` depends on the configuration of the node.
+See <<recovery-settings>>.
+
 We recommend that you <<indices-forcemerge, force-merge>> indices to a single
 segment per shard before taking a snapshot that will be mounted as a
 {search-snap} index. Each read from a snapshot repository takes time and costs

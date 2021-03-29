@@ -13,6 +13,7 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -24,7 +25,6 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -42,28 +42,27 @@ public class GeoIpCli extends Command {
     private final OptionSpec<String> directoryArg;
 
     public GeoIpCli() {
-        super("A CLI tool to prepare local GeoIp database service", () -> {
-        });
+        super("A CLI tool to prepare local GeoIp database service", () -> {});
         directoryArg = parser.acceptsAll(Arrays.asList("d", "directory"), "Directory to process").withRequiredArg().defaultsTo(".");
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        Path directory = Paths.get(options.valueOf(directoryArg));
+        Path directory = PathUtils.get(options.valueOf(directoryArg));
         packDatabasesToTgz(terminal, directory);
         createOverviewJson(terminal, directory);
     }
 
     private void packDatabasesToTgz(Terminal terminal, Path directory) throws IOException {
-        List<Path> toPack = Files.list(directory)
-            .filter(p -> p.getFileName().toString().endsWith(".mmdb"))
-            .collect(Collectors.toList());
+        List<Path> toPack = Files.list(directory).filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList());
         for (Path path : toPack) {
             String fileName = path.getFileName().toString();
             Path compressedPath = path.resolveSibling(fileName.replaceAll("mmdb$", "") + "tgz");
             terminal.println("Found " + fileName + ", will compress it to " + compressedPath.getFileName());
-            try (OutputStream fos = Files.newOutputStream(compressedPath, TRUNCATE_EXISTING, CREATE);
-                 OutputStream gos = new GZIPOutputStream(new BufferedOutputStream(fos))) {
+            try (
+                OutputStream fos = Files.newOutputStream(compressedPath, TRUNCATE_EXISTING, CREATE);
+                OutputStream gos = new GZIPOutputStream(new BufferedOutputStream(fos))
+            ) {
                 long size = Files.size(path);
                 gos.write(createTarHeader(fileName, size));
                 Files.copy(path, gos);
@@ -76,14 +75,15 @@ public class GeoIpCli extends Command {
         }
     }
 
-
     private void createOverviewJson(Terminal terminal, Path directory) throws IOException {
         List<Path> databasesPaths = Files.list(directory)
             .filter(p -> p.getFileName().toString().endsWith(".tgz"))
             .collect(Collectors.toList());
         Path overview = directory.resolve("overview.json");
-        try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(overview, TRUNCATE_EXISTING, CREATE));
-             XContentGenerator generator = XContentType.JSON.xContent().createGenerator(os)) {
+        try (
+            OutputStream os = new BufferedOutputStream(Files.newOutputStream(overview, TRUNCATE_EXISTING, CREATE));
+            XContentGenerator generator = XContentType.JSON.xContent().createGenerator(os)
+        ) {
             generator.writeStartArray();
             for (Path db : databasesPaths) {
                 terminal.println("Adding " + db.getFileName() + " to overview.json");

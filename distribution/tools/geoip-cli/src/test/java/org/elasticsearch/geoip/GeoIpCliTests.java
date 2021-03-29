@@ -64,27 +64,30 @@ public class GeoIpCliTests extends LuceneTestCase {
             files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
         }
         assertThat(files, containsInAnyOrder("a.tgz", "b.tgz", "c.tgz", "overview.json"));
-        //skip tarball verifications on Windows, no tar utility there
-        if (WINDOWS == false) {
-            Map<String, Integer> sizes = Map.of("a.tgz", 514, "b.tgz", 100);
-            for (String tgz : List.of("a.tgz", "b.tgz")) {
-                String mmdb = tgz.replace(".tgz", ".mmdb");
-                Process process = new ProcessBuilder("tar", "-tvf", tgz).directory(tempDir.toFile()).start();
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line = reader.readLine();
-                    assertThat(line, startsWith("-rw-r--r--"));
-                    assertThat(line, endsWith(mmdb));
-                    assertThat(line, matchesRegex(".*1000\\s+1000.*" + sizes.get(tgz) + ".*"));
-                    assertThat(reader.readLine(), nullValue());
-                }
-                int exitCode = process.waitFor();
-                assertThat(exitCode, is(0));
-                process = new ProcessBuilder("tar", "-xzf", tgz).directory(tempDir.toFile()).start();
-                exitCode = process.waitFor();
-                assertThat(exitCode, is(0));
-                assertTrue(Files.exists(tempDir.resolve(mmdb)));
-                assertArrayEquals(data.get(tgz), Files.readAllBytes(tempDir.resolve(mmdb)));
+
+        // skip tarball verifications on Windows, no tar utility there
+        if (WINDOWS) {
+            return;
+        }
+
+        Map<String, Integer> sizes = Map.of("a.tgz", 514, "b.tgz", 100);
+        for (String tgz : List.of("a.tgz", "b.tgz")) {
+            String mmdb = tgz.replace(".tgz", ".mmdb");
+            Process process = new ProcessBuilder("tar", "-tvf", tgz).directory(tempDir.toFile()).start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line = reader.readLine();
+                assertThat(line, startsWith("-rw-r--r--"));
+                assertThat(line, endsWith(mmdb));
+                assertThat(line, matchesRegex(".*1000\\s+1000.*" + sizes.get(tgz) + ".*"));
+                assertThat(reader.readLine(), nullValue());
             }
+            int exitCode = process.waitFor();
+            assertThat(exitCode, is(0));
+            process = new ProcessBuilder("tar", "-xzf", tgz).directory(tempDir.toFile()).start();
+            exitCode = process.waitFor();
+            assertThat(exitCode, is(0));
+            assertTrue(Files.exists(tempDir.resolve(mmdb)));
+            assertArrayEquals(data.get(tgz), Files.readAllBytes(tempDir.resolve(mmdb)));
         }
     }
 }

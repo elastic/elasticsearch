@@ -668,7 +668,7 @@ public class OperationRoutingTests extends ESTestCase {
         Set<String> nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
         nodeIds.add(groupIterator.get(1).nextOrNull().currentNodeId());
-        assertThat(nodeIds, equalTo(Set.of("node_0", "node_1")));
+        assertThat(nodeIds, containsInAnyOrder("node_0", "node_1"));
         assertThat(outstandingRequests.get("node_0"), equalTo(2L));
         assertThat(outstandingRequests.get("node_1"), equalTo(2L));
 
@@ -685,7 +685,7 @@ public class OperationRoutingTests extends ESTestCase {
         nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
         nodeIds.add(groupIterator.get(1).nextOrNull().currentNodeId());
-        assertThat(nodeIds, equalTo(Set.of("node_1")));
+        assertThat(nodeIds, containsInAnyOrder("node_1"));
         assertThat(outstandingRequests.get("node_1"), equalTo(3L));
 
         IOUtils.close(clusterService);

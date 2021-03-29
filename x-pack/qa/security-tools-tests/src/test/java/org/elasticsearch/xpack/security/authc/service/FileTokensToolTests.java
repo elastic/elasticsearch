@@ -142,7 +142,7 @@ public class FileTokensToolTests extends CommandTestCase {
     }
 
     public void testCreateTokenWithInvalidTokenName() throws Exception {
-        final String tokenName = randomValueOtherThanMany(n -> n.startsWith("-"), ServiceAccountTokenTests::randomTokenName);
+        final String tokenName = randomValueOtherThanMany(n -> n.startsWith("-"), ServiceAccountTokenTests::randomInvalidTokenName);
         final UserException e = expectThrows(UserException.class,
             () -> execute("create", pathHomeParameter, "elastic/fleet", tokenName));
         assertServiceTokenNotExists("elastic/fleet/" + tokenName);

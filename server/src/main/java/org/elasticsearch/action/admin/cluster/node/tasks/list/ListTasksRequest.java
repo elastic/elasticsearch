@@ -41,7 +41,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super(in);
         detailed = in.readBoolean();
         waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             descriptions = in.readStringArray();
         }
     }
@@ -51,7 +51,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeStringArray(descriptions);
         }
     }

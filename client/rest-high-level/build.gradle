@@ -24,7 +24,7 @@ ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 

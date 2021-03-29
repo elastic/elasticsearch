@@ -328,11 +328,20 @@ The template uses a component template that contains the
 [source,console]
 ----
 # Creates a component template for index settings
-PUT _component_template/my-settings-component-template
+PUT _component_template/logs-my_app-settings
 {
   "template": {
     "settings": {
-      "index.default_pipeline": "logs-my_app-default"
+      "index": {
+        "default_pipeline": "logs-my_app-default",
+        "lifecycle": {
+          "name": "logs"
+        },
+        "codec": "best_compression",
+        "query": {
+          "default_field": ["message"]
+        }
+      }
     }
   }
 }
@@ -343,11 +352,11 @@ PUT _index_template/template_1
   "index_patterns": ["logs-my_app-*"],
   "data_stream": { },
   "priority": 500,
-  "composed_of": ["my-settings-component-template", "my-mappings-component-template"]
+  "composed_of": ["logs-my_app-settings", "logs-my_app-mappings"]
 }
 ----
 // TEST[continued]
-// TEST[s/, "my-mappings-component-template"//]
+// TEST[s/, "logs-my_app-mappings"//]
 --
 // tag::name-custom-logs-dataset[]
 . When adding or editing your **Custom logs** integration in {fleet},

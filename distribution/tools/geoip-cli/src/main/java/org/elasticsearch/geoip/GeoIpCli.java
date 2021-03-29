@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -48,9 +49,14 @@ public class GeoIpCli extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        Path directory = PathUtils.get(options.valueOf(directoryArg));
+        Path directory = getPath(options.valueOf(directoryArg));
         packDatabasesToTgz(terminal, directory);
         createOverviewJson(terminal, directory);
+    }
+
+    @SuppressForbidden(reason = "file arg for cli")
+    private Path getPath(String file) {
+        return PathUtils.get(file);
     }
 
     private void packDatabasesToTgz(Terminal terminal, Path directory) throws IOException {

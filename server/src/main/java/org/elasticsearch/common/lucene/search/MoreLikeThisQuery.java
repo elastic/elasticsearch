@@ -49,14 +49,14 @@ public class MoreLikeThisQuery extends Query {
     private Analyzer analyzer;
     private String analyzerName;    // used for equals/hashcode
     private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;
-    private int minTermFrequency = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
-    private int maxQueryTerms = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
-    private Set<?> stopWords = XMoreLikeThis.DEFAULT_STOP_WORDS;
-    private int minDocFreq = XMoreLikeThis.DEFAULT_MIN_DOC_FREQ;
-    private int maxDocFreq = XMoreLikeThis.DEFAULT_MAX_DOC_FREQ;
-    private int minWordLen = XMoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
-    private int maxWordLen = XMoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
-    private boolean boostTerms = XMoreLikeThis.DEFAULT_BOOST;
+    private int minTermFrequency = MoreLikeThis2.DEFAULT_MIN_TERM_FREQ;
+    private int maxQueryTerms = MoreLikeThis2.DEFAULT_MAX_QUERY_TERMS;
+    private Set<?> stopWords = MoreLikeThis2.DEFAULT_STOP_WORDS;
+    private int minDocFreq = MoreLikeThis2.DEFAULT_MIN_DOC_FREQ;
+    private int maxDocFreq = MoreLikeThis2.DEFAULT_MAX_DOC_FREQ;
+    private int minWordLen = MoreLikeThis2.DEFAULT_MIN_WORD_LENGTH;
+    private int maxWordLen = MoreLikeThis2.DEFAULT_MAX_WORD_LENGTH;
+    private boolean boostTerms = MoreLikeThis2.DEFAULT_BOOST;
     private float boostTermsFactor = 1;
 
 
@@ -127,7 +127,7 @@ public class MoreLikeThisQuery extends Query {
         if (rewritten != this) {
             return rewritten;
         }
-        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new ClassicSimilarity() : similarity);
+        MoreLikeThis2 mlt = new MoreLikeThis2(reader, similarity == null ? new ClassicSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);
@@ -148,7 +148,7 @@ public class MoreLikeThisQuery extends Query {
         return createQuery(mlt);
     }
 
-    private Query createQuery(XMoreLikeThis mlt) throws IOException {
+    private Query createQuery(MoreLikeThis2 mlt) throws IOException {
         BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
         if (this.likeFields != null) {
             Query mltQuery = mlt.like(this.likeFields);
@@ -168,7 +168,7 @@ public class MoreLikeThisQuery extends Query {
         return bqBuilder.build();
     }
 
-    private void handleUnlike(XMoreLikeThis mlt, String[] unlikeText, Fields[] unlikeFields) throws IOException {
+    private void handleUnlike(MoreLikeThis2 mlt, String[] unlikeText, Fields[] unlikeFields) throws IOException {
         Set<Term> skipTerms = new HashSet<>();
         // handle like text
         if (unlikeText != null) {

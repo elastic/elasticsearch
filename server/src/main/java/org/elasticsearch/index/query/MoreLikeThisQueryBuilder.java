@@ -31,8 +31,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.MoreLikeThis2;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
-import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,12 +68,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
 
-    public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
-    public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
-    public static final int DEFAULT_MIN_DOC_FREQ = XMoreLikeThis.DEFAULT_MIN_DOC_FREQ;
-    public static final int DEFAULT_MAX_DOC_FREQ = XMoreLikeThis.DEFAULT_MAX_DOC_FREQ;
-    public static final int DEFAULT_MIN_WORD_LENGTH = XMoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
-    public static final int DEFAULT_MAX_WORD_LENGTH = XMoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
+    public static final int DEFAULT_MAX_QUERY_TERMS = MoreLikeThis2.DEFAULT_MAX_QUERY_TERMS;
+    public static final int DEFAULT_MIN_TERM_FREQ = MoreLikeThis2.DEFAULT_MIN_TERM_FREQ;
+    public static final int DEFAULT_MIN_DOC_FREQ = MoreLikeThis2.DEFAULT_MIN_DOC_FREQ;
+    public static final int DEFAULT_MAX_DOC_FREQ = MoreLikeThis2.DEFAULT_MAX_DOC_FREQ;
+    public static final int DEFAULT_MIN_WORD_LENGTH = MoreLikeThis2.DEFAULT_MIN_WORD_LENGTH;
+    public static final int DEFAULT_MAX_WORD_LENGTH = MoreLikeThis2.DEFAULT_MAX_WORD_LENGTH;
     public static final String DEFAULT_MINIMUM_SHOULD_MATCH = MoreLikeThisQuery.DEFAULT_MINIMUM_SHOULD_MATCH;
     public static final float DEFAULT_BOOST_TERMS = 0;  // no boost terms
     public static final boolean DEFAULT_INCLUDE = false;

@@ -24,12 +24,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
 
+import static org.elasticsearch.packaging.util.Distribution.Platform.WINDOWS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -49,6 +51,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
     public static void filterDistros() {
         assumeTrue("only archives", distribution.isArchive());
         assumeTrue("only default distribution", distribution.flavor == Distribution.Flavor.DEFAULT);
+        assumeFalse("not on windows", distribution.platform == WINDOWS);
     }
 
     @After

@@ -277,7 +277,7 @@ matches these templates to your {fleet} data streams based on the
 {fleet-guide}/data-streams.html#data-streams-naming-scheme[stream's naming
 scheme].
 
-WARNING: Do not change {fleet}'s ingest pipelines or usecustom pipelines for
+WARNING: Do not change {fleet}'s ingest pipelines or use custom pipelines for
 your {fleet} integrations. Doing so can break your {fleet} data streams.
 
 {fleet} doesn't provide an ingest pipeline for the **Custom logs** integration.
@@ -323,11 +323,11 @@ PUT _index_template/template_1
 // TEST[s/, "my-mappings-component-template"//]
 --
 
-. When adding or editing your **Custom logs** integration,
+. When adding or editing your **Custom logs** integration in {fleet},
 click **Configure integration > Custom log file > Advanced options**.
 
-. In **Dataset name**, specify your dataset's name. {fleet} will
-add new data to the resulting `logs-<dataset-name>-default` data stream.
+. In **Dataset name**, specify your dataset's name. {fleet} will add new data
+for the integration to the resulting `logs-<dataset-name>-default` data stream.
 +
 For example, if your dataset's name was `my_app`, {fleet} adds new data to the
 `logs-my_app-default` data stream.
@@ -337,7 +337,7 @@ image::images/ingest/custom-logs.png[Set up custom log integration in Fleet,alig
 
 . Use the <<indices-rollover-index,rollover API>> to roll over your data stream.
 This ensures {es} applies the index template and its pipeline settings to any
-new data.
+new data for the integration.
 +
 --
 ////
@@ -366,11 +366,11 @@ DELETE _index_template/*
 
 **Option 2: Custom configuration**
 
-. When adding or editing your **Custom logs** integration,
+. When adding or editing your **Custom logs** integration in {fleet},
 click **Configure integration > Custom log file > Advanced options**.
 
-. In **Dataset name**, specify your dataset's name. {fleet} will
-add new data to the resulting `logs-<dataset-name>-default` data stream.
+. In **Dataset name**, specify your dataset's name. {fleet} will add new data
+for the integration to the resulting `logs-<dataset-name>-default` data stream.
 +
 For example, if your dataset's name was `my_app`, {fleet} adds new data to the
 `logs-my_app-default` data stream.

@@ -1656,6 +1656,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 
+    public void testDotsOnlyFieldNames() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        MapperParsingException err = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field(randomFrom(".", "..", "..."), "bar")))
+        );
+        assertThat(err.getCause(), notNullValue());
+        assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");

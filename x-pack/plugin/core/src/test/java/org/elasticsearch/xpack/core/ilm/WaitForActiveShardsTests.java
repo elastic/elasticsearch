@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

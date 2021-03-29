@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.hamcrest.Matchers.equalTo;
 

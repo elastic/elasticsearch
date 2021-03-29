@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
 import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;

@@ -342,7 +342,7 @@ PUT _index_template/template_1
 {
   "index_patterns": ["logs-my_app-*"],
   "data_stream": { },
-  "priority": 90,
+  "priority": 500,
   "composed_of": ["my-settings-component-template", "my-mappings-component-template"]
 }
 ----

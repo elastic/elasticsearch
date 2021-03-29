@@ -18,21 +18,24 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 
 /**
- * A transformation to replace the flat fields
+ * A transformation to replace the flat textual fields.
  */
 public class ReplaceTextual implements RestTestTransformByParentObject {
-    private final String replaceKey;
+    private final String keyToReplaceName;
+    private final String valueToBeReplaced;
     private final TextNode replacementNode;
     private final String testName;
 
-    public ReplaceTextual(String replaceKey, TextNode replacementNode) {
-        this.replaceKey = replaceKey;
+    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode) {
+        this.keyToReplaceName = keyToReplaceName;
+        this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
         this.testName = null;
     }
 
-    public ReplaceTextual(String replaceKey, TextNode replacementNode, String testName) {
-        this.replaceKey = replaceKey;
+    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode, String testName) {
+        this.keyToReplaceName = keyToReplaceName;
+        this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
         this.testName = testName;
     }
@@ -40,12 +43,12 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
     @Override
     @Internal
     public String getKeyToFind() {
-        return "is_true";
+        return keyToReplaceName;
     }
 
     @Override
     public String requiredChildKey() {
-        return replaceKey;
+        return valueToBeReplaced;
     }
 
     @Override
@@ -59,8 +62,8 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
     }
 
     @Input
-    public String getReplaceKey() {
-        return replaceKey;
+    public String getValueToBeReplaced() {
+        return valueToBeReplaced;
     }
 
     @Input

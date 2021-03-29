@@ -30,13 +30,13 @@ public class ReplaceTextualTests extends TransformTests {
 
     @Test
     public void testReplaceAll() throws Exception {
-        String testName = "/rest/transform/match/is_true.yml";
+        String testName = "/rest/transform/match/text_replace.yml";
         List<ObjectNode> tests = getTests(testName);
-        TextNode replacementNode = MAPPER.convertValue("test_index.mappings._doc", TextNode.class);
+        TextNode replacementNode = MAPPER.convertValue("_replaced_value", TextNode.class);
         validateTest(tests, true, true);
         List<ObjectNode> transformedTests = transformTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new ReplaceTextual("test_index.mappings.type_1", replacementNode, null))
+            Collections.singletonList(new ReplaceTextual("key_to_replace", "key_to_replace", replacementNode, null))
         );
         printTest(testName, transformedTests);
         validateTest(tests, false, true);
@@ -50,69 +50,57 @@ public class ReplaceTextualTests extends TransformTests {
         assertThat(firstTestChild, CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode firstTestParentArray = (ArrayNode) firstTestChild;
 
-        AtomicBoolean firstTestHasMatchObject = new AtomicBoolean(false);
-        AtomicBoolean firstTestHasTypeMatch = new AtomicBoolean(false);
+        AtomicBoolean firstTestOccurrenceFound = new AtomicBoolean(false);
 
         firstTestParentArray.elements().forEachRemaining(node -> {
             assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
             ObjectNode childObject = (ObjectNode) node;
-            JsonNode matchObject = childObject.get("is_true");
+            JsonNode matchObject = childObject.get("key_to_replace");
             if (matchObject != null) {
-                firstTestHasMatchObject.set(true);
-                if (firstTestHasTypeMatch.get() == false) {
-                    firstTestHasTypeMatch.set(true);
-                } /*&& matchObject.asText().equals("test_index.mappings.type_1")*/
-                if (/*matchObject.get("_type") != null && */beforeTransformation == false && allTests) {
-                    assertThat(matchObject.asText(), CoreMatchers.is("test_index.mappings._doc"));
+                firstTestOccurrenceFound.set(true);
+                if (beforeTransformation == false && allTests) {
+                    assertThat(matchObject.asText(), CoreMatchers.is("_replaced_value"));
                 }
             }
         });
-        assertTrue(firstTestHasMatchObject.get());
-        assertTrue(firstTestHasTypeMatch.get());
+        assertTrue(firstTestOccurrenceFound.get());
 
         // last test
         JsonNode lastTestChild = tests.get(tests.size() - 1).get("Last test");
         assertThat(lastTestChild, CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode lastTestParentArray = (ArrayNode) lastTestChild;
 
-        AtomicBoolean lastTestHasMatchObject = new AtomicBoolean(false);
-        AtomicBoolean lastTestHasTypeMatch = new AtomicBoolean(false);
+        AtomicBoolean lastTestOccurrenceFound = new AtomicBoolean(false);
         lastTestParentArray.elements().forEachRemaining(node -> {
             assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
             ObjectNode childObject = (ObjectNode) node;
-            JsonNode matchObject = childObject.get("is_true");
+            JsonNode matchObject = childObject.get("key_to_replace");
             if (matchObject != null) {
-                lastTestHasMatchObject.set(true);
-                if (lastTestHasTypeMatch.get() == false) {
-                    lastTestHasTypeMatch.set(true);
-                } /*&& matchObject.asText().equals("test_index.mappings.type_1")*/
-                if (/*matchObject.get("_type") != null && */beforeTransformation == false && allTests) {
-                    assertThat(matchObject.asText(), CoreMatchers.is("test_index.mappings._doc"));
+                lastTestOccurrenceFound.set(true);
+                if (beforeTransformation == false && allTests) {
+                    assertThat(matchObject.asText(), CoreMatchers.is("_replaced_value"));
                 }
             }
         });
-        assertTrue(lastTestHasMatchObject.get());
-        assertTrue(lastTestHasTypeMatch.get());
+        assertTrue(lastTestOccurrenceFound.get());
 
-        // // exclude setup, teardown, first test, and last test
-        // for (int i = 3; i <= tests.size() - 2; i++) {
-        // ObjectNode otherTest = tests.get(i);
-        // JsonNode otherTestChild = otherTest.get(otherTest.fields().next().getKey());
-        // assertThat(otherTestChild, CoreMatchers.instanceOf(ArrayNode.class));
-        // ArrayNode otherTestParentArray = (ArrayNode) otherTestChild;
-        // otherTestParentArray.elements().forEachRemaining(node -> {
-        // assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
-        // ObjectNode childObject = (ObjectNode) node;
-        // JsonNode matchObject = childObject.get("match");
-        // if (matchObject != null) {
-        // if (matchObject.get("_type") != null) {
-        // if (matchObject.get("_type") != null && beforeTransformation == false && allTests) {
-        // assertThat(matchObject.get("_type").asText(), CoreMatchers.is("_replaced_type"));
-        // }
-        // }
-        // }
-        // });
-        // }
+        // exclude setup, teardown, first test, and last test
+        for (int i = 3; i <= tests.size() - 2; i++) {
+            ObjectNode otherTest = tests.get(i);
+            JsonNode otherTestChild = otherTest.get(otherTest.fields().next().getKey());
+            assertThat(otherTestChild, CoreMatchers.instanceOf(ArrayNode.class));
+            ArrayNode otherTestParentArray = (ArrayNode) otherTestChild;
+            otherTestParentArray.elements().forEachRemaining(node -> {
+                assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
+                ObjectNode childObject = (ObjectNode) node;
+                JsonNode matchObject = childObject.get("key_to_replace");
+                if (matchObject != null) {
+                    if (beforeTransformation == false && allTests) {
+                        assertThat(matchObject.get("key_to_replace").asText(), CoreMatchers.is("_replaced_value"));
+                    }
+                }
+            });
+        }
     }
 
     @Override

@@ -104,7 +104,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void replaceIsTrue(String subKey, Object value) {
-        transformations.add(new ReplaceTextual(subKey, MAPPER.convertValue(value, TextNode.class)));
+        transformations.add(new ReplaceTextual("is_true", subKey, MAPPER.convertValue(value, TextNode.class)));
     }
 
     /**

@@ -34,7 +34,7 @@ teardown:
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 0}
   - match: { _below_is_target_for_tests: 0 }
-  - is_true: "test_index.mappings.type_1"
+  - key_to_replace: "_to_be_replaced"
 
 ---
 "Also has _type match":
@@ -47,7 +47,7 @@ teardown:
       and: again
 
   - match: { hits.total.value: 0 }
-  - is_true: "test_index.mappings.type_1"
+  - key_to_replace: "_to_be_replaced"
   - match: { _below_is_target_for_tests: 0 }
   - match: { _type: foo }
   - match: { _shards.total: 2 }
@@ -95,7 +95,7 @@ teardown:
       something:  中文
 
   - match: { _index:   test_1 }
-  - is_true: "test_index.mappings.type_1"
+  - key_to_replace: "_to_be_replaced"
   - match: { _id:      中文      }
   - match: { _source:  { foo: "Hello: 中文" } }
 

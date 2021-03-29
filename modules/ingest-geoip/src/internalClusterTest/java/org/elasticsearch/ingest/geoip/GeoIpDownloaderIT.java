@@ -34,13 +34,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -50,15 +49,12 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
-import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static java.nio.file.StandardOpenOption.WRITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
@@ -124,15 +120,16 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         data.add((byte[]) hit.getSourceAsMap().get("data"));
                     }
 
-                    GZIPInputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
+                    TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
+                    TarInputStream.TarEntry entry;
+                    while ((entry = stream.getNextEntry()) != null) {
+                        if (entry.getName().endsWith(".mmdb")) {
+                            break;
+                        }
+                    }
+
                     Path tempFile = createTempFile();
-                    try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(tempFile, TRUNCATE_EXISTING, WRITE, CREATE))) {
-                    byte[] bytes = new byte[4096];
-                    int read;
-                    while ((read = stream.read(bytes)) != -1) {
-                        os.write(bytes, 0, read);
-                    }
-                    }
+                    Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
                     parseDatabase(tempFile);
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -143,6 +140,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         // setup:
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -240,9 +238,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
-                        endsWith("GeoLite2-ASN.mmdb")));
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
+                        "GeoLite2-City.mmdb_COPYRIGHT.txt","GeoLite2-Country.mmdb_COPYRIGHT.txt","GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                        "GeoLite2-City.mmdb_LICENSE.txt","GeoLite2-Country.mmdb_LICENSE.txt","GeoLite2-ASN.mmdb_LICENSE.txt",
+                        "GeoLite2-ASN.mmdb_README.txt"));
                 }
             }
         });
@@ -253,6 +253,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
+            assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
             assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
             assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
@@ -265,7 +266,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
                     assertThat(files, empty());
                 }
             }

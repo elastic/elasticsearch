@@ -713,11 +713,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(T... array) {
         return randomFrom(random(), array);
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(Random random, T... array) {
         return RandomPicks.randomFrom(random, array);
     }
@@ -1138,10 +1142,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
-    public String randomCompatibleMediaType(byte version) {
+    public String randomCompatibleMediaType(RestApiVersion version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
         return type.toParsedMediaType()
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {

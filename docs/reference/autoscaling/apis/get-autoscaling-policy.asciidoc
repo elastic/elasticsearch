@@ -6,7 +6,7 @@
 <titleabbrev>Get autoscaling policy</titleabbrev>
 ++++
 
-include::../autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Get autoscaling policy.
 

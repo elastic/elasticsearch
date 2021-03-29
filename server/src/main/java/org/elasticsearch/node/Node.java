@@ -412,7 +412,8 @@ public class Node implements Closeable {
                     plugin -> new SystemIndices.Feature(
                         plugin.getFeatureDescription(),
                         plugin.getSystemIndexDescriptors(settings),
-                        plugin.getAssociatedIndexPatterns()
+                        plugin.getAssociatedIndexPatterns(),
+                        plugin::cleanUpFeature
                     ))
                 );
             final SystemIndices systemIndices = new SystemIndices(featuresMap);

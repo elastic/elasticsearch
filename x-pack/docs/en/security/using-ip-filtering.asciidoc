@@ -17,7 +17,9 @@ NOTE: Elasticsearch installations are not designed to be publicly accessible
 === Enabling IP filtering
 
 The {es} {security-features} contain an access control feature that allows or
-rejects hosts, domains, or subnets.
+rejects hosts, domains, or subnets. If the
+<<operator-privileges,{operator-feature}>> is enabled, only operator users can
+update these settings.
 
 You configure IP filtering by specifying the `xpack.security.transport.filter.allow` and
 `xpack.security.transport.filter.deny` settings in `elasticsearch.yml`. Allow rules

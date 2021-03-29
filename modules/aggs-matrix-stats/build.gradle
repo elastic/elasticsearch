@@ -14,6 +14,6 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
+    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
   }
 }

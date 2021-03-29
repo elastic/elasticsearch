@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -64,6 +65,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
@@ -1236,37 +1238,53 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "component templates [bad] that do not exist"));
     }
 
+    public void testRemoveComponentTemplate() throws Exception {
+        ComponentTemplate foo = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+        ComponentTemplate bar = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+        ComponentTemplate baz = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState temp = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "foo", foo);
+        temp = service.addComponentTemplate(temp, false, "bar", bar);
+        final ClusterState clusterState = service.addComponentTemplate(temp, false, "baz", baz);
+
+        ClusterState result = innerRemoveComponentTemplate(clusterState, "foo");
+        assertThat(result.metadata().componentTemplates().get("foo"), nullValue());
+        assertThat(result.metadata().componentTemplates().get("bar"), equalTo(bar));
+        assertThat(result.metadata().componentTemplates().get("baz"), equalTo(baz));
+
+        result = innerRemoveComponentTemplate(clusterState, "bar", "baz");
+        assertThat(result.metadata().componentTemplates().get("foo"), equalTo(foo));
+        assertThat(result.metadata().componentTemplates().get("bar"), nullValue());
+        assertThat(result.metadata().componentTemplates().get("baz"), nullValue());
+
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(clusterState, "foobar"));
+        assertThat(e.getMessage(), equalTo("foobar"));
+        e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(clusterState, "foo", "barbaz", "foobar"));
+        assertThat(e.getMessage(), equalTo("barbaz,foobar"));
+
+        result = innerRemoveComponentTemplate(clusterState, "*");
+        assertThat(result.metadata().componentTemplates().size(), equalTo(0));
+
+        result = innerRemoveComponentTemplate(clusterState, "b*");
+        assertThat(result.metadata().componentTemplates().size(), equalTo(1));
+        assertThat(result.metadata().componentTemplates().get("foo"), equalTo(foo));
+
+        e = expectThrows(ResourceNotFoundException.class, () -> innerRemoveComponentTemplate(clusterState, "foo", "b*"));
+        assertThat(e.getMessage(), equalTo("b*"));
+    }
+
     public void testRemoveComponentTemplateInUse() throws Exception {
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("a"), null,
             Collections.singletonList("ct"), null, null, null);
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        CountDownLatch ctLatch = new CountDownLatch(1);
-        service.putComponentTemplate("api", false, "ct", TimeValue.timeValueSeconds(5), ct,
-            ActionListener.wrap(r -> ctLatch.countDown(), e -> fail("unexpected error")));
-        ctLatch.await(5, TimeUnit.SECONDS);
+        ClusterState clusterState = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "ct", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "template", template);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        service.putIndexTemplateV2("api", false, "template", TimeValue.timeValueSeconds(30), template,
-            ActionListener.wrap(r -> latch.countDown(), e -> fail("unexpected error")));
-        latch.await(5, TimeUnit.SECONDS);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> {
-                AtomicReference<Exception> err = new AtomicReference<>();
-                CountDownLatch errLatch = new CountDownLatch(1);
-                service.removeComponentTemplate("c*", TimeValue.timeValueSeconds(30),
-                    ActionListener.wrap(r -> fail("should have failed!"), exception -> {
-                        err.set(exception);
-                        errLatch.countDown();
-                    }));
-                errLatch.await(5, TimeUnit.SECONDS);
-                if (err.get() != null) {
-                    throw err.get();
-                }
-            });
-
+        final ClusterState cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "c*"));
         assertThat(e.getMessage(),
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]"));
     }

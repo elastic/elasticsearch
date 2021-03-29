@@ -1,7 +1,7 @@
 [[put-snapshot-repo-api]]
-=== Put snapshot repository API
+=== Create or update snapshot repository API
 ++++
-<titleabbrev>Put snapshot repository</titleabbrev>
+<titleabbrev>Create or update snapshot repository</titleabbrev>
 ++++
 
 Registers or updates a <<snapshots-register-repository,snapshot repository>>.

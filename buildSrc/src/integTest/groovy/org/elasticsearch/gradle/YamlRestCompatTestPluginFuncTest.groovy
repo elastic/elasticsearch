@@ -29,6 +29,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
     def YAML_FACTORY = new YAMLFactory()
     def MAPPER = new ObjectMapper(YAML_FACTORY)
     def READER = MAPPER.readerFor(ObjectNode.class)
+    def WRITER = MAPPER.writerFor(ObjectNode.class)
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -211,7 +212,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.removeMatch("_source.junk", "two")
               task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
               task.addWarning("one", "warning1", "warning2")
+              task.addWarningRegex("two", "regex warning here .* [a-z]")
               task.addAllowedWarning("added allowed warning")
+              task.addAllowedWarningRegex("added allowed warning regex .* [0-9]")
               task.removeWarning("one", "warning to remove")
             })
             // can't actually spin up test cluster from this test
@@ -262,7 +265,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             features:
             - "headers"
             - "warnings"
+            - "warnings_regex"
             - "allowed_warnings"
+            - "allowed_warnings_regex"
         ---
         one:
         - do:
@@ -273,10 +278,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             - "warning1"
             - "warning2"
             headers:
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
             allowed_warnings:
             - "added allowed warning"
+            allowed_warnings_regex:
+            - "added allowed warning regex .* [0-9]"
         - match:
             _source.values:
             - "z"
@@ -298,10 +305,14 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               index: "test"
               id: 1
             headers:
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+            warnings_regex:
+            - "regex warning here .* [a-z]"
             allowed_warnings:
             - "added allowed warning"
+            allowed_warnings_regex:
+            - "added allowed warning regex .* [0-9]"
         - match:
             _source.values:
             - "foo"

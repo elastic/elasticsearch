@@ -21,6 +21,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Test harness for verifying {@link IndexInput} implementations.
@@ -28,6 +29,8 @@ import java.util.concurrent.CountDownLatch;
 public class ESIndexInputTestCase extends ESTestCase {
 
     private static EsThreadPoolExecutor executor;
+
+    private AtomicLong uniqueIdGenerator;
 
     @BeforeClass
     public static void createExecutor() {
@@ -38,6 +41,12 @@ public class ESIndexInputTestCase extends ESTestCase {
     @AfterClass
     public static void destroyExecutor() {
         executor.shutdown();
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        uniqueIdGenerator = new AtomicLong();
     }
 
     /**
@@ -73,7 +82,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                     // Read using slice
                     len = randomIntBetween(1, length - readPos);
                     final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
-                    IndexInput slice = indexInput.slice(randomAlphaOfLength(10) + sliceExtension, readPos, len);
+                    IndexInput slice = indexInput.slice(randomUniqueSliceName() + sliceExtension, readPos, len);
                     temp = randomReadAndSlice(slice, len);
                     // assert that position in the original input didn't change
                     assertEquals(readPos, indexInput.getFilePointer());
@@ -123,7 +132,7 @@ public class ESIndexInputTestCase extends ESTestCase {
                                 } else {
                                     final int sliceEnd = between(readEnd, length);
                                     final String sliceExtension = randomValueOtherThan(".cfs", ESIndexInputTestCase::randomFileExtension);
-                                    clone = indexInput.slice("slice" + randomAlphaOfLength(10) + sliceExtension, 0L, sliceEnd);
+                                    clone = indexInput.slice("slice" + randomUniqueSliceName() + sliceExtension, 0L, sliceEnd);
                                 }
                                 startLatch.countDown();
                                 startLatch.await();
@@ -178,6 +187,12 @@ public class ESIndexInputTestCase extends ESTestCase {
         }
         assertEquals(length, indexInput.getFilePointer());
         return output;
+    }
+
+    // generate unique slice names for slicing index inputs because using the same slice name together with different slice sizes
+    // is not supported for .cfs files and thus we have to avoid slice name collisions
+    private String randomUniqueSliceName() {
+        return randomAlphaOfLength(10) + uniqueIdGenerator.incrementAndGet();
     }
 
     protected static String randomFileExtension() {

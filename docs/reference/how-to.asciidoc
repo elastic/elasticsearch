@@ -1,5 +1,5 @@
 [[how-to]]
-= How To
+= How to
 
 [partintro]
 --

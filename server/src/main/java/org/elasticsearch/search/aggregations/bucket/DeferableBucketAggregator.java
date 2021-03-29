@@ -57,7 +57,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
             deferringCollector.setDeferredCollector(deferredAggregations);
             collectors.add(deferringCollector);
         }
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, collectors);
     }
 
     /**

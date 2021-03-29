@@ -4,7 +4,10 @@
 A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
 cluster.
 
-Use the <<put-snapshot-repo-api,put snapshot repository API>> to register or update a snapshot repository, and then use the <<create-snapshot-api,create snapshot API>> to create a snapshot in a repository.
+Use the <<put-snapshot-repo-api,create or update snapshot repository API>> to
+register or update a snapshot repository, and then use the
+<<create-snapshot-api,create snapshot API>> to create a snapshot in a
+repository.
 
 The following request creates a snapshot with the name `snapshot_1` in the repository `my_backup`:
 

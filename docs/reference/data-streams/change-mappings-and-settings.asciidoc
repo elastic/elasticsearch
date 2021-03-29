@@ -93,7 +93,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template>> request adds a mapping
+The following <<index-templates,create or update index template>> request adds a mapping
 for a new field, `message`, to the template.
 
 [source,console]
@@ -117,12 +117,12 @@ PUT /_index_template/my-data-stream-template
 <1> Adds a mapping for the new `message` field.
 --
 
-. Use the <<indices-put-mapping,put mapping API>> to add the new field mapping
+. Use the <<indices-put-mapping,update mapping API>> to add the new field mapping
 to the data stream. By default, this adds the mapping to the stream's existing
 backing indices, including the write index.
 +
 --
-The following put mapping API request adds the new `message` field mapping to
+The following update mapping API request adds the new `message` field mapping to
 `my-data-stream`.
 
 [source,console]
@@ -138,11 +138,11 @@ PUT /my-data-stream/_mapping
 ----
 --
 +
-To add the mapping only to the stream's write index, set the put mapping API's
+To add the mapping only to the stream's write index, set the update mapping API's
 `write_index_only` query parameter to `true`.
 +
 --
-The following put mapping request adds the new `message` field mapping only to
+The following update mapping request adds the new `message` field mapping only to
 `my-data-stream`'s write index. The new field mapping is not added to
 the stream's other backing indices.
 
@@ -165,7 +165,7 @@ PUT /my-data-stream/_mapping?write_index_only=true
 
 The documentation for each <<mapping-params,mapping parameter>> indicates
 whether you can update it for an existing field using the
-<<indices-put-mapping,put mapping API>>. To update these parameters for an
+<<indices-put-mapping,update mapping API>>. To update these parameters for an
 existing field, follow these steps:
 
 . Update the index template used by the data stream. This ensures the updated
@@ -175,7 +175,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template>> request changes the
+The following <<index-templates,create or update index template>> request changes the
 argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
 mapping parameter to `true`.
 
@@ -205,12 +205,12 @@ PUT /_index_template/my-data-stream-template
 <1> Changes the `host.ip` field's `ignore_malformed` value to `true`.
 --
 
-. Use the <<indices-put-mapping,put mapping API>> to apply the mapping changes
+. Use the <<indices-put-mapping,update mapping API>> to apply the mapping changes
 to the data stream. By default, this applies the changes to the stream's
 existing backing indices, including the write index.
 +
 --
-The following <<indices-put-mapping,put mapping API>> request targets
+The following <<indices-put-mapping,update mapping API>> request targets
 `my-data-stream`. The request changes the argument for the `host.ip`
 field's `ignore_malformed` mapping parameter to `true`.
 
@@ -236,7 +236,7 @@ To apply the mapping changes only to the stream's write index, set the put
 mapping API's `write_index_only` query parameter to `true`.
 +
 --
-The following put mapping request changes the `host.ip` field's mapping only for
+The following update mapping request changes the `host.ip` field's mapping only for
 `my-data-stream`'s write index. The change is not applied to the
 stream's other backing indices.
 
@@ -281,7 +281,7 @@ applied to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template>> request changes the
+The following <<index-templates,create or update index template>> request changes the
 template's `index.refresh_interval` index setting to `30s` (30 seconds).
 
 [source,console]
@@ -335,8 +335,8 @@ backing index created after the update.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template API>> requests adds new
-`sort.field` and `sort.order index` settings to the template.
+The following <<index-templates,create or update index template API>> requests
+adds new `sort.field` and `sort.order index` settings to the template.
 
 [source,console]
 ----
@@ -428,10 +428,10 @@ new template by copying an existing one and modifying it as needed.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<index-templates,put index template API>> request creates a new
-index template, `new-data-stream-template`. `new-data-stream-template`
-uses `my-data-stream-template` as its basis, with the following
-changes:
+The following <<index-templates,create or update index template API>> request
+creates a new index template, `new-data-stream-template`.
+`new-data-stream-template` uses `my-data-stream-template` as its basis, with the
+following changes:
 
 * The index pattern in `index_patterns` matches any index or data stream
   starting with `new-data-stream`.

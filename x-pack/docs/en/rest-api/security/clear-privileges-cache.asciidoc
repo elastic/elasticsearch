@@ -11,7 +11,7 @@ The cache is also automatically cleared for applications that have their privile
 [[security-api-clear-privilege-cache-request]]
 ==== {api-request-title}
 
-`POST /_security/privilege/<application>/_clear_cache`
+`POST /_security/privilege/<applications>/_clear_cache`
 
 [[security-api-clear-privilege-cache-prereqs]]
 ==== {api-prereq-title}
@@ -28,8 +28,10 @@ For more information about the native realm, see
 [[security-api-clear-privilege-cache-path-params]]
 ==== {api-path-parms-title}
 
-`application`::
-  (string) The name of the application. If omitted, all entries are evicted from the cache.
+`<applications>`::
+(Required, string)
+Comma-separated list of applications to clear. To clear all applications, use
+`*`. Does not support other wildcard patterns.
 
 [[security-api-clear-privilege-cache-example]]
 ==== {api-examples-title}
@@ -41,3 +43,17 @@ For example, to clear the cache for `myapp`:
 --------------------------------------------------
 POST /_security/privilege/myapp/_clear_cache
 --------------------------------------------------
+
+Specify multiple applications as a comma-separated list.
+
+[source,console]
+--------------------------------------------------
+POST /_security/privilege/myapp,my-other-app/_clear_cache
+--------------------------------------------------
+
+To clear the cache for all applications, use `*`.
+
+[source,console]
+----
+POST /_security/privilege/*/_clear_cache
+----

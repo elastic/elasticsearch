@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Nullable;
@@ -38,6 +37,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
@@ -236,9 +236,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                     validationException = addValidationError("[version] is required for the [" + mode.toString() + "] client",
                         validationException);
                 }
-            } else if (SqlVersion.isClientCompatible(requestInfo().version()) == false) {
+            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(CURRENT.id), requestInfo().version()) == false) {
                 validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
-                        mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",
+                        mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + CURRENT + "]",
                     validationException);
             }
         }

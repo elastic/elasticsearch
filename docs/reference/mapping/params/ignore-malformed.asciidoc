@@ -56,7 +56,7 @@ The `ignore_malformed` setting is currently supported by the following <<mapping
 <<ip>>::            `ip` for IPv4 and IPv6 addresses
 
 TIP: The `ignore_malformed` setting value can be updated on
-existing fields using the <<indices-put-mapping,PUT mapping API>>.
+existing fields using the <<indices-put-mapping,update mapping API>>.
 
 [[ignore-malformed-setting]]
 ==== Index-level default

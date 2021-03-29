@@ -232,7 +232,33 @@ public interface ActionListener<Response> {
      * @return a listener that listens for responses and invokes the runnable when received
      */
     static <Response> ActionListener<Response> wrap(Runnable runnable) {
-        return wrap(r -> runnable.run(), e -> runnable.run());
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    runnable.run();
+                } catch (RuntimeException e) {
+                    assert false : e;
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    runnable.run();
+                } catch (RuntimeException ex) {
+                    ex.addSuppressed(e);
+                    assert false : ex;
+                    throw ex;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "RunnableWrappingActionListener{" + runnable + "}";
+            }
+        };
     }
 
     /**

@@ -121,25 +121,30 @@ Any master-eligible node that is not a <<voting-only-node,voting-only node>> may
 be elected to become the master node by the <<modules-discovery,master election
 process>>.
 
-IMPORTANT: Master nodes must have access to the `data/` directory (just like
-`data` nodes) as this is where the cluster state is persisted between node
-restarts.
+IMPORTANT: Master nodes must have a `path.data` directory whose contents
+persist across restarts, just like data nodes, because this is where the
+cluster metadata is stored. The cluster metadata describes how to read the data
+stored on the data nodes, so if it is lost then the data stored on the data
+nodes cannot be read.
 
 [[dedicated-master-node]]
 ===== Dedicated master-eligible node
 
 It is important for the health of the cluster that the elected master node has
 the resources it needs to fulfill its responsibilities. If the elected master
-node is overloaded with other tasks then the cluster may not operate well. In
-particular, indexing and searching your data can be very resource-intensive, so
-in large or high-throughput clusters it is a good idea to avoid using the
-master-eligible nodes for tasks such as indexing and searching. You can do this
-by configuring three of your nodes to be dedicated master-eligible nodes.
-Dedicated master-eligible nodes only have the `master` role, allowing them to
-focus on managing the cluster. While master nodes can also behave as
-<<coordinating-node,coordinating nodes>> and route search and indexing requests
-from clients to data nodes, it is better _not_ to use dedicated master nodes for
-this purpose.
+node is overloaded with other tasks then the cluster will not operate well. The
+most reliable way to avoid overloading the master with other tasks is to
+configure all the master-eligible nodes to be _dedicated master-eligible nodes_
+which only have the `master` role, allowing them to focus on managing the
+cluster. Master-eligible nodes will still also behave as
+<<coordinating-node,coordinating nodes>> that route requests from clients to
+the other nodes in the cluster, but you should _not_ use dedicated master nodes
+for this purpose.
+
+A small or lightly-loaded cluster may operate well if its master-eligible nodes
+have other roles and responsibilities, but once your cluster comprises more
+than a handful of nodes it usually makes sense to use dedicated master-eligible
+nodes.
 
 To create a dedicated master-eligible node, set:
 
@@ -270,10 +275,8 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== [x-pack]#Frozen data node#
 
-Frozen data nodes store read-only indices that are accessed rarely. Nodes in the
-frozen tier use less performant hardware than the cold tier. To minimize
-resources, indices in the frozen tier may rely on searchable snapshots for
-resiliency.
+Frozen data nodes store searchable snapshots mounted with the `shared_cache`
+option exclusively.
 
 To create a dedicated frozen node, set:
 [source,yaml]

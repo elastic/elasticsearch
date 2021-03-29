@@ -56,6 +56,7 @@ searches of the mounted index. If `full_copy`, each node holding a shard of the
 searchable snapshot index makes a full copy of the shard to its local storage.
 If `shared_cache`, the shard uses the
 <<searchable-snapshots-shared-cache,shared cache>>. Defaults to `full_copy`.
+See <<searchable-snapshot-mount-storage-options>>.
 
 [[searchable-snapshots-api-mount-request-body]]
 ==== {api-request-body-title}

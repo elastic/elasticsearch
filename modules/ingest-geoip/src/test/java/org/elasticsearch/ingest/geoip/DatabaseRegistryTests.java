@@ -114,7 +114,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
         geoIpTmpDir = createTempDir();
         databaseRegistry = new DatabaseRegistry(geoIpTmpDir, client, cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize(resourceWatcherService, mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
     }
 
     @After
@@ -123,6 +123,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71006")
     public void testCheckDatabases() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -142,7 +143,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), notNullValue());
         verify(client, times(10)).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), hasSize(1));
         }
     }
@@ -166,7 +167,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -188,7 +189,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -209,7 +210,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         verify(client, never()).search(any());
-        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases"))) {
+        try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertThat(files.collect(Collectors.toList()), empty());
         }
     }
@@ -255,7 +256,7 @@ public class DatabaseRegistryTests extends ESTestCase {
 
     private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
         String dummyContent = "test: " + databaseName;
-        List<byte[]> data = gzip(dummyContent, lastChunk - firstChunk + 1);
+        List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
 
         for (int i = firstChunk; i <= lastChunk; i++) {
@@ -302,10 +303,20 @@ public class DatabaseRegistryTests extends ESTestCase {
         return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
     }
 
-    private static List<byte[]> gzip(String content, int chunks) throws IOException {
+    private static List<byte[]> gzip(String name, String content, int chunks) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         GZIPOutputStream gzipOutputStream = new GZIPOutputStream(bytes);
-        gzipOutputStream.write(content.getBytes(StandardCharsets.UTF_8));
+        byte[] header = new byte[512];
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+        byte[] sizeBytes = String.format(Locale.ROOT, "%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(nameBytes, 0, header, 0, nameBytes.length);
+        System.arraycopy(sizeBytes, 0, header, 124, 12);
+        gzipOutputStream.write(header);
+        gzipOutputStream.write(contentBytes);
+        gzipOutputStream.write(512 - contentBytes.length);
+        gzipOutputStream.write(new byte[512]);
+        gzipOutputStream.write(new byte[512]);
         gzipOutputStream.close();
 
         byte[] all = bytes.toByteArray();
@@ -321,9 +332,9 @@ public class DatabaseRegistryTests extends ESTestCase {
             from = to;
         }
 
-        if (data.size() > chunks) {
+        while (data.size() > chunks) {
             byte[] last = data.remove(data.size() - 1);
-            byte[] secondLast = data.remove(data.size() -1);
+            byte[] secondLast = data.remove(data.size() - 1);
             byte[] merged = new byte[secondLast.length + last.length];
             System.arraycopy(secondLast, 0, merged, 0, secondLast.length);
             System.arraycopy(last, 0, merged, secondLast.length, last.length);
@@ -341,7 +352,8 @@ public class DatabaseRegistryTests extends ESTestCase {
             System.arraycopy(chunk, 0, gzippedContent, written, chunk.length);
             written += chunk.length;
         }
-        GZIPInputStream gzipInputStream = new GZIPInputStream(new ByteArrayInputStream(gzippedContent));
+        TarInputStream gzipInputStream = new TarInputStream(new GZIPInputStream(new ByteArrayInputStream(gzippedContent)));
+        gzipInputStream.getNextEntry();
         return Streams.readFully(gzipInputStream).utf8ToString();
     }
 

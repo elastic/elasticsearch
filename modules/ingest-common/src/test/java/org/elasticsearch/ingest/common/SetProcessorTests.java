@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SetProcessorTests extends ESTestCase {
@@ -135,19 +136,47 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69876")
     public void testCopyFromOtherField() throws Exception {
         Map<String, Object> document = new HashMap<>();
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         document.put("field", fieldValue);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        String fieldName;
+        if (document.size() > 1) {
+            // select an existing field as target if one exists other than the copy_from field
+            do {
+                fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+            } while (fieldName.equals("field") || fieldName.startsWith("field."));
+        } else {
+            // otherwise make up a new target field
+            fieldName = randomAlphaOfLength(6);
+        }
 
         Processor processor = createSetProcessor(fieldName, null, "field", true, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
-        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
+        Object copiedValue = ingestDocument.getFieldValue(fieldName, Object.class);
+        if (fieldValue instanceof Map) {
+            assertMapEquals(copiedValue, fieldValue);
+        } else {
+            assertThat(copiedValue, equalTo(fieldValue));
+        }
+    }
+
+    private static void assertMapEquals(Object actual, Object expected) {
+        if (expected instanceof Map) {
+            Map<?, ?> expectedMap = (Map<?, ?>) expected;
+            Map<?, ?> actualMap = (Map<?, ?>) actual;
+            assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
+            for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
+                if (entry.getValue() instanceof Map) {
+                    assertMapEquals(entry.getValue(), expectedMap.get(entry.getKey()));
+                } else {
+                    assertThat(entry.getValue(), equalTo(expectedMap.get(entry.getKey())));
+                }
+            }
+        }
     }
 
     public void testCopyFromDeepCopiesNonPrimitiveMutableTypes() throws Exception {

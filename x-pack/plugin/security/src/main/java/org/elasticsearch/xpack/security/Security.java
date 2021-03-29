@@ -1277,12 +1277,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private static XContentBuilder getIndexMappings() {
+        return getIndexMappings(Version.CURRENT);
+    }
+
+    public static XContentBuilder getIndexMappings(Version compatibleVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SECURITY_VERSION_STRING, compatibleVersion.toString());
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -1332,9 +1336,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     builder.field("dynamic", false);
                     builder.endObject();
 
-                    builder.startObject("metadata_flattened");
-                    builder.field("type", "flattened");
-                    builder.endObject();
+                    if (compatibleVersion.onOrAfter(Version.V_7_13_0)) {
+                        builder.startObject("metadata_flattened");
+                        builder.field("type", "flattened");
+                        builder.endObject();
+                    }
 
                     builder.startObject("enabled");
                     builder.field("type", "boolean");

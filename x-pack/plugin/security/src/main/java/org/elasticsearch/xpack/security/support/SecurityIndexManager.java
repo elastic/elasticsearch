@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.security.Security;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -384,8 +386,16 @@ public class SecurityIndexManager implements ClusterStateListener {
                         indexState.concreteIndexName,
                         systemIndexDescriptor.getAliasName()
                     );
+                    final String mappings;
+                    // Flattened field is available since 7.3.0 and it is used by API key metadata in 7.13.0.
+                    // Therefore if the minimum node version is before 7.3.0, we fallback to use the mapping from 7.12.0.
+                    if (indexState.minimumNodeVersion.before(Version.V_7_3_0)) {
+                        mappings = Strings.toString(Security.getIndexMappings(Version.V_7_12_0));
+                    } else {
+                        mappings = systemIndexDescriptor.getMappings();
+                    }
                     PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName).source(
-                        systemIndexDescriptor.getMappings(),
+                        mappings,
                         XContentType.JSON
                     ).type(MapperService.SINGLE_MAPPING_NAME).origin(systemIndexDescriptor.getOrigin());
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), systemIndexDescriptor.getOrigin(), request,

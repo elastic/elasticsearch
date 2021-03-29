@@ -398,8 +398,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/68685",
-        value = "org.elasticsearch.xpack.ml.process:TRACE,org.elasticsearch.xpack.ml.job:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68685")
+        value = "org.elasticsearch.xpack.ml.process:TRACE,"
+            + "org.elasticsearch.xpack.ml.job:TRACE,"
+            + "org.elasticsearch.persistent.PersistentTasksClusterService:TRACE")
     public void testJobRelocationIsMemoryAware() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
@@ -430,6 +431,16 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster();
 
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The tests would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the suite run very slowly.
+        // The 200ms refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing anything
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
+
         // If memory requirements are used to reallocate the 4 small jobs (as we expect) then they should
         // all reallocate to the same node, that being the one that doesn't have the big job on.  If job counts
         // are used to reallocate the small jobs then this implies the fallback allocation mechanism has been
@@ -456,12 +467,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.xpack.ml.action:TRACE,"
-            + "org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager:TRACE,"
-            + "org.elasticsearch.xpack.ml.datafeed:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/67756"
-    )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67756")
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");

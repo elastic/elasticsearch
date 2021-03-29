@@ -17,7 +17,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'watcher'
+    include 'watcher'
   }
 }
 

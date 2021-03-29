@@ -18,7 +18,7 @@ import java.util.function.Function;
 /**
  * Holds state useful for post-parse document processing
  */
-public class PostParseContext {
+public final class PostParseContext {
 
     /** A search lookup over the parsed document */
     public final SearchLookup searchLookup;

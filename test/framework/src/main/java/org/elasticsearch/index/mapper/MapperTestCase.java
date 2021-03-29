@@ -588,6 +588,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
+    /**
+     * Checks that field data from this field produces the same values for query-time
+     * scripts and for index-time scripts
+     */
     public final void testIndexTimeFieldData() throws IOException {
         assumeTrue("Field type does not support scripting", supportsScripts());
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
@@ -611,26 +615,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             fieldData.setNextDocId(0);
 
-            PostParseExecutor indexTimeExecutor = new PostParseExecutor() {
-                @Override
-                public void execute(PostParseContext context) throws IOException {
-                    ScriptDocValues<?> indexData = fieldType
-                        .fielddataBuilder("test", () -> {
-                            throw new UnsupportedOperationException();
-                        })
-                        .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-                        .load(context.leafReaderContext)
-                        .getScriptValues();
-                    indexData.setNextDocId(0);
+            PostParseExecutor indexTimeExecutor = context -> {
+                ScriptDocValues<?> indexData = fieldType
+                    .fielddataBuilder("test", () -> {
+                        throw new UnsupportedOperationException();
+                    })
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                    .load(context.leafReaderContext)
+                    .getScriptValues();
+                indexData.setNextDocId(0);
 
-                    // compare index and search time fielddata
-                    assertThat(fieldData, equalTo(indexData));
-                }
-
-                @Override
-                public void onError(PostParseContext context, Exception e) throws IOException {
-                    throw new IOException(e);
-                }
+                // compare index and search time fielddata
+                assertThat(fieldData, equalTo(indexData));
             };
 
             ParseContext pc = mock(ParseContext.class);
@@ -645,6 +641,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
     }
 
+    /**
+     * Checks that loading stored fields for this field produces the same set of values
+     * for query time scripts and index time scripts
+     */
     public final void testIndexTimeStoredFieldsAccess() throws IOException {
 
         MapperService mapperService;
@@ -664,37 +664,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(this::writeField);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
 
+        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> {
+            throw new UnsupportedOperationException();
+        });
+
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
             LeafReaderContext ctx = ir.leaves().get(0);
-            SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> {
-                throw new UnsupportedOperationException();
-            });
             LeafStoredFieldsLookup storedFields = lookup.getLeafSearchLookup(ctx).fields();
             storedFields.setDocument(0);
 
-            PostParseExecutor indexTimeExecutor = new PostParseExecutor() {
-                @Override
-                public void execute(PostParseContext context) {
-                    SearchLookup indexLookup = new SearchLookup(f -> fieldType, (f, s) -> {
-                        throw new UnsupportedOperationException();
-                    });
-                    LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(context.leafReaderContext).fields();
-                    indexStoredFields.setDocument(0);
+            PostParseExecutor indexTimeExecutor = context -> {
+                LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(context.leafReaderContext).fields();
+                indexStoredFields.setDocument(0);
 
-                    // compare index and search time stored fields
-                    assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
-                }
-
-                @Override
-                public void onError(PostParseContext context, Exception e) throws IOException {
-                    throw new IOException(e);
-                }
+                // compare index and search time stored fields
+                assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
             };
 
             ParseContext pc = mock(ParseContext.class);
             when(pc.rootDoc()).thenReturn(doc.rootDoc());
-            when(pc.sourceToParse()).thenReturn(source);
 
             PostParsePhase postParsePhase = new PostParsePhase(
                 Map.of("test", indexTimeExecutor),

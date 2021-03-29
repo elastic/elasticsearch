@@ -17,6 +17,4 @@ public interface PostParseExecutor {
 
     void execute(PostParseContext context) throws IOException;
 
-    void onError(PostParseContext context, Exception e) throws IOException;
-
 }

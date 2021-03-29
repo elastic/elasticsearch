@@ -26,7 +26,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -50,11 +49,10 @@ public class PostParsePhase {
 
     /**
      * Given a mapping, collects all {@link PostParseExecutor}s and executes them
-     * @param lookup        the MappingLookup to collect executors from
      * @param parseContext  the ParseContext of the current document
      */
-    public static void executePostParsePhases(MappingLookup lookup, ParseContext parseContext) throws IOException {
-        PostParsePhase postParsePhase = lookup.buildPostParsePhase(parseContext);
+    public static void executePostParsePhases(ParseContext parseContext) throws IOException {
+        PostParsePhase postParsePhase = parseContext.mappingLookup().buildPostParsePhase(parseContext);
         if (postParsePhase == null) {
             return;
         }
@@ -67,7 +65,6 @@ public class PostParsePhase {
         ParseContext pc) {
         LazyDocumentReader reader = new LazyDocumentReader(
             pc.rootDoc(),
-            pc.sourceToParse().source(),
             postParseExecutors.keySet());
         this.context = new PostParseContext(fieldTypeLookup, pc, reader.getContext());
         postParseExecutors.forEach((k, c) -> fieldExecutors.put(k, new OneTimeFieldExecutor(c)));
@@ -93,11 +90,7 @@ public class PostParsePhase {
 
         void execute() throws IOException {
             if (executed == false) {
-                try {
-                    executor.execute(context);
-                } catch (Exception e) {
-                    executor.onError(context, e);
-                }
+                executor.execute(context);
                 executed = true;
             }
         }
@@ -106,13 +99,11 @@ public class PostParsePhase {
     private class LazyDocumentReader extends LeafReader {
 
         private final ParseContext.Document document;
-        private final BytesReference sourceBytes;
         private final Set<String> calculatedFields;
         private final Set<String> fieldPath = new LinkedHashSet<>();
 
-        private LazyDocumentReader(ParseContext.Document document, BytesReference sourceBytes, Set<String> calculatedFields) {
+        private LazyDocumentReader(ParseContext.Document document, Set<String> calculatedFields) {
             this.document = document;
-            this.sourceBytes = sourceBytes;
             this.calculatedFields = calculatedFields;
         }
 
@@ -121,7 +112,9 @@ public class PostParsePhase {
                 // this means that a mapper script is referring to another calculated field;
                 // in which case we need to execute that field first. We also check for loops here
                 if (fieldPath.add(field) == false) {
-                    throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
+                    throw new IllegalArgumentException(
+                        "Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field
+                    );
                 }
                 assert fieldExecutors.containsKey(field);
                 fieldExecutors.get(field).execute();
@@ -288,6 +281,8 @@ public class PostParsePhase {
         }
     }
 
+    // Our StoredFieldsVisitor implementations only check the name of the passed-in
+    // FieldInfo, so that's the only value we need to set here.
     private static FieldInfo fieldInfo(String name) {
         return new FieldInfo(
             name,

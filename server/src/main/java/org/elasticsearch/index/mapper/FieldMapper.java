@@ -879,7 +879,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     }
                     Script script = Script.parse(o);
                     if (script.getType() == ScriptType.STORED) {
-                        throw new IllegalArgumentException("stored scripts are not supported on scripted field [" + n + "]");
+                        throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
                     }
                     return compiler.apply(script, c.scriptCompiler());
                 },

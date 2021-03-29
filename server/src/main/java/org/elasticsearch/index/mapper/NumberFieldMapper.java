@@ -384,9 +384,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
-                return (script, service) -> new MapperScript<>(script) {
+                return (script, compiler) -> new MapperScript<>(script) {
 
-                    final DoubleFieldScript.Factory scriptFactory = service.compile(script, DoubleFieldScript.CONTEXT);
+                    final DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
 
                     @Override
                     public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
@@ -728,9 +728,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public BiFunction<Script, ScriptCompiler, MapperScript<Number>> compiler(String fieldName) {
-                return (script, service) -> new MapperScript<>(script) {
+                return (script, compiler) -> new MapperScript<>(script) {
 
-                    final LongFieldScript.Factory scriptFactory = service.compile(script, LongFieldScript.CONTEXT);
+                    final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
 
                     @Override
                     public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
@@ -1245,18 +1245,14 @@ public class NumberFieldMapper extends FieldMapper {
         if (this.script == null) {
             return null;
         }
-        return new PostParseExecutor() {
-            @Override
-            public void execute(PostParseContext context) {
+        return context -> {
+            try {
                 script.executeAndEmit(
                     context.searchLookup,
                     context.leafReaderContext,
                     0,
                     v -> indexValue(context.pc, v));
-            }
-
-            @Override
-            public void onError(PostParseContext context, Exception e) throws IOException {
+            } catch (Exception e) {
                 if ("ignore".equals(onScriptError)) {
                     context.pc.addIgnoredField(name());
                 } else {

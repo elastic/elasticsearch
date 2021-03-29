@@ -302,13 +302,14 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
 
         ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
-            lastUpdateTime = Instant.now();
             synchronized (fullRefreshCompletionListeners) {
+                lastUpdateTime = Instant.now();
                 assert fullRefreshCompletionListeners.isEmpty() == false;
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onResponse(null);
                 }
                 fullRefreshCompletionListeners.clear();
+                logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
             }
         },
         e -> {

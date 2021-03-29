@@ -5,8 +5,7 @@ import org.elasticsearch.gradle.info.BuildParams
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
-    includeXpack 'enrich'
+    include '_common', 'indices', 'index', 'enrich'
   }
 }
 

@@ -271,11 +271,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }
-        if (repository.getMetadata().type().equals(BlobStoreRepository.URL_REPOSITORY_TYPE)) {
-            throw new IllegalArgumentException(
-                "Searchable snapshots are not supported on URL repositories [" + repository.getMetadata().name() + "]"
-            );
-        }
         return (BlobStoreRepository) repository;
     }
 

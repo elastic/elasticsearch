@@ -13,7 +13,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 /**
  * {@link InputStream} with very basic support for tar format, just enough to parse archives provided by GeoIP database service from Infra.

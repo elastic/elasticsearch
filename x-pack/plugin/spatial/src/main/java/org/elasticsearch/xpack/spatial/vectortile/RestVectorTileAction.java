@@ -86,7 +86,8 @@ public class RestVectorTileAction extends BaseRestHandler {
         });
     }
 
-    public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y, QueryBuilder queryBuilder) throws IOException {
+    public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y,
+                                                     QueryBuilder queryBuilder) throws IOException {
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         if (queryBuilder != null) {

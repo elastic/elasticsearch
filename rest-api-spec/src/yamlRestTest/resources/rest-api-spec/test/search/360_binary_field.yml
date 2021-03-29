@@ -2,8 +2,8 @@
 "binary":
     - skip:
         features: ["headers"]
-        version: " - 7.99.99"
-        reason: "docvalues_fields on binary field were corrected in 8.0"
+        version: " - 7.12.99"
+        reason: "docvalues_fields on binary field were corrected in 7.13"
     - do:
         indices.create:
             index: test

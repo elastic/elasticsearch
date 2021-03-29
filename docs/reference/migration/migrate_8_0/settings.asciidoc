@@ -166,3 +166,19 @@ Discontinue use of the removed settings. If needed, use
 `gateway.expected_data_nodes` or `gateway.recover_after_data_nodes` to defer
 cluster recovery pending a certain number of data nodes.
 ====
+
+.Setting the searchable snapshots shared cache size on non-frozen nodes is no
+longer permitted.
+[%collapsible]
+====
+*Details* +
+Setting `xpack.searchable.snapshot.shared_cache.size` to be positive on a node
+that does not have the `data_frozen` role was deprecated in {es} 7.12.0 and has
+been removed in {es} 8.0.0.
+
+*Impact* +
+Discontinue use of the removed setting. Note that searchable snapshots mounted
+using the `shared_cache` storage option were only allocated to nodes that had
+the `data_frozen` role, so removing this setting on nodes that do not have the
+`data_frozen` role will have no impact on functionality.
+====

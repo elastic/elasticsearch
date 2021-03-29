@@ -40,25 +40,6 @@ teardown:
         ignore: 404
 
 ---
-"Search remote cluster":
-  - do:
-      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
-      search:
-        rest_total_hits_as_int: true
-        index: my_remote_cluster:test_index
-        body:
-          aggs:
-            user:
-              terms:
-                field: user
-
-  - match: { _shards.total: 3 }
-  - match: { hits.total: 9 }
-  - length: { aggregations.user.buckets: 3 }
-  - match: { aggregations.user.buckets.0.key: "a" }
-  - match: { aggregations.user.buckets.0.doc_count: 5 }
-
----
 "Batch transform from remote cluster":
   - do:
       headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }

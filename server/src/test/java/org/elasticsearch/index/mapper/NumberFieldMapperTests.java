@@ -14,8 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 
@@ -258,10 +258,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == LongFieldScript.CONTEXT) {
-            return (T) LongFieldScript.PARSE_FROM_SOURCE;
+            return (T) LongScriptFieldType.PARSE_FROM_SOURCE;
         }
         if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+            return (T) DoubleScriptFieldType.PARSE_FROM_SOURCE;
         }
         throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
     }

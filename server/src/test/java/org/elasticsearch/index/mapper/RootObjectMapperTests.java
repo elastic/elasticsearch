@@ -15,9 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.runtimefields.mapper.LongFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -151,7 +151,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
             b.field("type", "long");
             b.startObject("script").field("id", "foo").endObject();
         })));
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: stored scripts are not supported on scripted field [field]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: stored scripts are not supported on field [field]"));
     }
 
     public void testCannotReferToRuntimeFields() throws IOException {

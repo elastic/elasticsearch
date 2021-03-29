@@ -210,7 +210,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
@@ -221,8 +221,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             void updateTaskState() {
-                assertEquals(9, state.get("test").getFirstChunk());
-                assertEquals(10, state.get("test").getLastChunk());
+                assertEquals(9, state.get("test.mmdb").getFirstChunk());
+                assertEquals(10, state.get("test.mmdb").getLastChunk());
             }
 
             @Override
@@ -239,19 +239,19 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
             @Override
             void deleteOldChunks(String name, int firstChunk) {
-                assertEquals("test", name);
+                assertEquals("test.mmdb", name);
                 assertEquals(9, firstChunk);
             }
         };
 
-        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
 
     public void testProcessDatabaseSame() throws IOException {
         GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(0, 4, 10, "1");
-        GeoIpTaskState taskState = GeoIpTaskState.EMPTY.put("test", metadata);
+        GeoIpTaskState taskState = GeoIpTaskState.EMPTY.put("test.mmdb", metadata);
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
@@ -271,7 +271,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             @Override
             protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
                 assertEquals(metadata, newMetadata);
-                assertEquals("test", name);
+                assertEquals("test.mmdb", name);
             }
 
             @Override
@@ -280,7 +280,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.setState(taskState);
-        geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     @SuppressWarnings("unchecked")
@@ -317,12 +317,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabases() throws IOException {
-        List<Map<String, Object>> maps = List.of(Map.of("a", 1), Map.of("a", 2));
+        List<Map<String, Object>> maps = List.of(Map.of("a", 1, "name", "a.tgz"), Map.of("a", 2, "name", "a.tgz"));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         builder.startArray();
-        builder.map(Map.of("a", 1));
-        builder.map(Map.of("a", 2));
+        builder.map(Map.of("a", 1, "name", "a.tgz"));
+        builder.map(Map.of("a", 2, "name", "a.tgz"));
         builder.endArray();
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree"))

@@ -127,12 +127,13 @@ public class FileTokensToolTests extends CommandTestCase {
             "Expected two arguments, service-account-principal and token-name, found extra:"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70959")
     public void testCreateToken() throws Exception {
-        final String tokenName1 = ServiceAccountTokenTests.randomTokenName();
+        // The CLI test infra does not like names begin with a hyphen
+        final String tokenName1 = randomValueOtherThanMany(n -> n.startsWith("-"), ServiceAccountTokenTests::randomTokenName);
         execute("create", pathHomeParameter, "elastic/fleet", tokenName1);
         assertServiceTokenExists("elastic/fleet/" + tokenName1);
-        final String tokenName2 = ServiceAccountTokenTests.randomTokenName();
+        final String tokenName2 = randomValueOtherThanMany(n -> n.startsWith("-") || n.equals(tokenName1),
+            ServiceAccountTokenTests::randomTokenName);
         execute("create", pathHomeParameter, "elastic/fleet", tokenName2);
         assertServiceTokenExists("elastic/fleet/" + tokenName2);
         final String output = terminal.getOutput();
@@ -140,9 +141,8 @@ public class FileTokensToolTests extends CommandTestCase {
         assertThat(output, containsString("SERVICE_TOKEN elastic/fleet/" + tokenName2 + " = "));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70959")
     public void testCreateTokenWithInvalidTokenName() throws Exception {
-        final String tokenName = ServiceAccountTokenTests.randomInvalidTokenName();
+        final String tokenName = randomValueOtherThanMany(n -> n.startsWith("-"), ServiceAccountTokenTests::randomTokenName);
         final UserException e = expectThrows(UserException.class,
             () -> execute("create", pathHomeParameter, "elastic/fleet", tokenName));
         assertServiceTokenNotExists("elastic/fleet/" + tokenName);

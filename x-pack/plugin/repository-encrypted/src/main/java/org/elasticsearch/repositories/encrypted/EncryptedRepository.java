@@ -153,22 +153,14 @@ public class EncryptedRepository extends BlobStoreRepository {
         Consumer<Exception> onFailure
     ) {
         if (source.startsWith("create_snapshot")
-            && false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+                && false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
             onFailure.accept(LicenseUtils.newComplianceException("encrypted snapshots"));
             return;
         }
         final StepListener<Void> putPasswordHashInRepositoryMetadataStep = new StepListener<>();
         if (false == repositoryPasswords.containsPasswordsHash(metadata)) {
             // this repository has just been created and no writes operations have yet triggered a hash publication
-            updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
-                // something else published the hashes in the meantime
-                if (repositoryPasswords.containsPasswordsHash(latestRepositoryMetadata)) {
-                    logger.debug("Repository [" + latestRepositoryMetadata.name() + "] already contains some password hashes");
-                    putPasswordHashInRepositoryMetadataStep.onResponse(null);
-                    return;
-                }
-                repositoryPasswords.updateWithHashForCurrentPassword(latestRepositoryMetadata, newRepositoryMetadataListener);
-            }, "update encrypted repository [" + metadata.name() + "] current password hash", putPasswordHashInRepositoryMetadataStep);
+            maybePublishCurrentPasswordHash(putPasswordHashInRepositoryMetadataStep);
         } else {
             putPasswordHashInRepositoryMetadataStep.onResponse(null);
         }
@@ -177,8 +169,28 @@ public class EncryptedRepository extends BlobStoreRepository {
                 verifyRepoHashesStep), onFailure);
         verifyRepoHashesStep.whenComplete(
                 aVoid -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure),
-                onFailure
+                e -> {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                        onFailure.accept(new RepositoryException(metadata.name(), "Interrupted while verifying password hashes", e));
+                    } else {
+                        onFailure.accept(new RepositoryException(metadata.name(), "Error verifying password hashes", e));
+                    }
+                }
         );
+    }
+
+    // for tests only
+    protected void maybePublishCurrentPasswordHash(ActionListener<Void> listener) {
+        updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
+            // something else published the hashes in the meantime
+            if (repositoryPasswords.containsPasswordsHash(latestRepositoryMetadata)) {
+                logger.debug("Repository [" + latestRepositoryMetadata.name() + "] already contains some password hashes");
+                listener.onResponse(null);
+                return;
+            }
+            repositoryPasswords.updateWithHashForCurrentPassword(latestRepositoryMetadata, newRepositoryMetadataListener);
+        }, "update encrypted repository [" + metadata.name() + "] current password hash", listener);
     }
 
     @Override
@@ -239,9 +251,11 @@ public class EncryptedRepository extends BlobStoreRepository {
         // TODO move this to plugin repository factory
         super.start();
         try {
-            repositoryPasswords.currentLocalPassword(metadata);
+            if (null == repositoryPasswords.currentLocalPassword(metadata)) {
+                throw new IllegalArgumentException("Missing secure settings");
+            }
         } catch (Exception e) {
-            throw new RepositoryVerificationException(metadata.name(), "Error starting the repository, missing secure settings", e);
+            throw new RepositoryVerificationException(metadata.name(), "Error starting repository", e);
         }
     }
 
@@ -385,7 +399,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     List<Tuple<String, byte[]>> wrapDek(String dekId, SecretKey dek) throws RepositoryException {
         final RepositoryMetadata repositoryMetadata = metadata;
         // check that the local passwords that are used to wrap the DEKs match the repository's
-        verifyPublishedPasswordHashes(repositoryPasswords, repositoryMetadata);
+        verifyPublishedPasswordsHash(repositoryPasswords, repositoryMetadata);
         final List<SecureString> passwords = repositoryPasswords.passwordsForDekWrapping(repositoryMetadata);
         final List<Tuple<String, byte[]>> wrappedDeks = new ArrayList<>(passwords.size());
         try {
@@ -762,7 +776,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
-    private static void verifyPublishedPasswordHashes(RepositoryPasswords repositoryPasswords, RepositoryMetadata repositoryMetadata)
+    private static void verifyPublishedPasswordsHash(RepositoryPasswords repositoryPasswords, RepositoryMetadata repositoryMetadata)
         throws RepositoryException {
         try {
             repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata);

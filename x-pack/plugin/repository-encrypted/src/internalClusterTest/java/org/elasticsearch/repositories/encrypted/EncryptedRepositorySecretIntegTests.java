@@ -111,7 +111,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .setSettings(repositorySettings)
                 .get()
         );
-        assertThat(e.getMessage(), containsString("failed to create repository"));
+        assertThat(e.getRootCause().getMessage(), containsString("Missing secure settings"));
         expectThrows(RepositoryMissingException.class, () -> client().admin().cluster().prepareGetRepositories(repositoryName).get());
 
         if (randomBoolean()) {
@@ -494,7 +494,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("The repository password(s) on the local node are different"))
+                .allMatch(shardFailure -> shardFailure.reason().contains("repository password is incorrect"))
         );
         final Set<String> nodesWithFailures = incompleteSnapshotResponse.getSnapshotInfo()
             .shardFailures()
@@ -559,7 +559,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoryException.class,
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
-        assertThat(e.getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getRootCause().getMessage(), containsString("repository password is incorrect"));
         GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
@@ -576,7 +576,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoryException.class,
             () -> client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get()
         );
-        assertThat(e.getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getRootCause().getMessage(), containsString("repository password is incorrect"));
         // restart master node and fill in the good password
         secureSettingsWithPassword.setString(
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),

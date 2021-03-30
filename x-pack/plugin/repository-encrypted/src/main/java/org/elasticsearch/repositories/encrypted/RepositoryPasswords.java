@@ -181,7 +181,7 @@ public final class RepositoryPasswords {
         }
         verifyPasswordsHash(hashesToVerify, executor, ActionListener.wrap(verifyResult -> {
             if (false == verifyResult) {
-                listener.onFailure(new IllegalArgumentException("Local repository passwords are different"));
+                listener.onFailure(new IllegalArgumentException("Local repository password is incorrect"));
             } else {
                 listener.onResponse(null);
             }

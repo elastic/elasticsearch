@@ -1112,41 +1112,52 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         blockNodeOnAnyFiles(repoName, masterName);
         int blockedSnapshots = 0;
-        boolean blockedDelete = false;
         final List<ActionFuture<CreateSnapshotResponse>> snapshotFutures = new ArrayList<>();
         ActionFuture<AcknowledgedResponse> deleteFuture = null;
         for (int i = 0; i < limitToTest; ++i) {
-            if (blockedDelete || randomBoolean()) {
+            if (deleteFuture != null || randomBoolean()) {
                 snapshotFutures.add(startFullSnapshot(repoName, "snap-" + i));
                 ++blockedSnapshots;
             } else {
-                blockedDelete = true;
                 deleteFuture = startDeleteSnapshot(repoName, randomFrom(snapshotNames));
             }
         }
         awaitNumberOfSnapshotsInProgress(blockedSnapshots);
-        if (blockedDelete) {
+        if (deleteFuture != null) {
             awaitNDeletionsInProgress(1);
         }
         waitForBlock(masterName, repoName);
 
-        final String expectedFailureMessage = "Cannot start another operation, already running [" + limitToTest +
-            "] operations and the current limit for concurrent snapshot operations is set to [" + limitToTest + "]";
-        final ConcurrentSnapshotExecutionException csen1 = expectThrows(ConcurrentSnapshotExecutionException.class,
+        final ConcurrentSnapshotExecutionException cse = expectThrows(ConcurrentSnapshotExecutionException.class,
             () -> client().admin().cluster().prepareCreateSnapshot(repoName, "expected-to-fail").execute().actionGet());
-        assertThat(csen1.getMessage(), containsString(expectedFailureMessage));
-        if (blockedDelete == false || limitToTest == 1) {
-            final ConcurrentSnapshotExecutionException csen2 = expectThrows(ConcurrentSnapshotExecutionException.class,
-                () -> client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute().actionGet());
-            assertThat(csen2.getMessage(), containsString(expectedFailureMessage));
+        assertThat(cse.getMessage(), containsString("Cannot start another operation, already running [" + limitToTest +
+                "] operations and the current limit for concurrent snapshot operations is set to [" + limitToTest + "]"));
+        boolean deleteAndAbortAll = false;
+        if (deleteFuture == null && randomBoolean()) {
+            deleteFuture = client().admin().cluster().prepareDeleteSnapshot(repoName, "*").execute();
+            deleteAndAbortAll = true;
+            if (randomBoolean()) {
+                awaitNDeletionsInProgress(1);
+            }
         }
 
         unblockNode(repoName, masterName);
         if (deleteFuture != null) {
             assertAcked(deleteFuture.get());
         }
-        for (ActionFuture<CreateSnapshotResponse> snapshotFuture : snapshotFutures) {
-            assertSuccessful(snapshotFuture);
+
+        if (deleteAndAbortAll) {
+            awaitNumberOfSnapshotsInProgress(0);
+            for (ActionFuture<CreateSnapshotResponse> snapshotFuture : snapshotFutures) {
+                // just check that the futures resolve, whether or not things worked out with the snapshot actually finalizing or failing
+                // due to the abort does not matter
+                assertBusy(() -> assertTrue(snapshotFuture.isDone()));
+            }
+            assertThat(getRepositoryData(repoName).getSnapshotIds(), empty());
+        } else {
+            for (ActionFuture<CreateSnapshotResponse> snapshotFuture : snapshotFutures) {
+                assertSuccessful(snapshotFuture);
+            }
         }
     }
 

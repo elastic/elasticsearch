@@ -105,6 +105,17 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return responseMap.get(field);
     }
 
+    /**
+     * Returns <code>true</code> if the provided field is a metadata field.
+     */
+    public boolean isMetadataField(String field) {
+        Map<String, FieldCapabilities> caps = getField(field);
+        if (caps == null) {
+            return false;
+        }
+        return caps.values().stream().anyMatch(FieldCapabilities::isMetadataField);
+    }
+
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
         return in.readMap(StreamInput::readString, FieldCapabilities::new);
     }

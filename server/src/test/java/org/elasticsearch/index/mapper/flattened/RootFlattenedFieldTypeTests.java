@@ -32,7 +32,7 @@ import java.util.Map;
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static RootFlattenedFieldType createDefaultFieldType() {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false);
+        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
     }
 
     public void testValueForDisplay() {
@@ -54,19 +54,19 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
 
         RootFlattenedFieldType unsearchable = new RootFlattenedFieldType("field", false, true,
-            Collections.emptyMap(), false);
+            Collections.emptyMap(), false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false);
+        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false, false);
         assertEquals(
             new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))),
             ft.existsQuery(null));
 
-        RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false);
+        RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 

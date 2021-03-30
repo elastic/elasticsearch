@@ -15,11 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;

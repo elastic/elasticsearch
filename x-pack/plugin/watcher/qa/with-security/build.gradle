@@ -11,7 +11,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'watcher', 'security', 'xpack'
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack'
   }
   restTests {
     includeXpack 'watcher'

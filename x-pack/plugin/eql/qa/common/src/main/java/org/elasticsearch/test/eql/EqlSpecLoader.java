@@ -74,7 +74,7 @@ public class EqlSpecLoader {
 
             List<?> arr = table.getList("tags");
             if (arr != null) {
-                String tags[] = new String[arr.size()];
+                String[] tags = new String[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     tags[i] = (String) obj;
@@ -84,7 +84,7 @@ public class EqlSpecLoader {
 
             arr = table.getList("expected_event_ids");
             if (arr != null) {
-                long expectedEventIds[] = new long[arr.size()];
+                long[] expectedEventIds = new long[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     expectedEventIds[i++] = (Long) obj;

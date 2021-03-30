@@ -1,0 +1,39 @@
+# Apache License, Version 2.0
+# ===========================
+#
+# Copyright 2009 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+tablet_devices:
+  - type: Tablet
+    os: BlackBerry Tablet OS
+    browser: Edg
+  - type: Tablet
+    browser: Amazon Silk
+    os: FireOS
+  - type: Tablet
+    browser: Crosswalk
+    os: Android
+  - type: Tablet
+    browser: Chrome Mobile WebView
+    os: Android
+    device: Samsung SM-T590
+  - type: Tablet
+    browser: Amazon Silk
+    os: Linux
+    device: Kindle
+  - type: Tablet
+    browser: Chrome
+    os: Android
+    device: Samsung SM-T307U

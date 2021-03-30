@@ -87,10 +87,16 @@ public class EncryptedRepositoryTests extends ESTestCase {
             EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME,
             settings.build()
         );
-        threadPool = new TestThreadPool("EncryptedRepositoryTests",
-                new FixedExecutorBuilder(Settings.EMPTY, SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME,
-                        1, 100,
-                        "xpack.security.crypto.thread_pool", false)
+        threadPool = new TestThreadPool(
+            "EncryptedRepositoryTests",
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME,
+                1,
+                100,
+                "xpack.security.crypto.thread_pool",
+                false
+            )
         );
         ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterApplierService.threadPool()).thenReturn(threadPool);

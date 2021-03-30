@@ -153,7 +153,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         Consumer<Exception> onFailure
     ) {
         if (source.startsWith("create_snapshot")
-                && false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+            && false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
             onFailure.accept(LicenseUtils.newComplianceException("encrypted snapshots"));
             return;
         }
@@ -165,19 +165,18 @@ public class EncryptedRepository extends BlobStoreRepository {
             putPasswordHashInRepositoryMetadataStep.onResponse(null);
         }
         final StepListener<Void> verifyRepoHashesStep = new StepListener<>();
-        putPasswordHashInRepositoryMetadataStep.whenComplete(aVoid -> repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(metadata,
-                verifyRepoHashesStep), onFailure);
-        verifyRepoHashesStep.whenComplete(
-                aVoid -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure),
-                e -> {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                        onFailure.accept(new RepositoryException(metadata.name(), "Interrupted while verifying password hashes", e));
-                    } else {
-                        onFailure.accept(new RepositoryException(metadata.name(), "Error verifying password hashes", e));
-                    }
-                }
+        putPasswordHashInRepositoryMetadataStep.whenComplete(
+            aVoid -> repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(metadata, verifyRepoHashesStep),
+            onFailure
         );
+        verifyRepoHashesStep.whenComplete(aVoid -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure), e -> {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                onFailure.accept(new RepositoryException(metadata.name(), "Interrupted while verifying password hashes", e));
+            } else {
+                onFailure.accept(new RepositoryException(metadata.name(), "Error verifying password hashes", e));
+            }
+        });
     }
 
     // for tests only

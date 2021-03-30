@@ -25,11 +25,13 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;
     private final boolean canMatch;
+    private final transient Version originVersion;
 
     FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap, boolean canMatch) {
         this.indexName = indexName;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
+        this.originVersion = Version.CURRENT;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -37,6 +39,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
         this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
+        this.originVersion = in.getVersion();
     }
 
     /**
@@ -63,6 +66,10 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
      */
     public IndexFieldCapabilities getField(String field) {
         return responseMap.get(field);
+    }
+
+    Version getOriginVersion() {
+        return originVersion;
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -158,7 +157,6 @@ public class IndexResolver {
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
 
 
-    private static final Set<String> FIELD_NAMES_BLACKLIST = Sets.newHashSet("_size", "_doc_count");
     private static final String UNMAPPED = "unmapped";
 
     private final Client client;
@@ -284,7 +282,7 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)),
                         listener::onFailure));
     }
 
@@ -296,19 +294,19 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
-                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response.getIndices(), response.get())),
+                        response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)),
                         listener::onFailure));
     }
 
-    public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+    public static IndexResolution mergedMappings(DataTypeRegistry typeRegistry, String indexPattern,
+                                                 FieldCapabilitiesResponse fieldCapsResponse) {
 
-        if (indexNames.length == 0) {
+        if (fieldCapsResponse.getIndices().length == 0) {
             return IndexResolution.notFound(indexPattern);
         }
 
         // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(typeRegistry, indexNames, null, fieldCaps, null, i -> indexPattern, (n, types) -> {
+        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (n, types) -> {
             StringBuilder errorMessage = new StringBuilder();
 
             boolean hasUnmapped = types.containsKey(UNMAPPED);
@@ -368,7 +366,8 @@ public class IndexResolver {
                     indices.size());
         }
 
-        return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexNames[0], emptyMap()) : indices.get(0));
+        final String indexName= fieldCapsResponse.getIndices()[0];
+        return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexName, emptyMap()) : indices.get(0));
     }
 
     private static EsField createField(DataTypeRegistry typeRegistry, String fieldName,
@@ -479,10 +478,10 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest, wrap(response -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases ->
-                listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), aliases.getAliases())),
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())),
                 ex -> {
                     if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                        listener.onResponse(separateMappings(typeRegistry, javaRegex, response.getIndices(), response.get(), null));
+                        listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
                     } else {
                         listener.onFailure(ex);
                     }
@@ -500,9 +499,11 @@ public class IndexResolver {
                 .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
 
-    public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry, String javaRegex, String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
-        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
+    public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry,
+                                                 String javaRegex,
+                                                 FieldCapabilitiesResponse fieldCaps,
+                                                 ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
+        return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
     }
 
     private static class Fields {
@@ -514,12 +515,13 @@ public class IndexResolver {
      * Assemble an index-based mapping from the field caps (which is field based) by looking at the indices associated with
      * each field.
      */
-    private static List<EsIndex> buildIndices(DataTypeRegistry typeRegistry, String[] indexNames, String javaRegex,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+    private static List<EsIndex> buildIndices(DataTypeRegistry typeRegistry, String javaRegex,
+            FieldCapabilitiesResponse fieldCapsResponse, ImmutableOpenMap<String, List<AliasMetadata>> aliases,
             Function<String, String> indexNameProcessor,
             BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier) {
 
-        if ((indexNames == null || indexNames.length == 0) && (aliases == null || aliases.isEmpty())) {
+        if ((fieldCapsResponse.getIndices() == null || fieldCapsResponse.getIndices().length == 0)
+                && (aliases == null || aliases.isEmpty())) {
             return emptyList();
         }
 
@@ -533,7 +535,7 @@ public class IndexResolver {
             }
         }
 
-        List<String> resolvedIndices = new ArrayList<>(asList(indexNames));
+        List<String> resolvedIndices = new ArrayList<>(asList(fieldCapsResponse.getIndices()));
         int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
         Map<String, Fields> indices = new LinkedHashMap<>(mapSize);
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
@@ -541,23 +543,21 @@ public class IndexResolver {
         // sort fields in reverse order to build the field hierarchy
         Set<Entry<String, Map<String, FieldCapabilities>>> sortedFields = new TreeSet<>(
                 Collections.reverseOrder(Comparator.comparing(Entry::getKey)));
-
+        final Map<String, Map<String, FieldCapabilities>> fieldCaps = fieldCapsResponse.get();
         sortedFields.addAll(fieldCaps.entrySet());
 
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
             String fieldName = entry.getKey();
-
-            // ignore size added by the mapper plugin
-            if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
+            if (fieldCapsResponse.isMetadataField(fieldName)) {
+                // skip metadata field!
                 continue;
             }
-
             Map<String, FieldCapabilities> types = new LinkedHashMap<>(entry.getValue());
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
             // apply verification for fields belonging to index aliases
             Map<String, InvalidMappedField> invalidFieldsForAliases = getInvalidFieldsForAliases(fieldName, types, aliases);
 
-            // filter meta fields and unmapped
+            // filter unmapped
             FieldCapabilities unmapped = types.get(UNMAPPED);
             Set<String> unmappedIndices = unmapped != null ? new HashSet<>(asList(unmapped.indices())) : emptySet();
 
@@ -565,12 +565,6 @@ public class IndexResolver {
             for (Entry<String, FieldCapabilities> typeEntry : types.entrySet()) {
                 FieldCapabilities typeCap = typeEntry.getValue();
                 String[] capIndices = typeCap.indices();
-
-                // Skip internal fields (name starting with underscore and its type reported by field_caps starts
-                // with underscore as well). A meta field named "_version", for example, has the type named "_version".
-                if (typeEntry.getKey().startsWith("_") && typeCap.getType().startsWith("_")) {
-                    continue;
-                }
 
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;

@@ -46,7 +46,6 @@ PUT _ilm/policy/my-lifecycle-policy
       "warm": {
         "min_age": "30d",
         "actions": {
-          "readonly": {},
           "shrink": {
             "number_of_shards": 1
           },

@@ -44,7 +44,7 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
 
     public static final GetGlobalCheckpointAction INSTANCE = new GetGlobalCheckpointAction();
     // TODO: Do we still use xpack?
-    public static final String NAME = "indices:monitor/xpack/fleet/global_checkpoint/";
+    public static final String NAME = "indices:monitor/fleet/global_checkpoint";
 
     private GetGlobalCheckpointAction() {
         super(NAME, GetGlobalCheckpointAction.Response::new);

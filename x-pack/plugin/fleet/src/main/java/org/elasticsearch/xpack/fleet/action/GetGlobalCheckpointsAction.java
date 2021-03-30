@@ -40,8 +40,7 @@ import java.io.IOException;
 public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsAction.Response> {
 
     public static final GetGlobalCheckpointsAction INSTANCE = new GetGlobalCheckpointsAction();
-    // TODO: Do we still use xpack?
-    public static final String NAME = "indices:monitor/xpack/fleet/global_checkpoints/";
+    public static final String NAME = "indices:monitor/fleet/global_checkpoints";
 
     private GetGlobalCheckpointsAction() {
         super(NAME, GetGlobalCheckpointsAction.Response::new);

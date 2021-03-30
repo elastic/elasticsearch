@@ -202,7 +202,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
             final String field = entry.getKey();
             // best effort to detect metadata field coming from older nodes
-            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_8_0_0) ?
+            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0) ?
                 entry.getValue().isMetadatafield() : metadataFieldPred.test(field);
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());

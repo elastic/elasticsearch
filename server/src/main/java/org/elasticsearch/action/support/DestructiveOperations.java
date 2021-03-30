@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -48,18 +49,25 @@ public final class DestructiveOperations {
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
         destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
         isDestructiveRequiresNameSet = REQUIRES_NAME_SETTING.exists(settings);
-        clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
+        clusterSettings.addSettingsUpdateConsumer(
+            this::setDestructiveRequiresName,
+            List.of(REQUIRES_NAME_SETTING)
+        );
     }
 
-    private void setDestructiveRequiresName(boolean destructiveRequiresName) {
-        this.isDestructiveRequiresNameSet = true;
-        this.destructiveRequiresName = destructiveRequiresName;
+    private void setDestructiveRequiresName(Settings settings) {
+        this.isDestructiveRequiresNameSet = REQUIRES_NAME_SETTING.exists(settings);
+        this.destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
     }
 
     /**
      * Fail if there is wildcard usage in indices and the named is required for destructive operations.
      */
     public void failDestructive(String[] aliasesOrIndices) {
+        if (this.isDestructiveRequiresNameSet && this.destructiveRequiresName == false) {
+            return;
+        }
+
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             checkWildCardOK();
         } else if (aliasesOrIndices.length == 1) {
@@ -76,14 +84,14 @@ public final class DestructiveOperations {
     }
 
     private void checkWildCardOK() {
-        if (isDestructiveRequiresNameSet == false) {
+        if (this.isDestructiveRequiresNameSet == false) {
             deprecationLogger.deprecate(
                 DeprecationCategory.SETTINGS,
                 "destructive_requires_name_default",
                 DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING
             );
         }
-        if (destructiveRequiresName) {
+        if (this.destructiveRequiresName) {
             throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
         }
     }

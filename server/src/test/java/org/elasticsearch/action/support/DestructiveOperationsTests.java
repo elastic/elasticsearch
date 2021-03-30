@@ -93,34 +93,40 @@ public class DestructiveOperationsTests extends ESTestCase {
     }
 
     /**
-     * Test that we get a deprecation warning if we try a wildcard deletion and
-     * action.destructive_requires_name is unset.
+     * Test that applying settings enables and disables the deprecation warning.
      */
     public void testDeprecationWarningClusterSettingsSync() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DestructiveOperations.REQUIRES_NAME_SETTING));
         DestructiveOperations destructiveOperations = new DestructiveOperations(Settings.EMPTY, clusterSettings);
-        String warning = DestructiveOperations.DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING;
 
-        destructiveOperations.failDestructive(new String[]{"index-*"});
-        assertWarnings(warning);
+        {
+            // empty settings gives us a warning
+            destructiveOperations.failDestructive(new String[]{"index-*"});
+            assertWarnings(DestructiveOperations.DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING);
+        }
+        {
+            // setting to "true" removes the deprecation warning and fails the operation
+            clusterSettings.applySettings(Settings.builder()
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "true")
+                .build());
 
-        clusterSettings.applySettings(Settings.builder()
-            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "true")
-            .build());
+            assertFailsDestructive(new String[]{"index-*"});
+        }
+        {
+            // restoring the empty setting restores the warning
+            clusterSettings.applySettings(Settings.EMPTY);
 
-        assertFailsDestructive(new String[]{"index-*"});
+            destructiveOperations.failDestructive(new String[]{"index-*"});
+            assertWarnings(DestructiveOperations.DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING);
+        }
+        {
+            // explicitly set to false: no warning, no failure
+            clusterSettings.applySettings(Settings.builder()
+                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "false")
+                .build());
 
-        clusterSettings.applySettings(Settings.EMPTY);
-
-        destructiveOperations.failDestructive(new String[]{"index-*"});
-
-        // TODO - should warn again
-
-        clusterSettings.applySettings(Settings.builder()
-            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), "false")
-            .build());
-
-        destructiveOperations.failDestructive(new String[]{"index-*"});
+            destructiveOperations.failDestructive(new String[]{"index-*"});
+        }
     }
 
     private void assertFailsDestructive(String[] aliasesOrIndices) {

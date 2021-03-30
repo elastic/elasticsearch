@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.cluster.ClusterName;
@@ -24,11 +23,8 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -40,15 +36,12 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.CoreMatchers;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -68,8 +61,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MetadataIndexStateServiceTests extends ESTestCase {
 
@@ -314,34 +305,6 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         Set<Index> failedIndices = closingResults.stream().filter(IndexResult::hasFailures)
             .map(IndexResult::getIndex).collect(Collectors.toSet());
         assertThat(failedIndices, equalTo(disappearedIndices));
-    }
-
-    public void testCloseCurrentWriteIndexForDataStream() {
-        int numDataStreams = randomIntBetween(1, 3);
-        List<Tuple<String, Integer>> dataStreamsToCreate = new ArrayList<>();
-        List<String> writeIndices = new ArrayList<>();
-        for (int k = 0; k < numDataStreams; k++) {
-            String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-            int numBackingIndices = randomIntBetween(1, 5);
-            dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
-            writeIndices.add(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices));
-        }
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(cs);
-
-        List<String> indicesToDelete = randomSubsetOf(randomIntBetween(1, numDataStreams), writeIndices);
-        Index[] indicesToDeleteArray = new Index[indicesToDelete.size()];
-        for (int k = 0; k < indicesToDelete.size(); k++) {
-            Index indexToDelete = cs.metadata().index(indicesToDelete.get(k)).getIndex();
-            indicesToDeleteArray[k] = indexToDelete;
-        }
-        MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null);
-        CloseIndexClusterStateUpdateRequest request = new CloseIndexClusterStateUpdateRequest(0L).indices(indicesToDeleteArray);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> service.closeIndices(request, null));
-        assertThat(e.getMessage(), CoreMatchers.containsString("cannot close the following data stream write indices [" +
-                Strings.collectionToCommaDelimitedString(indicesToDelete) + "]"));
     }
 
     public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {

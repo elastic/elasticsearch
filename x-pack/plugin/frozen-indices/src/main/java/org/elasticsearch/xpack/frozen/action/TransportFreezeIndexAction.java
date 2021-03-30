@@ -22,12 +22,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedMap;
 
 public final class TransportFreezeIndexAction extends
     TransportMasterNodeAction<FreezeRequest, FreezeResponse> {
@@ -133,6 +136,20 @@ public final class TransportFreezeIndexAction extends
                 })) {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                List<String> writeIndices = new ArrayList<>();
+                SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
+                for (Index index : concreteIndices) {
+                    IndexAbstraction ia = lookup.get(index.getName());
+                    if (ia != null && ia.getParentDataStream() != null &&
+                        ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
+                        writeIndices.add(index.getName());
+                    }
+                }
+                if (writeIndices.size() > 0) {
+                    throw new IllegalArgumentException("cannot freeze the following data stream write indices [" +
+                        Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+                }
+
                 final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.node.ResponseCollectorService.ComputedNodeStats;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -50,7 +51,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             .get();
         ensureGreen();
 
-        client.prepareIndex("test").setSource("field", "value").get();
+        client.prepareIndex("test", MapperService.SINGLE_MAPPING_NAME).setSource("field", "value").get();
         refresh();
 
         // Before we've gathered stats for all nodes, we should try each node once.
@@ -80,7 +81,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         String coordinatingNodeId = coordinatingNodes.valuesIt().next().getId();
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats()
-            .setAdaptiveSelection(true)
+            .all()
             .get();
         NodeStats nodeStats = statsResponse.getNodesMap().get(coordinatingNodeId);
         assertNotNull(nodeStats);

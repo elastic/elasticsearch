@@ -7,11 +7,21 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     @Override
@@ -37,5 +47,41 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         assertEquals(0, getTransformResponse.getTransformConfigurations().size());
 
         assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+    }
+
+    public void testFailureForPreview() {
+        String transformId = "transform-with-remote-index";
+        TransformConfig config =
+            new TransformConfig.Builder()
+                .setId(transformId)
+                .setSource(new SourceConfig("my-index"))
+                .setDest(new DestConfig("my-dest-index", null))
+                .setPivotConfig(PivotConfigTests.randomPivotConfig())
+                .build();
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
+        ElasticsearchStatusException e =
+            expectThrows(ElasticsearchStatusException.class, () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet());
+        assertThat(
+            e.getMessage(),
+            is(equalTo("At least one transform node is required but no transform nodes were found")));
+    }
+
+    public void testFailureForPut() {
+        String transformId = "transform-with-remote-index";
+        TransformConfig config =
+            new TransformConfig.Builder()
+                .setId(transformId)
+                .setSource(new SourceConfig("my-index"))
+                .setDest(new DestConfig("my-dest-index", null))
+                .setPivotConfig(PivotConfigTests.randomPivotConfig())
+                .build();
+        PutTransformAction.Request request = new PutTransformAction.Request(config, false);
+        ElasticsearchStatusException e =
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> client().execute(PutTransformAction.INSTANCE, request).actionGet());
+        assertThat(
+            e.getMessage(),
+            is(equalTo("At least one transform node is required but no transform nodes were found")));
     }
 }

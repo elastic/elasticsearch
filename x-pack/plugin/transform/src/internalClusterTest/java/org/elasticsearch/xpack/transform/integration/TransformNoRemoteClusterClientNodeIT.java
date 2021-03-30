@@ -21,7 +21,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTestCase {
@@ -44,7 +45,11 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet());
-        assertThat(e.getMessage(), is(equalTo("No remote_cluster_client node to run on")));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("No appropriate node to run on"),
+                containsString("transform requires a remote connection but remote is disabled")));
     }
 
     public void testPutTransformWithRemoteIndex() {
@@ -61,7 +66,11 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> client().execute(PutTransformAction.INSTANCE, request).actionGet());
-        assertThat(e.getMessage(), is(equalTo("No remote_cluster_client node to run on")));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("No appropriate node to run on"),
+                containsString("transform requires a remote connection but remote is disabled")));
     }
 
     public void testUpdateTransformWithRemoteIndex() {
@@ -86,6 +95,10 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet());
-        assertThat(e.getMessage(), is(equalTo("No remote_cluster_client node to run on")));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("No appropriate node to run on"),
+                containsString("transform requires a remote connection but remote is disabled")));
     }
 }

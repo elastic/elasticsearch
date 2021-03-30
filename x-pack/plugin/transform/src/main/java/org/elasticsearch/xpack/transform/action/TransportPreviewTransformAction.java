@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
@@ -40,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
@@ -52,6 +50,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSetti
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
+import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.time.Clock;
@@ -59,7 +58,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -71,7 +69,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final boolean isRemoteClusterClientNode;
+    private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
 
     @Inject
@@ -114,11 +112,11 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(settings);
+        this.nodeSettings = settings;
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            isRemoteClusterClientNode
+            DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
                 ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
             ingestService,
@@ -130,24 +128,16 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.throwIfNoTransformNodes(clusterState);
         final DiscoveryNodes nodes = clusterState.nodes();
 
+        boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
         // Redirection can only be performed between nodes that are at least 7.13.
-        if (nodes.getMinNodeVersion().onOrAfter(Version.V_7_13_0)
-                && request.getConfig().getSource().requiresRemoteCluster()
-                && (isRemoteClusterClientNode == false)) {
-            // remote_cluster_client role is required but the current node is not remote_cluster_client, find another node.
-            Optional<DiscoveryNode> remoteClusterClientNode = TransformNodes.selectAnyTransformRemoteNode(nodes);
-            if (remoteClusterClientNode.isPresent()) {
-                // Redirect the request to a remote_cluster_client node
-                transportService.sendRequest(
-                    remoteClusterClientNode.get(), actionName, request, new ActionListenerResponseHandler<>(listener, Response::new));
-            } else {
-                // There are no remote_cluster_client nodes in the cluster, fail
-                listener.onFailure(ExceptionsHelper.badRequestException("No remote_cluster_client node to run on"));
+        if (nodes.getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
+            if (TransformNodes.redirectToAnotherNodeIfNeeded(
+                    clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, listener)) {
+                return;
             }
-            return;
         }
 
         final TransformConfig config = request.getConfig();

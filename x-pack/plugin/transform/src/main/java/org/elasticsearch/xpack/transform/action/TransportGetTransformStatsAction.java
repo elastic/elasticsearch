@@ -12,15 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -32,7 +29,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
@@ -44,6 +40,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformNodeAssignments;
+import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.ArrayList;
@@ -51,7 +49,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,7 +61,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
     private final Client client;
-    private final boolean isRemoteClusterClientNode;
+    private final Settings nodeSettings;
 
     @Inject
     public TransportGetTransformStatsAction(
@@ -91,7 +88,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
         this.client = client;
-        this.isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(settings);
+        this.nodeSettings = settings;
     }
 
     @Override
@@ -144,29 +141,15 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(clusterState);
-        final DiscoveryNodes nodes = clusterState.nodes();
 
         transformConfigManager.expandTransformIds(
             request.getId(),
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
-
-                if (hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster())
-                        && (isRemoteClusterClientNode == false)) {
-                    // remote_cluster_client role is required but the current node is not remote_cluster_client, find another node.
-                    Optional<DiscoveryNode> remoteClusterClientNode = TransformNodes.selectAnyTransformRemoteNode(nodes);
-                    if (remoteClusterClientNode.isPresent()) {
-                        // Redirect the request to a remote_cluster_client node
-                        transportService.sendRequest(
-                            remoteClusterClientNode.get(),
-                            actionName,
-                            request,
-                            new ActionListenerResponseHandler<>(finalListener, Response::new));
-                    } else {
-                        // There are no remote_cluster_client nodes in the cluster, fail
-                        finalListener.onFailure(ExceptionsHelper.badRequestException("No remote_cluster_client node to run on"));
-                    }
+                boolean requiresRemote = hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster());
+                if (TransformNodes.redirectToAnotherNodeIfNeeded(
+                        clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, finalListener)) {
                     return;
                 }
 

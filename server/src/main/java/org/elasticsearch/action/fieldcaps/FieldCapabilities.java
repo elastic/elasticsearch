@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
+    private static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
     private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -48,6 +49,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     private final String name;
     private final String type;
+    private final boolean isMetadataField;
     private final boolean isSearchable;
     private final boolean isAggregatable;
 
@@ -61,6 +63,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * Constructor for a set of indices.
      * @param name The name of the field
      * @param type The type associated with the field.
+     * @param isMetadataField Whether this field is a metadata field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
      * @param indices The list of indices where this field name is defined as {@code type},
@@ -72,13 +75,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(String name, String type,
-                             boolean isSearchable, boolean isAggregatable,
+                             boolean isMetadataField,
+                             boolean isSearchable,
+                             boolean isAggregatable,
                              String[] indices,
                              String[] nonSearchableIndices,
                              String[] nonAggregatableIndices,
                              Map<String, Set<String>> meta) {
         this.name = name;
         this.type = type;
+        this.isMetadataField = isMetadataField;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
         this.indices = indices;
@@ -90,6 +96,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     FieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
+        this.isMetadataField = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
         this.indices = in.readOptionalStringArray();
@@ -106,6 +113,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(isMetadataField);
+        }
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
         out.writeOptionalStringArray(indices);
@@ -120,6 +130,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (indices != null) {
@@ -156,17 +167,19 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         true,
         (a, name) -> new FieldCapabilities(name,
             (String) a[0],
+            a[3] == null ? false : (boolean) a[3],
             (boolean) a[1],
             (boolean) a[2],
-            a[3] != null ? ((List<String>) a[3]).toArray(new String[0]) : null,
             a[4] != null ? ((List<String>) a[4]).toArray(new String[0]) : null,
             a[5] != null ? ((List<String>) a[5]).toArray(new String[0]) : null,
-            a[6] != null ? ((Map<String, Set<String>>) a[6]) : Collections.emptyMap()));
+            a[6] != null ? ((List<String>) a[6]).toArray(new String[0]) : null,
+            a[7] != null ? ((Map<String, Set<String>>) a[7]) : Collections.emptyMap()));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_METADATA_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD);
@@ -179,6 +192,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Whether this field is a metadata field.
+     */
+    public boolean isMetadataField() {
+        return isMetadataField;
     }
 
     /**
@@ -238,7 +258,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilities that = (FieldCapabilities) o;
-        return isSearchable == that.isSearchable &&
+        return isMetadataField == that.isMetadataField &&
+            isSearchable == that.isSearchable &&
             isAggregatable == that.isAggregatable &&
             Objects.equals(name, that.name) &&
             Objects.equals(type, that.type) &&
@@ -250,7 +271,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type, isSearchable, isAggregatable, meta);
+        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, meta);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
@@ -263,8 +284,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     }
 
     static class Builder {
-        private String name;
-        private String type;
+        private final String name;
+        private final String type;
+        private boolean isMetadataField;
         private boolean isSearchable;
         private boolean isAggregatable;
         private List<IndexCaps> indiceList;
@@ -282,11 +304,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         /**
          * Collect the field capabilities for an index.
          */
-        void add(String index, boolean search, boolean agg, Map<String, String> meta) {
+        void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
+            this.isMetadataField |= isMetadataField;
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .add(entry.getValue());
@@ -310,7 +333,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] nonSearchableIndices;
             if (isSearchable == false &&
-                indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
+                    indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
                 // Iff this field is searchable in some indices AND non-searchable in others
                 // we record the list of non-searchable indices
                 nonSearchableIndices = indiceList.stream()
@@ -337,7 +360,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             Map<String, Set<String>> immutableMeta = meta.entrySet().stream()
                     .collect(Collectors.toUnmodifiableMap(
                             Map.Entry::getKey, entryValueFunction.andThen(Set::copyOf)));
-            return new FieldCapabilities(name, type, isSearchable, isAggregatable,
+            return new FieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable,
                 indices, nonSearchableIndices, nonAggregatableIndices, immutableMeta);
         }
     }

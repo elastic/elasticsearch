@@ -64,7 +64,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         }
 
         return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), meta);
+            randomBoolean(), randomBoolean(), randomBoolean(), meta);
     }
 
     @Override

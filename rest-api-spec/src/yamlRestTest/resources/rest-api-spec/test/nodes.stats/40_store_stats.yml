@@ -1,11 +1,8 @@
 ---
 "Store stats":
   - skip:
-      version: " - 7.99.99"
-      reason: "reserved_in_bytes field is not returned in prior versions"
       features: [arbitrary_key]
-      # todo change after backport
-      version: " - 7.99.99"
+      version: " - 7.12.99"
       reason:  "total_data_set_size added in 7.13"
 
   - do:
@@ -28,10 +25,11 @@
   - match: { nodes.$master.indices.store.total_data_set_size_in_bytes: $size_in_bytes }
 
 ---
-#remove when 7.13 is released
 "Store stats bwc":
   - skip:
       features: [arbitrary_key]
+      version: " - 7.8.99"
+      reason: "reserved_in_bytes field is not returned in prior versions"
 
   - do:
       nodes.info:

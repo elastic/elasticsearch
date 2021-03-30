@@ -122,8 +122,8 @@ final class DocumentParser {
     }
 
     private static void executeIndexTimeScripts(ParseContext context) {
-        Map<String, IndexTimeScript> indexTimeScripts = context.mappingLookup().indexTimeScripts();
-        if (indexTimeScripts.isEmpty()) {
+        List<FieldMapper> indexTimeScriptMappers = context.mappingLookup().indexTimeScriptMappers();
+        if (indexTimeScriptMappers.isEmpty()) {
             return;
         }
         SearchLookup searchLookup = new SearchLookup(
@@ -132,25 +132,24 @@ final class DocumentParser {
                 new IndexFieldDataCache.None(),
                 new NoneCircuitBreakerService())
         );
-        Map<String, Consumer<LeafReaderContext>> oneTimeScripts = new HashMap<>();
-        // field scripts can be called both by executeIndexTimeScripts() and via the document reader,
-        // so to ensure that we don't run field scripts multiple times we guard them with
-        // an 'executed' boolean
-        indexTimeScripts.forEach((field, script) -> {
-            oneTimeScripts.put(field, new Consumer<>() {
-                boolean executed = false;
-                @Override
-                public void accept(LeafReaderContext leafReaderContext) {
-                    if (executed == false) {
-                        script.execute(searchLookup, leafReaderContext, context);
-                        executed = true;
-                    }
+        // field scripts can be called both by the loop at the end of this method and via
+        // the document reader, so to ensure that we don't run them multiple times we
+        // guard them with an 'executed' boolean
+        Map<String, Consumer<LeafReaderContext>> fieldScripts = new HashMap<>();
+        indexTimeScriptMappers.forEach(mapper -> fieldScripts.put(mapper.name(), new Consumer<>() {
+            boolean executed = false;
+            @Override
+            public void accept(LeafReaderContext leafReaderContext) {
+                if (executed == false) {
+                    mapper.executeIndexTimeScript(searchLookup, leafReaderContext, context);
+                    executed = true;
                 }
-            });
-        });
-        DocumentLeafReader reader = new DocumentLeafReader(context.rootDoc(), oneTimeScripts);
+            }
+        }));
 
-        for (Consumer<LeafReaderContext> script : oneTimeScripts.values()) {
+        // call the index script on all field mappers configured with one
+        DocumentLeafReader reader = new DocumentLeafReader(context.rootDoc(), fieldScripts);
+        for (Consumer<LeafReaderContext> script : fieldScripts.values()) {
             script.accept(reader.getContext());
         }
     }

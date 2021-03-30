@@ -56,7 +56,7 @@ public final class MappingLookup {
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
-    private final Map<String, IndexTimeScript> indexTimeScripts = new HashMap<>();
+    private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final DocumentParser documentParser;
     private final Mapping mapping;
     private final IndexSettings indexSettings;
@@ -139,9 +139,8 @@ public final class MappingLookup {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
-            IndexTimeScript indexTimeScript = mapper.getIndexTimeScript();
-            if (indexTimeScript != null) {
-                indexTimeScripts.put(mapper.fieldType().name(), indexTimeScript);
+            if (mapper.hasIndexTimeScript()) {
+                indexTimeScriptMappers.add(mapper);
             }
         }
 
@@ -155,7 +154,9 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = indexTimeScripts.isEmpty() ? null : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
+            ? null
+            : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -178,8 +179,8 @@ public final class MappingLookup {
         return indexTimeLookup;
     }
 
-    Map<String, IndexTimeScript> indexTimeScripts() {
-        return indexTimeScripts;
+    List<FieldMapper> indexTimeScriptMappers() {
+        return indexTimeScriptMappers;
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {

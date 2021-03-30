@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,11 +172,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         multiFields.parse(this, context);
     }
 
-    /**
-     * Returns an index time script for this field mapper, or {@code null} if none is defined
-     */
-    public IndexTimeScript getIndexTimeScript() {
-        return null;
+    public boolean hasIndexTimeScript() {
+        return false;
+    }
+
+    public void executeIndexTimeScript(SearchLookup searchLookup, LeafReaderContext ctx, ParseContext pc) {
+        throw new UnsupportedOperationException("FieldMapper " + name() + " does not have an index-time script");
     }
 
     /**

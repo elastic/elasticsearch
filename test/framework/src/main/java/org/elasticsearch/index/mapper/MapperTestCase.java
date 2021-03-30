@@ -38,7 +38,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -616,26 +615,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             fieldData.setNextDocId(0);
 
-            IndexTimeScript indexTimeExecutor = (lookup, context, pc) -> {
-                ScriptDocValues<?> indexData = fieldType
-                    .fielddataBuilder("test", () -> {
-                        throw new UnsupportedOperationException();
-                    })
-                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-                    .load(context)
-                    .getScriptValues();
-                try {
-                    indexData.setNextDocId(0);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-
-                // compare index and search time fielddata
-                assertThat(fieldData, equalTo(indexData));
-            };
-
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            indexTimeExecutor.execute(null, reader.getContext(), null);
+            ScriptDocValues<?> indexData = fieldType
+                .fielddataBuilder("test", () -> {
+                    throw new UnsupportedOperationException();
+                })
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(reader.getContext())
+                .getScriptValues();
+            indexData.setNextDocId(0);
+
+            // compare index and search time fielddata
+            assertThat(fieldData, equalTo(indexData));
         });
     }
 
@@ -672,16 +663,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             LeafStoredFieldsLookup storedFields = lookup.getLeafSearchLookup(ctx).fields();
             storedFields.setDocument(0);
 
-            IndexTimeScript indexTimeExecutor = (l, context, pc) -> {
-                LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(context).fields();
-                indexStoredFields.setDocument(0);
-
-                // compare index and search time stored fields
-                assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
-            };
-
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            indexTimeExecutor.execute(null, reader.getContext(), null);
+
+            LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(reader.getContext()).fields();
+            indexStoredFields.setDocument(0);
+
+            // compare index and search time stored fields
+            assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
         });
     }
 

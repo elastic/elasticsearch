@@ -1211,21 +1211,22 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public IndexTimeScript getIndexTimeScript() {
-        if (this.scriptValues == null) {
-            return null;
-        }
-        return (lookup, readerContext, parseContext) -> {
-            try {
-                scriptValues.valuesForDoc(lookup, readerContext, 0, value -> indexValue(parseContext, value));
-            } catch (Exception e) {
-                if ("ignore".equals(onScriptError)) {
-                    parseContext.addIgnoredField(name());
-                } else {
-                    throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
-                }
+    public boolean hasIndexTimeScript() {
+        return this.scriptValues != null;
+    }
+
+    @Override
+    public void executeIndexTimeScript(SearchLookup searchLookup, LeafReaderContext readerContext, ParseContext parseContext) {
+        assert this.scriptValues != null;
+        try {
+            this.scriptValues.valuesForDoc(searchLookup, readerContext, 0, value -> indexValue(parseContext, value));
+        } catch (Exception e) {
+            if ("ignore".equals(onScriptError)) {
+                parseContext.addIgnoredField(name());
+            } else {
+                throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
             }
-        };
+        }
     }
 
     @Override

@@ -290,9 +290,8 @@ You can safely specify a pipeline for this integration in one of two ways: an
 
 // tag::create-name-custom-logs-pipeline[]
 . <<create-manage-ingest-pipelines,Create>> and <<test-pipeline,test>> your
-ingest pipeline. Name your pipeline `logs-<dataset-name>-default`. This follows
-{fleet}'s naming convention and makes tracking the pipeline for each integration
-easier.
+ingest pipeline. Name your pipeline `logs-<dataset-name>-default`. This makes
+tracking the pipeline for your integration easier.
 +
 --
 For example, the following request creates a pipeline for the `my-app` dataset.
@@ -332,16 +331,8 @@ PUT _component_template/logs-my_app-settings
 {
   "template": {
     "settings": {
-      "index": {
-        "default_pipeline": "logs-my_app-default",
-        "lifecycle": {
-          "name": "logs"
-        },
-        "codec": "best_compression",
-        "query": {
-          "default_field": ["message"]
-        }
-      }
+      "index.default_pipeline": "logs-my_app-default",
+      "index.lifecycle.name": "logs"
     }
   }
 }

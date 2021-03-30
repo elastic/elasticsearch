@@ -33,7 +33,7 @@ public class URLDecodeProcessorTests extends AbstractStringProcessorTestCase<Str
     }
 
     @Override
-    protected boolean isUnsupportedValue(Object value) {
+    protected boolean isSupportedValue(Object value) {
         // some random strings produced by the randomized test framework contain invalid URL encodings
         if (value instanceof String) {
             return isValidUrlEncodedString((String) value);

@@ -136,14 +136,14 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
             fieldValue = RandomDocumentPicks.randomString(random());
             fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
             ignoreMissing = randomBoolean();
-        } while (isUnsupportedValue(ingestDocument.getFieldValue(fieldName, Object.class, ignoreMissing)) == false);
+        } while (isSupportedValue(ingestDocument.getFieldValue(fieldName, Object.class, ignoreMissing)) == false);
         String targetFieldName = fieldName + "foo";
         Processor processor = newProcessor(fieldName, ignoreMissing, targetFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetFieldName, expectedResultType()), equalTo(expectedResult(fieldValue)));
     }
 
-    protected boolean isUnsupportedValue(Object value) {
+    protected boolean isSupportedValue(Object value) {
         return false;
     }
 }

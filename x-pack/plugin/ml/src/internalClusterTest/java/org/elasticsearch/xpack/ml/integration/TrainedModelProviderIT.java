@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
@@ -148,6 +149,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setEstimatedOperations(config.getEstimatedOperations())
             .setInput(config.getInput())
             .setModelId(config.getModelId())
+            .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setTags(config.getTags())
             .setVersion(config.getVersion())
             .setMetadata(config.getMetadata())
@@ -305,6 +307,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
             .setModelId(modelId)
+            .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setEstimatedHeapMemory(0)

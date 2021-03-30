@@ -32,7 +32,10 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class ResponseCollectorService implements ClusterStateListener {
 
-    private static final double ALPHA = 0.3;
+    /**
+     * The weight parameter used for all moving averages of parameters.
+     */
+    public static final double ALPHA = 0.3;
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
@@ -161,12 +164,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
 
             // EWMA of response time
             double rS = responseTime / FACTOR;
-            // EWMA of service time
-            double muBarS = serviceTime / FACTOR;
+            // EWMA of service time. We match the paper's notation, which
+            // defines service time as the inverse of service rate (muBarS).
+            double muBarSInverse = serviceTime / FACTOR;
 
             // The final formula
-            double rank = rS - (1.0 / muBarS) + (Math.pow(qHatS, queueAdjustmentFactor) / muBarS);
-            return rank;
+            return rS - muBarSInverse + Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
         }
 
         public double rank(long outstandingRequests) {

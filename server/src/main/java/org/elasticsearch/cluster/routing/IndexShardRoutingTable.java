@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -317,7 +318,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                     final ResponseCollectorService.ComputedNodeStats stats = maybeStats.get();
                     final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
                     final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
-                    final long updatedService = (long) (minStats.serviceTime + stats.serviceTime) / 2;
+
+                    ExponentiallyWeightedMovingAverage avgServiceTime = new ExponentiallyWeightedMovingAverage(
+                        ResponseCollectorService.ALPHA, stats.serviceTime);
+                    avgServiceTime.addValue((minStats.serviceTime + stats.serviceTime) / 2);
+                    final long updatedService = (long) avgServiceTime.getAverage();
+
                     collector.addNodeStatistics(nodeId, updatedQueue, updatedResponse, updatedService);
                 }
             }

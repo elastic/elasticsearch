@@ -49,6 +49,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71072")
     public void testMLFeatureReset() throws Exception {
         startRealtime("feature_reset_anomaly_job");
         startDataFrameJob("feature_reset_data_frame_analytics_job");

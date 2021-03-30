@@ -182,6 +182,14 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution. The value depends on the RestApiVersion provided
+     * by a user on a request.
+     * Used in RestHandlers with Compatible Rest Api
+     * @param restApiVersion - a version provided by a user on a request
+     * @return a set of parameters used to control the response, depending on a restApiVersion
+     */
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
         return responseParams();
     }

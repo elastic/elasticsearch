@@ -233,14 +233,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return builder;
     }
 
-    private void addMappings(XContentBuilder builder, MappingMetadata indexMappings) throws IOException {
-        if (indexMappings == null) {
-            builder.startObject("mappings").endObject();
-        } else {
-            builder.field("mappings", indexMappings.sourceAsMap());
-        }
-    }
-
     @Override
     public String toString() {
         return Strings.toString(this);

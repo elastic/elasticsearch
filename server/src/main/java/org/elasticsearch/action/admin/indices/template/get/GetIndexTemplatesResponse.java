@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -20,6 +21,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
@@ -63,9 +66,19 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
 
+        boolean includeTypeName = false;
+        if(builder.getRestApiVersion() == RestApiVersion.V_7) {
+            includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+                DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        }
+
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
-            IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
+            if (includeTypeName) {
+                IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
+            } else {
+                IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);
+            }
         }
         builder.endObject();
         return builder;

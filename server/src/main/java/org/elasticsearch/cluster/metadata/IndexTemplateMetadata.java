@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -378,7 +379,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             indexTemplateMetadata.settings().toXContent(builder, params);
             builder.endObject();
 
-            includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
+            if(builder.getRestApiVersion() != RestApiVersion.V_7) {
+                includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
+            }
 
             CompressedXContent m = indexTemplateMetadata.mappings();
             if (m != null) {

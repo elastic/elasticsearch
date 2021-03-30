@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 archivesBaseName = 'x-pack'
 
@@ -130,3 +131,15 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
+//tasks.named("yamlRestCompatTest").configure {
+//  onlyIf {
+//    // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
+//    OS.current() != OS.WINDOWS
+//  }
+//  systemProperty 'tests.rest.blacklist', []
+//}
+//
+//tasks.named("transformV7RestTests").configure({ task ->
+//  task.replaceMatch("_type", "_doc")
+//  task.addAllowedWarningRegex("\\[types removal\\].*")
+//})

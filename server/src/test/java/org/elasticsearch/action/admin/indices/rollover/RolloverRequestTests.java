@@ -60,7 +60,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_primary_shard_size", "55gb")
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(4));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
@@ -97,7 +97,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .startObject("alias1").endObject()
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
@@ -118,7 +118,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
 
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
 
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings();
@@ -167,7 +167,7 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {

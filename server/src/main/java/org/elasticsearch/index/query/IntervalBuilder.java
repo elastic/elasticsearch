@@ -51,6 +51,11 @@ public class IntervalBuilder {
         }
     }
 
+    /** Create term intervals for the provided term. */
+    protected IntervalsSource termIntervals(BytesRef term) {
+        return termIntervals(term);
+    }
+
     protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered) throws IOException {
 
         TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
@@ -109,7 +114,7 @@ public class IntervalBuilder {
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
         ts.reset();
         ts.incrementToken();
-        return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
+        return termIntervals(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
     protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
@@ -138,7 +143,7 @@ public class IntervalBuilder {
         while (ts.incrementToken()) {
             BytesRef term = bytesAtt.getBytesRef();
             int precedingSpaces = posAtt.getPositionIncrement() - 1;
-            terms.add(extend(Intervals.term(BytesRef.deepCopyOf(term)), precedingSpaces));
+            terms.add(extend(termIntervals(BytesRef.deepCopyOf(term)), precedingSpaces));
         }
         ts.end();
         return terms;
@@ -170,7 +175,7 @@ public class IntervalBuilder {
                 synonyms.clear();
                 spaces = posInc - 1;
             }
-            synonyms.add(Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
+            synonyms.add(termIntervals(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
         }
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));

@@ -1,10 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
-package org.elasticsearch.xpack.matchonlytext.mapper;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
@@ -26,10 +27,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xpack.matchonlytext.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
-import org.elasticsearch.xpack.matchonlytext.query.SourceConfirmedTextQuery;
+import org.elasticsearch.index.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.index.query.SourceConfirmedTextQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;

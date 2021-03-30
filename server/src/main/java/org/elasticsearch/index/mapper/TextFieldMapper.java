@@ -691,7 +691,7 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 return Intervals.prefix(normalizedTerm);
             }
-            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? getTextSearchInfo().getSearchAnalyzer() : analyzer);
+            IntervalBuilder builder = new IntervalBuilder(name(), analyzer);
             return builder.analyzeText(text, maxGaps, ordered);
         }
 

@@ -1,26 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.matchonlytext.mapper;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.intervals.IntervalIterator;
-import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
@@ -29,26 +26,17 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.mapper.TextParams;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SourceConfirmedTextQuery;
+import org.elasticsearch.index.query.SourceIntervalsSource;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xpack.matchonlytext.query.SourceConfirmedTextQuery;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -211,6 +199,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
         }
 
+        private IntervalsSource toIntervalsSource(IntervalsSource source, SearchExecutionContext searchExecutionContext) {
+            return new SourceIntervalsSource(source, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
+        }
+
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             // Disable scoring
@@ -233,24 +225,20 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
                                          NamedAnalyzer analyzer, boolean prefix, SearchExecutionContext context) throws IOException {
-            final IntervalsSource intervalsSource = textFieldType.intervals(text, maxGaps, ordered, analyzer, prefix, context);
-
             if (analyzer == null) {
                 analyzer = getTextSearchInfo().getSearchAnalyzer();
             }
-            Query approximation;
             if (prefix) {
-                approximation = new PrefixQuery(name(), analyzer.normalize(name(), text));
-            } else {
-                BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                try (TokenStream ts = analyzer.tokenStream(name(), text)) {
-                    TermToBytesRefAttribute term = ts.addAttribute(TermToBytesRefAttribute.class);
-                    ts.reset();
-                    while (ts.incrementToken()) {
-                        
-                    }
-                }
+                BytesRef normalizedTerm = analyzer.normalize(name(), text);
+                return toIntervalsSource(Intervals.prefix(normalizedTerm), context);
             }
+            IntervalBuilder builder = new IntervalBuilder(name(), analyzer) {
+                @Override
+                protected IntervalsSource termIntervals(BytesRef term) {
+                    return toIntervalsSource(super.termIntervals(term), context);
+                }
+            };
+            return builder.analyzeText(text, maxGaps, ordered);
         }
 
         @Override

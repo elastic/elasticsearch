@@ -40,7 +40,7 @@ USER()
 *Output*: string
 
 *Description*: Returns the username of the authenticated user executing the query. This function can
-return `null` in case <<elasticsearch-security,security>> is disabled.
+return `null` in case <<configuring-stack-security,security>> is disabled.
 
 [source, sql]
 --------------------------------------------------

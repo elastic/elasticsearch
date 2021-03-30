@@ -17,6 +17,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -102,16 +105,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
     }
 
-    public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
-        @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> field -> field.equals("playlist") == false;
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(FieldFilterPlugin.class, ExceptionOnRewriteQueryPlugin.class);
+        return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class);
     }
 
     public void testFieldAlias() {
@@ -128,13 +124,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", true, true, new String[] {"old_index"}, null, null,
+            new FieldCapabilities("distance", "double", false, true, true, new String[] {"old_index"}, null, null,
                     Collections.emptyMap()),
             distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", true, false, new String[] {"new_index"}, null, null,
+            new FieldCapabilities("distance", "text", false, true, false, new String[] {"new_index"}, null, null,
                     Collections.emptyMap()),
             distance.get("text"));
 
@@ -144,7 +140,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("route_length_miles", "double", false, true, true, null, null, null, Collections.emptyMap()),
             routeLength.get("double"));
     }
 
@@ -185,13 +181,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(oldField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("old_field", "long", true, true, new String[] {"old_index"}, null, null,
+            new FieldCapabilities("old_field", "long", false, true, true, new String[] {"old_index"}, null, null,
                     Collections.emptyMap()),
             oldField.get("long"));
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities("old_field", "unmapped", false, false, new String[] {"new_index"}, null, null,
+            new FieldCapabilities("old_field", "unmapped", false, false, false, new String[] {"new_index"}, null, null,
                     Collections.emptyMap()),
             oldField.get("unmapped"));
 
@@ -200,7 +196,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", false, true, true, null, null, null, Collections.emptyMap()),
             newField.get("long"));
     }
 
@@ -249,6 +245,32 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         newField = response.getField("field1");
         assertEquals(1, newField.size());
         assertTrue(newField.containsKey("keyword"));
+    }
+
+    public void testMetadataFields() {
+        for (int i = 0; i < 2; i++) {
+            String[] fields = i == 0 ? new String[] { "*" } : new String[] { "_id", "_test" };
+            FieldCapabilitiesResponse response = client()
+                .prepareFieldCaps()
+                .setFields(fields)
+                .get();
+
+            Map<String, FieldCapabilities> idField = response.getField("_id");
+            assertEquals(1, idField.size());
+
+            assertTrue(idField.containsKey("_id"));
+            assertEquals(
+                new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
+                idField.get("_id"));
+
+            Map<String, FieldCapabilities> testField = response.getField("_test");
+            assertEquals(1, testField.size());
+
+            assertTrue(testField.containsKey("keyword"));
+            assertEquals(
+                new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
+                testField.get("keyword"));
+        }
     }
 
     public void testWithRunntimeMappings() throws InterruptedException {
@@ -364,5 +386,36 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         public String getWriteableName() {
             return NAME;
         }
+    }
+
+    public static final class TestMapperPlugin extends Plugin implements MapperPlugin {
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Collections.singletonMap(TestMetadataMapper.CONTENT_TYPE, TestMetadataMapper.PARSER);
+        }
+
+        @Override
+        public Function<String, Predicate<String>> getFieldFilter() {
+            return index -> field -> field.equals("playlist") == false;
+        }
+    }
+
+    private static final class TestMetadataMapper extends MetadataFieldMapper {
+        private static final String CONTENT_TYPE = "_test";
+        private static final String FIELD_NAME = "_test";
+
+        protected TestMetadataMapper() {
+            super(new KeywordFieldMapper.KeywordFieldType(FIELD_NAME));
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) throws IOException {}
+
+        @Override
+        protected String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        private static final TypeParser PARSER = new FixedTypeParser(c -> new TestMetadataMapper());
     }
 }

@@ -29,6 +29,8 @@ public class Distribution {
             this.packaging = Packaging.DOCKER;
         } else if (filename.endsWith(".ubi.tar")) {
             this.packaging = Packaging.DOCKER_UBI;
+        } else if (filename.endsWith(".ironbank.tar")) {
+            this.packaging = Packaging.DOCKER_IRON_BANK;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -51,8 +53,17 @@ public class Distribution {
         return packaging == Packaging.RPM || packaging == Packaging.DEB;
     }
 
+    /**
+     * @return whether this distribution is packaged as a Docker image.
+     */
     public boolean isDocker() {
-        return packaging == Packaging.DOCKER || packaging == Packaging.DOCKER_UBI;
+        switch (packaging) {
+            case DOCKER:
+            case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
+                return true;
+        }
+        return false;
     }
 
     public enum Packaging {
@@ -62,7 +73,8 @@ public class Distribution {
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
-        DOCKER_UBI(".ubi.tar", Platforms.isDocker());
+        DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
+        DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

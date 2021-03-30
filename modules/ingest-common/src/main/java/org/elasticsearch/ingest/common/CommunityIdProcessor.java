@@ -178,7 +178,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
                 Object destinationPortValue = d.getFieldValue(destinationPortField, Object.class, ignoreMissing);
                 flow.destinationPort = parseIntFromObjectOrString(destinationPortValue, "destination port");
-                if (flow.destinationPort < 1 || flow.sourcePort > 65535) {
+                if (flow.destinationPort < 1 || flow.destinationPort > 65535) {
                     throw new IllegalArgumentException("invalid destination port [" + destinationPortValue + "]");
                 }
                 break;

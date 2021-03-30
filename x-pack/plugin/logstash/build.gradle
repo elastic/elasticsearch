@@ -19,4 +19,5 @@ dependencies {
 
 testClusters.all {
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }

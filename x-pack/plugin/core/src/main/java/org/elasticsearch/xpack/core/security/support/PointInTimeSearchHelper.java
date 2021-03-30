@@ -101,23 +101,25 @@ public final class PointInTimeSearchHelper {
         // Not using totalHits as it must be interpreted with the relation, and tracking total hits is has cost
         if (hits.length < searchRequest.source().size()) {
             logger.trace("reaching the end of result, total size is [{}]", results.size());
-            listener.onResponse(results);
-            // Intentionally not return here so point in time is closed async
-            closePointInTime(pitId, client);
+            closePointInTime(results, pitId, client, listener);
         } else {
             final Object[] sortValues = hits[hits.length - 1].getSortValues();
             getNextPage(results, pitId, sortValues, client, searchRequest, hitParser, listener);
         }
     }
 
-    private static void closePointInTime(String pitId, Client client) {
+    private static <T> void closePointInTime(List<T> results, String pitId, Client client,
+                                             final ActionListener<Collection<T>> listener) {
         assert client instanceof OriginSettingClient : "client should have a specific origin";
         client.threadPool().executor(ThreadPool.Names.SAME).execute(() -> {
             client.execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId),
                 ActionListener.wrap(response -> {
                     logger.trace("pit [{}] closed", pitId);
+                    listener.onResponse(results);
                 }, e -> {
                     logger.warn(new ParameterizedMessage("failed to close [{}]", pitId), e);
+                    // We still return the results here since failure to close pit is not fatal to the search result
+                    listener.onResponse(results);
                 }));
         });
     }

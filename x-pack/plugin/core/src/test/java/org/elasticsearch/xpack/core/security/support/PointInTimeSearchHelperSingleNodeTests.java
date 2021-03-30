@@ -35,7 +35,7 @@ public class PointInTimeSearchHelperSingleNodeTests extends ESSingleNodeTestCase
             .setFetchSource(true)
             .request();
         if (randomBoolean()) {
-            request.source().sort("_id");
+            request.source().sort("number");
         }
         request.indicesOptions().ignoreUnavailable();
         PlainActionFuture<Collection<Integer>> future = new PlainActionFuture<>();

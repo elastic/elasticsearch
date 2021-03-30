@@ -848,6 +848,7 @@ GET /_search
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
+[[search-aggregations-bucket-composite-aggregation-pipeline-aggregations]]
 ==== Pipeline aggregations
 
 The composite agg is not currently compatible with pipeline aggregations, nor does it make sense in most cases.

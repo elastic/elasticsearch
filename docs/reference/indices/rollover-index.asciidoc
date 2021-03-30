@@ -221,8 +221,9 @@ The following request only rolls over the {target} if the current {index}
 meets one or more of the following conditions:
 
 * The index was created 7 or more days ago.
-* The index has an index size of 5GB or greater.
 * The index contains 1,000 or more documents.
+* The total size of the index's primary shards reach 5GB or greater.
+* The index's largest primary shard reaches of 2GB or greater.
 // end::rollover-conditions-ex[]
 
 [source,console]

@@ -171,9 +171,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
         }
         this.estimatedHeapMemory = estimatedHeapMemory;
-//        if (ExceptionsHelper.requireNonNull(estimatedOperations, ESTIMATED_OPERATIONS) < 0) {
-//            throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
-//        }
+        if (ExceptionsHelper.requireNonNull(estimatedOperations, ESTIMATED_OPERATIONS) < 0) {
+            throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
+        }
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
@@ -462,7 +462,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return modelType;
         }
 
-        public Builder setModelType(String modelType) {
+        private Builder setModelType(String modelType) {
             this.modelType = TrainedModelType.fromString(modelType);
             return this;
         }

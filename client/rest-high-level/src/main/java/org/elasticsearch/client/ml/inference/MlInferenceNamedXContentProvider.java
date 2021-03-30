@@ -21,6 +21,7 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggrega
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
+import org.elasticsearch.client.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
@@ -59,6 +60,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class,
             new ParseField(LangIdentNeuralNetwork.NAME),
             LangIdentNeuralNetwork::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class,
+            new ParseField(PyTorchModel.NAME),
+            PyTorchModel::fromXContent));
 
         // Inference Config
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class,

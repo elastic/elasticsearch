@@ -138,7 +138,7 @@ public class PyTorchModel implements LenientlyParsedTrainedModel, StrictlyParsed
         return Objects.hash(modelId, targetType);
     }
 
-    public static class Builder {
+    private static class Builder {
 
         private String modelId;
         private TargetType targetType;
@@ -148,12 +148,14 @@ public class PyTorchModel implements LenientlyParsedTrainedModel, StrictlyParsed
             return this;
         }
 
-        public void setTargetType(TargetType targetType) {
+        public Builder setTargetType(TargetType targetType) {
             this.targetType = targetType;
+            return this;
         }
 
-        public void setTargetType(String targetType) {
+        public Builder setTargetType(String targetType) {
             this.targetType = TargetType.fromString(targetType);
+            return this;
         }
 
         PyTorchModel build() {

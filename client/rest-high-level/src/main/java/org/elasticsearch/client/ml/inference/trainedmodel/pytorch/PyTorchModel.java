@@ -22,32 +22,21 @@ import java.util.Objects;
 
 public class PyTorchModel implements TrainedModel {
 
-    public static final ParseField NAME = new ParseField("pytorch");
+    public static final String NAME = "pytorch";
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
-    private static final ObjectParser<PyTorchModel.Builder, Void> LENIENT_PARSER = createParser(true);
-    private static final ObjectParser<PyTorchModel.Builder, Void> STRICT_PARSER = createParser(false);
-
-    private static ObjectParser<PyTorchModel.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<PyTorchModel.Builder, Void> parser = new ObjectParser<>(
-            NAME.getPreferredName(),
-            lenient,
+    private static ObjectParser<PyTorchModel.Builder, Void> PARSER = new ObjectParser<>(
+            NAME,
+            true,
             PyTorchModel.Builder::new);
-        parser.declareString(PyTorchModel.Builder::setModelId, MODEL_ID);
-        parser.declareString(PyTorchModel.Builder::setTargetType, TargetType.TARGET_TYPE);
-        return parser;
+
+    static {
+        PARSER.declareString(PyTorchModel.Builder::setModelId, MODEL_ID);
+        PARSER.declareString(PyTorchModel.Builder::setTargetType, TargetType.TARGET_TYPE);
     }
 
-    public static PyTorchModel fromXContent(XContentParser parser, boolean lenient) {
-        return lenient ? fromXContentLenient(parser) : fromXContentStrict(parser);
-    }
-
-    public static PyTorchModel fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null).build();
-    }
-
-    public static PyTorchModel fromXContentLenient(XContentParser parser) {
-        return LENIENT_PARSER.apply(parser, null).build();
+    public static PyTorchModel fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null).build();
     }
 
     private final String modelId;
@@ -73,7 +62,7 @@ public class PyTorchModel implements TrainedModel {
 
     @Override
     public String getName() {
-        return NAME.getPreferredName();
+        return NAME;
     }
 
     @Override
@@ -113,12 +102,15 @@ public class PyTorchModel implements TrainedModel {
             return this;
         }
 
-        public void setTargetType(TargetType targetType) {
+        public Builder setTargetType(TargetType targetType) {
             this.targetType = targetType;
+            return this;
+
         }
 
-        public void setTargetType(String targetType) {
+        private Builder setTargetType(String targetType) {
             this.targetType = TargetType.fromString(targetType);
+            return this;
         }
 
         PyTorchModel build() {

@@ -93,8 +93,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         TrainedModelType trainedModelType =
             TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
         if (trainedModelType == null) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Unknown trained model definition class [" +
-                config.getModelDefinition().getTrainedModel().getName() + "]"));
+            listener.onFailure(ExceptionsHelper.badRequestException("Unknown trained model definition class [{}]",
+                config.getModelDefinition().getTrainedModel().getName()));
             return;
         }
 
@@ -103,8 +103,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
         } else if (trainedModelType != config.getModelType()) {
             listener.onFailure(ExceptionsHelper.badRequestException(
-                TrainedModelConfig.MODEL_TYPE.getPreferredName() + "[" + config.getModelType() +
-                    "] does not match the model definition type [" + trainedModelType + "]"));
+                 "{} [{}] does not match the model definition type [{}]",
+                TrainedModelConfig.MODEL_TYPE.getPreferredName(), config.getModelType(),
+                trainedModelType));
             return;
         }
 

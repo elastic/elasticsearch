@@ -22,6 +22,7 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -42,6 +43,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -548,19 +550,40 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
-            assertTrue(wildcardFieldQuery instanceof BooleanQuery);
+            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BooleanQuery);
         }
 
         // TODO All these expressions have no acceleration at all and could be improved
         String slowPatterns[] = { "??" };
         for (String pattern : slowPatterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
+            wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
             assertTrue(
                 pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
                 wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv
             );
         }
 
+    }
+    
+    public void testQueryCachingEquality() throws IOException, ParseException {
+        String pattern = "A*b*B?a";
+        // Case sensitivity matters when it comes to caching
+        Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern));
+        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(
+            new Term("field", pattern),
+            Integer.MAX_VALUE
+        );
+        AutomatonQueryOnBinaryDv csQ = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton);
+        AutomatonQueryOnBinaryDv ciQ = new AutomatonQueryOnBinaryDv("field", pattern, caseInSensitiveAutomaton);
+        assertNotEquals(csQ, ciQ);
+        assertNotEquals(csQ.hashCode(), ciQ.hashCode());
+
+        // Same query should be equal
+        Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
+        AutomatonQueryOnBinaryDv csQ2 = new AutomatonQueryOnBinaryDv("field", pattern, caseSensitiveAutomaton2);
+        assertEquals(csQ, csQ2);
+        assertEquals(csQ.hashCode(), csQ2.hashCode());
     }
 
     @Override
@@ -719,8 +742,18 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
         testExpectedAccelerationQuery(regex, combinedQuery, expectedAccelerationQuery);
     }
+    
+    private Query unwrapAnyConstantScore(Query q) {
+        if (q instanceof ConstantScoreQuery) {
+            ConstantScoreQuery csq = (ConstantScoreQuery) q;
+            return csq.getQuery();
+        } else {
+            return q;
+        }
+    }
+
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException {
-        BooleanQuery cq = (BooleanQuery) combinedQuery;
+        BooleanQuery cq = (BooleanQuery) unwrapAnyConstantScore(combinedQuery);
         assert cq.clauses().size() == 2;
         Query approximationQuery = null;
         boolean verifyQueryFound = false;

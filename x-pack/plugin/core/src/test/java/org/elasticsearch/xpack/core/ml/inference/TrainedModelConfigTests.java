@@ -61,6 +61,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setCreateTime(Instant.ofEpochMilli(randomLongBetween(Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond())))
             .setVersion(Version.CURRENT)
             .setModelId(modelId)
+            .setModelType(randomFrom(TrainedModelType.values()))
             .setCreatedBy(randomAlphaOfLength(10))
             .setDescription(randomBoolean() ? null : randomAlphaOfLength(100))
             .setEstimatedHeapMemory(randomNonNegativeLong())
@@ -134,6 +135,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
+            TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
@@ -174,6 +176,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
+            TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),
@@ -327,6 +330,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
         if (version.before(Version.V_7_8_0)) {
             builder.setInferenceConfig(null);
+        }
+        if (version.before(TrainedModelConfig.VERSION_MODEL_TYPE_ADDED)) {
+            builder.setModelType((TrainedModelType)null);
         }
         return builder.build();
     }

@@ -1,7 +1,7 @@
 [[targz]]
 === Install Elasticsearch from archive on Linux or MacOS
 
-Elasticsearch is as a `.tar.gz` archive for Linux and MacOS. 
+Elasticsearch is as a `.tar.gz` archive for Linux and MacOS.
 
 include::license.asciidoc[]
 
@@ -39,10 +39,6 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}-linux-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-Alternatively, you can download the following package, which includes only 
-Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-linux-x86_64.tar.gz
-
 endif::[]
 
 [[install-macos]]
@@ -69,10 +65,6 @@ cd elasticsearch-{version}/ <2>
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `elasticsearch-{version}-darwin-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
-
-Alternatively, you can download the following package, which includes only 
-Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-darwin-x86_64.tar.gz
 
 endif::[]
 

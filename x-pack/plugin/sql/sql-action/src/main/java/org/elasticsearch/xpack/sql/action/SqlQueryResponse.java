@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -11,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
@@ -86,7 +87,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(Version.CURRENT.id);
+        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(CURRENT.id);
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -111,7 +112,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public List<ColumnInfo> columns() {
         return columns;
     }
-    
+
     public boolean columnar() {
         return columnar;
     }
@@ -171,7 +172,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
                 builder.endArray();
             }
-            
+
             if (columnar) {
                 // columns can be specified (for the first REST request for example), or not (on a paginated/cursor based request)
                 // if the columns are missing, we take the first rows' size as the number of columns
@@ -215,7 +216,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(sqlVersion)) {
+            if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
                 builder.value(StringUtils.toString(zdt));
@@ -236,7 +237,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         String name = in.readString();
         String esType = in.readString();
         Integer displaySize = in.readOptionalVInt();
-            
+
         return new ColumnInfo(table, name, esType, displaySize);
     }
 

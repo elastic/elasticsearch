@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -129,10 +130,10 @@ class ToCharFormatter {
         }
         FORMATTER_MAP = formatterMap;
     }
-    
+
     private static final int MAX_TO_CHAR_FORMAT_STRING_LENGTH =
         FORMATTER_MAP.keySet().stream().mapToInt(String::length).max().orElse(Integer.MAX_VALUE);
-    
+
     private static final String[] ROMAN_NUMBERS = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"};
 
     private final String pattern;
@@ -187,11 +188,11 @@ class ToCharFormatter {
         while (toCharPattern.isEmpty() == false) {
             ToCharFormatter formatter = null;
             boolean fillModeModifierActive = false;
-            
+
             // we try to match the following: ( fill-modifier? ( ( pattern ordinal-suffix-modifier? ) | literal-non-pattern ) ) *
             // and extract the individual patterns with the fill-modifiers and ordinal-suffix-modifiers or
             // the non-matched literals (removing the potential fill modifiers specified for them, FMFM turns into FM)
-            
+
             // check for fill-modifier first
             if (toCharPattern.startsWith("FM") || toCharPattern.startsWith("fm")) {
                 // try to apply the fill mode modifier to the next formatter
@@ -212,7 +213,7 @@ class ToCharFormatter {
                     break;
                 }
             }
-            
+
             if (formatter == null) {
                 // the fill mode modifier is dropped in case of literals
                 formatter = literal(toCharPattern.substring(0, 1));
@@ -227,7 +228,7 @@ class ToCharFormatter {
                     toCharPattern = toCharPattern.substring(2);
                 }
             }
-            
+
             formatters.addLast(formatter);
         }
         return formatters;
@@ -348,7 +349,7 @@ class ToCharFormatter {
             this.formatFn = formatFn;
             return this;
         }
-        
+
         public ToCharFormatter numeric() {
             return build(number -> String.valueOf(parseInt(number)), true);
         }
@@ -360,7 +361,7 @@ class ToCharFormatter {
         public ToCharFormatter text() {
             return build(paddedText -> paddedText.replaceAll(" +$", ""), false);
         }
-        
+
         public ToCharFormatter offset() {
             return build(ToCharFormatter::removeLeadingZerosFromOffset, false);
         }

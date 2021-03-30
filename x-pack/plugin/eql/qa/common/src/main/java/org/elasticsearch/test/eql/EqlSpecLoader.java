@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.test.eql;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 public class EqlSpecLoader {
+
     public static List<EqlSpec> load(String path, boolean supported, Set<String> uniqueTestNames) throws Exception {
         try (InputStream is = EqlSpecLoader.class.getResourceAsStream(path)) {
             if (is == null) {
@@ -27,8 +29,7 @@ public class EqlSpecLoader {
         }
     }
 
-    private static void validateAndAddSpec(List<EqlSpec> specs, EqlSpec spec, boolean supported,
-        Set<String> uniqueTestNames) throws Exception {
+    private static void validateAndAddSpec(List<EqlSpec> specs, EqlSpec spec, boolean supported, Set<String> uniqueTestNames) {
         if (Strings.isNullOrEmpty(spec.name())) {
             throw new IllegalArgumentException("Read a test without a name value");
         }
@@ -75,7 +76,7 @@ public class EqlSpecLoader {
 
             List<?> arr = table.getList("tags");
             if (arr != null) {
-                String tags[] = new String[arr.size()];
+                String[] tags = new String[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     tags[i] = (String) obj;
@@ -85,7 +86,7 @@ public class EqlSpecLoader {
 
             arr = table.getList("expected_event_ids");
             if (arr != null) {
-                long expectedEventIds[] = new long[arr.size()];
+                long[] expectedEventIds = new long[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     expectedEventIds[i++] = (Long) obj;

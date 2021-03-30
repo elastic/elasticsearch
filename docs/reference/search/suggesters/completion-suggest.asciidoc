@@ -1,11 +1,6 @@
 [[completion-suggester]]
 ==== Completion Suggester
 
-NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first. For more flexible
-search-as-you-type searches that do not use suggesters, see the
-<<search-as-you-type,`search_as_you_type` field type>>.
-
 The `completion` suggester provides auto-complete/search-as-you-type
 functionality. This is a navigational feature to guide users to
 relevant results as they are typing, improving search precision.

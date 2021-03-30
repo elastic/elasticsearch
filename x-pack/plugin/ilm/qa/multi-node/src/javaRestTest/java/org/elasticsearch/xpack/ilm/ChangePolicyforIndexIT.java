@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -57,12 +58,12 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         String indexName = "test-000001";
         // create policy_1 and policy_2
         Map<String, Phase> phases1 = new HashMap<>();
-        phases1.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, 1L))));
+        phases1.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L))));
         phases1.put("warm", new Phase("warm", TimeValue.ZERO,
                 singletonMap(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "foobarbaz"), null, null))));
         LifecyclePolicy lifecyclePolicy1 = new LifecyclePolicy("policy_1", phases1);
         Map<String, Phase> phases2 = new HashMap<>();
-        phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, 1000L))));
+        phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L))));
         phases2.put("warm", new Phase("warm", TimeValue.ZERO,
                 singletonMap(AllocateAction.NAME,
                     new AllocateAction(1, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),

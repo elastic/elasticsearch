@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform;
@@ -9,11 +10,14 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -109,6 +113,7 @@ import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformA
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
@@ -118,6 +123,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
 
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
@@ -142,12 +149,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    /**
-     * Node attributes for transform, automatically created and retrievable via cluster state.
-     * These attributes should never be set directly, use the node setting counter parts instead.
-     */
-    public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
 
     /**
      * Setting whether transform (the coordinator task) can run on this node.
@@ -290,14 +291,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             try {
-                templates.put(
-                    TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetadata()
-                );
-            } catch (IOException e) {
-                logger.error("Error creating transform index template", e);
-            }
-            try {
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
@@ -335,23 +328,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Settings additionalSettings() {
-        String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
-
-        if (settings.get(transformEnabledNodeAttribute) != null) {
-            throw new IllegalArgumentException(
-                "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
-            );
-        }
-
-        Settings.Builder additionalSettings = Settings.builder();
-
-        additionalSettings.put(transformEnabledNodeAttribute, DiscoveryNode.hasRole(settings, Transform.TRANSFORM_ROLE));
-
-        return additionalSettings.build();
-    }
-
-    @Override
     public Set<DiscoveryNodeRole> getRoles() {
         return Collections.singleton(TRANSFORM_ROLE);
     }
@@ -370,8 +346,53 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
-        );
+        try {
+            return Collections.singletonList(TransformInternalIndex.getSystemIndexDescriptor());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override public Collection<String> getAssociatedIndexPatterns() {
+        return List.of(AUDIT_INDEX_PATTERN);
+    }
+
+    @Override
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
+    ) {
+        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
+            if (stopTransformsResponse.isAcknowledged()
+                && stopTransformsResponse.getTaskFailures().isEmpty()
+                && stopTransformsResponse.getNodeFailures().isEmpty()) {
+
+                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+            } else {
+                String errMsg = "Failed to reset Transform: "
+                    + (stopTransformsResponse.isAcknowledged() ? "" : "not acknowledged ")
+                    + (stopTransformsResponse.getNodeFailures().isEmpty()
+                        ? ""
+                        : "node failures: " + stopTransformsResponse.getNodeFailures() + " ")
+                    + (stopTransformsResponse.getTaskFailures().isEmpty()
+                        ? ""
+                        : "task failures: " + stopTransformsResponse.getTaskFailures());
+                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(this.getFeatureName(), errMsg));
+            }
+        }, listener::onFailure);
+
+        StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(Metadata.ALL, true, true, null, true, false);
+        client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "transform";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration and state for transforms";
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate;
 
@@ -113,7 +114,7 @@ public class Range extends ScalarFunction {
     private boolean areBoundariesInvalid() {
         Integer compare = BinaryComparison.compare(lower.fold(), upper.fold());
         // upper < lower OR upper == lower and the range doesn't contain any equals
-        return compare != null && (compare > 0 || (compare == 0 && (!includeLower || !includeUpper)));
+        return compare != null && (compare > 0 || (compare == 0 && (includeLower == false || includeUpper == false)));
     }
 
     @Override
@@ -131,7 +132,7 @@ public class Range extends ScalarFunction {
         ScriptTemplate valueScript = asScript(value);
         ScriptTemplate lowerScript = asScript(lower);
         ScriptTemplate upperScript = asScript(upper);
-        
+
 
         String template = formatTemplate(format(Locale.ROOT, "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
                         includeLower() ? "gte" : "gt",

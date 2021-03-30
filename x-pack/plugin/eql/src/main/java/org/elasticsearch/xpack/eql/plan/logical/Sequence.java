@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.plan.logical;
@@ -22,23 +23,23 @@ public class Sequence extends Join {
 
     private final TimeValue maxSpan;
 
-    public Sequence(Source source, 
-                    List<KeyedFilter> queries, 
-                    KeyedFilter until, 
-                    TimeValue maxSpan, 
+    public Sequence(Source source,
+                    List<KeyedFilter> queries,
+                    KeyedFilter until,
+                    TimeValue maxSpan,
                     Attribute timestamp,
-                    Attribute tiebreaker, 
+                    Attribute tiebreaker,
                     OrderDirection direction) {
         super(source, queries, until, timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }
 
-    private Sequence(Source source, 
-                     List<LogicalPlan> queries, 
-                     LogicalPlan until, 
-                     TimeValue maxSpan, 
+    private Sequence(Source source,
+                     List<LogicalPlan> queries,
+                     LogicalPlan until,
+                     TimeValue maxSpan,
                      Attribute timestamp,
-                     Attribute tiebreaker, 
+                     Attribute tiebreaker,
                      OrderDirection direction) {
         super(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;

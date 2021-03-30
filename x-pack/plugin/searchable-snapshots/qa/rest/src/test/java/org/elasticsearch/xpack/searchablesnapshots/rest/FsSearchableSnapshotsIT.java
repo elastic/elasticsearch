@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
@@ -12,12 +13,12 @@ import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRe
 public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return FsRepository.TYPE;
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
     }
 }

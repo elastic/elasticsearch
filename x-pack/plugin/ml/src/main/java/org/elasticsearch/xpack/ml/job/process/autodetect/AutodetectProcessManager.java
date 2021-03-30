@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -520,6 +521,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
                         logger.debug("Aborted opening job [{}] as it has been closed", job.getId());
                         return;
                     }
+                    // We check again after the process state is locked to ensure no race conditions are hit.
+                    if (processContext.getJobTask().isClosing()) {
+                        logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                        jobTask.markAsCompleted();
+                        return;
+                    }
 
                     try {
                         if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
@@ -574,6 +581,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
             if (processContext.getState() != ProcessContext.ProcessStateName.NOT_RUNNING) {
                 logger.debug("Cannot open job [{}] when its state is [{}]",
                     job.getId(), processContext.getState().getClass().getName());
+                return false;
+            }
+            if (processContext.getJobTask().isClosing()) {
+                logger.debug("Cannot open job [{}] as it is closing", job.getId());
+                processContext.getJobTask().markAsCompleted();
                 return false;
             }
             AutodetectCommunicator communicator = create(processContext.getJobTask(), job, params, handler);
@@ -713,7 +725,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         // it is reachable to enable killing a job while it is closing
         ProcessContext processContext = processByAllocation.get(allocationId);
         if (processContext == null) {
-            logger.debug("Cannot close job [{}] as it has already been closed", jobId);
+            logger.debug("Cannot close job [{}] as it has already been closed or is closing", jobId);
             return;
         }
 

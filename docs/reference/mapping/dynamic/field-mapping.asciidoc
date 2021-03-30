@@ -36,7 +36,7 @@ You can disable dynamic mapping, both at the document and at the
 `false` ignores new fields, and `strict` rejects the document if {es}
 encounters an unknown field.
 
-TIP: Use the <<indices-put-mapping,PUT mapping API>> to update the `dynamic`
+TIP: Use the <<indices-put-mapping,update mapping API>> to update the `dynamic`
 setting on existing fields.
 
 You can customize dynamic field mapping rules for

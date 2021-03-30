@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -107,14 +108,13 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             return false;
         }
         final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
-        if (expiration == null) {
-            if (other.expiration != null)
-                return false;
-        } else if (!Objects.equals(expiration, other.expiration))
+        if (expiration == null && other.expiration != null) {
             return false;
-        return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(name, other.name);
+        }
+        return Objects.equals(expiration, other.expiration)
+            && Objects.equals(id, other.id)
+            && Objects.equals(key, other.key)
+            && Objects.equals(name, other.name);
     }
 
     @Override

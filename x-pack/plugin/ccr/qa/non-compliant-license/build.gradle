@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa:')
 }

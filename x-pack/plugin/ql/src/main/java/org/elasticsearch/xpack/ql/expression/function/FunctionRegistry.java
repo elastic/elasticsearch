@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function;
 
@@ -314,7 +315,7 @@ public class FunctionRegistry {
             boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumOne && children.size() < 1) {
                 throw new QlIllegalArgumentException("expects at least one argument");
-            } else if (!hasMinimumOne && children.size() < 2) {
+            } else if (hasMinimumOne == false && children.size() < 2) {
                 throw new QlIllegalArgumentException("expects at least two arguments");
             }
             return ctorRef.build(source, children.get(0), children.subList(1, children.size()));
@@ -394,7 +395,7 @@ public class FunctionRegistry {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
-            } else if (!hasMinimumTwo && children.size() != 3) {
+            } else if (hasMinimumTwo == false && children.size() != 3) {
                 throw new QlIllegalArgumentException("expects exactly three arguments");
             }
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);

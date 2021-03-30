@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.graph;
 
@@ -21,7 +22,7 @@ import java.util.Set;
  * A request to identify terms from a choice of field as part of a {@link Hop}.
  * Optionally, a set of terms can be provided that are used as an exclusion or
  * inclusion list to filter which terms are considered.
- * 
+ *
  */
 public class VertexRequest implements ToXContentObject {
     private String fieldName;
@@ -34,7 +35,7 @@ public class VertexRequest implements ToXContentObject {
     public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
     private int shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
 
-   
+
     public VertexRequest() {
 
     }
@@ -136,9 +137,9 @@ public class VertexRequest implements ToXContentObject {
     /**
      * Adds a term to the set of allowed values - the boost defines the relative
      * importance when pursuing connections in subsequent {@link Hop}s. The boost value
-     * appears as part of the query. 
+     * appears as part of the query.
      * @param term a required term
-     * @param boost an optional boost 
+     * @param boost an optional boost
      */
     public void addInclude(String term, float boost) {
         if (excludes != null) {
@@ -174,8 +175,8 @@ public class VertexRequest implements ToXContentObject {
     /**
      * A "certainty" threshold which defines the weight-of-evidence required before
      * a term found in this field is identified as a useful connection
-     * 
-     * @param value The minimum number of documents that contain this term found in the samples used across all shards 
+     *
+     * @param value The minimum number of documents that contain this term found in the samples used across all shards
      */
     public VertexRequest minDocCount(int value) {
         minDocCount = value;
@@ -190,8 +191,8 @@ public class VertexRequest implements ToXContentObject {
     /**
      * A "certainty" threshold which defines the weight-of-evidence required before
      * a term found in this field is identified as a useful connection
-     * 
-     * @param value The minimum number of documents that contain this term found in the samples used across all shards 
+     *
+     * @param value The minimum number of documents that contain this term found in the samples used across all shards
      */
     public VertexRequest shardMinDocCount(int value) {
         shardMinDocCount = value;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.task;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -112,7 +114,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             return AWAITING_MIGRATION;
         }
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }
@@ -194,13 +196,27 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         jobTask.setAutodetectProcessManager(autodetectProcessManager);
         JobTaskState jobTaskState = (JobTaskState) state;
         JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
-        jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
-            r -> runJob(jobTask, jobState, params),
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            mappingsUpdate -> jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
+                r -> runJob(jobTask, jobState, params),
+                e -> {
+                    logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
+                    runJob(jobTask, jobState, params);
+                }
+            )),
             e -> {
-                logger.warn(new ParameterizedMessage("[{}] failed to set forecasts to failed", params.getJobId()), e);
-                runJob(jobTask, jobState, params);
+                logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
+                jobTask.markAsFailed(e);
             }
-        ));
+        );
+        // We need to update the results index as we MAY update the current forecast results, setting the running forcasts to failed
+        // This writes to the results index, which might need updating
+        ElasticsearchMappings.addDocMappingIfMissing(
+            AnomalyDetectorsIndex.jobResultsAliasedName(params.getJobId()),
+            AnomalyDetectorsIndex::resultsMapping,
+            client,
+            clusterState,
+            resultsMappingUpdateHandler);
     }
 
     private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params) {

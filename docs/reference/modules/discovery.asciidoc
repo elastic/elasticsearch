@@ -3,8 +3,7 @@
 
 The discovery and cluster formation processes are responsible for discovering
 nodes, electing a master, forming a cluster, and publishing the cluster state
-each time it changes. All communication between nodes is done using the
-<<modules-transport,transport>> layer.
+each time it changes.
 
 The following processes and settings are part of discovery and cluster
 formation:

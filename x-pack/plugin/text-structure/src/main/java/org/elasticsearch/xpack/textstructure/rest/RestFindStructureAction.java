@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,12 +31,9 @@ public class RestFindStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return Collections.singletonList(new ReplacedRoute(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure"));
+        return List.of(
+            Route.builder(POST, BASE_PATH + "find_structure").replaces(POST, "/_ml/find_file_structure", RestApiVersion.V_8).build()
+        );
     }
 
     @Override

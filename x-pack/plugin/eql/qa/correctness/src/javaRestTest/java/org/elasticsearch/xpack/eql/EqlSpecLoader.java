@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql;
@@ -50,7 +51,7 @@ public class EqlSpecLoader {
             spec.seqCount(table.getLong("count"));
             List<?> arr = table.getList("expected_event_ids");
             if (arr != null) {
-                long expectedEventIds[] = new long[arr.size()];
+                long[] expectedEventIds = new long[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     expectedEventIds[i++] = (Long) obj;
@@ -60,7 +61,7 @@ public class EqlSpecLoader {
 
             arr = table.getList("filter_counts");
             if (arr != null) {
-                long filterCounts[] = new long[arr.size()];
+                long[] filterCounts = new long[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     filterCounts[i++] = (Long) obj;
@@ -70,7 +71,7 @@ public class EqlSpecLoader {
 
             arr = table.getList("filters");
             if (arr != null) {
-                String filters[] = new String[arr.size()];
+                String[] filters = new String[arr.size()];
                 int i = 0;
                 for (Object obj : arr) {
                     filters[i++] = (String) obj;

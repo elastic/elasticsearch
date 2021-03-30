@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -31,11 +33,13 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
 
+    public static final Version EQL_GA_VERSION = Version.V_7_10_0;
+
     private EqlTestUtils() {
     }
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null,
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, null, TimeValue.timeValueSeconds(30), null,
             123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
@@ -43,6 +47,7 @@ public final class EqlTestUtils {
             randomZone(),
             randomAlphaOfLength(16),
             randomAlphaOfLength(16),
+            null,
             null,
             new TimeValue(randomNonNegativeLong()),
             randomIndicesOptions(),
@@ -69,5 +74,4 @@ public final class EqlTestUtils {
         return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
     }
-
 }

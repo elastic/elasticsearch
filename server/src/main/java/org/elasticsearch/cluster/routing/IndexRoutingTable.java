@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -46,6 +35,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -64,6 +54,11 @@ import java.util.Set;
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
+    private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
+        ShardRouting::unassigned,
+        ShardRouting::initializing,
+        shardRouting -> true
+    );
     private final Index index;
     private final ShardShuffler shuffler;
 
@@ -468,20 +463,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 for (ShardRouting shardRouting : indexShard) {
                     builder.addShard(shardRouting);
                 }
-                // first check if there is one that is not assigned to a node, and remove it
+
                 boolean removed = false;
-                for (ShardRouting shardRouting : indexShard) {
-                    if (shardRouting.primary() == false && shardRouting.assignedToNode() == false) {
-                        builder.removeShard(shardRouting);
-                        removed = true;
-                        break;
-                    }
-                }
-                if (removed == false) {
-                    for (ShardRouting shardRouting : indexShard) {
-                        if (shardRouting.primary() == false) {
-                            builder.removeShard(shardRouting);
-                            break;
+                for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
+                    if (removed == false) {
+                        for (ShardRouting shardRouting : indexShard) {
+                            if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
+                                builder.removeShard(shardRouting);
+                                removed = true;
+                                break;
+                            }
                         }
                     }
                 }

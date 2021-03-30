@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -72,7 +61,6 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private boolean eagerGlobalOrdinals;
 
     public MappedFieldType(String name, boolean isIndexed, boolean isStored,
                            boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
@@ -81,7 +69,7 @@ public abstract class MappedFieldType {
         this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
-        this.meta = meta;
+        this.meta = Objects.requireNonNull(meta);
     }
 
     /**
@@ -342,12 +330,11 @@ public abstract class MappedFieldType {
         }
     }
 
+    /**
+     * @return if this field type should load global ordinals eagerly
+     */
     public boolean eagerGlobalOrdinals() {
-        return eagerGlobalOrdinals;
-    }
-
-    public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+        return false;
     }
 
     /** Return a {@link DocValueFormat} that can be used to display and parse

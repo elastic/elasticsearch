@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -323,10 +324,16 @@ public class AnalyticsProcessManager {
             processContext.process.get().close();
             LOGGER.info("[{}] Closed process", configId);
         } catch (Exception e) {
-            LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
-            String errorMsg = new ParameterizedMessage(
-                "[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage()).getFormattedMessage();
-            processContext.setFailureReason(errorMsg);
+            if (task.isStopping()) {
+                LOGGER.debug(() -> new ParameterizedMessage(
+                    "[{}] Process closing was interrupted by kill request due to the task being stopped", configId), e);
+                LOGGER.info("[{}] Closed process", configId);
+            } else {
+                LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
+                String errorMsg = new ParameterizedMessage(
+                    "[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage()).getFormattedMessage();
+                processContext.setFailureReason(errorMsg);
+            }
         }
     }
 

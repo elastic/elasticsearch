@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function;
 
@@ -76,7 +77,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
                 randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs),
                 uf.analyzed(), uf.unresolvedMessage()),
             () -> new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-                !uf.analyzed(), uf.unresolvedMessage()),
+                uf.analyzed() == false, uf.unresolvedMessage()),
             () -> new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
                 uf.analyzed(), randomValueOtherThan(uf.unresolvedMessage(), () -> randomAlphaOfLength(5)))
         ));
@@ -108,8 +109,8 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
             uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.unresolvedMessage()) ? newUnresolvedMessage : p));
 
         assertEquals(new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-                !uf.analyzed(), uf.unresolvedMessage()),
-            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? !uf.analyzed() : p));
+                uf.analyzed() == false, uf.unresolvedMessage()),
+            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? uf.analyzed() == false : p));
 
     }
 

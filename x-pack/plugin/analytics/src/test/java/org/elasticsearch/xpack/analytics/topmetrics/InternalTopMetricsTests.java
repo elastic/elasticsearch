@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.topmetrics;
@@ -250,7 +251,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         return createTestInstance(name, metadata, InternalAggregationTestCase::randomNumericDocValueFormat);
     }
 
-    private InternalTopMetrics createTestInstance(String name, 
+    private InternalTopMetrics createTestInstance(String name,
             Map<String, Object> metadata, Supplier<DocValueFormat> randomDocValueFormat) {
         int metricCount = between(1, 5);
         List<String> metricNames = randomMetricNames(metricCount);

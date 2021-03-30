@@ -1,31 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
+import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
+    /**
+     * Tests the various validation rules that are applied when creating a new system index descriptor.
+     */
     public void testValidation() {
         {
             Exception ex = expectThrows(NullPointerException.class,
@@ -85,5 +82,36 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                 equalTo("system primary index provided as [" + primaryIndex + "] but cannot contain special characters or patterns")
             );
         }
+    }
+
+    /**
+     * Check that a system index descriptor correctly identifies the presence of a dynamic mapping when once is present.
+     */
+    public void testFindDynamicMappingsWithDynamicMapping() {
+        String json = "{"
+            + "  \"foo\": {"
+            + "    \"bar\": {"
+            + "      \"dynamic\": false"
+            + "    },"
+            + "    \"baz\": {"
+            + "      \"dynamic\": true"
+            + "    }"
+            + "  }"
+            + "}";
+
+        final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+
+        assertThat(findDynamicMapping(mappings), equalTo(true));
+    }
+
+    /**
+     * Check that a system index descriptor correctly identifies the absence of a dynamic mapping when none are present.
+     */
+    public void testFindDynamicMappingsWithoutDynamicMapping() {
+        String json = "{ \"foo\": { \"bar\": { \"dynamic\": false } } }";
+
+        final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+
+        assertThat(findDynamicMapping(mappings), equalTo(false));
     }
 }

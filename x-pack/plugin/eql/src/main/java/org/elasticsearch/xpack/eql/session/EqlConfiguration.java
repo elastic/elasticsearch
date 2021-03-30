@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.session;
@@ -11,10 +12,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
+import java.util.List;
 
 public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
@@ -28,14 +31,17 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     @Nullable
     private final QueryBuilder filter;
+    @Nullable
+    private final List<FieldAndFormat> fetchFields;
 
-    public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter, TimeValue requestTimeout,
-                            IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId,
-                            EqlSearchTask task) {
+    public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
+                            List<FieldAndFormat> fetchFields, TimeValue requestTimeout, IndicesOptions indicesOptions, int fetchSize,
+                            String clientId, TaskId taskId, EqlSearchTask task) {
         super(zi, username, clusterName);
 
         this.indices = indices;
         this.filter = filter;
+        this.fetchFields = fetchFields;
         this.requestTimeout = requestTimeout;
         this.clientId = clientId;
         this.indicesOptions = indicesOptions;
@@ -62,6 +68,10 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public QueryBuilder filter() {
         return filter;
+    }
+
+    public List<FieldAndFormat> fetchFields() {
+        return fetchFields;
     }
 
     public String clientId() {

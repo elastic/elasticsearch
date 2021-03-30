@@ -47,7 +47,6 @@ PUT _index_template/template_1
 [source,console]
 --------------------------------------------------
 DELETE _index_template/*
-DELETE _component_template/*
 --------------------------------------------------
 // TEARDOWN
 ////

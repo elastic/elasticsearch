@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -25,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -296,8 +284,8 @@ public final class BulkRequestParser {
     }
 
     private static XContentParser createParser(BytesReference data, XContent xContent) throws IOException {
-        if (data instanceof BytesArray) {
-            return parseBytesArray(xContent, (BytesArray) data, 0, data.length());
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, 0, data.length());
         } else {
             return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, data.streamInput());
         }
@@ -306,13 +294,13 @@ public final class BulkRequestParser {
     // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
     private static XContentParser createParser(BytesReference data, XContent xContent, int from, int nextMarker) throws IOException {
-        if (data instanceof BytesArray) {
-            return parseBytesArray(xContent, (BytesArray) data, from, nextMarker);
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, from, nextMarker);
         } else {
             final int length = nextMarker - from;
             final BytesReference slice = data.slice(from, length);
-            if (slice instanceof BytesArray) {
-                return parseBytesArray(xContent, (BytesArray) slice, 0, length);
+            if (slice.hasArray()) {
+                return parseBytesArray(xContent, slice, 0, length);
             } else {
                 // EMPTY is safe here because we never call namedObject
                 return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, slice.streamInput());
@@ -320,8 +308,9 @@ public final class BulkRequestParser {
         }
     }
 
-    private static XContentParser parseBytesArray(XContent xContent, BytesArray array, int from, int nextMarker) throws IOException {
-        final int offset = array.offset();
+    private static XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
+        assert array.hasArray();
+        final int offset = array.arrayOffset();
         // EMPTY is safe here because we never call namedObject
         return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
                 offset + from, nextMarker - from);

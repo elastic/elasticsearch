@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
@@ -89,6 +78,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,7 +130,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         if (skipRepoConsistencyCheckReason == null) {
             clusterAdmin().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
                 final String name = repositoryMetadata.name();
-                if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
+                if (repositoryMetadata.settings().getAsBoolean(READONLY_SETTING_KEY, false) == false) {
                     clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
                     clusterAdmin().prepareCleanupRepository(name).get();
                 }
@@ -157,10 +148,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, Version version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesRepositoryUuid(version) == false) {
-            return repositoryData.withoutRepositoryUUID().withoutClusterUUID();
-        } else if (SnapshotsService.includesClusterUUID(version) == false) {
-            return repositoryData.withoutClusterUuid();
+        if (SnapshotsService.includesUUIDs(version) == false) {
+            return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;
         }
@@ -392,6 +381,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .prepareCreateSnapshot(repositoryName, snapshot)
                 .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
                 .setWaitForCompletion(true)
+                .setFeatureStates(NO_FEATURE_STATES_VALUE) // Exclude all feature states to ensure only specified indices are included
                 .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
@@ -447,9 +437,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 Collections.emptyList(), Collections.emptyList(),
-                SnapshotState.FAILED, "failed on purpose",
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
-                randomBoolean(), metadata);
+                Collections.emptyList(), "failed on purpose", SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L, 0L, 0, 0, Collections.emptyList(),
+                randomBoolean(), metadata, SnapshotState.FAILED
+        );
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));

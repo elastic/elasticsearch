@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.lookup;
@@ -30,6 +19,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
@@ -174,7 +164,8 @@ public final class PainlessLookupBuilder {
                     origin = whitelistInstanceBinding.origin;
                     painlessLookupBuilder.addPainlessInstanceBinding(
                             whitelistInstanceBinding.targetInstance, whitelistInstanceBinding.methodName,
-                            whitelistInstanceBinding.returnCanonicalTypeName, whitelistInstanceBinding.canonicalTypeNameParameters);
+                            whitelistInstanceBinding.returnCanonicalTypeName, whitelistInstanceBinding.canonicalTypeNameParameters,
+                            whitelistInstanceBinding.painlessAnnotations);
                 }
             }
         } catch (Exception exception) {
@@ -393,6 +384,10 @@ public final class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "]", iae);
         }
 
+        if (annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            throw new IllegalArgumentException("constructors can't have @" + CompileTimeOnlyAnnotation.NAME);
+        }
+
         MethodType methodType = methodHandle.type();
 
         String painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
@@ -572,6 +567,10 @@ public final class PainlessLookupBuilder {
                         typesToCanonicalTypeNames(typeParameters) + "]" +
                         "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "]", iae);
             }
+        }
+
+        if (annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            throw new IllegalArgumentException("regular methods can't have @" + CompileTimeOnlyAnnotation.NAME);
         }
 
         MethodType methodType = methodHandle.type();
@@ -989,6 +988,10 @@ public final class PainlessLookupBuilder {
                     "invalid method name [" + methodName + "] for class binding [" + targetCanonicalClassName + "].");
         }
 
+        if (annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            throw new IllegalArgumentException("class bindings can't have @" + CompileTimeOnlyAnnotation.NAME);
+        }
+
         Method[] javaMethods = targetClass.getMethods();
         Method javaMethod = null;
 
@@ -1079,7 +1082,8 @@ public final class PainlessLookupBuilder {
     }
 
     public void addPainlessInstanceBinding(Object targetInstance,
-            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
+            Map<Class<?>, Object> painlessAnnotations) {
 
         Objects.requireNonNull(targetInstance);
         Objects.requireNonNull(methodName);
@@ -1108,10 +1112,16 @@ public final class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]");
         }
 
-        addPainlessInstanceBinding(targetInstance, methodName, returnType, typeParameters);
+        addPainlessInstanceBinding(targetInstance, methodName, returnType, typeParameters, painlessAnnotations);
     }
 
-    public void addPainlessInstanceBinding(Object targetInstance, String methodName, Class<?> returnType, List<Class<?>> typeParameters) {
+    public void addPainlessInstanceBinding(
+        Object targetInstance,
+        String methodName,
+        Class<?> returnType,
+        List<Class<?>> typeParameters,
+        Map<Class<?>, Object> painlessAnnotations
+    ) {
         Objects.requireNonNull(targetInstance);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);
@@ -1189,7 +1199,7 @@ public final class PainlessLookupBuilder {
 
         PainlessInstanceBinding existingPainlessInstanceBinding = painlessMethodKeysToPainlessInstanceBindings.get(painlessMethodKey);
         PainlessInstanceBinding newPainlessInstanceBinding =
-                new PainlessInstanceBinding(targetInstance, javaMethod, returnType, typeParameters);
+                new PainlessInstanceBinding(targetInstance, javaMethod, returnType, typeParameters, painlessAnnotations);
 
         if (existingPainlessInstanceBinding == null) {
             newPainlessInstanceBinding = painlessInstanceBindingCache.computeIfAbsent(newPainlessInstanceBinding, key -> key);
@@ -1200,11 +1210,13 @@ public final class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], " +
                     "[" + methodName + "], " +
                     "[" + typeToCanonicalTypeName(returnType) + "], " +
-                    typesToCanonicalTypeNames(typeParameters) + "] and " +
+                    typesToCanonicalTypeNames(typeParameters) + "], " +
+                    painlessAnnotations + " and " +
                     "[[" + targetCanonicalClassName + "], " +
                     "[" + methodName + "], " +
                     "[" + typeToCanonicalTypeName(existingPainlessInstanceBinding.returnType) + "], " +
-                    typesToCanonicalTypeNames(existingPainlessInstanceBinding.typeParameters) + "]");
+                    typesToCanonicalTypeNames(existingPainlessInstanceBinding.typeParameters) + "], " +
+                    existingPainlessInstanceBinding.annotations);
         }
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.S
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
+import org.elasticsearch.xpack.core.spatial.search.aggregations.GeoShapeMetricAggregation;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSource;
@@ -60,6 +62,7 @@ public final class AggregationResultUtils {
         tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
+        tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -154,6 +157,8 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
         } else if (aggregation instanceof MultiBucketsAggregation) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(MultiBucketsAggregation.class.getName());
+        } else if (aggregation instanceof GeoShapeMetricAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(GeoShapeMetricAggregation.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -208,6 +213,10 @@ public final class AggregationResultUtils {
     public static class AggregationExtractionException extends ElasticsearchException {
         AggregationExtractionException(String msg, Object... args) {
             super(msg, args);
+        }
+
+        AggregationExtractionException(String msg, Throwable cause, Object... args) {
+            super(msg, cause, args);
         }
     }
 
@@ -386,6 +395,20 @@ public final class AggregationResultUtils {
                     );
                 }
             return geoShape;
+        }
+    }
+
+    static class GeoShapeMetricAggExtractor implements AggValueExtractor {
+
+        @Override
+        public Object value(Aggregation aggregation, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            assert aggregation instanceof GeoShapeMetricAggregation
+                 : "Unexpected type ["
+                        + aggregation.getClass().getName()
+                        + "] for aggregation ["
+                        + aggregation.getName()
+                        + "]";
+            return ((GeoShapeMetricAggregation) aggregation).geoJSONGeometry();
         }
     }
 

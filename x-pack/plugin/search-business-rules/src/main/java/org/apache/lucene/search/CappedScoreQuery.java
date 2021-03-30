@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.apache.lucene.search;
 
@@ -92,7 +93,7 @@ public final class CappedScoreQuery extends Query {
                         public void setMinCompetitiveScore(float minScore) throws IOException {
                             scorer.setMinCompetitiveScore(minScore);
                         }
-                        
+
                     });
                 }
             };
@@ -129,7 +130,7 @@ public final class CappedScoreQuery extends Query {
                         public Scorer get(long leadCost) throws IOException {
                             final Scorer innerScorer = innerScorerSupplier.get(leadCost);
                             // test scoreMode to avoid NPE - see https://github.com/elastic/elasticsearch/issues/51034
-                            if (scoreMode == ScoreMode.TOP_SCORES) {                                
+                            if (scoreMode == ScoreMode.TOP_SCORES) {
                                 // short-circuit if scores will not need capping
                                 innerScorer.advanceShallow(0);
                                 if (innerScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS) <= maxScore) {
@@ -172,7 +173,7 @@ public final class CappedScoreQuery extends Query {
 
     @Override
     public boolean equals(Object other) {
-        return sameClassAs(other) && maxScore == ((CappedScoreQuery) other).maxScore && 
+        return sameClassAs(other) && maxScore == ((CappedScoreQuery) other).maxScore &&
                 query.equals(((CappedScoreQuery) other).query);
     }
 

@@ -43,7 +43,7 @@ A `serial_diff` aggregation looks like this in isolation:
 {
   "serial_diff": {
     "buckets_path": "the_sum",
-    "lag": "7"
+    "lag": 7
   }
 }
 --------------------------------------------------

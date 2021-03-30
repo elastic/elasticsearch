@@ -1,27 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.ccr.AutoFollowIT.verifyDataStream;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class FollowIndexIT extends ESCCRRestTestCase {
 
@@ -140,7 +146,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         }
     }
 
-    public void testFollowNonExistingLeaderIndex() throws Exception {
+    public void testFollowNonExistingLeaderIndex() {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]" );
             return;
@@ -189,4 +195,41 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertThat(failure.getMessage(), containsString("a backing index name in the local and remote cluster must remain the same"));
     }
 
+    public void testFollowSearchableSnapshotsFails() throws Exception {
+        final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
+
+        final String mountedIndex = "mounted-" + testPrefix;
+        if ("leader".equals(targetCluster)) {
+            final String systemPropertyRepoPath = System.getProperty("tests.leader_cluster_repository_path");
+            assertThat("Missing system property [tests.leader_cluster_repository_path]", systemPropertyRepoPath, not(emptyOrNullString()));
+            final String repositoryPath = systemPropertyRepoPath + '/' + testPrefix;
+
+            final String repository = "repository-" + testPrefix;
+            registerRepository(repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
+
+            final String indexName = "index-" + testPrefix;
+            createIndex(indexName, Settings.EMPTY);
+
+            final String snapshot = "snapshot-" + testPrefix;
+            deleteSnapshot(repository, snapshot, true);
+            createSnapshot(repository, snapshot, true);
+            deleteIndex(indexName);
+
+            final Request mountRequest = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + '/' + snapshot + "/_mount");
+            mountRequest.setJsonEntity("{\"index\": \"" + indexName + "\",\"renamed_index\": \"" + mountedIndex + "\"}");
+            final Response mountResponse = client().performRequest(mountRequest);
+            assertThat(
+                "Failed to mount snapshot [" + snapshot + "] from repository [" + repository + "]: " + mountResponse,
+                mountResponse.getStatusLine().getStatusCode(),
+                equalTo(RestStatus.OK.getStatus())
+            );
+            ensureGreen(mountedIndex);
+
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> followIndex(mountedIndex, mountedIndex + "-follower"));
+            assertThat(e.getMessage(), containsString("is a searchable snapshot index and cannot be used as a leader index for " +
+                "cross-cluster replication purpose"));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        }
+    }
 }

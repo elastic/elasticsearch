@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
 }
 
 final File repoDir = file("$buildDir/testclusters/repo")
@@ -17,11 +17,13 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -47,12 +48,12 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
  *       </pre>
  *     </li>
  * </ol>
- * 
+ *
  * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.util.LuceneTestCase.AwaitsFix}
  * on the class level.
  */
 public class DateTimeToCharProcessorTests extends ESTestCase {
-    
+
     @ParametersFactory(argumentFormatting = "%1$s:%2$s %5$s")
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
@@ -80,13 +81,13 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
     /**
      * @param testFile The name of the testfile where this testcase is coming from
      * @param lineNumber The line number of the testcase within the testfile
-     * @param secondsAndFractionsSinceEpoch The date represented by seconds and fractions since epoch that was used to 
+     * @param secondsAndFractionsSinceEpoch The date represented by seconds and fractions since epoch that was used to
      *                                      generate the TO_CHAR() PostgreSQL output.
      * @param zone The long/short name or offset for the timezone used when generating the expected TO_CHAR() output.
      * @param formatString The pattern to be tested (this is exactly the pattern that was passed into the TO_CHAR() function in PostgreSQL).
      * @param posgresTimestamp The timestamp represented by PostgreSQL as string in the default format (without calling TO_CHAR()).
      * @param expectedResult The PostgreSQL output of <code>TO_CHAR(
-     *                       (TO_TIMESTAMP([[secondsSinceEpoch]]) + INTERVAL '[[fractions]] microseconds'), 
+     *                       (TO_TIMESTAMP([[secondsSinceEpoch]]) + INTERVAL '[[fractions]] microseconds'),
      *                       '[[formatString]]')</code>.
      */
     public DateTimeToCharProcessorTests(
@@ -101,7 +102,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         this.posgresTimestamp = posgresTimestamp;
         this.expectedResult = expectedResult;
     }
-    
+
     public void test() {
         ZoneId zoneId = ZoneId.of(zone);
         ZonedDateTime timestamp = dateTimeWithFractions(secondsAndFractionsSinceEpoch);
@@ -138,7 +139,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                 expectedPart, actualPart);
         }
     }
-    
+
     private static ZonedDateTime dateTimeWithFractions(String secondAndFractionsSinceEpoch) {
         BigDecimal b = new BigDecimal(secondAndFractionsSinceEpoch);
         long seconds = b.longValue();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -31,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -58,14 +48,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -113,6 +99,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return createIndexAnalyzers();
+    }
+
+    protected static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.of(),
@@ -179,9 +169,33 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
+    }
+
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
+        IndexSettings indexSettings = createIndexSettings(version, settings);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+
+
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        return new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> { throw new UnsupportedOperationException(); },
+            idFieldDataEnabled,
+            this::compileScript
+        );
+    }
+
+    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
         settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
@@ -191,26 +205,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(settings)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
-        MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
-        ).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
-        );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
-        return new MapperService(
-            indexSettings,
-            createIndexAnalyzers(indexSettings),
-            xContentRegistry(),
-            similarityService,
-            mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
-            idFieldDataEnabled,
-            scriptService
-        );
+        return new IndexSettings(meta, settings);
     }
 
     protected final void withLuceneIndex(
@@ -374,6 +369,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Collection<MappedFieldType> getFieldTypes() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 throw new UnsupportedOperationException();
             }
@@ -504,7 +504,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
+            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
         when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

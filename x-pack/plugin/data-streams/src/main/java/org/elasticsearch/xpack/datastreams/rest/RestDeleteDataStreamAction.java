@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.datastreams.rest;
 
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override
@@ -24,7 +27,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_data_stream/{name}"));
+        return List.of(new Route(DELETE, "/_data_stream/{name}"));
     }
 
     @Override

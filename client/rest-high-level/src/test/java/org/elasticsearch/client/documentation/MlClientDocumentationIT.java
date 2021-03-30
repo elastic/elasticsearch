@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.documentation;
 
@@ -49,6 +38,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
@@ -115,6 +105,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
@@ -3006,13 +2997,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
             // end::put-data-frame-analytics-query-config
 
+            Map<String, Object> runtimeMappings = Collections.emptyMap();
+
             // tag::put-data-frame-analytics-source-config
             DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder() // <1>
                 .setIndex("put-test-source-index") // <2>
                 .setQueryConfig(queryConfig) // <3>
+                .setRuntimeMappings(runtimeMappings) // <4>
                 .setSourceFiltering(new FetchSourceContext(true,
                     new String[] { "included_field_1", "included_field_2" },
-                    new String[] { "excluded_field" })) // <4>
+                    new String[] { "excluded_field" })) // <5>
                 .build();
             // end::put-data-frame-analytics-source-config
 
@@ -3059,6 +3053,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setSoftTreeDepthTolerance(1.0) // <17>
                 .setDownsampleFactor(0.5) // <18>
                 .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
+                .setEarlyStoppingEnabled(true) // <20>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3084,6 +3079,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setSoftTreeDepthTolerance(1.0) // <17>
                 .setDownsampleFactor(0.5) // <18>
                 .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
+                .setEarlyStoppingEnabled(true) // <20>
                 .build();
             // end::put-data-frame-analytics-regression
 
@@ -3617,7 +3613,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, closeTo(0.6425, 1e-9));
+            assertThat(aucRocScore, closeTo(0.619, 1e-3));
         }
     }
 
@@ -3896,6 +3892,129 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .deleteTrainedModel(new DeleteTrainedModelRequest("my-new-trained-model"), RequestOptions.DEFAULT);
         }
     }
+
+    public void testPutTrainedModelAlias() throws Exception {
+        putTrainedModel("my-trained-model-with-alias");
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-trained-model-alias-request
+            PutTrainedModelAliasRequest request = new PutTrainedModelAliasRequest(
+                "my-alias", // <1>
+                "my-trained-model-with-alias", // <2>
+                false // <3>
+            );
+            // end::put-trained-model-alias-request
+
+            // tag::put-trained-model-alias-execute
+            AcknowledgedResponse response =
+                client.machineLearning().putTrainedModelAlias(request, RequestOptions.DEFAULT);
+            // end::put-trained-model-alias-execute
+
+            // tag::put-trained-model-alias-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::put-trained-model-alias-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            PutTrainedModelAliasRequest request = new PutTrainedModelAliasRequest(
+                "my-second-alias",
+                "my-trained-model-with-alias",
+                false
+            );
+            // tag::put-trained-model-alias-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-trained-model-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-trained-model-alias-execute-async
+            client.machineLearning()
+                .putTrainedModelAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-trained-model-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteTrainedModelAlias() throws Exception {
+        putTrainedModel("my-trained-model-with-delete-alias");
+        RestHighLevelClient client = highLevelClient();
+        {
+            client.machineLearning()
+                .putTrainedModelAlias(
+                    new PutTrainedModelAliasRequest("my-alias-to-delete", "my-trained-model-with-delete-alias", false),
+                    RequestOptions.DEFAULT
+                );
+
+            // tag::delete-trained-model-alias-request
+            DeleteTrainedModelAliasRequest request = new DeleteTrainedModelAliasRequest(
+                "my-alias-to-delete", // <1>
+                "my-trained-model-with-delete-alias" // <2>
+            );
+            // end::delete-trained-model-alias-request
+
+            // tag::delete-trained-model-alias-execute
+            AcknowledgedResponse response =
+                client.machineLearning().deleteTrainedModelAlias(request, RequestOptions.DEFAULT);
+            // end::delete-trained-model-alias-execute
+
+            // tag::delete-trained-model-alias-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::delete-trained-model-alias-response
+
+            assertThat(acknowledged, is(true));
+        }
+        {
+            client.machineLearning()
+                .putTrainedModelAlias(
+                    new PutTrainedModelAliasRequest("my-alias-to-delete", "my-trained-model-with-delete-alias", false),
+                    RequestOptions.DEFAULT
+                );
+
+            DeleteTrainedModelAliasRequest request = new DeleteTrainedModelAliasRequest(
+                "my-alias-to-delete",
+                "my-trained-model-with-delete-alias"
+            );
+            // tag::delete-trained-model-alias-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-trained-model-alias-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-trained-model-alias-execute-async
+            client.machineLearning()
+                .deleteTrainedModelAliasAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-trained-model-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
 
     public void testGetTrainedModelsStats() throws Exception {
         putTrainedModel("my-trained-model");

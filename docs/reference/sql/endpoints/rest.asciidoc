@@ -365,10 +365,10 @@ Which will like return the
 
 
 [[sql-rest-filtering]]
-=== Filtering using {es} query DSL
+=== Filtering using {es} Query DSL
 
 One can filter the results that SQL will run on using a standard
-{es} query DSL by specifying the query in the filter
+{es} Query DSL by specifying the query in the filter
 parameter.
 
 [source,console]
@@ -402,7 +402,7 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 
 [TIP]
 =================
-A useful and less obvious usage for standard query DSL filtering is to search documents by a specific <<search-routing, routing key>>.
+A useful and less obvious usage for standard Query DSL filtering is to search documents by a specific <<search-routing, routing key>>.
 Because {es-sql} does not support a `routing` parameter, one can specify a <<mapping-routing-field, `terms` filter for the `_routing` field>> instead:
 
 [source,console]
@@ -548,7 +548,7 @@ s|Description
 
 |filter
 |none
-|Optional {es} query DSL for additional <<sql-rest-filtering, filtering>>.
+|Optional {es} Query DSL for additional <<sql-rest-filtering, filtering>>.
 
 |request_timeout
 |90s

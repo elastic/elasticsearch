@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -61,7 +62,6 @@ public class IndexLifecycleService
     private final Clock clock;
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
-    private final ILMHistoryStore ilmHistoryStore;
     private final Settings settings;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
@@ -76,7 +76,6 @@ public class IndexLifecycleService
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
-        this.ilmHistoryStore = ilmHistoryStore;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
@@ -384,5 +383,10 @@ public class IndexLifecycleService
     private boolean isClusterServiceStoppedOrClosed() {
         final State state = clusterService.lifecycleState();
         return state == State.STOPPED || state == State.CLOSED;
+    }
+
+    // visible for testing
+    PolicyStepsRegistry getPolicyRegistry() {
+        return policyRegistry;
     }
 }

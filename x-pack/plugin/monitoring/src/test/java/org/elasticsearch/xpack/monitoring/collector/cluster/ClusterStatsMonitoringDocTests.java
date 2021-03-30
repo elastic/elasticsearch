@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
@@ -269,6 +270,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
+        when(mockOsInfo.getArch()).thenReturn("_architecture");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
@@ -334,8 +336,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                             clusterName,
                                                                             singletonList(mockNodeResponse),
                                                                             emptyList(),
-                                                                            MappingStats.of(metadata),
-                                                                            AnalysisStats.of(metadata),
+                                                                            MappingStats.of(metadata, () -> {}),
+                                                                            AnalysisStats.of(metadata, () -> {}),
                                                                             VersionStats.of(metadata, singletonList(mockNodeResponse)));
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -420,6 +422,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "      },"
                 + "      \"store\": {"
                 + "        \"size_in_bytes\": 0,"
+                + "        \"total_data_set_size_in_bytes\": 0,"
                 + "        \"reserved_in_bytes\": 0"
                 + "      },"
                 + "      \"fielddata\": {"
@@ -454,7 +457,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"file_sizes\": {}"
                 + "      },"
                 + "      \"mappings\":{"
-                + "        \"field_types\":[]"
+                + "        \"field_types\":[],"
+                + "        \"runtime_field_types\":[]"
                 + "      },"
                 + "      \"analysis\":{"
                 + "        \"char_filter_types\":[],"
@@ -492,6 +496,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        \"pretty_names\": ["
                 + "          {"
                 + "            \"pretty_name\": \"_pretty_os_name\","
+                + "            \"count\": 1"
+                + "          }"
+                + "        ],"
+                + "        \"architectures\": ["
+                + "          {"
+                + "            \"arch\": \"_architecture\","
                 + "            \"count\": 1"
                 + "          }"
                 + "        ],"

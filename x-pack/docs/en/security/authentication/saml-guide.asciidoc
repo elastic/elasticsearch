@@ -1,5 +1,5 @@
 [role="xpack"]
-[[saml-guide]]
+[[saml-guide-stack]]
 
 == Configuring SAML single-sign-on on the {stack}
 
@@ -72,7 +72,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
-[[saml-guide-authentication]]
+[[saml-elasticsearch-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:
@@ -91,7 +91,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -188,10 +188,10 @@ sp.logout::
     proxies involved, but it will typically be +$\{kibana-url}/logout+ where
     _$\{kibana-url}_ is the base URL for your {kib} instance.
 
-attribute.principal:: See <<saml-attribute-mapping>>.
-attribute.groups:: See <<saml-attribute-mapping>>.
+attribute.principal:: See <<saml-attributes-mapping>>.
+attribute.groups:: See <<saml-attributes-mapping>>.
 
-[[saml-attribute-mapping]]
+[[saml-attributes-mapping]]
 ==== Attribute mapping
 
 When a user connects to {kib} through your Identity Provider, the Identity
@@ -301,6 +301,7 @@ xpack.security.authc.realms.saml.saml1:
   sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "nameid:persistent"
   attributes.groups: "roles"
+  nameid_format: "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 ------------------------------------------------------------
 
 [[saml-user-properties]]
@@ -626,9 +627,9 @@ The {stack} supports generating such a metadata file using the
 <<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
 <<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-You can generate the SAML metadata by issuing the API request to {es} and store 
-it as an XML file using tools like `jq`. For example, the following command 
-generates the metadata for the SAML realm `realm1` and saves it to a 
+You can generate the SAML metadata by issuing the API request to {es} and store
+it as an XML file using tools like `jq`. For example, the following command
+generates the metadata for the SAML realm `realm1` and saves it to a
 `metadata.xml` file:
 
 ["source","console"]
@@ -752,9 +753,13 @@ interface, you must configure {kib} to use a `https` URL to connect to {es}, and
 you may need to configure `elasticsearch.ssl.certificateAuthorities` to trust
 the certificates that {es} has been configured to use.
 
-SAML authentication in {kib} is also subject to the
-`xpack.security.sessionTimeout` setting that is described in the {kib} security
-documentation, and you may wish to adjust this timeout to meet your local needs.
+SAML authentication in {kib} is subject to the following timeout settings in
+`kibana.yml`:
+
+- {kibana-ref}/xpack-security-session-management.html#session-idle-timeout[`xpack.security.session.idleTimeout`]
+- {kibana-ref}/xpack-security-session-management.html#session-lifespan[`xpack.security.session.lifespan`]
+
+You may want to adjust these timeouts based on your security requirements.
 
 The three additional settings that are required for SAML support are shown below:
 

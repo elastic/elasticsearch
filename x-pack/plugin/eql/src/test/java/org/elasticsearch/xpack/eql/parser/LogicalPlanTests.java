@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.parser;
@@ -106,7 +107,7 @@ public class LogicalPlanTests extends ESTestCase {
         assertEquals(UnresolvedAttribute.class, key.getClass());
         assertEquals("pid", ((UnresolvedAttribute) key).name());
     }
-    
+
     public void testSequencePlan() {
         LogicalPlan plan = parser.createStatement(
                 "sequence by pid with maxspan=2s " +

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -78,12 +67,12 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+        for (MetadataFieldMapper metadataMapper : mapping.getSortedMetadataMappers()) {
             if (metadataMapper != null) {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        for (Mapper child : mapping.root) {
+        for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
         }
         return new MappingLookup(
@@ -159,7 +148,7 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mapping.root().name(), mappers, aliasMappers, mapping.root().runtimeFieldTypes());
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -174,7 +163,7 @@ public final class MappingLookup {
         return fieldMappers.get(field);
     }
 
-    FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypesLookup() {
         return fieldTypeLookup;
     }
 
@@ -192,6 +181,13 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
+    /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> fieldTypes() {
+        return fieldTypeLookup.get();
+    }
+
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -200,7 +196,7 @@ public final class MappingLookup {
     }
 
     private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - mapping.metadataMappers.length > limit) {
+        if (fieldMappers.size() + objectMappers.size() - mapping.getSortedMetadataMappers().length > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
         }
     }
@@ -281,14 +277,14 @@ public final class MappingLookup {
     }
 
     public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypes().simpleMatchToFullName(pattern);
+        return fieldTypesLookup().simpleMatchToFullName(pattern);
     }
 
     /**
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {
-        return fieldTypes().get(field);
+        return fieldTypesLookup().get(field);
     }
 
     /**
@@ -304,7 +300,7 @@ public final class MappingLookup {
      * @return A set of paths in the _source that contain the field's values.
      */
     public Set<String> sourcePaths(String field) {
-        return fieldTypes().sourcePaths(field);
+        return fieldTypesLookup().sourcePaths(field);
     }
 
     public ParsedDocument parseDocument(SourceToParse source) {
@@ -316,7 +312,7 @@ public final class MappingLookup {
     }
 
     public boolean isSourceEnabled() {
-        SourceFieldMapper sfm = mapping.metadataMapper(SourceFieldMapper.class);
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
     }
 

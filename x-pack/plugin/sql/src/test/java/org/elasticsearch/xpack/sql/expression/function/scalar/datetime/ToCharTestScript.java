@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -73,7 +74,7 @@ public class ToCharTestScript {
     public ToCharTestScript(Random random) {
         this.random = random;
         generateTestTimestamps();
-        
+
         patternsOneByOne();
         allPatternsTogether();
         postgreSQLPatternParsingBehaviour();
@@ -144,7 +145,7 @@ public class ToCharTestScript {
                         if (random.nextInt(100) < pctChanceOfRandomCharacter) {
                             return randomCharacters.substring(random.nextInt(randomCharacters.length())).substring(0, 1);
                         } else {
-                            return (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS) 
+                            return (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS)
                                 + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS));
                         }})
                     .collect(Collectors.joining());
@@ -213,11 +214,11 @@ public class ToCharTestScript {
         String testCases = testRecords.stream().map(tc -> {
             long seconds = tc.secondsAndFractionsSinceEpoch.longValue();
             BigDecimal fractions = tc.secondsAndFractionsSinceEpoch.remainder(BigDecimal.ONE).movePointRight(6);
-            return String.format(Locale.ROOT, 
+            return String.format(Locale.ROOT,
                 "SET TIME ZONE '%6$s';\n"
-                    + "\\copy (SELECT %1$s as epoch_seconds_and_microsends, '%5$s' as zone_id, '%4$s' as format_string, " 
+                    + "\\copy (SELECT %1$s as epoch_seconds_and_microsends, '%5$s' as zone_id, '%4$s' as format_string, "
                     + "(TO_TIMESTAMP(%2$d) + INTERVAL '%3$d microseconds') as to_timestamp_result, "
-                    + "TO_CHAR((TO_TIMESTAMP(%2$d) + INTERVAL '%3$d microseconds'), '%4$s') as to_char_result) to stdout " 
+                    + "TO_CHAR((TO_TIMESTAMP(%2$d) + INTERVAL '%3$d microseconds'), '%4$s') as to_char_result) to stdout "
                     + "with DELIMITER as '" + DELIMITER + "' NULL as '' csv \n",
                 tc.secondsAndFractionsSinceEpoch.toPlainString(),
                 seconds,

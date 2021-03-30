@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
@@ -192,7 +193,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .execute().actionGet();
         assertHitCount(searchResponse, 1);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waited too long for email to be received");
         }
     }

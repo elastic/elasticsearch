@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.validation;
 
@@ -22,7 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
@@ -102,9 +103,11 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
     private final IngestService ingestService = mock(IngestService.class);
+    private final IndexNameExpressionResolver indexNameExpressionResolver =
+        TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
 
     private final SourceDestValidator simpleNonRemoteValidator = new SourceDestValidator(
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+        indexNameExpressionResolver,
         remoteClusterService,
         null,
         ingestService,
@@ -654,7 +657,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 remoteClusterLicenseCheckerBasic,
                 ingestService,
@@ -680,7 +683,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithBasicLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
@@ -712,7 +715,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context2 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
@@ -735,7 +738,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context3 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
@@ -759,7 +762,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context4 = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithTrialLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
@@ -785,7 +788,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         final Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
@@ -814,7 +817,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         Context context = spy(
             new SourceDestValidator.Context(
                 CLUSTER_STATE,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                indexNameExpressionResolver,
                 remoteClusterService,
                 new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
                     operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),

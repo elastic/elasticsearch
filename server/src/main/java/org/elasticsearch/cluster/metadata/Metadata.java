@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -43,7 +32,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -78,7 +66,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -91,7 +78,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
-    public static final Pattern BACKING_INDEX_SUFFIX = Pattern.compile("(\\d{4}\\.\\d{2}\\.\\d{2}-)?[0-9]+$");
 
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
@@ -792,6 +778,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return true;
     }
 
+    /**
+     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
+     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
+     * or deleting a backing index may result in situations where some reconciliation is required.
+     *
+     * @return Reconciled {@link Metadata} instance
+     */
+    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
+        var builder = Metadata.builder(metadata);
+        for (var dsName : dataStreams) {
+            var dataStream = metadata.dataStreams().get(dsName);
+            if (dataStream == null) {
+                // should never occur since data streams cannot be deleted while they have snapshots underway
+                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
+            }
+            builder.put(dataStream.snapshot(indices));
+        }
+        return builder.build();
+    }
+
     @Override
     public Diff<Metadata> diff(Metadata previousState) {
         return new MetadataDiff(previousState, this);
@@ -1427,34 +1433,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return indicesLookup;
         }
 
-        /**
-         * Validates there isn't any index with a name that could clash with the future backing indices of the existing data streams.
-         *
-         * E.g., if data stream `foo` has backing indices [`.ds-foo-yyyy.MM.dd-000001`, `.ds-foo-yyyy.MM.dd-000002`] and the indices lookup
-         * contains indices `.ds-foo-yyyy-MM.dd.000001`, `.ds-foo-yyyy.MM.dd-000002` and `.ds-foo-yyyy.MM.dd-000006` this will throw an
-         * IllegalStateException as attempting to rollover the `foo` data stream from generation 5 to 6 may not be possible
-         *
-         * @param indicesLookup the indices in the system including the data stream backing indices
-         * @param dsMetadata    the data streams in the system
-         */
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
             if (dsMetadata != null) {
-                for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
-                    Set<String> conflicts =
-                        indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
-                            .keySet().stream()
-                            .filter(s -> BACKING_INDEX_SUFFIX.matcher(s.substring(prefix.length())).matches())
-                            .filter(s -> IndexMetadata.parseIndexNameCounter(s) > ds.getGeneration())
-                            .collect(Collectors.toSet());
-
-                    if (conflicts.size() > 0) {
-                        throw new IllegalStateException("data stream [" + ds.getName() +
-                            "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
-                            " including '" + conflicts.iterator().next() + "'");
-                    }
-                }
-
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
                 List<String> conflictingAliases = indicesLookup.values().stream()
                     .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
@@ -1470,14 +1450,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(IndexAbstraction::getName)
                     .collect(Collectors.toList());
                 if (conflictingAliases.isEmpty() == false) {
-                    // After backporting throw an IllegalStateException instead of logging a warning:
-                    // (in 7.x there might be aliases that refer to backing indices of a data stream and
-                    // throwing an exception here would avoid the cluster from functioning)
-                    String warning = "aliases " + conflictingAliases + " cannot refer to backing indices of data streams";
-                    // log as debug, this method is executed each time a new cluster state is created and could result
-                    // in many logs:
-                    logger.debug(warning);
-                    HeaderWarning.addWarning(warning);
+                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
                 }
             }
         }
@@ -1499,7 +1472,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             metadata.coordinationMetadata().toXContent(builder, params);
             builder.endObject();
 
-            if (context != XContentContext.API && !metadata.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
                 builder.startObject("settings");
                 metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();

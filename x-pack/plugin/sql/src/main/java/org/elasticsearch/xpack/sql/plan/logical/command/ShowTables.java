@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
@@ -60,7 +61,7 @@ public class ShowTables extends Command {
         // to avoid redundancy, indicate whether frozen fields are required by specifying the type
         EnumSet<IndexType> withFrozen = session.configuration().includeFrozen() || includeFrozen ?
                 IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
-        
+
         session.indexResolver().resolveNames(idx, regex, withFrozen, ActionListener.wrap(result -> {
             listener.onResponse(of(session, result.stream()
                  .map(t -> asList(t.name(), t.type().toSql(), t.type().toNative()))

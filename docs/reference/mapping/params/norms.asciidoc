@@ -12,10 +12,10 @@ field. In  particular, this is the case for fields that are used solely for
 filtering or aggregations.
 
 TIP: Norms can be disabled on existing fields using
-the <<indices-put-mapping,PUT mapping API>>.
+the <<indices-put-mapping,update mapping API>>.
 
 Norms can be disabled (but not reenabled after the fact), using the
-<<indices-put-mapping,PUT mapping API>> like so:
+<<indices-put-mapping,update mapping API>> like so:
 
 [source,console]
 ------------

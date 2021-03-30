@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -12,9 +13,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Updates the lifecycle policy for the rollup index for the original/currently managed index
@@ -40,9 +44,17 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        String rollupIndex = RollupStep.getRollupIndexName(indexMetadata.getIndex().getName());
+        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String indexName = indexMetadata.getIndex().getName();
+        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        final String rollupIndexName = lifecycleState.getRollupIndexName();
+        if (Strings.hasText(rollupIndexName) == false) {
+            listener.onFailure(new IllegalStateException("rollup index name was not generated for policy [" + policyName +
+                "] and index [" + indexName + "]"));
+            return;
+        }
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndex)
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndexName)
             .masterNodeTimeout(getMasterTimeout(currentState))
             .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(response -> {

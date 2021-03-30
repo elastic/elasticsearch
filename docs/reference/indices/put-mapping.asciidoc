@@ -1,11 +1,11 @@
 [[indices-put-mapping]]
-=== Put mapping API
+=== Update mapping API
 ++++
-<titleabbrev>Put mapping</titleabbrev>
+<titleabbrev>Update mapping</titleabbrev>
 ++++
 
-Adds new fields to an existing data stream or index. You can also use the
-put mapping API to change the search settings of existing fields.
+Adds new fields to an existing data stream or index. You can also use this
+API to change the search settings of existing fields.
 
 For data streams, these changes are applied to all backing indices by default.
 
@@ -98,7 +98,7 @@ For existing fields, see <<updating-field-mappings>>.
 [[put-field-mapping-api-basic-ex]]
 ===== Example with single target
 
-The put mapping API requires an existing data stream or index. The following
+The update mapping API requires an existing data stream or index. The following
 <<indices-create-index, create index>> API request creates the `publications`
 index with no mapping.
 
@@ -107,7 +107,7 @@ index with no mapping.
 PUT /publications
 ----
 
-The following put mapping API request adds `title`, a new <<text,`text`>> field,
+The following update mapping API request adds `title`, a new <<text,`text`>> field,
 to the `publications` index.
 
 [source,console]
@@ -124,7 +124,7 @@ PUT /publications/_mapping
 [[put-mapping-api-multi-ex]]
 ===== Multiple targets
 
-The PUT mapping API can be applied to multiple data streams or indices with a single request.
+The update mapping API can be applied to multiple data streams or indices with a single request.
 For example, you can update mappings for the `my-index-000001` and `my-index-000002` indices at the same time:
 
 [source,console]
@@ -152,7 +152,7 @@ PUT /my-index-000001,my-index-000002/_mapping
 [[add-new-field-to-object]]
 ===== Add new properties to an existing object field
 
-You can use the put mapping API to add new properties to an existing
+You can use the update mapping API to add new properties to an existing
 <<object,`object`>> field. To see how this works, try the following example.
 
 Use the <<indices-create-index,create index>> API to create an index with the
@@ -176,7 +176,7 @@ PUT /my-index-000001
 }
 ----
 
-Use the put mapping API to add a new inner `last` text field to the `name`
+Use the update mapping API to add a new inner `last` text field to the `name`
 field.
 
 [source,console]
@@ -201,7 +201,7 @@ PUT /my-index-000001/_mapping
 ===== Add multi-fields to an existing field
 
 <<multi-fields,Multi-fields>> let you index the same field in different ways.
-You can use the put mapping API to update the `fields` mapping parameter and
+You can use the update mapping API to update the `fields` mapping parameter and
 enable multi-fields for an existing field.
 
 To see how this works, try the following example.
@@ -226,7 +226,7 @@ PUT /my-index-000001
 While text fields work well for full-text search, <<keyword,keyword>> fields are
 not analyzed and may work better for sorting or aggregations.
 
-Use the put mapping API to enable a multi-field for the `city` field. This
+Use the update mapping API to enable a multi-field for the `city` field. This
 request adds the `city.raw` keyword multi-field, which can be used for sorting.
 
 [source,console]
@@ -252,8 +252,8 @@ PUT /my-index-000001/_mapping
 ===== Change supported mapping parameters for an existing field
 
 The documentation for each <<mapping-params,mapping parameter>> indicates
-whether you can update it for an existing field using the put mapping API. For
-example, you can use the put mapping API to update the
+whether you can update it for an existing field using the update mapping API. For
+example, you can use the update mapping API to update the
 <<ignore-above,`ignore_above`>> parameter.
 
 To see how this works, try the following example.
@@ -277,7 +277,7 @@ PUT /my-index-000001
 }
 ----
 
-Use the put mapping API to change the `ignore_above` parameter value to `100`.
+Use the update mapping API to change the `ignore_above` parameter value to `100`.
 
 [source,console]
 ----
@@ -416,7 +416,7 @@ PUT /my-index-000001
 }
 ----
 
-Use the put mapping API to add the `user_id` field alias
+Use the update mapping API to add the `user_id` field alias
 for the existing `user_identifier` field.
 
 [source,console]

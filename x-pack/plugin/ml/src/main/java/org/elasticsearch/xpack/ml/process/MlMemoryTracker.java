@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -301,13 +302,14 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
 
         ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
-            lastUpdateTime = Instant.now();
             synchronized (fullRefreshCompletionListeners) {
+                lastUpdateTime = Instant.now();
                 assert fullRefreshCompletionListeners.isEmpty() == false;
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onResponse(null);
                 }
                 fullRefreshCompletionListeners.clear();
+                logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
             }
         },
         e -> {

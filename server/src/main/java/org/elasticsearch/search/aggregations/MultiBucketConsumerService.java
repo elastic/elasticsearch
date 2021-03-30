@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -35,10 +24,10 @@ import java.util.function.IntConsumer;
  * An aggregation service that creates instances of {@link MultiBucketConsumer}.
  * The consumer is used by {@link BucketsAggregator} and {@link InternalMultiBucketAggregation} to limit the number of buckets created
  * in {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
- * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 65535.
+ * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 65536.
  */
 public class MultiBucketConsumerService {
-    public static final int DEFAULT_MAX_BUCKETS = 65535;
+    public static final int DEFAULT_MAX_BUCKETS = 65536;
     public static final Setting<Integer> MAX_BUCKET_SETTING =
         Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
 

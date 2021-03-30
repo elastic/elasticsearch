@@ -86,7 +86,7 @@ is the same at the start and end.
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 One day (1d) is the interval between the start of the day and the start of
-of the following day in the specified time zone, compensating for any intervening
+the following day in the specified time zone, compensating for any intervening
 time changes.
 
 `week`, `1w` ::

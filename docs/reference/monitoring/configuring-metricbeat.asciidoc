@@ -19,7 +19,7 @@ image::monitoring/images/metricbeat.png[Example monitoring architecture]
 --
 // tag::enable-collection[]
 Set `xpack.monitoring.collection.enabled` to `true` on the
-production cluster. By default, it is is disabled (`false`). 
+production cluster. By default, it is disabled (`false`). 
 
 You can use the following APIs to review and change this setting:
 

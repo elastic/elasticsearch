@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -284,7 +285,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                         if (bulkByScrollResponse.isTimedOut()) {
                             logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                         }
-                        if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
+                        if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
                             logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
                                     jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
                                     String.join(", ", indexNames.get()));
@@ -603,18 +604,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                            listener.onResponse(Boolean.TRUE);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.delegateFailure((l, task) -> l.onResponse(Boolean.TRUE)));
         }
     }
 

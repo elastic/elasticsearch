@@ -34,18 +34,16 @@ public class AutomatonQueryOnBinaryDv extends Query {
 
     private final String field;
     private final String matchPattern;
-    private final Automaton automaton;
+    private final ByteRunAutomaton bytesMatcher;
 
     public AutomatonQueryOnBinaryDv(String field, String matchPattern, Automaton automaton) {
         this.field = field;
         this.matchPattern = matchPattern;
-        this.automaton = automaton;
+        bytesMatcher = new ByteRunAutomaton(automaton);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
-
         return new ConstantScoreWeight(this, boost) {
 
             @Override
@@ -97,12 +95,12 @@ public class AutomatonQueryOnBinaryDv extends Query {
           }
         AutomatonQueryOnBinaryDv other = (AutomatonQueryOnBinaryDv) obj;
         return Objects.equals(field, other.field)  && Objects.equals(matchPattern, other.matchPattern)
-            && Objects.equals(new ByteRunAutomaton(automaton), new ByteRunAutomaton(other.automaton));
+            && Objects.equals(bytesMatcher, other.bytesMatcher);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, matchPattern, new ByteRunAutomaton(automaton));
+        return Objects.hash(field, matchPattern, bytesMatcher);
     }
 
 }

@@ -50,7 +50,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsScripts() {
+    protected boolean supportsSearchLookup() {
         return false;
     }
 

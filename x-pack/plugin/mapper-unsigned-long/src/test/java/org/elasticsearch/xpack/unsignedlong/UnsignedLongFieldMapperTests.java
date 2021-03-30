@@ -45,7 +45,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsScripts() {
+    protected boolean supportsSearchLookup() {
         return false;
     }
 

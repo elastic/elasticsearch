@@ -583,9 +583,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * @return whether or not this field type supports access to its values from scripts
+     * @return whether or not this field type supports access to its values from a SearchLookup
      */
-    protected boolean supportsScripts() {
+    protected boolean supportsSearchLookup() {
         return true;
     }
 
@@ -594,7 +594,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * scripts and for index-time scripts
      */
     public final void testIndexTimeFieldData() throws IOException {
-        assumeTrue("Field type does not support scripting", supportsScripts());
+        assumeTrue("Field type does not support access via search lookup", supportsSearchLookup());
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertParseMinimalWarnings();
         MappedFieldType fieldType = mapperService.fieldType("field");

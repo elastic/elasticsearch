@@ -70,7 +70,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected boolean supportsScripts() {
+    protected boolean supportsSearchLookup() {
         return false;
     }
 

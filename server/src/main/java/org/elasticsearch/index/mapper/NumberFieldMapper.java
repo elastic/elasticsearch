@@ -42,6 +42,7 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -55,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -129,12 +129,12 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
-        private MapperScript mapperScript() {
+        private FieldValues<Number> mapperScript() {
             if (this.script.get() == null) {
                 return null;
             }
             assert compiler != null;
-            return type.compiler(name).apply(script.get(), compiler);
+            return type.compile(name, script.get(), compiler);
         }
 
         @Override
@@ -147,10 +147,6 @@ public class NumberFieldMapper extends FieldMapper {
             MappedFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
-    }
-
-    public interface MapperScript {
-        void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter);
     }
 
     public enum NumberType {
@@ -181,13 +177,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 validateParsed(result);
                 return result;
-            }
-
-            @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (s, ss) -> {
-                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
-                };
             }
 
             @Override
@@ -301,13 +290,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (s, ss) -> {
-                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
-                };
-            }
-
-            @Override
             public Query termQuery(String field, Object value) {
                 float v = parse(value, false);
                 return FloatPoint.newExactQuery(field, v);
@@ -395,21 +377,16 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (script, compiler) -> new MapperScript() {
-
-                    final DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
-
-                    @Override
-                    public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
-                        DoubleFieldScript s = scriptFactory
-                            .newFactory(fieldName, script.getParams(), lookup)
-                            .newInstance(ctx);
-                        s.runForDoc(doc);
-                        double[] vs = s.values();
-                        for (int i = 0; i < s.count(); i++) {
-                            emitter.accept(vs[i]);
-                        }
+            public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
+                DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
+                return (lookup, ctx, doc, consumer) -> {
+                    DoubleFieldScript s = scriptFactory
+                        .newFactory(fieldName, script.getParams(), lookup)
+                        .newInstance(ctx);
+                    s.runForDoc(doc);
+                    double[] vs = s.values();
+                    for (int i = 0; i < s.count(); i++) {
+                        consumer.accept(vs[i]);
                     }
                 };
             }
@@ -490,13 +467,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (s, ss) -> {
-                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
-                };
-            }
-
-            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -563,13 +533,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (s, ss) -> {
-                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
-                };
-            }
-
-            @Override
             public Query termQuery(String field, Object value) {
                 return INTEGER.termQuery(field, value);
             }
@@ -624,13 +587,6 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Integer parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.intValue(coerce);
-            }
-
-            @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (s, ss) -> {
-                    throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
-                };
             }
 
             @Override
@@ -739,21 +695,16 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName) {
-                return (script, compiler) -> new MapperScript() {
-
-                    final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
-
-                    @Override
-                    public void executeAndEmit(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<Number> emitter) {
-                        LongFieldScript s = scriptFactory
-                            .newFactory(fieldName, script.getParams(), lookup)
-                            .newInstance(ctx);
-                        s.runForDoc(doc);
-                        long[] vs = s.values();
-                        for (int i = 0; i < s.count(); i++) {
-                            emitter.accept(vs[i]);
-                        }
+            public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
+                final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
+                return (lookup, ctx, doc, consumer) -> {
+                    LongFieldScript s = scriptFactory
+                        .newFactory(fieldName, script.getParams(), lookup)
+                        .newInstance(ctx);
+                    s.runForDoc(doc);
+                    long[] vs = s.values();
+                    for (int i = 0; i < s.count(); i++) {
+                        consumer.accept(vs[i]);
                     }
                 };
             }
@@ -842,7 +793,6 @@ public class NumberFieldMapper extends FieldMapper {
         public final TypeParser parser() {
             return parser;
         }
-        public abstract BiFunction<Script, ScriptCompiler, MapperScript> compiler(String fieldName);
         public abstract Query termQuery(String field, Object value);
         public abstract Query termsQuery(String field, Collection<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
@@ -853,6 +803,12 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parsePoint(byte[] value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
+
+        public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
+            // only implemented for long and double fields
+            throw new IllegalArgumentException("Unknown parameter [script] for mapper [" + fieldName + "]");
+        }
+
         Number valueForSearch(Number value) {
             return value;
         }
@@ -1006,16 +962,16 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
         private final boolean coerce;
         private final Number nullValue;
-        private final MapperScript script;
+        private final FieldValues<Number> scriptValues;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
                                boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
-                               MapperScript script) {
+                               FieldValues<Number> script) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
-            this.script = script;
+            this.scriptValues = script;
         }
 
         NumberFieldType(String name, Builder builder) {
@@ -1083,7 +1039,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            if (this.script != null) {
+            if (this.scriptValues != null) {
                 return new ValueFetcher() {
                     LeafReaderContext ctx;
 
@@ -1096,7 +1052,7 @@ public class NumberFieldMapper extends FieldMapper {
                     public List<Object> fetchValues(SourceLookup lookup) {
                         List<Object> values = new ArrayList<>();
                         try {
-                            script.executeAndEmit(context.lookup(), ctx, lookup.docId(), values::add);
+                            scriptValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), values::add);
                         } catch (Exception e) {
                             // ignore errors - if they exist here then they existed at index time
                             // and were ignored, so we ignore here too
@@ -1149,7 +1105,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
-    private final MapperScript mapperScript;
+    private final FieldValues<Number> scriptValues;
     private final String onScriptError;
 
     private final boolean ignoreMalformedByDefault;
@@ -1171,7 +1127,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
-        this.mapperScript = builder.mapperScript();
+        this.scriptValues = builder.mapperScript();
         this.onScriptError = builder.onScriptError.get();
         this.builder = builder;
     }
@@ -1201,7 +1157,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
 
-        if (this.mapperScript != null) {
+        if (this.scriptValues != null) {
             throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
         }
 
@@ -1256,15 +1212,15 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public IndexTimeScript getIndexTimeScript() {
-        if (this.mapperScript == null) {
+        if (this.scriptValues == null) {
             return null;
         }
-        return (lookup, ctx, pc) -> {
+        return (lookup, readerContext, parseContext) -> {
             try {
-                mapperScript.executeAndEmit(lookup, ctx, 0, v -> indexValue(pc, v));
+                scriptValues.valuesForDoc(lookup, readerContext, 0, value -> indexValue(parseContext, value));
             } catch (Exception e) {
                 if ("ignore".equals(onScriptError)) {
-                    pc.addIgnoredField(name());
+                    parseContext.addIgnoredField(name());
                 } else {
                     throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
                 }

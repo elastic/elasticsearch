@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CalculatedFieldTests extends MapperServiceTestCase {
+public class IndexTimeScriptTests extends MapperServiceTestCase {
 
     public void testCalculatedFieldLength() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {

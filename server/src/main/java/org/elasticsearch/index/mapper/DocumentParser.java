@@ -68,7 +68,7 @@ final class DocumentParser {
                 source,
                 parser);
             validateStart(parser);
-            internalParseDocument(mappingLookup, metadataFieldsMappers, context, parser);
+            internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -98,10 +98,9 @@ final class DocumentParser {
         return false;
     }
 
-    private static void internalParseDocument(MappingLookup lookup, MetadataFieldMapper[] metadataFieldsMappers,
+    private static void internalParseDocument(RootObjectMapper root, MetadataFieldMapper[] metadataFieldsMappers,
                                               ParseContext context, XContentParser parser) throws IOException {
 
-        RootObjectMapper root = lookup.getMapping().getRoot();
         final boolean emptyDoc = isEmptyDoc(root, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -129,14 +128,25 @@ final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
-            (ft, s) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), s).build(
+            (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup).build(
                 new IndexFieldDataCache.None(),
                 new NoneCircuitBreakerService())
         );
         Map<String, Consumer<LeafReaderContext>> oneTimeScripts = new HashMap<>();
-        indexTimeScripts.forEach((k, c) -> {
-            OneTimeFieldExecutor executor = new OneTimeFieldExecutor(c, searchLookup, context);
-            oneTimeScripts.put(k, executor::execute);
+        // field scripts can be called both by executeIndexTimeScripts() and via the document reader,
+        // so to ensure that we don't run field scripts multiple times we guard them with
+        // an 'executed' boolean
+        indexTimeScripts.forEach((field, script) -> {
+            oneTimeScripts.put(field, new Consumer<>() {
+                boolean executed = false;
+                @Override
+                public void accept(LeafReaderContext leafReaderContext) {
+                    if (executed == false) {
+                        script.execute(searchLookup, leafReaderContext, context);
+                        executed = true;
+                    }
+                }
+            });
         });
         DocumentLeafReader reader = new DocumentLeafReader(context.rootDoc(), oneTimeScripts);
 
@@ -144,31 +154,6 @@ final class DocumentParser {
             script.accept(reader.getContext());
         }
     }
-
-    // field scripts can be called both by executeIndexTimeScripts() and via the document reader,
-    // so to ensure that we don't run field scripts multiple times we guard them with
-    // this one-time executor class
-    private static class OneTimeFieldExecutor {
-
-        IndexTimeScript executor;
-        boolean executed = false;
-        final SearchLookup searchLookup;
-        final ParseContext parseContext;
-
-        OneTimeFieldExecutor(IndexTimeScript executor, SearchLookup searchLookup, ParseContext parseContext) {
-            this.executor = executor;
-            this.searchLookup = searchLookup;
-            this.parseContext = parseContext;
-        }
-
-        void execute(LeafReaderContext ctx) {
-            if (executed == false) {
-                executor.execute(searchLookup, ctx, parseContext);
-                executed = true;
-            }
-        }
-    }
-
 
     private static void validateStart(XContentParser parser) throws IOException {
         // will result in START_OBJECT

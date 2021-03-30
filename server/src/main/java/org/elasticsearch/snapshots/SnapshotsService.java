@@ -2280,10 +2280,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         reusedExistingDelete = true;
                         return currentState;
                     }
-                    final List<SnapshotId> toDelete = Collections.unmodifiableList(new ArrayList<>(snapshotIdsRequiringCleanup));
-                    ensureBelowConcurrencyLimit(repoName, toDelete.get(0).getName(), snapshots, deletionsInProgress);
                     newDelete = new SnapshotDeletionsInProgress.Entry(
-                        toDelete,
+                        Collections.unmodifiableList(new ArrayList<>(snapshotIdsRequiringCleanup)),
                         repoName,
                         threadPool.absoluteTimeInMillis(),
                         repositoryData.getGenId(),

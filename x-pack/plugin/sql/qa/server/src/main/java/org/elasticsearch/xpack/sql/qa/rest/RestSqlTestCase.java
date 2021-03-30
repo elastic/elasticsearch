@@ -317,27 +317,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    public void testSelectDistinctFails() throws Exception {
-        index("{\"name\":\"test\"}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT DISTINCT name FROM test"),
-            containsString("line 1:8: SELECT DISTINCT is not yet supported")
-        );
-    }
-
     public void testSelectGroupByAllFails() throws Exception {
         index("{\"foo\":1}", "{\"foo\":2}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT foo FROM test GROUP BY ALL foo"),
             containsString("line 1:32: GROUP BY ALL is not supported")
-        );
-    }
-
-    public void testSelectWhereExistsFails() throws Exception {
-        index("{\"foo\":1}", "{\"foo\":2}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)", randomBoolean()),
-            containsString("line 1:28: EXISTS is not yet supported")
         );
     }
 
@@ -468,15 +452,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT SCORE().bar FROM test"),
             containsString("line 1:15: extraneous input '.' expecting {<EOF>, ','")
-        );
-    }
-
-    @Override
-    public void testSelectScoreInScalar() throws Exception {
-        index("{\"foo\":1}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
-            containsString("line 1:12: [SCORE()] cannot be an argument to a function")
         );
     }
 

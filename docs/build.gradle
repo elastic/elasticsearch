@@ -174,6 +174,38 @@ setupMyIndex('my_index_huge', 1200)
 
 tasks.named("buildRestTests").configure {buildRestTests ->
 
+setups['my_data_stream_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+'''
+
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+'''
+
+teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
 // Used for several full-text search and agg examples
 buildRestTests.setups['messages'] = '''
   - do:
@@ -200,16 +232,7 @@ buildRestTests.setups['messages'] = '''
             {"message": "some message with the number 4"}'''
 
 // Used for EQL
-buildRestTests.setups['sec_logs'] = '''
-  - do:
-      indices.put_index_template:
-        name: my-data-stream-template
-        body: |
-          {
-            "index_patterns": [ "my-data-stream*" ],
-            "data_stream": { },
-            "priority": 500
-          }
+setups['sec_logs'] = setups['my_data_stream'] + '''
   - do:
         bulk:
           index: my-data-stream
@@ -1522,16 +1545,7 @@ setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-  setups['atomic_red_regsvr32'] = '''
-  - do:
-      indices.put_index_template:
-        name: my-data-stream-template
-        body: |
-          {
-            "index_patterns": [ "my-data-stream*" ],
-            "data_stream": { },
-            "priority": 500
-          }
+  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
   - do:
         bulk:
           index: my-data-stream

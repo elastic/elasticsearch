@@ -26,6 +26,10 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * @deprecated use {@link org.elasticsearch.xpack.core.security.support.PointInTimeSearchHelper} instead
+ */
+@Deprecated
 public final class ScrollHelper {
 
     private static final Logger LOGGER = LogManager.getLogger(ScrollHelper.class);

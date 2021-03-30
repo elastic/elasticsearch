@@ -93,10 +93,9 @@ public class ReplaceTextualTests extends TransformTests {
                 assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
                 ObjectNode childObject = (ObjectNode) node;
                 JsonNode matchObject = childObject.get("key_to_replace");
-                if (matchObject != null) {
-                    if (beforeTransformation == false && allTests) {
-                        assertThat(matchObject.get("key_to_replace").asText(), CoreMatchers.is("_replaced_value"));
-                    }
+                if (matchObject != null && matchObject.get("key_to_replace") != null
+                    && beforeTransformation == false && allTests) {
+                    assertThat(matchObject.get("key_to_replace").asText(), CoreMatchers.is("_replaced_value"));
                 }
             });
         }

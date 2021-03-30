@@ -245,7 +245,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(idField.containsKey("_id"));
             assertEquals(
-                new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
+                new FieldCapabilities("_id", "_id", true, true, true, null, null, null, Collections.emptyMap()),
                 idField.get("_id"));
 
             Map<String, FieldCapabilities> testField = response.getField("_test");

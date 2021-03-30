@@ -387,6 +387,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             Collections.singletonList(indexName))
             .setParsedAggregations(aggs)
             .setFrequency(TimeValue.timeValueHours(1))
+            // Start off chunking at an hour so that it runs more slowly and the test has time to stop it in the middle of processing
             .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
             .build();
         registerDatafeed(compositeDatafeedConfig);
@@ -403,6 +404,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         if (getJobStats(compositeJobId).get(0).getState().equals(JobState.OPENED)) {
             updateDatafeed(new DatafeedUpdate.Builder()
                 .setId(compositeDatafeedConfig.getId())
+                // Set to auto to speed up and finish the job
                 .setChunkingConfig(ChunkingConfig.newAuto())
                 .build());
             startDatafeed(

@@ -86,7 +86,9 @@ public final class ExtractorUtils {
 
     public static boolean isCompositeWithDateHistogramSource(AggregationBuilder aggregationBuilder) {
         return aggregationBuilder instanceof CompositeAggregationBuilder
-            && getDateHistogramValuesSource((CompositeAggregationBuilder) aggregationBuilder) != null;
+            && ((CompositeAggregationBuilder) aggregationBuilder).sources()
+            .stream()
+            .anyMatch(DateHistogramValuesSourceBuilder.class::isInstance);
     }
 
     public static DateHistogramValuesSourceBuilder getDateHistogramValuesSource(CompositeAggregationBuilder compositeAggregationBuilder) {
@@ -95,7 +97,7 @@ public final class ExtractorUtils {
                 return (DateHistogramValuesSourceBuilder)valuesSourceBuilder;
             }
         }
-        return null;
+        throw ExceptionsHelper.badRequestException("[composite] aggregations require exactly one [date_histogram] value source");
     }
 
     /**
@@ -195,11 +197,7 @@ public final class ExtractorUtils {
         }
 
         static DateHistogramAggOrValueSource fromCompositeAgg(CompositeAggregationBuilder compositeAggregationBuilder) {
-            DateHistogramValuesSourceBuilder valuesSourceBuilder = getDateHistogramValuesSource(compositeAggregationBuilder);
-            assert valuesSourceBuilder != null : "unexpected missing date histogram value source for composite agg ["
-                + compositeAggregationBuilder.getName()
-                + "]";
-            return new DateHistogramAggOrValueSource(null, valuesSourceBuilder);
+            return new DateHistogramAggOrValueSource(null, getDateHistogramValuesSource(compositeAggregationBuilder));
         }
 
         private final DateHistogramAggregationBuilder agg;

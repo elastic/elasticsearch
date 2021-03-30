@@ -220,7 +220,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                             .execute(ActionListener.wrap(
                                 _unused -> listener.onResponse(finished),
                                 ex -> {
-                                    logger.info(
+                                    logger.warn(
                                         () -> new ParameterizedMessage(
                                             "failed to refresh job [{}] results indices when stopping datafeeds [{}]",
                                             startedDatafeedsJobs,

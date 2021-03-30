@@ -921,13 +921,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         static void checkHistogramAggregationHasChildMaxTimeAgg(AggregationBuilder histogramAggregation) {
             String timeField = null;
             if (histogramAggregation instanceof ValuesSourceAggregationBuilder) {
-                timeField = ((ValuesSourceAggregationBuilder) histogramAggregation).field();
+                timeField = ((ValuesSourceAggregationBuilder<?>) histogramAggregation).field();
             }
             if (histogramAggregation instanceof CompositeAggregationBuilder) {
                 DateHistogramValuesSourceBuilder valueSource = ExtractorUtils.getDateHistogramValuesSource(
                     (CompositeAggregationBuilder) histogramAggregation
                 );
-                assert valueSource != null : "unexpected null date_histogram composite agg source";
                 timeField = valueSource.field();
             }
 

@@ -26,6 +26,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -40,18 +41,26 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 public class GeoIpCli extends Command {
 
     private static final byte[] EMPTY_BUF = new byte[512];
-    private final OptionSpec<String> directoryArg;
+
+    // visible for testing
+    final OptionSpec<String> sourceDirectory;
+    final OptionSpec<String> targetDirectory;
 
     public GeoIpCli() {
         super("A CLI tool to prepare local GeoIp database service", () -> {});
-        directoryArg = parser.acceptsAll(Arrays.asList("d", "directory"), "Directory to process").withRequiredArg().defaultsTo(".");
+        sourceDirectory = parser.acceptsAll(Arrays.asList("s", "source"), "Source directory").withRequiredArg().required();
+        targetDirectory = parser.acceptsAll(Arrays.asList("t", "target"), "Target directory").withRequiredArg();
+
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        Path directory = getPath(options.valueOf(directoryArg));
-        packDatabasesToTgz(terminal, directory);
-        createOverviewJson(terminal, directory);
+        Path source = getPath(options.valueOf(sourceDirectory));
+        String targetString = options.valueOf(targetDirectory);
+        Path target = targetString != null ? getPath(targetString) : source;
+        copyTgzToTarget(terminal, source, target);
+        packDatabasesToTgz(terminal, source, target);
+        createOverviewJson(terminal, target);
     }
 
     @SuppressForbidden(reason = "file arg for cli")
@@ -59,11 +68,21 @@ public class GeoIpCli extends Command {
         return PathUtils.get(file);
     }
 
-    private void packDatabasesToTgz(Terminal terminal, Path directory) throws IOException {
-        List<Path> toPack = Files.list(directory).filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList());
+    private void copyTgzToTarget(Terminal terminal, Path source, Path target) throws IOException {
+        if (source.equals(target)) {
+            return;
+        }
+        List<Path> toCopy = Files.list(source).filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList());
+        for (Path path : toCopy) {
+            Files.copy(path, target.resolve(path.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
+        List<Path> toPack = Files.list(source).filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList());
         for (Path path : toPack) {
             String fileName = path.getFileName().toString();
-            Path compressedPath = path.resolveSibling(fileName.replaceAll("mmdb$", "") + "tgz");
+            Path compressedPath = target.resolve(fileName.replaceAll("mmdb$", "") + "tgz");
             terminal.println("Found " + fileName + ", will compress it to " + compressedPath.getFileName());
             try (
                 OutputStream fos = Files.newOutputStream(compressedPath, TRUNCATE_EXISTING, CREATE);

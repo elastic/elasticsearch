@@ -8,16 +8,17 @@
 
 package org.elasticsearch.geoip;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.SuppressForbidden;
-import org.junit.Before;
-import org.mockito.Matchers;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -31,55 +32,97 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.Constants.WINDOWS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class GeoIpCliTests extends LuceneTestCase {
 
-    private Path tempPath;
+    private Path source;
+    private Path target;
 
     public void setUp() throws Exception {
         super.setUp();
-        tempPath = createTempDir();
+        Path tempPath = createTempDir();
+        source = tempPath.resolve("source");
+        target = tempPath.resolve("target");
+        Files.createDirectory(source);
+        Files.createDirectory(target);
     }
 
     @SuppressForbidden(reason = "process builder requires File for directory")
-    private File getTempFile() {
-        return tempPath.toFile();
+    private File getTargetFile() {
+        return target.toFile();
     }
 
-    public void test() throws Exception {
-        Map<String, byte[]> data = new HashMap<>();
-        byte[] a = new byte[514];
-        Arrays.fill(a, (byte) 'a');
-        Files.write(tempPath.resolve("a.mmdb"), a);
-        data.put("a.tgz", a);
-        byte[] b = new byte[100];
-        Arrays.fill(b, (byte) 'b');
-        Files.write(tempPath.resolve("b.mmdb"), b);
-        data.put("b.tgz", b);
+    public void testNoSource() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        new GeoIpCli().main(new String[] {}, terminal);
+        assertThat(terminal.getErrorOutput(), containsString("Missing required option(s) [s/source]"));
+    }
 
-        Files.createFile(tempPath.resolve("c.tgz"));
+    public void testDifferentDirectories() throws Exception {
+        Map<String, byte[]> data = createTestFiles(source);
 
         GeoIpCli cli = new GeoIpCli();
-        MockTerminal terminal = new MockTerminal();
-        OptionSet optionSet = mock(OptionSet.class);
-        when(optionSet.valueOf(Matchers.<OptionSpec<String>>anyObject())).thenReturn(tempPath.toAbsolutePath().toString());
-        cli.execute(terminal, optionSet);
-        Files.delete(tempPath.resolve("a.mmdb"));
-        Files.delete(tempPath.resolve("b.mmdb"));
-        List<String> files;
-        try (Stream<Path> list = Files.list(tempPath)) {
-            files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
-        }
-        assertThat(files, containsInAnyOrder("a.tgz", "b.tgz", "c.tgz", "overview.json"));
+        cli.main(new String[] { "-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString() }, new MockTerminal());
 
+        try (Stream<Path> list = Files.list(source)) {
+            List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
+            assertThat(files, containsInAnyOrder("a.mmdb", "b.mmdb", "c.tgz"));
+        }
+
+        try (Stream<Path> list = Files.list(target)) {
+            List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
+            assertThat(files, containsInAnyOrder("a.tgz", "b.tgz", "c.tgz", "overview.json"));
+        }
+
+        verifyTarball(data);
+        verifyOverview();
+    }
+
+    public void testSameDirectory() throws Exception {
+        Map<String, byte[]> data = createTestFiles(target);
+
+        GeoIpCli cli = new GeoIpCli();
+        cli.main(new String[] { "-s", target.toAbsolutePath().toString() }, new MockTerminal());
+
+        try (Stream<Path> list = Files.list(target)) {
+            List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
+            assertThat(files, containsInAnyOrder("a.mmdb", "b.mmdb", "a.tgz", "b.tgz", "c.tgz", "overview.json"));
+        }
+
+        Files.delete(target.resolve("a.mmdb"));
+        Files.delete(target.resolve("b.mmdb"));
+
+        verifyTarball(data);
+        verifyOverview();
+    }
+
+    private void verifyOverview() throws Exception {
+        byte[] data = Files.readAllBytes(target.resolve("overview.json"));
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
+        ) {
+            @SuppressWarnings({ "unchecked" })
+            List<Map<String, String>> list = (List) parser.list();
+            assertThat(list, containsInAnyOrder(hasEntry("name", "a.tgz"), hasEntry("name", "b.tgz"), hasEntry("name", "c.tgz")));
+            assertThat(list, containsInAnyOrder(hasEntry("url", "a.tgz"), hasEntry("url", "b.tgz"), hasEntry("url", "c.tgz")));
+            for (Map<String, String> map : list) {
+                assertThat(map, hasKey("md5_hash"));
+                assertThat(map, hasKey("updated"));
+            }
+        }
+    }
+
+    private void verifyTarball(Map<String, byte[]> data) throws Exception {
         // skip tarball verifications on Windows, no tar utility there
         if (WINDOWS) {
             return;
@@ -88,7 +131,7 @@ public class GeoIpCliTests extends LuceneTestCase {
         Map<String, Integer> sizes = Map.of("a.tgz", 514, "b.tgz", 100);
         for (String tgz : List.of("a.tgz", "b.tgz")) {
             String mmdb = tgz.replace(".tgz", ".mmdb");
-            Process process = new ProcessBuilder("tar", "-tvf", tgz).directory(getTempFile()).start();
+            Process process = new ProcessBuilder("tar", "-tvf", tgz).directory(getTargetFile()).start();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line = reader.readLine();
                 assertThat(line, startsWith("-rw-r--r--"));
@@ -98,11 +141,29 @@ public class GeoIpCliTests extends LuceneTestCase {
             }
             int exitCode = process.waitFor();
             assertThat(exitCode, is(0));
-            process = new ProcessBuilder("tar", "-xzf", tgz).directory(getTempFile()).start();
+            process = new ProcessBuilder("tar", "-xzf", tgz).directory(getTargetFile()).start();
             exitCode = process.waitFor();
             assertThat(exitCode, is(0));
-            assertTrue(Files.exists(tempPath.resolve(mmdb)));
-            assertArrayEquals(data.get(tgz), Files.readAllBytes(tempPath.resolve(mmdb)));
+            assertTrue(Files.exists(target.resolve(mmdb)));
+            assertArrayEquals(data.get(tgz), Files.readAllBytes(target.resolve(mmdb)));
         }
+    }
+
+    private Map<String, byte[]> createTestFiles(Path dir) throws IOException {
+        Map<String, byte[]> data = new HashMap<>();
+
+        byte[] a = new byte[514];
+        Arrays.fill(a, (byte) 'a');
+        Files.write(dir.resolve("a.mmdb"), a);
+        data.put("a.tgz", a);
+
+        byte[] b = new byte[100];
+        Arrays.fill(b, (byte) 'b');
+        Files.write(dir.resolve("b.mmdb"), b);
+        data.put("b.tgz", b);
+
+        Files.createFile(dir.resolve("c.tgz"));
+
+        return data;
     }
 }

@@ -16,8 +16,3 @@ dependencies {
   compileOnly project(":libs:elasticsearch-x-content")
   testImplementation project(":test:framework")
 }
-
-tasks.named("test").configure {
-  // TODO: find a way to add permissions for the tests in this module
-  systemProperty 'tests.security.manager', 'false'
-}

@@ -134,7 +134,7 @@ tasks.named("thirdPartyAudit").configure {
 
 restResources {
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 

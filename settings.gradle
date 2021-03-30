@@ -30,7 +30,7 @@ List projects = [
   'distribution:docker',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
-  'distribution:docker:ironbank-aarch64-docker-export',
+  'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
   'distribution:docker:transform-log4j-config',
   'distribution:docker:ubi-docker-aarch64-export',

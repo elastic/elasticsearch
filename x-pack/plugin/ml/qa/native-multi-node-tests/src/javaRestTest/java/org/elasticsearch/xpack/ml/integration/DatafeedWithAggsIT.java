@@ -95,10 +95,6 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         datafeedBuilder.setQueryDelay(TimeValue.timeValueMillis(100));
         datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(1));
         datafeedBuilder.setIndices(Collections.singletonList(dfId));
-
-        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time").interval(1000)
-            .subAggregation(AggregationBuilders.max("time").field("time")));
         datafeedBuilder.setParsedAggregations(aggs);
 
         DatafeedConfig datafeed = datafeedBuilder.build();

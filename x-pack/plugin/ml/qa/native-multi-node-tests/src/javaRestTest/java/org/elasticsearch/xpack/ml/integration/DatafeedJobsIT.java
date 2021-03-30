@@ -357,7 +357,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                 .build()).get();
         String indexName = "stop-restart-data";
         client().admin().indices().prepareCreate("stop-restart-data")
-            .setMapping("time", "type=date")
+            .addMapping("type", "time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();

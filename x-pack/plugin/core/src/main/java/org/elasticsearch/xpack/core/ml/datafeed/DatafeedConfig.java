@@ -1032,7 +1032,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             Optional<AggregationBuilder> maybeComposite = aggregationBuilders.stream()
                 .filter(agg -> agg instanceof CompositeAggregationBuilder)
                 .findFirst();
-            if (maybeComposite.isEmpty() == false) {
+            if (maybeComposite.isPresent()) {
                 CompositeAggregationBuilder composite = (CompositeAggregationBuilder) maybeComposite.get();
                 if (aggregationBuilders.size() > 1) {
                     throw ExceptionsHelper.badRequestException(

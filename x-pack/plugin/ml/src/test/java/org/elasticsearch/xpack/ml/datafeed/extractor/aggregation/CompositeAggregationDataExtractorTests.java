@@ -124,7 +124,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         aggregatedSearchRequestBuilder = (searchSourceBuilder) -> new SearchRequestBuilder(testClient, SearchAction.INSTANCE)
             .setSource(searchSourceBuilder)
             .setAllowPartialSearchResults(false)
-            .setIndices(indices.toArray(String[]::new));
+            .setIndices(indices.toArray(new String[0]));
     }
 
     public void testExtraction() throws IOException {

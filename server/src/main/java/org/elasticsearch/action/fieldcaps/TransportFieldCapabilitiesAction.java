@@ -8,17 +8,20 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -33,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     private final ThreadPool threadPool;
@@ -40,18 +44,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final TransportFieldCapabilitiesIndexAction shardAction;
     private final RemoteClusterService remoteClusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Predicate<String> metadataFieldPred;
 
     @Inject
     public TransportFieldCapabilitiesAction(TransportService transportService,
-                                            ClusterService clusterService, ThreadPool threadPool,
+                                            ClusterService clusterService,
+                                            ThreadPool threadPool,
+                                            NodeClient client,
                                             TransportFieldCapabilitiesIndexAction shardAction,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            ActionFilters actionFilters,
+                                            IndicesService indicesService,
+                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        final Set<String> metadataFields = indicesService.getAllMetadataFields();
+        this.metadataFieldPred = metadataFields::contains;
     }
 
     @Override
@@ -156,7 +167,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<> ();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
-            innerMerge(responseMapBuilder, response.getIndexName(), response.get());
+            innerMerge(responseMapBuilder, response);
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
@@ -183,20 +194,23 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
             for (String index : unmappedIndices) {
-                unmapped.add(index, false, false, Collections.emptyMap());
+                unmapped.add(index, false, false, false, Collections.emptyMap());
             }
         }
     }
 
     private void innerMerge(Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-                                String indexName, Map<String, IndexFieldCapabilities> map) {
-        for (Map.Entry<String, IndexFieldCapabilities> entry : map.entrySet()) {
+                            FieldCapabilitiesIndexResponse response) {
+        for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
             final String field = entry.getKey();
+            // best effort to detect metadata field coming from older nodes
+            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0) ?
+                entry.getValue().isMetadatafield() : metadataFieldPred.test(field);
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(),
                 key -> new FieldCapabilities.Builder(field, key));
-            builder.add(indexName, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
+            builder.add(response.getIndexName(), isMetadataField, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
         }
     }
 }

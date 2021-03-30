@@ -1579,6 +1579,20 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns the registered metadata field names for the provided compatible {@link Version}.
+     */
+    public Set<String> getMetadataFields(Version version) {
+        return mapperRegistry.getMetadataMapperParsers(version).keySet();
+    }
+
+    /**
+     * Returns the registered metadata field names for all compatible versions.
+     */
+    public Set<String> getAllMetadataFields() {
+        return mapperRegistry.getAllMetadataMapperParsers().keySet();
+    }
+
+    /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
     public boolean isIdFieldDataEnabled() {

@@ -127,32 +127,13 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
             + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
-    public void testMatchWithText() {
+
+    public void testMatchIsNotValidFunction() {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where match(plain_text, \"foo.*\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: [match(plain_text, \"foo.*\")] cannot operate on first argument field of data type [text]: " +
-            "No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
-    }
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
-    public void testMatchWithNonString() {
-        VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where match(process_name, parent_process_name)"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\n" +
-            "line 1:15: second argument of [match(process_name, parent_process_name)] " +
-            "must be a constant, received [parent_process_name]", msg);
-    }
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
-    public void testMatchWithNonRegex() {
-        VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where match(process_name, 1)"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\n" +
-            "line 1:15: second argument of [match(process_name, 1)] " +
-            "must be [string], found value [1] type [integer]", msg);
+            "line 1:15: Unknown function [match], did you mean [cidrmatch]?", msg);
     }
 
     public void testNumberFunctionAlreadyNumber() {

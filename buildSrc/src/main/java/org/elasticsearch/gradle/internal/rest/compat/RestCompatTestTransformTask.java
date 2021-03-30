@@ -110,6 +110,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     public void replaceIsFalse(String subKey, Object value) {
         transformations.add(new ReplaceTextual("is_false", subKey, MAPPER.convertValue(value, TextNode.class)));
     }
+
     /**
      * Replaces the values of a match assertion for the given REST test. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
      *

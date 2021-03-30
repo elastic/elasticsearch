@@ -1055,7 +1055,7 @@ public class NumberFieldMapper extends FieldMapper {
                             scriptValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), values::add);
                         } catch (Exception e) {
                             // ignore errors - if they exist here then they existed at index time
-                            // and were ignored, so we ignore here too
+                            // and so on_script_error must have been set to `ignore`
                         }
                         return values;
                     }

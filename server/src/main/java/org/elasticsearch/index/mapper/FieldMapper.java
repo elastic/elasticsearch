@@ -172,10 +172,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         multiFields.parse(this, context);
     }
 
+    /**
+     * @return whether this field mapper uses a script to generate its values
+     */
     public boolean hasIndexTimeScript() {
         return false;
     }
 
+    /**
+     * Execute the index-time script associated with this field mapper.
+     *
+     * This method should only be called if {@link #hasIndexTimeScript()} has returned {@code true}
+     * @param searchLookup  a SearchLookup to be passed the script
+     * @param ctx           a LeafReaderContext exposing values from an incoming document
+     * @param pc            the ParseContext over the incoming document
+     */
     public void executeIndexTimeScript(SearchLookup searchLookup, LeafReaderContext ctx, ParseContext pc) {
         throw new UnsupportedOperationException("FieldMapper " + name() + " does not have an index-time script");
     }

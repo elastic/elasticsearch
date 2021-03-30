@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
@@ -244,7 +245,8 @@ public class XPackPlugin extends XPackClientPlugin
         return metadata.custom(LicensesMetadata.TYPE) != null ||
             metadata.custom(MlMetadata.TYPE) != null ||
             metadata.custom(WatcherMetadata.TYPE) != null ||
-            clusterState.custom(TokenMetadata.TYPE) != null;
+            clusterState.custom(TokenMetadata.TYPE) != null ||
+            metadata.custom(TransformMetadata.TYPE) != null;
     }
     
     @Override

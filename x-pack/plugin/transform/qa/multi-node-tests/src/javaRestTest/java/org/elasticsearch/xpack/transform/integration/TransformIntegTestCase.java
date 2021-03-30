@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -120,8 +121,16 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void cleanUpTransforms() throws IOException {
         for (TransformConfig config : transformConfigs.values()) {
-            stopTransform(config.getId());
-            deleteTransform(config.getId());
+            try {
+                stopTransform(config.getId());
+                deleteTransform(config.getId());
+            } catch (ElasticsearchStatusException ex) {
+                if (ex.status().equals(RestStatus.NOT_FOUND)) {
+                    logger.info("tried to cleanup already deleted transform [{}]", config.getId());
+                } else {
+                    throw ex;
+                }
+            }
         }
         transformConfigs.clear();
     }

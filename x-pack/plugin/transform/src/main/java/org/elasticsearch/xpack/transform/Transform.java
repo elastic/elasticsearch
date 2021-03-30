@@ -13,7 +13,9 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -51,15 +53,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -77,6 +83,7 @@ import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
@@ -232,6 +239,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
             new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
             new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
+            new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class),
 
             // deprecated actions, to be removed for 8.0.0
             new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
@@ -361,14 +369,62 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public void cleanUpFeature(
         ClusterService clusterService,
         Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
+
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
+            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
+                resetSuccess -> finalListener.onResponse(success),
+                resetFailure -> {
+                    logger.error("failed to disable reset mode after otherwise successful transform reset", resetFailure);
+                    finalListener.onFailure(
+                        ExceptionsHelper.serverError(
+                            "failed to disable reset mode after otherwise successful transform reset",
+                            resetFailure
+                        )
+                    );
+                })
+            ),
+            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
+                resetSuccess -> finalListener.onFailure(failure),
+                resetFailure -> {
+                    logger.error("failed to disable reset mode after transform state clean up failure", resetFailure);
+                    finalListener.onFailure(failure);
+                })
+            )
+        );
+
+        ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(
+            listTasksResponse -> {
+                listTasksResponse.rethrowFailures("Waiting for transform indexing tasks");
+                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+            },
+            unsetResetModeListener::onFailure
+        );
+
         ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
             if (stopTransformsResponse.isAcknowledged()
                 && stopTransformsResponse.getTaskFailures().isEmpty()
                 && stopTransformsResponse.getNodeFailures().isEmpty()) {
-
-                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                client.admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(TransformField.TASK_NAME)
+                    .setWaitForCompletion(true)
+                    .execute(ActionListener.wrap(
+                        listMlTasks -> {
+                            listMlTasks.rethrowFailures("Waiting for transform tasks");
+                            client.admin()
+                                .cluster()
+                                .prepareListTasks()
+                                .setActions("indices:data/write/bulk")
+                                .setDetailed(true)
+                                .setWaitForCompletion(true)
+                                .setDescriptions("*.transform-*", "*.data-frame-*")
+                                .execute(afterWaitingForTasks);
+                        },
+                        unsetResetModeListener::onFailure
+                    ));
             } else {
                 String errMsg = "Failed to reset Transform: "
                     + (stopTransformsResponse.isAcknowledged() ? "" : "not acknowledged ")
@@ -378,12 +434,26 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                     + (stopTransformsResponse.getTaskFailures().isEmpty()
                         ? ""
                         : "task failures: " + stopTransformsResponse.getTaskFailures());
-                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(this.getFeatureName(), errMsg));
+                unsetResetModeListener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(this.getFeatureName(), errMsg));
             }
-        }, listener::onFailure);
+        }, unsetResetModeListener::onFailure);
 
-        StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(Metadata.ALL, true, true, null, true, false);
-        client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
+        ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(
+            response -> {
+                StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(
+                    Metadata.ALL,
+                    true,
+                    true,
+                    null,
+                    true,
+                    false
+                );
+                client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
+            },
+            finalListener::onFailure
+        );
+
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
     }
 
     @Override

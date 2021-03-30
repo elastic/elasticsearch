@@ -30,6 +30,10 @@ public final class DestructiveOperations {
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
         Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
 
+    static final String DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING = "setting [action.destructive_requires_name] will " +
+        "default to true in 8.0, " +
+        "set explicitly to false to preserve current behavior";
+
     /**
      * The "match none" pattern, "*,-*", will never actually be destructive
      * because it operates on no indices. If plugins or other components add
@@ -38,7 +42,6 @@ public final class DestructiveOperations {
      * indices, relying on the core code to handle this situation.
      */
     private static final String[] MATCH_NONE_PATTERN = {"*", "-*"};
-
     private volatile boolean destructiveRequiresName;
 
     private volatile boolean isDestructiveRequiresNameSet;
@@ -59,27 +62,26 @@ public final class DestructiveOperations {
      */
     public void failDestructive(String[] aliasesOrIndices) {
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
-            handleWildcardOperation();
+            checkWildCardOK();
         } else if (aliasesOrIndices.length == 1) {
             if (hasWildcardUsage(aliasesOrIndices[0])) {
-                handleWildcardOperation();
+                checkWildCardOK();
             }
         } else if (Arrays.equals(aliasesOrIndices, MATCH_NONE_PATTERN) == false) {
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
-                    handleWildcardOperation();
+                    checkWildCardOK();
                 }
             }
         }
     }
 
-    private void handleWildcardOperation() {
+    private void checkWildCardOK() {
         if (isDestructiveRequiresNameSet == false) {
             deprecationLogger.deprecate(
                 DeprecationCategory.SETTINGS,
                 "destructive_requires_name_default",
-                "setting [action.destructive_requires_name] will default to true in 8.0, " +
-                    "set explicitly to false to preserve current behavior"
+                DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING
             );
         }
         if (destructiveRequiresName) {

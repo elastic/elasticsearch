@@ -17,6 +17,8 @@ dependencies {
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
   api "com.google.protobuf:protobuf-java:3.14.0"
+  yamlRestTestImplementation("com.wdtinc:mapbox-vector-tile:3.1.0")
+  yamlRestTestImplementation("com.google.protobuf:protobuf-java:3.14.0")
 }
 
 restResources {

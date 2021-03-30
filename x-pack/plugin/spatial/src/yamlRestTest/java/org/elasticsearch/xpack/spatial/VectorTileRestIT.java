@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.search;
+package org.elasticsearch.xpack.spatial;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.apache.http.HttpStatus;
@@ -23,7 +23,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class VectorTileRestTests extends ESRestTestCase {
+public class VectorTileRestIT extends ESRestTestCase {
 
     private static String INDEX_NAME = "my-index";
 

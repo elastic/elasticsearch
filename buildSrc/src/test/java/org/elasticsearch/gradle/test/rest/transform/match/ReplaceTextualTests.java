@@ -36,11 +36,10 @@ public class ReplaceTextualTests extends TransformTests {
         validateTest(tests, true, true);
         List<ObjectNode> transformedTests = transformTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new ReplaceTextual("key_to_replace", "key_to_replace", replacementNode, null))
+            Collections.singletonList(new ReplaceTextual("key_to_replace", "value_to_replace", replacementNode, null))
         );
         printTest(testName, transformedTests);
         validateTest(tests, false, true);
-
     }
 
     private void validateTest(List<ObjectNode> tests, boolean beforeTransformation, boolean allTests) {

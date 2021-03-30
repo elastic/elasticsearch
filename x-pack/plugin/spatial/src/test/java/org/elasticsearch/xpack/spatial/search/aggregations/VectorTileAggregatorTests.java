@@ -82,6 +82,7 @@ public class VectorTileAggregatorTests extends AggregatorTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "That doesn't work yet")
     public void testGeoShape() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();

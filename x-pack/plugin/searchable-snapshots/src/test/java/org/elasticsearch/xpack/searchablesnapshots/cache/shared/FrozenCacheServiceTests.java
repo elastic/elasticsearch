@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 

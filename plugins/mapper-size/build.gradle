@@ -15,7 +15,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'get'
+    include '_common', 'indices', 'index', 'get'
   }
 }
 // no unit tests

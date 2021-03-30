@@ -31,7 +31,7 @@ templates.
 * If a new data stream or index matches more than one index template, the index
 template with the highest priority is used.
 
-.Using index templates with {fleet} or {agent}
+.Avoid index pattern collisions
 ****
 // tag::built-in-index-templates[]
 [IMPORTANT]

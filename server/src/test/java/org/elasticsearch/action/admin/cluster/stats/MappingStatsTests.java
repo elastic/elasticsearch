@@ -170,7 +170,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     @Override
     protected MappingStats mutateInstance(MappingStats instance) throws IOException {
         List<IndexFeatureStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
-        List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldTypeStats());
+        List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
         if (randomBoolean()) {
             boolean remove = fieldTypes.size() > 0 && randomBoolean();
             if (remove) {

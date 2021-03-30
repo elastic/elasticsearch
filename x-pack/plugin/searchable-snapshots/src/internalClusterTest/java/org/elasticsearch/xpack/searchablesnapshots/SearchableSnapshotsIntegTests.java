@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardS
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -1494,6 +1494,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     assertThat(
                         "Unexpected average file length for " + fileExt + " of shard " + shardRouting,
                         indexInputStats.getAverageSize().getBytes(),
+                        greaterThan(0L)
+                    );
+                    assertThat(
+                        "Expected at least one Lucene read for " + fileExt + " of shard " + shardRouting,
+                        indexInputStats.getLuceneBytesRead().getCount(),
                         greaterThan(0L)
                     );
 

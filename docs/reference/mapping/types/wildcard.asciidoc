@@ -5,7 +5,7 @@
 === Wildcard field type
 
 The `wildcard` field type is a specialized keyword field for unstructured
-machine-generated content you plan to search using grep-like 
+machine-generated content you plan to search using grep-like
 <<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-regexp-query,`regexp`>>
 queries. The `wildcard` type is optimized for fields with large values or high
 cardinality.
@@ -130,4 +130,5 @@ The following parameters are accepted by `wildcard` fields:
 ==== Limitations
 
 * `wildcard` fields are untokenized like keyword fields, so do not support queries that rely on word positions such as phrase queries.
+* When running `wildcard` queries any `rewrite` parameter is ignored. The scoring is always a constant score.
 

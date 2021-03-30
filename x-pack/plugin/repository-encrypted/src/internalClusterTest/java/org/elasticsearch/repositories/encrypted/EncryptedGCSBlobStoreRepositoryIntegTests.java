@@ -85,7 +85,7 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
         return Settings.builder()
             .put(super.repositorySettings(repositoryName))
             .put(EncryptedRepositoryPlugin.DELEGATE_TYPE_SETTING.getKey(), "gcs")
-            .put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repositoryName)
+            .put(RepositoryPasswords.CURRENT_PASSWORD_NAME_SETTING.getKey(), repositoryName)
             .build();
     }
 
@@ -110,7 +110,7 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
         final EncryptedRepository encryptedRepository = (EncryptedRepository) internalCluster().getCurrentMasterNodeInstance(
             RepositoriesService.class
         ).repository(repository);
-        PlainActionFuture.get(encryptedRepository::publishPasswordsHash);
+        PlainActionFuture.get(encryptedRepository::maybePublishCurrentPasswordHash);
         return blobStore;
     }
 }

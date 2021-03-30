@@ -25,8 +25,12 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
+import org.junit.After;
 import org.junit.Before;
 
 import javax.crypto.SecretKey;
@@ -57,6 +61,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     private EncryptedRepository encryptedRepository;
     private EncryptedRepository.EncryptedBlobStore encryptedBlobStore;
     private Map<BlobPath, byte[]> blobsMap;
+    private ThreadPool threadPool;
 
     @Before
     public void setUpMocks() throws Exception {
@@ -72,9 +77,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
         when(delegatedRepository.basePath()).thenReturn(delegatedPath);
         String repoPasswordName = randomAlphaOfLength(6);
         Settings.Builder settings = Settings.builder();
-        settings.put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repoPasswordName);
+        settings.put(RepositoryPasswords.CURRENT_PASSWORD_NAME_SETTING.getKey(), repoPasswordName);
         settings.put(
-            RepositoryPasswords.PASSWORD_HASH_SETTING.getConcreteSettingForNamespace(repoPasswordName).getKey(),
+            RepositoryPasswords.PASSWORDS_HASH_SETTING.getConcreteSettingForNamespace(repoPasswordName).getKey(),
             AESKeyUtils.computeSaltedPasswordHash(repoPassword, EsExecutors.newDirectExecutorService()).get()
         );
         this.repositoryMetadata = new RepositoryMetadata(
@@ -82,8 +87,13 @@ public class EncryptedRepositoryTests extends ESTestCase {
             EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME,
             settings.build()
         );
+        threadPool = new TestThreadPool("EncryptedRepositoryTests",
+                new FixedExecutorBuilder(Settings.EMPTY, SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME,
+                        1, 100,
+                        "xpack.security.crypto.thread_pool", false)
+        );
         ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
-        when(clusterApplierService.threadPool()).thenReturn(mock(ThreadPool.class));
+        when(clusterApplierService.threadPool()).thenReturn(threadPool);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
         this.encryptedRepository = new EncryptedRepository(
@@ -115,6 +125,11 @@ public class EncryptedRepositoryTests extends ESTestCase {
             }).when(blobContainer).readBlob(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
+    }
+
+    @After
+    public void shutdown() {
+        terminate(threadPool);
     }
 
     public void testStoreDEKSuccess() throws Exception {

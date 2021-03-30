@@ -111,7 +111,7 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         final EncryptedRepository encryptedRepository = (EncryptedRepository) internalCluster().getCurrentMasterNodeInstance(
             RepositoriesService.class
         ).repository(repository);
-        PlainActionFuture.get(encryptedRepository::publishPasswordsHash);
+        PlainActionFuture.get(encryptedRepository::maybePublishCurrentPasswordHash);
         return blobStore;
     }
 

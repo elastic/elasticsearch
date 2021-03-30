@@ -677,7 +677,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         return Settings.builder()
             .put("compress", randomBoolean())
             .put(EncryptedRepositoryPlugin.DELEGATE_TYPE_SETTING.getKey(), FsRepository.TYPE)
-            .put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repositoryName)
+            .put(RepositoryPasswords.CURRENT_PASSWORD_NAME_SETTING.getKey(), repositoryName)
             .put("location", randomRepoPath())
             .build();
     }

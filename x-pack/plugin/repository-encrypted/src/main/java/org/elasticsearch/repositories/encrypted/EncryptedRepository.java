@@ -157,25 +157,33 @@ public class EncryptedRepository extends BlobStoreRepository {
             onFailure.accept(LicenseUtils.newComplianceException("encrypted snapshots"));
             return;
         }
-        if (repositoryPasswords.containsPasswordHashes(metadata)) {
-            super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure);
-            return;
+        final StepListener<Void> putPasswordHashInRepositoryMetadataStep = new StepListener<>();
+        if (false == repositoryPasswords.containsPasswordsHash(metadata)) {
+            // this repository has just been created and no writes operations have yet triggered a hash publication
+            updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
+                // something else published the hashes in the meantime
+                if (repositoryPasswords.containsPasswordsHash(latestRepositoryMetadata)) {
+                    logger.debug("Repository [" + latestRepositoryMetadata.name() + "] already contains some password hashes");
+                    putPasswordHashInRepositoryMetadataStep.onResponse(null);
+                    return;
+                }
+                repositoryPasswords.updateWithHashForCurrentPassword(latestRepositoryMetadata, newRepositoryMetadataListener);
+            }, "update encrypted repository [" + metadata.name() + "] current password hash", putPasswordHashInRepositoryMetadataStep);
+        } else {
+            putPasswordHashInRepositoryMetadataStep.onResponse(null);
         }
-        final StepListener<RepositoryData> publishHashesStepListener = new StepListener<>();
-        // before updating the cluster state for the operation, update it to make sure the password hashes are published
-        // because downstream actions of the operation might need to verify them (eg write blob actions)
-        publishPasswordsHash(publishHashesStepListener);
-        // go on with the actual task to update the cluster state
-        // this runs on the master applier thread, not worth forking it, right?
-        publishHashesStepListener.whenComplete(
-            latestRepositoryData -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure),
-            onFailure
+        final StepListener<Void> verifyRepoHashesStep = new StepListener<>();
+        putPasswordHashInRepositoryMetadataStep.whenComplete(aVoid -> repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(metadata,
+                verifyRepoHashesStep), onFailure);
+        verifyRepoHashesStep.whenComplete(
+                aVoid -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure),
+                onFailure
         );
     }
 
     @Override
     public boolean isCompatible(RepositoryMetadata repositoryMetadata) {
-        // this type of repository is designed to work with the password settings changing on the fly
+        // this type of repository is designed to work with SOME password settings changing on the fly, without re-constructing the repo
         return repositoryPasswords.equalsIgnorePasswordSettings(getMetadata(), repositoryMetadata);
     }
 
@@ -185,10 +193,13 @@ public class EncryptedRepository extends BlobStoreRepository {
         final String seed = this.delegatedRepository.startVerification();
         final RepositoryMetadata repositoryMetadata = metadata;
         try {
-            final Map<String, String> passwordsHashes = repositoryPasswords.computePasswordHashes(repositoryMetadata);
+            final Map<String, String> passwordsHashes = repositoryPasswords.computePasswordsHashForBlobWrite(repositoryMetadata);
             return packSeed(seed, passwordsHashes);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while computing hashes for verification", e);
         } catch (Exception e) {
-            throw new RepositoryVerificationException(repositoryMetadata.name(), "Error computing password hashes", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Exception while computing hashes for verification", e);
         }
     }
 
@@ -211,17 +222,21 @@ public class EncryptedRepository extends BlobStoreRepository {
         final Tuple<String, Map<String, String>> seedAndHashes;
         try {
             seedAndHashes = unpackSeed(packedSeed);
-            if (false == repositoryPasswords.verifyPasswordsHashes(seedAndHashes.v2())) {
+            if (false == repositoryPasswords.verifyPasswordsHash(seedAndHashes.v2())) {
                 throw new IllegalArgumentException("Repository password(s) mismatch");
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RepositoryException(repositoryMetadata.name(), "Interrupted verifying passwords hash", e);
         } catch (Exception e) {
-            throw new RepositoryVerificationException(repositoryMetadata.name(), "Error verifying password hashes", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Error verifying passwords hash", e);
         }
         this.delegatedRepository.verify(seedAndHashes.v1(), localNode);
     }
 
     @Override
     public void start() {
+        // TODO move this to plugin repository factory
         super.start();
         try {
             repositoryPasswords.currentLocalPassword(metadata);
@@ -279,35 +294,6 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
-    // protected for tests
-    protected void publishPasswordsHash(ActionListener<RepositoryData> listener) {
-        updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
-            // don't ever overwrite hashes
-            if (repositoryPasswords.containsPasswordHashes(latestRepositoryMetadata)) {
-                logger.warn("Repository [" + latestRepositoryMetadata.name() + "] already contains some password hashes");
-                listener.onResponse(latestRepositoryData);
-                return;
-            }
-            repositoryPasswords.computePasswordHashes(latestRepositoryMetadata, ActionListener.wrap(localPasswordHashes -> {
-                RepositoryMetadata newRepositoryMetadata = repositoryPasswords.withPasswordHashes(
-                    latestRepositoryMetadata,
-                    localPasswordHashes
-                );
-                if (false == repositoryPasswords.containsRequiredPasswordHashes(newRepositoryMetadata)) {
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "New repository ["
-                                + latestRepositoryMetadata.name()
-                                + "] metadata does not contain all the required password hashes"
-                        )
-                    );
-                    return;
-                }
-                newRepositoryMetadataListener.onResponse(newRepositoryMetadata);
-            }, listener::onFailure));
-        }, "update encrypted repository password hashes [" + metadata.name() + "]", listener);
-    }
-
     protected void initiatePasswordChange(String fromPasswordName, String toPasswordName, ActionListener<RepositoryData> listener) {
         // TODO
     }
@@ -316,7 +302,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     protected void updateMetadata(
         TriConsumer<RepositoryData, RepositoryMetadata, ActionListener<RepositoryMetadata>> updateAction,
         String source,
-        ActionListener<RepositoryData> listener
+        ActionListener<Void> listener
     ) {
         super.executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
             updateAction.apply(latestRepositoryData, latestRepositoryMetadata, ActionListener.wrap(newRepositoryMetadata -> {
@@ -373,7 +359,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
                         logger.info("Repository [" + newRepositoryMetadata.name() + "] metadata updated from source: " + source);
-                        listener.onResponse(latestRepositoryData);
+                        listener.onResponse(null);
                     }
                 });
             }, listener::onFailure));
@@ -778,23 +764,13 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     private static void verifyPublishedPasswordHashes(RepositoryPasswords repositoryPasswords, RepositoryMetadata repositoryMetadata)
         throws RepositoryException {
-        final boolean hashesVerified;
         try {
-            hashesVerified = repositoryPasswords.verifyPublishedPasswordHashes(repositoryMetadata);
+            repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RepositoryException(repositoryMetadata.name(), "Interrupted while verifying password hashes", e);
         } catch (Exception e) {
-            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while veryfing password hashes", e);
-        }
-        if (false == hashesVerified) {
-            if (false == repositoryPasswords.containsPasswordHashes(repositoryMetadata)) {
-                throw new RepositoryException(repositoryMetadata.name(), "No password hashes published");
-            }
-            if (false == repositoryPasswords.containsRequiredPasswordHashes(repositoryMetadata)) {
-                throw new RepositoryException(repositoryMetadata.name(), "Password hashes missing for some passwords");
-            }
-            throw new RepositoryException(repositoryMetadata.name(), "The repository password(s) on the local node are different");
+            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while verifying password hashes", e);
         }
     }
 

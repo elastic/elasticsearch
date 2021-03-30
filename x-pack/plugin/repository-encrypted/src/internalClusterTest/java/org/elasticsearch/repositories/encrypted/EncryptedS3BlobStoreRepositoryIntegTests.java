@@ -84,7 +84,7 @@ public final class EncryptedS3BlobStoreRepositoryIntegTests extends S3BlobStoreR
         return Settings.builder()
             .put(super.repositorySettings(repositoryName))
             .put(EncryptedRepositoryPlugin.DELEGATE_TYPE_SETTING.getKey(), "s3")
-            .put(RepositoryPasswords.PASSWORD_NAME_SETTING.getKey(), repositoryName)
+            .put(RepositoryPasswords.CURRENT_PASSWORD_NAME_SETTING.getKey(), repositoryName)
             .build();
     }
 
@@ -115,7 +115,7 @@ public final class EncryptedS3BlobStoreRepositoryIntegTests extends S3BlobStoreR
         final EncryptedRepository encryptedRepository = (EncryptedRepository) internalCluster().getCurrentMasterNodeInstance(
             RepositoriesService.class
         ).repository(repository);
-        PlainActionFuture.get(encryptedRepository::publishPasswordsHash);
+        PlainActionFuture.get(encryptedRepository::maybePublishCurrentPasswordHash);
         return blobStore;
     }
 }

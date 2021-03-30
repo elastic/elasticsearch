@@ -666,17 +666,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // node is guaranteed to send them back in the fetch phase.
             // Three cases that we have to keep the search states in ReaderContext:
             // 1. Scroll requests
-            // 2. The coordinating node or a proxy node (i.e. CCS) is on the old version.
-            //    This is tested by the `keepSearchStatesInContext` flag of ShardSearchRequest.
-            //    This flag becomes `true` whenever a ShardSearchRequest passes on any old node.
+            // 2. The coordinating node or a proxy node (i.e. CCS) is on the old version. The `channelVersion`
+            //    of ShardSearchRequest, which is the minimum version of nodes that the request has been passed,
+            //    can be used to determine this.
             // 3. Any node on the cluster is on the old version. This extra check is to avoid a situation where a
             //    ShardSearchRequest is sent via a new proxy node, but a ShardFetchSearchRequest on an old proxy node.
             //
             // Note that it's ok to keep the search states in ReaderContext even when the coordinating node also sends
             // them back in the fetch phase and it only happens in a mixed cluster.
             if (request.scroll() != null ||
-                request.keepSearchStatesInContext() ||
-                clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_10_0)) {
+                request.getChannelVersion().onOrAfter(Version.V_7_13_0) ||
+                clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_13_0)) {
                 readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAliveInMillis);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);

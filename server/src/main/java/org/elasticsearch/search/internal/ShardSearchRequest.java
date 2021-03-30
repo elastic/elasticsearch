@@ -80,7 +80,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
-    private final boolean keepSearchStatesInContext;
+    private final Version channelVersion;
 
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
@@ -168,7 +168,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        this.keepSearchStatesInContext = false;
+        this.channelVersion = Version.CURRENT;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -212,9 +212,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            keepSearchStatesInContext = in.readBoolean();
+            channelVersion = Version.min(Version.readVersion(in), in.getVersion());
         } else {
-            keepSearchStatesInContext = true;
+            channelVersion = in.getVersion();
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -238,7 +238,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
-        this.keepSearchStatesInContext = clone.keepSearchStatesInContext;
+        this.channelVersion = clone.channelVersion;
     }
 
     @Override
@@ -285,7 +285,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalTimeValue(keepAlive);
         }
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(keepSearchStatesInContext);
+            Version.writeVersion(channelVersion, out);
         }
     }
 
@@ -546,10 +546,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     /**
-     * Returns {@code false} when the coordinating node is ready to handle the search states by itself.
-     * Otherwise, {@link org.elasticsearch.search.SearchService} needs to keep the search states on data nodes.
+     * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
+     * version is {@link Version#CURRENT}; otherwise, it's the minimum version of the coordinating node and data node (and the proxy node
+     * in case the request is sent to the proxy node of the remote cluster before reaching the data node).
      */
-    public boolean keepSearchStatesInContext() {
-        return keepSearchStatesInContext;
+    public Version getChannelVersion() {
+        return channelVersion;
     }
 }

@@ -208,15 +208,17 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         return copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
     }
 
-    public void testKeepStatesInContext() throws Exception {
+    public void testChannelVersion() throws Exception {
         ShardSearchRequest request = createShardSearchRequest();
-        assertFalse(request.keepSearchStatesInContext());
+        Version channelVersion = Version.CURRENT;
+        assertThat(request.getChannelVersion(), equalTo(channelVersion));
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
             Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
             request = serialize(request, newVersion);
-            assertFalse(request.keepSearchStatesInContext());
+            channelVersion = Version.min(newVersion, channelVersion);
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
                 request = new ShardSearchRequest(request);
             }
@@ -224,10 +226,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         // Old version
         iterations = between(1, 5);
         for (int i = 0; i < iterations; i++) {
-            Version oldVersion = VersionUtils.randomVersionBetween(random(),
+            channelVersion = VersionUtils.randomVersionBetween(random(),
                 Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
-            request = serialize(request, oldVersion);
-            assertTrue(request.keepSearchStatesInContext());
+            request = serialize(request, channelVersion);
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
                 request = new ShardSearchRequest(request);
             }
@@ -235,8 +237,14 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         // Any version
         iterations = between(1, 5);
         for (int i = 0; i < iterations; i++) {
-            request = serialize(request, VersionUtils.randomVersion(random()));
-            assertTrue(request.keepSearchStatesInContext());
+            Version version = VersionUtils.randomVersion(random());
+            request = serialize(request, version);
+            if (version.onOrAfter(Version.V_7_13_0)) {
+                channelVersion = Version.min(channelVersion, version);
+            } else {
+                channelVersion = version;
+            }
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
                 request = new ShardSearchRequest(request);
             }

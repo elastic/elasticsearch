@@ -987,7 +987,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         ShardSearchRequest request = new ShardSearchRequest(new OriginalIndices(indices, IndicesOptions.lenientExpandOpen()),
             searchRequest, shardId, 0, indexService.numberOfShards(), AliasFilter.EMPTY, 1f, nowInMillis, clusterAlias);
         {
-            assertFalse(request.keepSearchStatesInContext());
+            assertThat(request.getChannelVersion(), equalTo(Version.CURRENT));
             ReaderContext readerContext = searchService.createOrGetReaderContext(request);
             assertThat(readerContext, not(instanceOf(LegacyReaderContext.class)));
             NullPointerException error = expectThrows(NullPointerException.class, () -> readerContext.getShardSearchRequest(null));
@@ -995,18 +995,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchService.freeReaderContext(readerContext.id());
         }
         if (randomBoolean()) {
-            request = serialize(request,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT));
-            assertFalse(request.keepSearchStatesInContext());
+            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            request = serialize(request, version);
+            assertThat(request.getChannelVersion(), equalTo(version));
             ReaderContext readerContext = searchService.createOrGetReaderContext(request);
             assertThat(readerContext, not(instanceOf(LegacyReaderContext.class)));
             NullPointerException error = expectThrows(NullPointerException.class, () -> readerContext.getShardSearchRequest(null));
             assertThat(error.getMessage(), equalTo("ShardSearchRequest must be sent back in a fetch request"));
             searchService.freeReaderContext(readerContext.id());
         } else {
-            request = serialize(request,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0)));
-            assertTrue(request.keepSearchStatesInContext());
+            final Version version = VersionUtils.randomVersionBetween(
+                random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+            request = serialize(request, version);
+            assertThat(request.getChannelVersion(), equalTo(version));
             ReaderContext readerContext = searchService.createOrGetReaderContext(request);
             assertThat(readerContext, instanceOf(LegacyReaderContext.class));
             assertThat(readerContext.getShardSearchRequest(null), equalTo(request));

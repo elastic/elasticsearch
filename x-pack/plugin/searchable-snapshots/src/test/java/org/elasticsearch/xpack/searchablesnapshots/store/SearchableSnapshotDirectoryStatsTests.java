@@ -192,7 +192,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testDirectBytesReadsWithCache() throws Exception {
         // Cache service always evicts files
-        executeTestCaseWithCache(ByteSizeValue.ZERO, randomCacheRangeSize(), (fileName, fileContent, directory) -> {
+        executeTestCaseWithCache(ByteSizeValue.ZERO, randomFrozenCacheRangeSize(), (fileName, fileContent, directory) -> {
             assertThat(directory.getStats(fileName), nullValue());
 
             final IOContext ioContext = randomIOContext();

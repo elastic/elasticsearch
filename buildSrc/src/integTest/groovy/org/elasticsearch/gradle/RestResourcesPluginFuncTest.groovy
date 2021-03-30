@@ -52,7 +52,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + api).exists()
     }
 
-    def "restResources copies all core API (but not x-pack) by default for projects with copied tests"() {
+    def "restResources copies all API by default for projects with copied tests"() {
         given:
         internalBuild()
         buildFile << """
@@ -71,7 +71,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String apiXpack = "xpack.json"
         String coreTest = "foo/10_basic.yml"
         String xpackTest = "bar/10_basic.yml"
-        setupRestResources([apiCore1, apiCore2], [coreTest], [apiXpack], [xpackTest])
+        setupRestResources([apiCore1, apiCore2, apiXpack], [coreTest], [xpackTest])
         // intentionally not adding tests to project, they will be copied over via the plugin
         // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
 
@@ -83,7 +83,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiCore1).exists()
         file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiCore2).exists()
-        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpack).exists() == false //x-pack specs must be explicitly configured
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpack).exists()
         file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).exists()
         file("/build/restResources/yamlTests/rest-api-spec/test/" + xpackTest).exists()
     }
@@ -97,8 +97,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             restResources {
                 restApi {
-                    includeCore 'foo'
-                    includeXpack 'xpackfoo'
+                    include 'foo', 'xpackfoo'
                 }
             }
         """
@@ -106,7 +105,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String apiXpackFoo = "xpackfoo.json"
         String apiBar = "bar.json"
         String apiXpackBar = "xpackbar.json"
-        setupRestResources([apiFoo, apiBar], [], [apiXpackFoo, apiXpackBar])
+        setupRestResources([apiFoo, apiBar, apiXpackFoo, apiXpackBar])
         addRestTestsToProject(["10_basic.yml"])
 
         when:
@@ -130,8 +129,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             restResources {
                 restApi {
-                    includeCore '*'
-                    includeXpack '*'
+                    include '*'
                 }
                 restTests {
                     includeCore 'foo'
@@ -144,7 +142,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String apiXpack = "xpack.json"
         String coreTest = "foo/10_basic.yml"
         String xpackTest = "bar/10_basic.yml"
-        setupRestResources([apiCore1, apiCore2], [coreTest], [apiXpack], [xpackTest])
+        setupRestResources([apiCore1, apiCore2, apiXpack], [coreTest], [xpackTest])
         // intentionally not adding tests to project, they will be copied over via the plugin
         // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
 

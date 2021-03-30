@@ -46,7 +46,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -298,16 +300,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
         throws IOException {
 
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
-            .fielddataBuilder("test", () -> {
-                throw new UnsupportedOperationException();
-            })
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         SetOnce<List<?>> result = new SetOnce<>();
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup);
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
@@ -458,6 +455,82 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * Asserts that fetching a single value from doc values and from the native
+     * {@link MappedFieldType#valueFetcher} produce the same results.
+     * <p>
+     * Generally this method covers many many random cases but rarely. So if
+     * it fails its generally a good idea to capture its randomized
+     * parameters into a new method so we can be sure we consistently test
+     * any unique and interesting failure case. See the tests for
+     * {@link DateFieldMapper} for some examples.
+     */
+    public final void testFetch() throws IOException {
+        MapperService mapperService = randomFetchTestMapper();
+        try {
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertFetch(mapperService, "field", generateRandomInputValue(ft), randomFetchTestFormat());
+        } finally {
+            assertParseMinimalWarnings();
+        }
+    }
+
+    /**
+     * Asserts that fetching many values from doc values and from the native
+     * {@link MappedFieldType#valueFetcher} produce the same results.
+     * <p>
+     * Generally this method covers many many random cases but rarely. So if
+     * it fails its generally a good idea to capture its randomized
+     * parameters into a new method so we can be sure we consistently test
+     * any unique and interesting failure case. See the tests for
+     * {@link DateFieldMapper} for some examples.
+     */
+    public final void testFetchMany() throws IOException {
+        MapperService mapperService = randomFetchTestMapper();
+        try {
+            MappedFieldType ft = mapperService.fieldType("field");
+            int count = between(2, 10);
+            List<Object> values = new ArrayList<>(count);
+            while (values.size() < count) {
+                values.add(generateRandomInputValue(ft));
+            }
+            assertFetch(mapperService, "field", values, randomFetchTestFormat());
+        } finally {
+            assertParseMinimalWarnings();
+        }
+    }
+
+    protected final MapperService randomFetchTestMapper() throws IOException {
+        return createMapperService(mapping(b -> {
+            b.startObject("field");
+            randomFetchTestFieldConfig(b);
+            b.endObject();
+        }));
+    }
+
+    /**
+     * Field configuration for {@link #testFetch} and {@link #testFetchMany}.
+     * Default implementation delegates to {@link #minimalMapping} but can
+     * be overridden to randomize the field type and options.
+     */
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+    }
+
+    /**
+     * A random format to use when tripping in {@link #testFetch} and
+     * {@link #testFetchMany}.
+     */
+    protected String randomFetchTestFormat() {
+        return null;
+    }
+
+    /**
+     * Create a random {@code _source} value for this field. Must be compatible
+     * with {@link XContentBuilder#value(Object)} and the field's parser.
+     */
+    protected abstract Object generateRandomInputValue(MappedFieldType ft);
+
+    /**
      * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
      * produces the same value as fetching using doc values.
      */
@@ -470,15 +543,44 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getForField(ft)).thenAnswer(
+            inv -> { return fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); }); }
+        );
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
             SourceLookup sourceLookup = new SourceLookup();
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
-            List<?> fromDocValues = docValueFetcher.fetchValues(sourceLookup);
-            List<?> fromNative = nativeFetcher.fetchValues(sourceLookup);
-            assertEquals(fromDocValues, fromNative);
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup);
+            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup);
+            /*
+             * The native fetcher uses byte, short, etc but doc values always
+             * uses long or double. This difference is fine because on the outside
+             * users can't see it.
+             */
+            fromNative = fromNative.stream().map(o -> {
+                if (o instanceof Integer || o instanceof Short || o instanceof Byte) {
+                    return ((Number) o).longValue();
+                }
+                if (o instanceof Float) {
+                    return ((Float) o).doubleValue();
+                }
+                return o;
+            }).collect(toList());
+            /*
+             * Doc values sort according to something appropriate to the field
+             * and the native fetchers usually don't sort. We're ok with this
+             * difference. But we have to convince the test we're ok with it.
+             */
+            assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
         });
+    }
+
+    private BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
+        return (mft, lookupSource) -> mft
+            .fielddataBuilder("test", lookupSource)
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 }

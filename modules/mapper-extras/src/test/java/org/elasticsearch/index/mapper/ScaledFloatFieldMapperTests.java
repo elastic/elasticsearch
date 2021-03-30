@@ -271,4 +271,30 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             containsString("Failed to parse mapping: unknown parameter [index_options] on mapper [field] of type [scaled_float]"));
     }
 
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        // Large floats are a terrible idea but the round trip should still work no matter how badly you configure the field
+        b.field("type", "scaled_float").field("scaling_factor", randomDoubleBetween(0, Float.MAX_VALUE, true));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        /*
+         * randomDoubleBetween will smear the random values out across a huge
+         * range of valid values.
+         */
+        double v = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        switch (between(0, 3)) {
+            case 0:
+                return v;
+            case 1:
+                return (float) v;
+            case 2:
+                return Double.toString(v);
+            case 3:
+                return Float.toString((float) v);
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
 }

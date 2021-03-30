@@ -491,7 +491,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             int count = between(2, 10);
             List<Object> values = new ArrayList<>(count);
             while (values.size() < count) {
-                values.add(generateRandomInputValue(ft));
+                // values should be unique since we also get de-duplication fetching from docvalues
+                values.add(randomValueOtherThanMany(v -> values.contains(v), () -> generateRandomInputValue(ft)));
             }
             assertFetch(mapperService, "field", values, randomFetchTestFormat());
         } finally {

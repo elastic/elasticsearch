@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
@@ -90,7 +91,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
         //Accuracy for size is not tested here
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
-        persister.createAndIndexInferenceModelConfig(modelSizeInfo);
+        persister.createAndIndexInferenceModelConfig(modelSizeInfo, configBuilder.getModelType());
         for (int i = 0; i < chunks.size(); i++) {
             persister.createAndIndexInferenceModelDoc(new TrainedModelDefinitionChunk(chunks.get(i), i, i == (chunks.size() - 1)));
         }
@@ -144,6 +145,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION))
             .setDescription("trained model config for test")
             .setModelId(modelId)
+            .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setEstimatedHeapMemory(bytesUsed)

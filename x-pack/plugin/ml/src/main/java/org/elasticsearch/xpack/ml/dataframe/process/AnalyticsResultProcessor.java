@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.Classifica
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -142,7 +143,7 @@ public class AnalyticsResultProcessor {
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize, TrainedModelType.TREE_ENSEMBLE);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
         if (trainedModelDefinitionChunk != null && isCancelled == false) {

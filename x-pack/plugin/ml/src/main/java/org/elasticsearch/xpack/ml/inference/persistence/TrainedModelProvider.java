@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
@@ -374,12 +375,23 @@ public class TrainedModelProvider {
         executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
     }
 
+    /**
+     * Get the model definition for inference.
+     *
+     * The caller should ensure the requested model has an InferenceDefinition,
+     * some models such as {@code  org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.PyTorchModel}
+     * do not.
+     *
+     * @param modelId The model tp get
+     * @param listener The listener
+     */
     public void getTrainedModelForInference(final String modelId, final ActionListener<InferenceDefinition> listener) {
         // TODO Change this when we get more than just langIdent stored
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
                 TrainedModelConfig config = loadModelFromResource(modelId, false).build().ensureParsedDefinition(xContentRegistry);
                 assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
+                assert config.getModelType() == TrainedModelType.LANG_IDENT;
                 listener.onResponse(
                     InferenceDefinition.builder()
                         .setPreProcessors(config.getModelDefinition().getPreProcessors())
@@ -425,6 +437,7 @@ public class TrainedModelProvider {
                         compressedString,
                         InferenceDefinition::fromXContent,
                         xContentRegistry);
+
                     listener.onResponse(inferenceDefinition);
                 } catch (ElasticsearchException elasticsearchException) {
                     listener.onFailure(elasticsearchException);
@@ -536,7 +549,7 @@ public class TrainedModelProvider {
             multiSearchResponse -> {
                 TrainedModelConfig.Builder builder;
                 try {
-                    builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseInferenceDocLenientlyFromSource);
+                    builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseModelConfigLenientlyFromSource);
                 } catch (ResourceNotFoundException ex) {
                     getTrainedModelListener.onFailure(new ResourceNotFoundException(
                         Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -691,7 +704,7 @@ public class TrainedModelProvider {
                     try {
                         if (observedIds.contains(searchHit.getId()) == false) {
                             configs.add(
-                                parseInferenceDocLenientlyFromSource(searchHit.getSourceRef(), searchHit.getId())
+                                parseModelConfigLenientlyFromSource(searchHit.getSourceRef(), searchHit.getId())
                             );
                             observedIds.add(searchHit.getId());
                         }
@@ -1132,11 +1145,20 @@ public class TrainedModelProvider {
         return subStrings;
     }
 
-    private TrainedModelConfig.Builder parseInferenceDocLenientlyFromSource(BytesReference source, String modelId) throws IOException {
+    private TrainedModelConfig.Builder parseModelConfigLenientlyFromSource(BytesReference source, String modelId) throws IOException {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return TrainedModelConfig.fromXContent(parser, true);
+            TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+            if (builder.getModelType() == null) {
+                // before TrainedModelConfig::modelType was added tree ensembles and the
+                // lang ident model were the only models supported. Models created after
+                // VERSION_MODEL_TYPE_ADDED must have modelType set, if not set modelType
+                // is a tree ensemble
+                assert builder.getVersion().before(TrainedModelConfig.VERSION_MODEL_TYPE_ADDED);
+                builder.setModelType(TrainedModelType.TREE_ENSEMBLE);
+            }
+            return builder;
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] failed to parse model", modelId), e);
             throw e;

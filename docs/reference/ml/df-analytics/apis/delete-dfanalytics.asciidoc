@@ -9,8 +9,6 @@
 
 Deletes an existing {dfanalytics-job}.
 
-beta::[]
-
 
 [[ml-delete-dfanalytics-request]]
 == {api-request-title}

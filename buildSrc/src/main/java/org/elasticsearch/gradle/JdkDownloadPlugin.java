@@ -133,12 +133,12 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             // The following is an absolute hack until AdoptOpenJdk provides Apple aarch64 builds
             String zuluPathSuffix = jdk.getPlatform().equals("linux") ? "-embedded" : "";
             switch (jdk.getMajor()) {
-                case "15":
+                case "16":
                     artifactPattern = "zulu"
                         + zuluPathSuffix
                         + "/bin/zulu"
                         + jdk.getMajor()
-                        + ".29.15-ca-jdk15.0.2-"
+                        + ".28.11-ca-jdk16.0.0-"
                         + azulPlatform(jdk)
                         + "_[classifier].[ext]";
                     break;

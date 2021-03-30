@@ -113,7 +113,7 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             final CountDownLatch latch = new CountDownLatch(5);
 
-            FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, watcherService);
+            FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, watcherService, threadPool);
             store.addListener(latch::countDown);
             //Token name shares the hashing algorithm name for convenience
             String tokenName = settings.get("xpack.security.authc.service_token_hashing.algorithm");

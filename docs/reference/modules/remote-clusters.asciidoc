@@ -332,6 +332,6 @@ separately.
 
   An optional hostname string which is sent in the `server_name` field of
   the TLS Server Name Indication extension if
-  <<configuring-tls,TLS is enabled>>. The TLS transport will fail to open
+  <<encrypt-internode-communication,TLS is enabled>>. The TLS transport will fail to open
   remote connections if this field is not a valid hostname as defined by the
   TLS SNI specification.

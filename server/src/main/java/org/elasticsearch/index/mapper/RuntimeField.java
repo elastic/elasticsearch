@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Definition of a runtime field that can be defined as part of the runtime section of the index mappings
@@ -90,7 +90,7 @@ public interface RuntimeField extends ToXContentFragment {
             throw new UnsupportedOperationException();
         }
 
-        protected abstract RuntimeField buildFieldType();
+        protected abstract RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext);
 
         private void validate() {
             ContentPath contentPath = parentPath(name());
@@ -110,19 +110,19 @@ public interface RuntimeField extends ToXContentFragment {
      * as defined in the runtime section of the index mappings.
      */
     final class Parser {
-        private final BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeField.Builder> builderFunction;
+        private final Function<String, Builder> builderFunction;
 
-        public Parser(BiFunction<String, Mapper.TypeParser.ParserContext, RuntimeField.Builder> builderFunction) {
+        public Parser(Function<String, RuntimeField.Builder> builderFunction) {
             this.builderFunction = builderFunction;
         }
 
         RuntimeField parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
             throws MapperParsingException {
 
-            RuntimeField.Builder builder = builderFunction.apply(name, parserContext);
+            RuntimeField.Builder builder = builderFunction.apply(name);
             builder.parse(name, parserContext, node);
             builder.validate();
-            return builder.buildFieldType();
+            return builder.createRuntimeField(parserContext);
         }
     }
 

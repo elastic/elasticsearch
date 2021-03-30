@@ -147,10 +147,12 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                buildFullName(contentPath), indexed.get(), hasDocValues.get(), meta.get(), splitQueriesOnWhitespace.get());
-            if (eagerGlobalOrdinals.get()) {
-                ft.setEagerGlobalOrdinals(true);
-            }
+                buildFullName(contentPath),
+                indexed.get(),
+                hasDocValues.get(),
+                meta.get(),
+                splitQueriesOnWhitespace.get(),
+                eagerGlobalOrdinals.get());
             return new FlattenedFieldMapper(name, ft, this);
         }
     }
@@ -375,17 +377,24 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class RootFlattenedFieldType extends StringFieldType {
         private final boolean splitQueriesOnWhitespace;
+        private final boolean eagerGlobalOrdinals;
 
         public RootFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
-                                      boolean splitQueriesOnWhitespace) {
+                                      boolean splitQueriesOnWhitespace, boolean eagerGlobalOrdinals) {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return eagerGlobalOrdinals;
         }
 
         @Override

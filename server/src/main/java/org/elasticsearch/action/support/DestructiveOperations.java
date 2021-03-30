@@ -31,8 +31,7 @@ public final class DestructiveOperations {
         Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
 
     static final String DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING = "setting [action.destructive_requires_name] will " +
-        "default to true in 8.0, " +
-        "set explicitly to false to preserve current behavior";
+        "default to true in 8.0, set explicitly to false to preserve current behavior";
 
     /**
      * The "match none" pattern, "*,-*", will never actually be destructive

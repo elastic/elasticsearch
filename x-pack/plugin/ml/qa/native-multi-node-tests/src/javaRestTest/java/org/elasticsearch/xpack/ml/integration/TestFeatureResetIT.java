@@ -30,6 +30,7 @@ import org.junit.After;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.Factory.countNumberInferenceProcessors;
 import static org.elasticsearch.xpack.ml.integration.ClassificationIT.KEYWORD_FIELD;
 import static org.elasticsearch.xpack.ml.integration.MlNativeDataFrameAnalyticsIntegTestCase.buildAnalytics;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
@@ -56,6 +57,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             indexDocForInference("feature_reset_inference_pipeline");
         }
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
+        assertBusy(() ->
+            assertThat(countNumberInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0))
+        );
         client().execute(
             ResetFeatureStateAction.INSTANCE,
             new ResetFeatureStateRequest()
@@ -73,7 +77,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "Unable to reset component as there are ingest pipelines still referencing trained machine learning models"
+                "Unable to reset machine learning feature as there are ingest pipelines still referencing trained machine learning models"
             )
         );
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_failure_inference_pipeline")).actionGet();

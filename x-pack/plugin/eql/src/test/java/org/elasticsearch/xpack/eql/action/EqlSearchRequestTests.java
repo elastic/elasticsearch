@@ -65,8 +65,8 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 randomFetchFields = null;
             }
             QueryBuilder filter = parseFilter(defaultTestFilter);
-            EqlSearchRequest request = new EqlSearchRequest()
-                .indices(new String[]{defaultTestIndex})
+            return new EqlSearchRequest()
+                .indices(defaultTestIndex)
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
@@ -74,8 +74,6 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
                 .fetchFields(randomFetchFields);
-
-            return request;
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
@@ -100,7 +98,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
+        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex);
     }
 
     @Override

@@ -31,6 +31,7 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.getFeatures().stream().anyMatch(feature -> "tasks".equals(feature.getFeatureName())));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71072")
     public void testResetFeatures() throws IOException {
         ResetFeaturesRequest request = new ResetFeaturesRequest();
 

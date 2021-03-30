@@ -220,7 +220,9 @@ public class FrozenCacheServiceTests extends ESTestCase {
             is(
                 "setting ["
                     + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-                    + "] to be positive [" + new ByteSizeValue(size(500)).getStringRep() + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
+                    + "] to be positive ["
+                    + new ByteSizeValue(size(500)).getStringRep()
+                    + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
             )
         );
     }

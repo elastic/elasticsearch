@@ -324,18 +324,20 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private HttpStats.ClientStats addClientStats(final HttpChannel httpChannel) {
         HttpStats.ClientStats clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
         httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
-        httpChannel.addCloseListener(ActionListener.wrap(() -> {
-            try {
-                httpChannels.remove(httpChannel);
-                HttpStats.ClientStats disconnectedClientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
-                if (disconnectedClientStats != null) {
-                    disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+        if (httpChannel != null) {
+            httpChannel.addCloseListener(ActionListener.wrap(() -> {
+                try {
+                    httpChannels.remove(httpChannel);
+                    HttpStats.ClientStats disconnectedClientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+                    if (disconnectedClientStats != null) {
+                        disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+                    }
+                } catch (Exception e) {
+                    // the listener code above should never throw
+                    logger.trace("error removing HTTP channel listener", e);
                 }
-            } catch (Exception e) {
-                // the listener code above should never throw
-                logger.trace("error removing HTTP channel listener", e);
-            }
-        }));
+            }));
+        }
         pruneClientStats(true);
         return clientStats;
     }
@@ -362,42 +364,46 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
-        if (clientStats == null) {
-            clientStats = addClientStats(httpChannel);
-        }
+        if (httpChannel != null) {
+            HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+            if (clientStats == null) {
+                clientStats = addClientStats(httpChannel);
+            }
 
-        if (clientStats.agent == null) {
-            final String elasticProductOrigin = getFirstValueForHeader(httpRequest, "x-elastic-product-origin");
-            if (elasticProductOrigin != null) {
-                clientStats.agent = elasticProductOrigin;
-            } else {
-                final String userAgent = getFirstValueForHeader(httpRequest, "User-Agent");
-                if (userAgent != null) {
-                    clientStats.agent = userAgent;
+            if (clientStats.agent == null) {
+                final String elasticProductOrigin = getFirstValueForHeader(httpRequest, "x-elastic-product-origin");
+                if (elasticProductOrigin != null) {
+                    clientStats.agent = elasticProductOrigin;
+                } else {
+                    final String userAgent = getFirstValueForHeader(httpRequest, "User-Agent");
+                    if (userAgent != null) {
+                        clientStats.agent = userAgent;
+                    }
                 }
             }
-        }
-        if (clientStats.localAddress == null) {
-            clientStats.localAddress = httpChannel.getLocalAddress() == null ? null : NetworkAddress.format(httpChannel.getLocalAddress());
-            clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
-        }
-        if (clientStats.forwardedFor == null) {
-            final String forwardedFor = getFirstValueForHeader(httpRequest, "x-forwarded-for");
-            if (forwardedFor != null) {
-                clientStats.forwardedFor = forwardedFor;
+            if (clientStats.localAddress == null) {
+                clientStats.localAddress =
+                    httpChannel.getLocalAddress() == null ? null : NetworkAddress.format(httpChannel.getLocalAddress());
+                clientStats.remoteAddress =
+                    httpChannel.getRemoteAddress() == null ? null : NetworkAddress.format(httpChannel.getRemoteAddress());
             }
-        }
-        if (clientStats.opaqueId == null) {
-            final String opaqueId = getFirstValueForHeader(httpRequest, "x-opaque-id");
-            if (opaqueId != null) {
-                clientStats.opaqueId = opaqueId;
+            if (clientStats.forwardedFor == null) {
+                final String forwardedFor = getFirstValueForHeader(httpRequest, "x-forwarded-for");
+                if (forwardedFor != null) {
+                    clientStats.forwardedFor = forwardedFor;
+                }
             }
+            if (clientStats.opaqueId == null) {
+                final String opaqueId = getFirstValueForHeader(httpRequest, "x-opaque-id");
+                if (opaqueId != null) {
+                    clientStats.opaqueId = opaqueId;
+                }
+            }
+            clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
+            clientStats.lastUri = httpRequest.uri();
+            clientStats.requestCount.increment();
+            clientStats.requestSizeBytes.add(httpRequest.content().length());
         }
-        clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
-        clientStats.lastUri = httpRequest.uri();
-        clientStats.requestCount.increment();
-        clientStats.requestSizeBytes.add(httpRequest.content().length());
     }
 
     private static String getFirstValueForHeader(final HttpRequest request, final String header) {

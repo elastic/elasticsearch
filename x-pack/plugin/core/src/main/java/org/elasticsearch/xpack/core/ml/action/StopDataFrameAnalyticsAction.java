@@ -95,8 +95,9 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             setTimeout(DEFAULT_TIMEOUT);
         }
 
-        public final void setId(String id) {
+        public final Request setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
+            return this;
         }
 
         public String getId() {
@@ -107,16 +108,18 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             return allowNoMatch;
         }
 
-        public void setAllowNoMatch(boolean allowNoMatch) {
+        public Request setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
         @Nullable

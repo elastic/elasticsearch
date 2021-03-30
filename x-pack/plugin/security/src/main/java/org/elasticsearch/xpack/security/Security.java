@@ -1294,6 +1294,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     builder.field("dynamic", false);
                     builder.endObject();
 
+                    builder.startObject("metadata_flattened");
+                    builder.field("type", "flattened");
+                    builder.endObject();
+
                     builder.startObject("enabled");
                     builder.field("type", "boolean");
                     builder.endObject();

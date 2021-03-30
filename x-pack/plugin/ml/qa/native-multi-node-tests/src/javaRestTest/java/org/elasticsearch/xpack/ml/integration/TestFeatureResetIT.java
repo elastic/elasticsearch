@@ -12,8 +12,10 @@ import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -59,6 +61,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             new ResetFeatureStateRequest()
         ).actionGet();
         assertBusy(() -> assertThat(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices(), emptyArray()));
+        assertThat(isResetMode(), is(false));
     }
 
     public void testMLFeatureResetFailureDueToPipelines() throws Exception {
@@ -74,6 +77,12 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             )
         );
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_failure_inference_pipeline")).actionGet();
+        assertThat(isResetMode(), is(false));
+    }
+
+    private boolean isResetMode() {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        return MlMetadata.getMlMetadata(state).isResetMode();
     }
 
     private void startDataFrameJob(String jobId) throws Exception {

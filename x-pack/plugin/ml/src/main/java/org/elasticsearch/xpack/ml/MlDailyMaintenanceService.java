@@ -152,7 +152,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
-                LOGGER.warn("skipping scheduled [ML] maintenance tasks because reset mode is enabled");
+                LOGGER.warn("skipping scheduled [ML] maintenance tasks because machine learning feature reset is in progress");
                 return;
             }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");

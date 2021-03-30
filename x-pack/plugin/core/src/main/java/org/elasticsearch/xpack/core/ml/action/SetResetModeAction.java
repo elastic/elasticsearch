@@ -23,7 +23,7 @@ import java.util.Objects;
 public class SetResetModeAction extends ActionType<AcknowledgedResponse> {
 
     public static final SetResetModeAction INSTANCE = new SetResetModeAction();
-    public static final String NAME = "cluster:admin/xpack/ml/reset_mode";
+    public static final String NAME = "cluster:internal/xpack/ml/reset_mode";
 
     private SetResetModeAction() {
         super(NAME, AcknowledgedResponse::readFrom);

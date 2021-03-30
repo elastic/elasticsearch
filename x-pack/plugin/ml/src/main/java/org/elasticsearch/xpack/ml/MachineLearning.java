@@ -165,6 +165,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -1260,20 +1261,25 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         ClusterService clusterService,
         Client client,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener) {
-        logger.info("Starting machine learning cleanup");
+        logger.info("Starting machine learning feature reset");
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
             success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.disabled(), ActionListener.wrap(
                 resetSuccess -> finalListener.onResponse(success),
                 resetFailure -> {
-                    logger.warn("failed to disable reset mode after state clean up success", resetFailure);
-                    finalListener.onResponse(success);
+                    logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
+                    finalListener.onFailure(
+                        ExceptionsHelper.serverError(
+                            "failed to disable reset mode after state otherwise successful machine learning reset",
+                            resetFailure
+                        )
+                    );
                 })
             ),
             failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.disabled(), ActionListener.wrap(
                 resetSuccess -> finalListener.onFailure(failure),
                 resetFailure -> {
-                    logger.warn("failed to disable reset mode after state clean up failure", resetFailure);
+                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
                     finalListener.onFailure(failure);
                 })
             )
@@ -1292,7 +1298,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                         .filter(result -> result.getValue() == false)
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
-                    unsetResetModeListener.onFailure(new RuntimeException("Some components failed to reset: " + failedComponents));
+                    unsetResetModeListener.onFailure(
+                        new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
+                    );
                 }
             },
             unsetResetModeListener::onFailure
@@ -1326,7 +1334,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
-                unsetResetModeListener.onFailure(new RuntimeException("Some components failed to reset: " + failedComponents));
+                unsetResetModeListener.onFailure(
+                    new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
+                );
             }
         }, unsetResetModeListener::onFailure);
 
@@ -1374,7 +1384,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 if (numberInferenceProcessors > 0) {
                     unsetResetModeListener.onFailure(
                         new RuntimeException(
-                            "Unable to reset component as there are ingest pipelines still referencing trained machine learning models"
+                            "Unable to reset machine learning feature as there are ingest pipelines " +
+                                "still referencing trained machine learning models"
                         )
                     );
                     return;

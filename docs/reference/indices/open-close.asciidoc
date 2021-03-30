@@ -64,11 +64,6 @@ Closed indices consume a significant amount of disk-space which can cause
 problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
 
-The current write index on a data stream cannot be closed. In order to close
-the current write index, the data stream must first be
-<<data-streams-rollover,rolled over>> so that a new write index is created
-and then the previous write index can be closed.
-
 // end::closed-index[]
 
 [[open-index-api-wait-for-active-shards]]

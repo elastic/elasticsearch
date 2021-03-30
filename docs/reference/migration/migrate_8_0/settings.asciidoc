@@ -182,5 +182,6 @@ operation explicitly name the indices it intends to modify.
 
 *Impact* +
 If you would like to use wildcard patterns for destructive actions, set
-`action.destructive_requires_name` to `false` in `elasticsearch.yml`.
+`action.destructive_requires_name` to `false` using the <<cluster-update-settings,
+cluster settings>> API.
 ====

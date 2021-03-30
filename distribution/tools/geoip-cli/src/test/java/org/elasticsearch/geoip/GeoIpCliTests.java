@@ -136,7 +136,7 @@ public class GeoIpCliTests extends LuceneTestCase {
                 String line = reader.readLine();
                 assertThat(line, startsWith("-rw-r--r--"));
                 assertThat(line, endsWith(mmdb));
-                assertThat(line, matchesRegex(".*1000\\s+1000.*" + sizes.get(tgz) + ".*"));
+                assertThat(line, matchesRegex(".*1000.+1000.*" + sizes.get(tgz) + ".*"));
                 assertThat(reader.readLine(), nullValue());
             }
             int exitCode = process.waitFor();

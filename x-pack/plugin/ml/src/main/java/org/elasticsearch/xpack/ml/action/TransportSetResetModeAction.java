@@ -89,7 +89,7 @@ public class TransportSetResetModeAction extends AcknowledgedTransportMasterNode
 
                 @Override
                 protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.trace("Cluster update response built: " + acknowledged);
+                    logger.trace(() -> new ParameterizedMessage("Cluster update response built: {}", acknowledged));
                     return AcknowledgedResponse.of(acknowledged);
                 }
 

@@ -41,13 +41,7 @@ public abstract class AbstractVectorTileSearchAction extends BaseRestHandler {
     }
 
     protected abstract ResponseBuilder doParseRequest(
-        RestRequest restRequest,
-        String field,
-        int x,
-        int y,
-        int z,
-        SearchRequestBuilder searchRequestBuilder
-    ) throws IOException;
+        RestRequest restRequest, String field, int z, int x, int y, SearchRequestBuilder searchRequestBuilder) throws IOException;
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
@@ -59,7 +53,7 @@ public abstract class AbstractVectorTileSearchAction extends BaseRestHandler {
 
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(Strings.splitStringByCommaToArray(index));
 
-        ResponseBuilder responseBuilder = doParseRequest(restRequest, field, x, y, z, searchRequestBuilder);
+        ResponseBuilder responseBuilder = doParseRequest(restRequest, field, z, x, y, searchRequestBuilder);
 
         // TODO: how do we handle cancellations?
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {

@@ -19,9 +19,9 @@ class VectorTileGeometryBuilder {
     private final Rectangle rectangle;
     private final double pointXScale, pointYScale;
 
-    VectorTileGeometryBuilder(Rectangle rectangle, int z, int extent) {
+    VectorTileGeometryBuilder(int z, int x, int y, int extent) {
         this.extent = extent;
-        this.rectangle = rectangle;
+        rectangle = VectorTileUtils.getTileBounds(z, x, y);
         pointXScale = 1d / ((rectangle.getMaxLon() - rectangle.getMinLon()) / (double) extent);
         pointYScale = -1d / ((rectangle.getMaxLat() - rectangle.getMinLat()) / (double) extent);
     }

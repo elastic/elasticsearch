@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalVectorTile;
 import org.elasticsearch.xpack.spatial.search.aggregations.VectorTileAggregationBuilder;
 
@@ -30,13 +31,8 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction {
     }
 
     @Override
-    protected ResponseBuilder doParseRequest(RestRequest restRequest,
-        String field,
-        int x,
-        int y,
-        int z,
-        SearchRequestBuilder searchRequestBuilder
-    ) throws IOException {
+    protected ResponseBuilder doParseRequest(
+        RestRequest restRequest, String field, int z, int x, int y, SearchRequestBuilder searchRequestBuilder) throws IOException {
         QueryBuilder queryBuilder = null;
         if (restRequest.hasContent()) {
             try (XContentParser parser = restRequest.contentParser()) {
@@ -60,7 +56,7 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction {
             }
         }
 
-        searchBuilder(searchRequestBuilder, field, x, y, z, queryBuilder);
+        searchBuilder(searchRequestBuilder, field, z, x, y, queryBuilder);
         return (s, b) -> {
             InternalVectorTile t = s.getAggregations().get(field);
             // TODO: Error processing
@@ -71,12 +67,12 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction {
     private static void searchBuilder(
         SearchRequestBuilder searchRequestBuilder,
         String field,
+        int z,
         int x,
         int y,
-        int z,
         QueryBuilder queryBuilder
     ) throws IOException {
-        Rectangle rectangle = VectorTileUtils.getTileBounds(z, x, y);
+        final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         if (queryBuilder != null) {
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();

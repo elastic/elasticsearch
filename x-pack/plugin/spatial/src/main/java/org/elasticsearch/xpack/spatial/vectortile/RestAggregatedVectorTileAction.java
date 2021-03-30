@@ -45,25 +45,18 @@ public class RestAggregatedVectorTileAction extends AbstractVectorTileSearchActi
 
     @Override
     protected ResponseBuilder doParseRequest(
-        RestRequest restRequest,
-        String field,
-        int x,
-        int y,
-        int z,
-        SearchRequestBuilder searchRequestBuilder
-    ) throws IOException {
+        RestRequest restRequest, String field, int z, int x, int y, SearchRequestBuilder searchRequestBuilder) throws IOException {
         final boolean isGrid = restRequest.hasParam(TYPE_PARAM) && GRID_TYPE.equals(restRequest.param(TYPE_PARAM));
 
         final VectorTileAggConfig config = resolveConfig(restRequest);
-        Rectangle rectangle = VectorTileUtils.getTileBounds(z, x, y);
-        searchBuilder(searchRequestBuilder, field, rectangle, z, config);
+        searchBuilder(searchRequestBuilder, field, z, x, y,  config);
         final int extent = 1 << config.getScaling();
 
         return (s, b) -> {
             // TODO: of there is no hits, should we return an empty tile with no layers or
             // a tile with empty layers?
             final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
-            final VectorTileGeometryBuilder geomBuilder = new VectorTileGeometryBuilder(rectangle, z, extent);
+            final VectorTileGeometryBuilder geomBuilder = new VectorTileGeometryBuilder(z, x, y, extent);
             final InternalGeoTileGrid grid = s.getAggregations().get(GRID_FIELD);
             tileBuilder.addLayers(getPointLayer(extent, isGrid, grid, geomBuilder));
             final InternalGeoBounds bounds = s.getAggregations().get(BOUNDS_FIELD);
@@ -130,10 +123,12 @@ public class RestAggregatedVectorTileAction extends AbstractVectorTileSearchActi
     private static SearchRequestBuilder searchBuilder(
         SearchRequestBuilder searchRequestBuilder,
         String field,
-        Rectangle rectangle,
         int z,
+        int x,
+        int y,
         VectorTileAggConfig config
     ) throws IOException {
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         if (config.getQueryBuilder() != null) {
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();

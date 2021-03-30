@@ -317,24 +317,27 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannelStats.put(
-            HttpStats.ClientStats.getChannelKey(httpChannel),
-            new HttpStats.ClientStats(threadPool.absoluteTimeInMillis())
-        );
+        addClientStats(httpChannel);
+        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+    }
+
+    private HttpStats.ClientStats addClientStats(final HttpChannel httpChannel) {
+        HttpStats.ClientStats clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
+        httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
             try {
                 httpChannels.remove(httpChannel);
-                HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
-                if (clientStats != null) {
-                    clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+                HttpStats.ClientStats disconnectedClientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+                if (disconnectedClientStats != null) {
+                    disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
                 }
             } catch (Exception e) {
-                // the listener code about should never throw
+                // the listener code above should never throw
                 logger.trace("error removing HTTP channel listener", e);
             }
         }));
         pruneClientStats(true);
-        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+        return clientStats;
     }
 
     /**
@@ -353,44 +356,59 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn("handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                        httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
+                    httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
             }
         }
     }
 
     void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
-        if (clientStats != null) {
-            if (clientStats.agent == null) {
-                if (hasAtLeastOneHeaderValue(httpRequest, "x-elastic-product-origin")) {
-                    clientStats.agent = httpRequest.getHeaders().get("x-elastic-product-origin").get(0);
-                } else if (hasAtLeastOneHeaderValue(httpRequest, "User-Agent")) {
-                    clientStats.agent = httpRequest.getHeaders().get("User-Agent").get(0);
-                }
-            }
-            if (clientStats.localAddress == null) {
-                clientStats.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
-                clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
-            }
-            if (clientStats.forwardedFor == null) {
-                if (hasAtLeastOneHeaderValue(httpRequest, "x-forwarded-for")) {
-                    clientStats.forwardedFor = httpRequest.getHeaders().get("x-forwarded-for").get(0);
-                }
-            }
-            if (clientStats.opaqueId == null) {
-                if (hasAtLeastOneHeaderValue(httpRequest, "x-opaque-id")) {
-                    clientStats.opaqueId = httpRequest.getHeaders().get("x-opaque-id").get(0);
-                }
-            }
-            clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
-            clientStats.lastUri = httpRequest.uri();
-            clientStats.requestCount.increment();
-            clientStats.requestSizeBytes.add(httpRequest.content().length());
+        if (clientStats == null) {
+            clientStats = addClientStats(httpChannel);
         }
+
+        if (clientStats.agent == null) {
+            final String elasticProductOrigin = getFirstValueForHeader(httpRequest, "x-elastic-product-origin");
+            if (elasticProductOrigin != null) {
+                clientStats.agent = elasticProductOrigin;
+            } else {
+                final String userAgent = getFirstValueForHeader(httpRequest, "User-Agent");
+                if (userAgent != null) {
+                    clientStats.agent = userAgent;
+                }
+            }
+        }
+        if (clientStats.localAddress == null) {
+            clientStats.localAddress = httpChannel.getLocalAddress() == null ? null : NetworkAddress.format(httpChannel.getLocalAddress());
+            clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
+        }
+        if (clientStats.forwardedFor == null) {
+            final String forwardedFor = getFirstValueForHeader(httpRequest, "x-forwarded-for");
+            if (forwardedFor != null) {
+                clientStats.forwardedFor = forwardedFor;
+            }
+        }
+        if (clientStats.opaqueId == null) {
+            final String opaqueId = getFirstValueForHeader(httpRequest, "x-opaque-id");
+            if (opaqueId != null) {
+                clientStats.opaqueId = opaqueId;
+            }
+        }
+        clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
+        clientStats.lastUri = httpRequest.uri();
+        clientStats.requestCount.increment();
+        clientStats.requestSizeBytes.add(httpRequest.content().length());
     }
 
-    private static boolean hasAtLeastOneHeaderValue(final HttpRequest request, final String header) {
-        return request.getHeaders().containsKey(header) && request.getHeaders().get(header).size() > 0;
+    private static String getFirstValueForHeader(final HttpRequest request, final String header) {
+        for (Map.Entry<String, List<String>> entry : request.getHeaders().entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(header)) {
+                if (entry.getValue().size() > 0) {
+                    return entry.getValue().get(0);
+                }
+            }
+        }
+        return null;
     }
 
     // Visible for testing

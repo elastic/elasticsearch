@@ -235,8 +235,6 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -403,7 +401,6 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -450,10 +447,8 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
                 if (restWrapper.getClass().getCanonicalName() == null ||
                     restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
-                    deprecationLogger.deprecate(DeprecationCategory.PLUGINS, "3rd_party_rest_deprecation", "The " +
-                        plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality is deprecated and will " +
-                        "not be possible in Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch " +
-                        "then you should switch to using the built-in Elasticsearch features instead.");
+                    logger.debug("The " + plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality " +
+                        "should be disabled");
                 }
             }
         }

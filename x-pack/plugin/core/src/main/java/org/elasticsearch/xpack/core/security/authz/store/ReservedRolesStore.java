@@ -192,7 +192,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("apm_user", new RoleDescriptor("apm_user",
-                    null, new RoleDescriptor.IndicesPrivileges[] {
+                    null, 
+                    new RoleDescriptor.IndicesPrivileges[] {
                         // Self managed APM Server
                         // Can be removed in 8.0
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
@@ -214,10 +215,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         // Annotations
                         RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations")
                             .privileges("read", "view_index_metadata").build()
-                    }, new RoleDescriptor.ApplicationResourcePrivileges[] {
-                            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-*").resources("*").privileges("reserved_ml_apm_user").build()
-                        }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                    }, 
+                    new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana-*").resources("*").privileges("reserved_ml_apm_user").build()
+                    }, 
+                    null, 
+                    null, 
+                    MetadataUtils.getDeprecatedReservedMetadata("This role will be removed in 8.0"), 
+                    null
+                ))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*")

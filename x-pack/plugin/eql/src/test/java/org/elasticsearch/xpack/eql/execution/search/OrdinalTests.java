@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 @SuppressWarnings("unchecked")
 public class OrdinalTests extends ESTestCase {
 
+    @SuppressWarnings("rawtypes")
     public void testCompareToDifferentTs() {
         Ordinal one = new Ordinal(randomLong(), (Comparable) randomLong());
         Ordinal two = new Ordinal(randomLong(), (Comparable) randomLong());
@@ -19,16 +20,18 @@ public class OrdinalTests extends ESTestCase {
         assertEquals(Long.valueOf(one.timestamp()).compareTo(two.timestamp()), one.compareTo(two));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testCompareToSameTsDifferentTie() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Ordinal one = new Ordinal(ts, (Comparable) randomLong());
         Ordinal two = new Ordinal(ts, (Comparable) randomLong());
 
         assertEquals(one.tiebreaker().compareTo(two.tiebreaker()), one.compareTo(two));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testCompareToSameTsOneTieNull() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Ordinal one = new Ordinal(ts, (Comparable) randomLong());
         Ordinal two = new Ordinal(ts, null);
 
@@ -37,7 +40,7 @@ public class OrdinalTests extends ESTestCase {
 
     @SuppressWarnings("rawtypes")
     public void testCompareToSameTsSameTie() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Comparable c = randomLong();
         Ordinal one = new Ordinal(ts, c);
         Ordinal two = new Ordinal(ts, c);
@@ -48,7 +51,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieNull() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Ordinal one = new Ordinal(ts, null);
         Ordinal two = new Ordinal(ts, null);
 
@@ -57,6 +60,7 @@ public class OrdinalTests extends ESTestCase {
         assertEquals(0, two.compareTo(two));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testTestBetween() {
         Ordinal before = new Ordinal(randomLongBetween(1000, 2000), (Comparable) randomLong());
         Ordinal between = new Ordinal(randomLongBetween(3000, 4000), (Comparable) randomLong());
@@ -70,6 +74,7 @@ public class OrdinalTests extends ESTestCase {
         assertFalse(new Ordinal(randomLongBetween(7000, 8000), null).between(before, after));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testTestBefore() {
         Ordinal before = new Ordinal(randomLongBetween(1000, 2000), (Comparable) randomLong());
         Ordinal after = new Ordinal(randomLongBetween(5000, 6000), (Comparable) randomLong());
@@ -79,6 +84,7 @@ public class OrdinalTests extends ESTestCase {
         assertFalse(after.before(before));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testBeforeOrAt() {
         Ordinal before = new Ordinal(randomLongBetween(1000, 2000), (Comparable) randomLong());
         Ordinal after = new Ordinal(randomLongBetween(5000, 6000), (Comparable) randomLong());
@@ -88,6 +94,7 @@ public class OrdinalTests extends ESTestCase {
         assertFalse(after.beforeOrAt(before));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testTestAfter() {
         Ordinal before = new Ordinal(randomLongBetween(1000, 2000), (Comparable) randomLong());
         Ordinal after = new Ordinal(randomLongBetween(5000, 6000), (Comparable) randomLong());
@@ -97,6 +104,7 @@ public class OrdinalTests extends ESTestCase {
         assertFalse(before.after(after));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testAfterOrAt() {
         Ordinal before = new Ordinal(randomLongBetween(1000, 2000), (Comparable) randomLong());
         Ordinal after = new Ordinal(randomLongBetween(5000, 6000), (Comparable) randomLong());

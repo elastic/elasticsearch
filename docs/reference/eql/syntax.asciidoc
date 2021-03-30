@@ -212,7 +212,7 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [source,eql]
 ----
-and  or  not
+and   or   not
 ----
 
 `and`::

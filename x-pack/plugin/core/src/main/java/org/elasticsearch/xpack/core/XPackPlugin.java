@@ -246,12 +246,11 @@ public class XPackPlugin extends XPackClientPlugin
             metadata.custom(WatcherMetadata.TYPE) != null ||
             clusterState.custom(TokenMetadata.TYPE) != null;
     }
-    
+
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
+        return Collections.singletonMap(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
-    
 
     @Override
     public Settings additionalSettings() {

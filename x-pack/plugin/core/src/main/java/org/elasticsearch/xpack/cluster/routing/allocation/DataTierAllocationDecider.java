@@ -91,10 +91,17 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
         @Override
         public void validate(String value, Map<Setting<?>, Object> settings) {
-            if (Strings.hasText(value) && SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings) == false) {
-                String[] split = value.split(",");
-                if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
-                    throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
+            if (Strings.hasText(value)) {
+                if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+                    if (value.equals(DATA_FROZEN) == false) {
+                        throw new IllegalArgumentException("only the [" + DATA_FROZEN +
+                            "] tier preference may be used for partial searchable snapshots");
+                    }
+                } else {
+                    String[] split = value.split(",");
+                    if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
+                        throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
+                    }
                 }
             }
         }

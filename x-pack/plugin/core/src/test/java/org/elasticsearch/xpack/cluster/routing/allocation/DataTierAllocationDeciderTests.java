@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -731,22 +732,36 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testFrozenLegalForPartialSnapshot() {
-        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
-        if (tierList.contains(DATA_FROZEN) == false) {
-            tierList.add(DATA_FROZEN);
-        }
-        Randomness.shuffle(tierList);
-
-        String value = Strings.join(tierList, ",");
         Setting<String> setting = randomTierSetting();
-        Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
+        Settings.Builder builder = Settings.builder().put(setting.getKey(), DATA_FROZEN);
         builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
 
         // validate do not throw
-        assertThat(setting.get(settings), equalTo(value));
+        assertThat(setting.get(settings), equalTo(DATA_FROZEN));
+    }
+
+    public void testNonFrozenIllegalForPartialSnapshot() {
+        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
+        if (tierList.contains(DATA_FROZEN)) {
+            tierList.remove(DATA_FROZEN);
+            tierList.add(DATA_COLD);
+        }
+        Randomness.shuffle(tierList);
+
+        String value = Strings.join(tierList, ",");
+        logger.info("--> value: {}", value);
+        Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, value);
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+        Settings settings = builder.build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+        assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
     }
 
     public Setting<String> randomTierSetting() {

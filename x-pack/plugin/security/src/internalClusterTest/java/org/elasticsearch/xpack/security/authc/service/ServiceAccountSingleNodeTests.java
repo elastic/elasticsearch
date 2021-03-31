@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
-    private static final String BEARER_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc";
+    private static final String BEARER_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3";
 
     @Override
     protected Settings nodeSettings() {
@@ -49,18 +49,18 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     @Override
     protected String configServiceTokens() {
         return super.configServiceTokens()
-            + "elastic/fleet/token1:"
+            + "elastic/fleet-server/token1:"
             + "{PBKDF2_STRETCH}10000$8QN+eThJEaCd18sCP0nfzxJq2D9yhmSZgI20TDooYcE=$+0ELfqW4D2+/SlHvm/885dzv67qO2SMJg32Mv/9epXk=";
     }
 
     public void testAuthenticateWithServiceFileToken() {
-        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet");
+        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
         final AuthenticateResponse authenticateResponse =
             createServiceAccountClient().execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
         final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
         assertThat(authenticateResponse.authentication(), equalTo(
             new Authentication(
-                new User("elastic/fleet", Strings.EMPTY_ARRAY, "Service account - elastic/fleet", null,
+                new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
                     Map.of("_elastic_service_account", true), true),
                 new Authentication.RealmRef("service_account", "service_account", nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", "token1")

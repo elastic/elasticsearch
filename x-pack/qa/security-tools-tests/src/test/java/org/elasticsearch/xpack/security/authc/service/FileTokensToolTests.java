@@ -70,9 +70,9 @@ public class FileTokensToolTests extends CommandTestCase {
         hasher = getFastStoredHashAlgoForTests();
 
         Files.write(confDir.resolve("service_tokens"), List.of(
-            "elastic/fleet/server_1:" + new String(hasher.hash(token1)),
-            "elastic/fleet/server_2:" + new String(hasher.hash(token2)),
-            "elastic/fleet/server_3:" + new String(hasher.hash(token3))
+            "elastic/fleet-server/server_1:" + new String(hasher.hash(token1)),
+            "elastic/fleet-server/server_2:" + new String(hasher.hash(token2)),
+            "elastic/fleet-server/server_3:" + new String(hasher.hash(token3))
         ));
         settings = Settings.builder()
             .put("path.home", homeDir)
@@ -107,8 +107,8 @@ public class FileTokensToolTests extends CommandTestCase {
     public void testParsePrincipalAndTokenName() throws UserException {
         final String tokenName1 = randomAlphaOfLengthBetween(3, 8);
         final Tuple<String, String> tuple1 =
-            CreateFileTokenCommand.parsePrincipalAndTokenName(List.of("elastic/fleet", tokenName1), Settings.EMPTY);
-        assertEquals("elastic/fleet", tuple1.v1());
+            CreateFileTokenCommand.parsePrincipalAndTokenName(List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
+        assertEquals("elastic/fleet-server", tuple1.v1());
         assertEquals(tokenName1, tuple1.v2());
 
         final UserException e2 = expectThrows(UserException.class,
@@ -129,21 +129,21 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testCreateToken() throws Exception {
         final String tokenName1 = ServiceAccountTokenTests.randomTokenName();
-        execute("create", pathHomeParameter, "elastic/fleet", tokenName1);
-        assertServiceTokenExists("elastic/fleet/" + tokenName1);
+        execute("create", pathHomeParameter, "elastic/fleet-server", tokenName1);
+        assertServiceTokenExists("elastic/fleet-server/" + tokenName1);
         final String tokenName2 = ServiceAccountTokenTests.randomTokenName();
-        execute("create", pathHomeParameter, "elastic/fleet", tokenName2);
-        assertServiceTokenExists("elastic/fleet/" + tokenName2);
+        execute("create", pathHomeParameter, "elastic/fleet-server", tokenName2);
+        assertServiceTokenExists("elastic/fleet-server/" + tokenName2);
         final String output = terminal.getOutput();
-        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet/" + tokenName1 + " = "));
-        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet/" + tokenName2 + " = "));
+        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet-server/" + tokenName1 + " = "));
+        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet-server/" + tokenName2 + " = "));
     }
 
     public void testCreateTokenWithInvalidTokenName() throws Exception {
         final String tokenName = ServiceAccountTokenTests.randomInvalidTokenName();
         final UserException e = expectThrows(UserException.class,
-            () -> execute("create", pathHomeParameter, "elastic/fleet", tokenName));
-        assertServiceTokenNotExists("elastic/fleet/" + tokenName);
+            () -> execute("create", pathHomeParameter, "elastic/fleet-server", tokenName));
+        assertServiceTokenNotExists("elastic/fleet-server/" + tokenName);
         assertThat(e.getMessage(), containsString(ServiceAccountToken.INVALID_TOKEN_NAME_MESSAGE));
     }
 

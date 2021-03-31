@@ -167,7 +167,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
     public void testCreateToken() throws ExecutionException, InterruptedException {
         final Authentication authentication = createAuthentication();
         final CreateServiceAccountTokenRequest request =
-            new CreateServiceAccountTokenRequest("elastic", "fleet", randomAlphaOfLengthBetween(3, 8));
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", randomAlphaOfLengthBetween(3, 8));
 
         // created
         responseProviderHolder.set((r, l) -> l.onResponse(createSingleBulkResponse()));
@@ -177,7 +177,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         assertThat(bulkRequest.requests().size(), equalTo(1));
         final IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
         final Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-        assertThat(sourceMap.get("username"), equalTo("elastic/fleet"));
+        assertThat(sourceMap.get("username"), equalTo("elastic/fleet-server"));
         assertThat(sourceMap.get("name"), equalTo(request.getTokenName()));
         assertThat(sourceMap.get("doc_type"), equalTo("service_account_token"));
         assertThat(sourceMap.get("version"), equalTo(Version.CURRENT.id));
@@ -211,13 +211,12 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
     public void testCreateTokenWillFailForInvalidServiceAccount() {
         final Authentication authentication = createAuthentication();
         final CreateServiceAccountTokenRequest request = randomValueOtherThanMany(
-            r -> "elastic".equals(r.getNamespace()) && "fleet".equals(r.getServiceName()),
+            r -> "elastic".equals(r.getNamespace()) && "fleet-server".equals(r.getServiceName()),
             () -> new CreateServiceAccountTokenRequest(randomAlphaOfLengthBetween(3, 8),
                 randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         store.createToken(authentication, request, future);
-        final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
-        assertThat(e.getCause().getClass(), is(IllegalArgumentException.class));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(e.getMessage(),
             containsString("service account [" + request.getNamespace() + "/" + request.getServiceName() + "] does not exist"));
     }

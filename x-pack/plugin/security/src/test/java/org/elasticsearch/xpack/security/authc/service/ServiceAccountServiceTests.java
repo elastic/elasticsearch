@@ -110,7 +110,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testGetServiceAccountPrincipals() {
-        assertThat(ServiceAccountService.getServiceAccountPrincipals(), equalTo(Set.of("elastic/fleet")));
+        assertThat(ServiceAccountService.getServiceAccountPrincipals(), equalTo(Set.of("elastic/fleet-server")));
     }
 
     public void testTryParseToken() throws IOException, IllegalAccessException {
@@ -253,8 +253,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // everything is fine
             assertThat(ServiceAccountService.tryParseToken(
-                new SecureString("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray())),
-                equalTo(new ServiceAccountToken(new ServiceAccountId("elastic", "fleet"), "token1",
+                new SecureString("AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpzdXBlcnNlY3JldA".toCharArray())),
+                equalTo(new ServiceAccountToken(new ServiceAccountId("elastic", "fleet-server"), "token1",
                     new SecureString("supersecret".toCharArray()))));
         } finally {
             appender.stop();
@@ -282,12 +282,12 @@ public class ServiceAccountServiceTests extends ESTestCase {
         }).when(serviceAccountsTokenStore).authenticate(any(), any());
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         serviceAccountService.authenticateToken(
-            new ServiceAccountToken(new ServiceAccountId("elastic", "fleet"), "token1",
+            new ServiceAccountToken(new ServiceAccountId("elastic", "fleet-server"), "token1",
                 new SecureString("super-secret-value".toCharArray())),
             nodeName, future5);
         assertThat(future5.get(), equalTo(
             new Authentication(
-                new User("elastic/fleet", Strings.EMPTY_ARRAY, "Service account - elastic/fleet", null,
+                new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
                     Map.of("_elastic_service_account", true), true),
                 new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
@@ -326,7 +326,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             // Unknown elastic service name
             final ServiceAccountId accountId2 = new ServiceAccountId(
                 ElasticServiceAccounts.NAMESPACE,
-                randomValueOtherThan("fleet", () -> randomAlphaOfLengthBetween(3, 8)));
+                randomValueOtherThan("fleet-server", () -> randomAlphaOfLengthBetween(3, 8)));
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "non-elastic service account", ServiceAccountService.class.getName(), Level.DEBUG,
                 "the [" + accountId2.asPrincipal() + "] service account does not exist"
@@ -341,7 +341,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
             // Success based on credential store
-            final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet");
+            final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
             final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret);
             final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
                 new SecureString(randomAlphaOfLength(20).toCharArray()));
@@ -364,8 +364,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
             serviceAccountService.authenticateToken(token3, nodeName, future3);
             final Authentication authentication = future3.get();
             assertThat(authentication, equalTo(new Authentication(
-                new User("elastic/fleet", Strings.EMPTY_ARRAY,
-                    "Service account - elastic/fleet", null, Map.of("_elastic_service_account", true),
+                new User("elastic/fleet-server", Strings.EMPTY_ARRAY,
+                    "Service account - elastic/fleet-server", null, Map.of("_elastic_service_account", true),
                     true),
                 new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
@@ -393,9 +393,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testGetRoleDescriptor() throws ExecutionException, InterruptedException {
         final Authentication auth1 = new Authentication(
-            new User("elastic/fleet",
+            new User("elastic/fleet-server",
                 Strings.EMPTY_ARRAY,
-                "Service account - elastic/fleet",
+                "Service account - elastic/fleet-server",
                 null,
                 Map.of("_elastic_service_account", true),
                 true),
@@ -410,10 +410,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
         serviceAccountService.getRoleDescriptor(auth1, future1);
         final RoleDescriptor roleDescriptor1 = future1.get();
         assertNotNull(roleDescriptor1);
-        assertThat(roleDescriptor1.getName(), equalTo("elastic/fleet"));
+        assertThat(roleDescriptor1.getName(), equalTo("elastic/fleet-server"));
 
         final String username =
-            randomValueOtherThan("elastic/fleet", () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
+            randomValueOtherThan("elastic/fleet-server", () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
         final Authentication auth2 = new Authentication(
             new User(username, Strings.EMPTY_ARRAY, "Service account - " + username, null,
                 Map.of("_elastic_service_account", true), true),

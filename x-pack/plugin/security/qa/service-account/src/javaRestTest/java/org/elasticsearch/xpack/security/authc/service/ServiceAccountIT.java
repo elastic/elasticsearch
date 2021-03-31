@@ -37,15 +37,15 @@ import static org.hamcrest.Matchers.is;
 
 public class ServiceAccountIT extends ESRestTestCase {
 
-    private static final String VALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc";
-    private static final String INVALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOjNhSkNMYVFXUk4yc1hsT2R0eEEwU1E";
+    private static final String VALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3";
+    private static final String INVALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTozYUpDTGFRV1JOMnNYbE9kdHhBMFNR";
     private static Path caPath;
 
     private static final String AUTHENTICATE_RESPONSE = ""
         + "{\n"
-        + "  \"username\": \"elastic/fleet\",\n"
+        + "  \"username\": \"elastic/fleet-server\",\n"
         + "  \"roles\": [],\n"
-        + "  \"full_name\": \"Service account - elastic/fleet\",\n"
+        + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
@@ -105,7 +105,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         if (securityIndexExists) {
-            assertThat(e.getMessage(), containsString("failed to authenticate service account [elastic/fleet] with token name [token1]"));
+            assertThat(e.getMessage(), containsString(
+                "failed to authenticate service account [elastic/fleet-server] with token name [token1]"));
         } else {
             assertThat(e.getMessage(), containsString("no such index [.security]"));
         }
@@ -137,13 +138,13 @@ public class ServiceAccountIT extends ESRestTestCase {
     public void testAuthenticateShouldDifferentiateBetweenNormalUserAndServiceAccount() throws IOException {
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(
-            "Authorization", basicAuthHeaderValue("elastic/fleet", new SecureString("x-pack-test-password".toCharArray()))
+            "Authorization", basicAuthHeaderValue("elastic/fleet-server", new SecureString("x-pack-test-password".toCharArray()))
         ));
         final Response response = client().performRequest(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
 
-        assertThat(responseMap.get("username"), equalTo("elastic/fleet"));
+        assertThat(responseMap.get("username"), equalTo("elastic/fleet-server"));
         assertThat(responseMap.get("authentication_type"), equalTo("realm"));
         assertThat(responseMap.get("roles"), equalTo(List.of("superuser")));
         Map<?, ?> authRealm = (Map<?, ?>) responseMap.get("authentication_realm");
@@ -151,7 +152,7 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testCreateApiServiceAccountTokenAndAuthenticateWithIt() throws IOException {
-        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet/credential/token/api-token-1");
+        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse = client().performRequest(createTokenRequest);
         assertOK(createTokenResponse);
         final Map<String, Object> createTokenResponseMap = responseAsMap(createTokenResponse);
@@ -169,7 +170,7 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testFileTokenAndApiTokenCanShareTheSameNameAndBothWorks() throws IOException {
-        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet/credential/token/token1");
+        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/token1");
         final Response createTokenResponse = client().performRequest(createTokenRequest);
         assertOK(createTokenResponse);
         final Map<String, Object> createTokenResponseMap = responseAsMap(createTokenResponse);
@@ -190,7 +191,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
     public void testNoDuplicateApiServiceAccountToken() throws IOException {
         final String tokeName = randomAlphaOfLengthBetween(3, 8);
-        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet/credential/token/" + tokeName);
+        final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/" + tokeName);
         final Response createTokenResponse = client().performRequest(createTokenRequest);
         assertOK(createTokenResponse);
 
@@ -201,27 +202,27 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testGetServiceAccountTokens() throws IOException {
-        final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet/credential");
+        final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet-server/credential");
         final Response getTokensResponse1 = client().performRequest(getTokensRequest);
         assertOK(getTokensResponse1);
         final Map<String, Object> getTokensResponseMap1 = responseAsMap(getTokensResponse1);
-        assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet"));
+        assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap1.get("count"), equalTo(1));
         assertThat(getTokensResponseMap1.get("tokens"), equalTo(Map.of()));
         assertThat(getTokensResponseMap1.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
 
-        final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet/credential/token/api-token-1");
+        final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse1 = client().performRequest(createTokenRequest1);
         assertOK(createTokenResponse1);
 
-        final Request createTokenRequest2 = new Request("POST", "_security/service/elastic/fleet/credential/token/api-token-2");
+        final Request createTokenRequest2 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-2");
         final Response createTokenResponse2 = client().performRequest(createTokenRequest2);
         assertOK(createTokenResponse2);
 
         final Response getTokensResponse2 = client().performRequest(getTokensRequest);
         assertOK(getTokensResponse2);
         final Map<String, Object> getTokensResponseMap2 = responseAsMap(getTokensResponse2);
-        assertThat(getTokensResponseMap2.get("service_account"), equalTo("elastic/fleet"));
+        assertThat(getTokensResponseMap2.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap2.get("count"), equalTo(3));
         assertThat(getTokensResponseMap2.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
         assertThat(getTokensResponseMap2.get("tokens"), equalTo(Map.of(
@@ -235,7 +236,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         if (randomBoolean()) {
             token = VALID_SERVICE_TOKEN;
         } else {
-            final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet/credential/token/api-token-42");
+            final Request createTokenRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-42");
             final Response createTokenResponse = client().performRequest(createTokenRequest);
             assertOK(createTokenResponse);
             final Map<String, Object> createTokenResponseMap = responseAsMap(createTokenResponse);
@@ -285,7 +286,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> apiKey = apiKeys.get(0);
         assertThat(apiKey.get("id"), equalTo(apiKeyId));
         assertThat(apiKey.get("name"), equalTo(name));
-        assertThat(apiKey.get("username"), equalTo("elastic/fleet"));
+        assertThat(apiKey.get("username"), equalTo("elastic/fleet-server"));
         assertThat(apiKey.get("realm"), equalTo("service_account"));
         assertThat(apiKey.get("invalidated"), is(invalidated));
     }

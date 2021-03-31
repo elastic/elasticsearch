@@ -76,19 +76,18 @@ public class UriPartsProcessor extends AbstractProcessor {
             query = uri.getQuery();
             userInfo = uri.getUserInfo();
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("unable to parse URI [" + value + "]");
-        }
-        try {
-            url = new URL(value);
-            scheme = url.getScheme();
-            domain = url.getHost();
-            // fragment = url.getFragment();
-            path = url.getPath();
-            port = url.getPort();
-            query = url.getQuery();
-            userInfo = url.getUserInfo();
-        } catch (MalformedURLException e) {
-            throw new IllegalArgumentException("unable to parse URL [" + value + "]");
+            try {
+                url = new URL(value);
+                scheme = url.getProtocol();
+                domain = url.getHost();
+                fragment = url.getRef();
+                path = url.getPath();
+                port = url.getPort();
+                query = url.getQuery();
+                userInfo = url.getUserInfo();
+            } catch (MalformedURLException e1) {
+                throw new IllegalArgumentException("unable to parse URL [" + value + "]");
+            }
         }
         var uriParts = new HashMap<String, Object>();
         if (domain != null) {
@@ -96,11 +95,6 @@ public class UriPartsProcessor extends AbstractProcessor {
         }
         if (fragment != null) {
             uriParts.put("fragment", fragment);
-        } else {
-            if (value.contains("#")) {
-                int hashIndex = value.lastIndexOf('#');
-                fragment = hashIndex < value.length() ? value.substring(hashIndex + 1) : "";
-            }
         }
         if (keepOriginal) {
             uriParts.put("original", value);

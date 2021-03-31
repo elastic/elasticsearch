@@ -379,6 +379,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                     mutation.apply(node.getId());
                                 }
                             }
+                        } else if(DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                            } else {
+                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
+                            }
                         } else {
                             for (DiscoveryNode node : this) {
                                 for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {

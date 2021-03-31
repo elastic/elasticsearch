@@ -57,7 +57,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
     private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
     private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
-    private static final DiscoveryNode CONTENT_NODE = newNode("node-content", Collections.singleton(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode CONTENT_NODE =
+        newNode("node-content", Collections.singleton(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);

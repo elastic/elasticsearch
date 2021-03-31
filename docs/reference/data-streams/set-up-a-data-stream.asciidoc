@@ -152,8 +152,8 @@ PUT _component_template/my-settings
 Use your component templates to create an index template. Specify:
 
 * One or more index patterns that match the data stream's name. We recommend
-using {fleet-guide}/data-streams.html#data-streams-naming-scheme[our data
-stream naming scheme].
+using our {fleet-guide}/data-streams.html#data-streams-naming-scheme[data stream
+naming scheme].
 
 * That the template is data stream enabled.
 

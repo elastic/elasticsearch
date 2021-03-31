@@ -40,8 +40,12 @@ public class RestGetGlobalCheckpointsAction extends BaseRestHandler {
             currentCheckpoints[i] = Long.parseLong(currentStringCheckpoints[i]);
         }
         final TimeValue pollTimeout = request.paramAsTime("poll_timeout", TimeValue.timeValueSeconds(30));
-        GetGlobalCheckpointsAction.Request getCheckpointsRequest =
-            new GetGlobalCheckpointsAction.Request(index, waitForAdvance, currentCheckpoints, pollTimeout);
+        GetGlobalCheckpointsAction.Request getCheckpointsRequest = new GetGlobalCheckpointsAction.Request(
+            index,
+            waitForAdvance,
+            currentCheckpoints,
+            pollTimeout
+        );
         return channel -> client.execute(GetGlobalCheckpointsAction.INSTANCE, getCheckpointsRequest, new RestToXContentListener<>(channel));
     }
 }

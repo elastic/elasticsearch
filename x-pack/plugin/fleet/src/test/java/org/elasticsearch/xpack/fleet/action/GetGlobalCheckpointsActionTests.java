@@ -40,13 +40,23 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
     public void testGetGlobalCheckpoints() throws Exception {
         int shards = randomInt(4) + 1;
         String indexName = "test_index";
-        client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-            .put("index.number_of_shards", shards)
-            .put("index.number_of_replicas", 0)).get();
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", shards)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
 
-        final GetGlobalCheckpointsAction.Request request =
-            new GetGlobalCheckpointsAction.Request(indexName, false, EMPTY_ARRAY, TEN_SECONDS);
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            false,
+            EMPTY_ARRAY,
+            TEN_SECONDS
+        );
         final GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).get();
         long[] expected = new long[shards];
         for (int i = 0; i < shards; ++i) {
@@ -60,8 +70,12 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
         }
 
         assertBusy(() -> {
-            final GetGlobalCheckpointsAction.Request request2 =
-                new GetGlobalCheckpointsAction.Request(indexName, false, EMPTY_ARRAY, TEN_SECONDS);
+            final GetGlobalCheckpointsAction.Request request2 = new GetGlobalCheckpointsAction.Request(
+                indexName,
+                false,
+                EMPTY_ARRAY,
+                TEN_SECONDS
+            );
             final GetGlobalCheckpointsAction.Response response2 = client().execute(GetGlobalCheckpointsAction.INSTANCE, request2).get();
 
             assertEquals(totalDocuments, Arrays.stream(response2.globalCheckpoints()).map(s -> s + 1).sum());
@@ -70,20 +84,31 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
             long[] fromStats = Arrays.stream(statsResponse.getShards())
                 .filter(i -> i.getShardRouting().primary())
                 .sorted(Comparator.comparingInt(value -> value.getShardRouting().id()))
-                .mapToLong(s -> s.getSeqNoStats().getGlobalCheckpoint()).toArray();
+                .mapToLong(s -> s.getSeqNoStats().getGlobalCheckpoint())
+                .toArray();
             assertArrayEquals(fromStats, response2.globalCheckpoints());
         });
     }
 
     public void testPollGlobalCheckpointAdvancement() throws Exception {
         String indexName = "test_index";
-        client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)).get();
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
 
-        final GetGlobalCheckpointsAction.Request request =
-            new GetGlobalCheckpointsAction.Request(indexName, false, EMPTY_ARRAY, TEN_SECONDS);
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            false,
+            EMPTY_ARRAY,
+            TEN_SECONDS
+        );
         final GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).get();
         assertEquals(-1, response.globalCheckpoints()[0]);
 
@@ -92,42 +117,70 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
             client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
         }
 
-        final GetGlobalCheckpointsAction.Request request2 =
-            new GetGlobalCheckpointsAction.Request(indexName, true, new long[]{28}, TEN_SECONDS);
+        final GetGlobalCheckpointsAction.Request request2 = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            true,
+            new long[] { 28 },
+            TEN_SECONDS
+        );
         final GetGlobalCheckpointsAction.Response response2 = client().execute(GetGlobalCheckpointsAction.INSTANCE, request2).get();
         assertEquals(29L, response2.globalCheckpoints()[0]);
     }
 
     public void testPollGlobalCheckpointAdvancementTimeout() throws Exception {
         String indexName = "test_index";
-        client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)).get();
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
 
         final int totalDocuments = 30;
         for (int i = 0; i < totalDocuments; ++i) {
             client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
         }
 
-        final GetGlobalCheckpointsAction.Request request =
-            new GetGlobalCheckpointsAction.Request(indexName, true, new long[]{29}, TimeValue.timeValueMillis(100));
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            true,
+            new long[] { 29 },
+            TimeValue.timeValueMillis(100)
+        );
         expectThrows(ElasticsearchTimeoutException.class, () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet());
     }
 
     public void testMustProvideCorrectNumberOfShards() throws Exception {
         String indexName = "test_index";
-        client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-            .put("index.number_of_shards", 3)
-            .put("index.number_of_replicas", 0)).get();
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
 
         final long[] incorrectArrayLength = new long[2];
-        final GetGlobalCheckpointsAction.Request request =
-            new GetGlobalCheckpointsAction.Request(indexName, true, incorrectArrayLength, TEN_SECONDS);
-        ElasticsearchException exception =
-            expectThrows(ElasticsearchException.class, () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet());
-        assertThat(exception.getMessage(),
-            equalTo("current_checkpoints must equal number of shards. [shard count: 3, current_checkpoints: 2]"));
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            true,
+            incorrectArrayLength,
+            TEN_SECONDS
+        );
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("current_checkpoints must equal number of shards. [shard count: 3, current_checkpoints: 2]")
+        );
     }
 }

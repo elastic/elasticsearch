@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
@@ -133,11 +131,24 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
         private final IndicesService indicesService;
 
         @Inject
-        public TransportGetGlobalCheckpointAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  IndicesService indicesService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request::new, ThreadPool.Names.GENERIC);
+        public TransportGetGlobalCheckpointAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            IndicesService indicesService
+        ) {
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                indexNameExpressionResolver,
+                Request::new,
+                ThreadPool.Names.GENERIC
+            );
             this.indicesService = indicesService;
         }
 
@@ -168,8 +179,12 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
                         @Override
                         public void accept(final long g, final Exception e) {
                             if (g != UNASSIGNED_SEQ_NO) {
-                                assert request.currentCheckpoint() <= g
-                                    : shardId + " only advanced to [" + g + "] while waiting for [" + request.currentCheckpoint() + "]";
+                                assert request.currentCheckpoint() <= g : shardId
+                                    + " only advanced to ["
+                                    + g
+                                    + "] while waiting for ["
+                                    + request.currentCheckpoint()
+                                    + "]";
                                 globalCheckpointAdvanced(shardId, request, listener);
                             } else {
                                 assert e != null;
@@ -178,16 +193,14 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
                         }
 
                     },
-                    request.pollTimeout());
+                    request.pollTimeout()
+                );
             } else {
                 super.asyncShardOperation(request, shardId, listener);
             }
         }
 
-        private void globalCheckpointAdvanced(
-            final ShardId shardId,
-            final Request request,
-            final ActionListener<Response> listener) {
+        private void globalCheckpointAdvanced(final ShardId shardId, final Request request, final ActionListener<Response> listener) {
             try {
                 super.asyncShardOperation(request, shardId, listener);
             } catch (final IOException caught) {
@@ -195,11 +208,18 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
             }
         }
 
-        private void globalCheckpointAdvancementFailure(final ShardId shardId, final TimeValue timeout, final Exception e,
-                                                        final ActionListener<Response> listener) {
+        private void globalCheckpointAdvancementFailure(
+            final ShardId shardId,
+            final TimeValue timeout,
+            final Exception e,
+            final ActionListener<Response> listener
+        ) {
             if (e instanceof TimeoutException) {
-                listener.onFailure(new ElasticsearchTimeoutException("Wait for global checkpoint advance timed out [timeout: "
-                    + timeout + ", shard_id: " + shardId + "]"));
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "Wait for global checkpoint advance timed out [timeout: " + timeout + ", shard_id: " + shardId + "]"
+                    )
+                );
             } else {
                 listener.onFailure(e);
             }
@@ -217,10 +237,7 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            return state
-                .routingTable()
-                .shardRoutingTable(request.request().getShardId())
-                .primaryShardIt();
+            return state.routingTable().shardRoutingTable(request.request().getShardId()).primaryShardIt();
         }
     }
 }

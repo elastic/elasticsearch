@@ -57,6 +57,11 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         return List.of(new MapperExtrasPlugin());
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     static int getFrequency(TokenStream tk) throws IOException {
         TermFrequencyAttribute freqAttribute = tk.addAttribute(TermFrequencyAttribute.class);
         tk.reset();

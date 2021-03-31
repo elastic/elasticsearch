@@ -145,6 +145,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.equalTo;
@@ -1048,7 +1049,7 @@ public final class InternalTestCluster extends TestCluster {
 
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY);
-            settings.add(removeRoles(nodeSettings, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+            settings.add(nonDataNode(nodeSettings));
         }
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
             final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY);

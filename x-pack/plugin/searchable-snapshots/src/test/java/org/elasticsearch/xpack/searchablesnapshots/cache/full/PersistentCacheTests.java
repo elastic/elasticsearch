@@ -48,11 +48,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCacheFileEquals;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.sumOfCompletedRangesLengths;
-import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.createCacheIndexWriter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.resolveCacheIndexFolder;
 import static org.hamcrest.Matchers.equalTo;

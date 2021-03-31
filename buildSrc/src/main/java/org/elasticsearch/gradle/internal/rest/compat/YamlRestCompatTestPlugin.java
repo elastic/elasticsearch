@@ -19,9 +19,7 @@ import org.elasticsearch.gradle.test.rest.RestResourcesExtension;
 import org.elasticsearch.gradle.test.rest.RestResourcesPlugin;
 import org.elasticsearch.gradle.test.rest.RestTestUtil;
 import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.elasticsearch.gradle.testclusters.TestDistribution;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -39,7 +37,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.createTestCluster;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 
 /**

@@ -89,6 +89,7 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
         }
 
         Request(StreamInput in) throws IOException {
+            super(in);
             this.shardId = new ShardId(in);
             this.waitForAdvance = in.readBoolean();
             this.currentCheckpoint = in.readLong();

@@ -59,6 +59,10 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             globalCheckpoints = in.readLongArray();
         }
 
+        public long[] globalCheckpoints() {
+            return globalCheckpoints;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             throw new AssertionError("GetGlobalCheckpointsAction should not be sent over the wire.");

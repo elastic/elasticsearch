@@ -22,7 +22,7 @@ Provides explanations for shard allocations in the cluster.
 ==== {api-description-title}
 
 The purpose of the cluster allocation explain API is to provide
-explanations for shard allocations in the cluster.  For unassigned shards,
+explanations for shard allocations in the cluster. For unassigned shards,
 the explain API provides an explanation for why the shard is unassigned.
 For assigned shards, the explain API provides an explanation for why the
 shard is remaining on its current node and has not moved or rebalanced to

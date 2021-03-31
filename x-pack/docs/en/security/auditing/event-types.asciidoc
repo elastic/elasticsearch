@@ -180,7 +180,7 @@ show more details about the requesting client:
                         the address of another cluster node, or the local node's
                         bound address, if the request originated locally. Unless
                         the remote client connects directly to the cluster, the
-                        _client  address_ will actually be the address of the first
+                        _client address_ will actually be the address of the first
                         OSI layer 3 proxy in front of the cluster.
 `origin.type`     ::    The origin type of the request associated with this event:
                         `rest` (request originated from a REST API request),
@@ -327,7 +327,7 @@ that have been previously described:
   `user.name`          ::   The name of the _effective_ user. This is usually the
                             same as the _authenticated_ user, but if using the
                             <<run-as-privilege, run as authorization functionality>>
-                            this instead denotes the name of the  _impersonated_ user.
+                            this instead denotes the name of the _impersonated_ user.
                             If authenticated using an API key, this is
                             the name of the API key owner.
   `user.realm`         ::   Name of the realm to which the _effective_ user
@@ -335,7 +335,7 @@ that have been previously described:
                             the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::   This attribute is present only if the request is
                             using the <<run-as-privilege, run as authorization functionality>>
-                            and denotes the name of the  _authenticated_ user,
+                            and denotes the name of the _authenticated_ user,
                             which is also known as the _impersonator_.
   `user.run_by.realm`  ::   Name of the realm to which the _authenticated_
                             (_impersonator_) user belongs.
@@ -375,7 +375,7 @@ that have been previously described:
   `user.name`          ::    The name of the _effective_ user. This is usually the
                              same as the _authenticated_ user, but if using the
                              <<run-as-privilege, run as authorization functionality>>
-                             this instead denotes the name of the  _impersonated_ user.
+                             this instead denotes the name of the _impersonated_ user.
                              If authenticated using an API key, this is
                              the name of the API key owner.
   `user.realm`         ::   Name of the realm to which the _effective_ user

@@ -414,7 +414,7 @@ This results in a response like this:
 [discrete]
 ==== Optimizing wildcard queries.
 
-Wildcard queries are  more expensive than other queries for the percolator,
+Wildcard queries are more expensive than other queries for the percolator,
 especially if the wildcard expressions are large.
 
 In the case of `wildcard` queries with prefix wildcard expressions or just the `prefix` query,

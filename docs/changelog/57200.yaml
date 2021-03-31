@@ -1,7 +1,0 @@
-pr: 57200
-issues: []
-area: Search
-type: UNKNOWN
-summary: Remove deprecated `SimpleQueryStringBuilder` parameters
-versions:
-  - v8.0.0

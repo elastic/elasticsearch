@@ -1,8 +1,0 @@
-pr: 60158
-issues:
-  - 60001
-area: Infra/Scripting
-type: UNKNOWN
-summary: Expose all doc field str const accesses
-versions:
-  - v8.0.0

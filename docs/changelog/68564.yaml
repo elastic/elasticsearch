@@ -12,7 +12,7 @@ breaking:
   title: Remove support for `_type` in searches
   anchor: remove_support_for_type_in_searches
   area: Search
-  details: >-
+  details: |-
     Types are no longer allowed in requests in 8.0, so support for
     the `_type` field within search requests has been removed.
   impact:

@@ -1,7 +1,0 @@
-pr: 65259
-issues: []
-area: Analysis
-type: UNKNOWN
-summary: "Phonetic: Remove class that is part of commons-codec"
-versions:
-  - v8.0.0

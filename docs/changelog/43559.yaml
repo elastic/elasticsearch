@@ -1,7 +1,0 @@
-pr: 43559
-issues: []
-area: Analysis
-type: enhancement
-summary: Moving `reload_analyzers` endpoint to xpack
-versions:
-  - v8.0.0

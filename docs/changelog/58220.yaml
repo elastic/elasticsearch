@@ -1,8 +1,0 @@
-pr: 58220
-issues:
-  - 58217
-area: License
-type: enhancement
-summary: Add deprecated `accept_enterprise` param to /_xpack
-versions:
-  - v8.0.0

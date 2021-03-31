@@ -1,7 +1,0 @@
-pr: 61508
-issues: []
-area: Infra/Scripting
-type: bug
-summary: Fixes casting in constant folding
-versions:
-  - v8.0.0

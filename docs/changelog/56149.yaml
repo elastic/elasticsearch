@@ -1,8 +1,0 @@
-pr: 56149
-issues:
-  - 52103
-area: Infra/Scripting
-type: enhancement
-summary: Update `DeprecationMap` to `DynamicMap`
-versions:
-  - v8.0.0

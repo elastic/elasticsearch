@@ -1,8 +1,0 @@
-pr: 66671
-issues:
-  - 66317
-area: Security
-type: deprecation
-summary: Remove the id field from the `InvalidateApiKey` API
-versions:
-  - v8.0.0

@@ -1,9 +1,0 @@
-pr: 67374
-issues:
-  - 67246
-  - 67158
-area: Distributed
-type: bug
-summary: Respect `CloseIndexRequest#waitForActiveShards` in HLRC
-versions:
-  - v8.0.0

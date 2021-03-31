@@ -1,8 +1,0 @@
-pr: 51417
-issues:
-  - 50775
-area: Engine
-type: enhancement
-summary: Remove translog retention policy
-versions:
-  - v8.0.0

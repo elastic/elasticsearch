@@ -1,8 +1,0 @@
-pr: 67216
-issues:
-  - 56713
-area: SQL
-type: enhancement
-summary: Improve alias resolution in sub-queries
-versions:
-  - v8.0.0

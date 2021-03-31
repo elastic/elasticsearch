@@ -1,8 +1,0 @@
-pr: 64406
-issues:
-  - 51816
-area: Infra/REST API
-type: UNKNOWN
-summary: Introduce per REST endpoint media types
-versions:
-  - v8.0.0

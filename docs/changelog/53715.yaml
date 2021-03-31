@@ -1,8 +1,0 @@
-pr: 53715
-issues:
-  - 46702
-area: Infra/Logging
-type: bug
-summary: Fix NPE when logging null values in JSON
-versions:
-  - v8.0.0

@@ -1,7 +1,0 @@
-pr: 43536
-issues: []
-area: Analysis
-type: enhancement
-summary: "[Docs] Move mentions of updateable synonyms flag"
-versions:
-  - v8.0.0

@@ -1,8 +1,0 @@
-pr: 44902
-issues:
-  - 37504
-area: Infra/REST API
-type: bug
-summary: "`RestController` should not consume request content"
-versions:
-  - v8.0.0

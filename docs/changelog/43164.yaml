@@ -1,7 +1,0 @@
-pr: 43164
-issues: []
-area: Infra/Core
-type: enhancement
-summary: Remove indices exists action
-versions:
-  - v8.0.0

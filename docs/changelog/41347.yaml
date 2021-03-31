@@ -1,7 +1,0 @@
-pr: 41347
-issues: []
-area: Search
-type: enhancement
-summary: Make 0 as invalid value for `min_children` in `has_child` query
-versions:
-  - v8.0.0

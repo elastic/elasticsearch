@@ -1,8 +1,0 @@
-pr: 55181
-issues:
-  - 54847
-area: Aggregations
-type: bug
-summary: Fix BWC issues for x_pack/usage
-versions:
-  - v8.0.0

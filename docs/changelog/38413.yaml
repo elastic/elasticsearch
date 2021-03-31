@@ -1,7 +1,0 @@
-pr: 38413
-issues: []
-area: Infra/REST API
-type: enhancement
-summary: Introduce stability description to the REST API specification
-versions:
-  - v8.0.0

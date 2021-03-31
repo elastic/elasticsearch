@@ -1,7 +1,0 @@
-pr: 60505
-issues: []
-area: Recovery, Snapshot/Restore
-type: enhancement
-summary: Add recovery state tracking for Searchable Snapshots
-versions:
-  - v8.0.0

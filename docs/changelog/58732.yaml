@@ -1,8 +1,0 @@
-pr: 58732
-issues:
-  - 58682
-area: Machine Learning
-type: bug
-summary: Remove erroneous licence
-versions:
-  - v8.0.0

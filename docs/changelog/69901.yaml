@@ -1,7 +1,0 @@
-pr: 69901
-issues: []
-area: SQL
-type: bug
-summary: Make `RestSqlQueryAction` thread-safe
-versions:
-  - v8.0.0

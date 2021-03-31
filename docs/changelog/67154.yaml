@@ -1,7 +1,0 @@
-pr: 67154
-issues: []
-area: Features/Watcher
-type: enhancement
-summary: Remove watcher history clean up from monitoring
-versions:
-  - v8.0.0

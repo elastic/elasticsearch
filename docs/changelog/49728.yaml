@@ -1,8 +1,0 @@
-pr: 49728
-issues:
-  - 40366
-area: Infra/Core
-type: UNKNOWN
-summary: Silence lint warnings in server project - part 2
-versions:
-  - v8.0.0

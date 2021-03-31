@@ -1,7 +1,0 @@
-pr: 62646
-issues: []
-area: Mapping
-type: enhancement
-summary: Sparse vector to throw exception consistently
-versions:
-  - v8.0.0

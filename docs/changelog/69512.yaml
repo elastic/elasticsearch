@@ -1,7 +1,0 @@
-pr: 69512
-issues: []
-area: SQL
-type: enhancement
-summary: Export array values through result sets
-versions:
-  - v8.0.0

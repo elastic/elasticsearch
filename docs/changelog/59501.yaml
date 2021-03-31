@@ -1,9 +1,0 @@
-pr: 59501
-issues:
-  - 59386
-  - 54441
-area: Geo
-type: bug
-summary: Preprocess polygon rings before processing it for decomposition.
-versions:
-  - v8.0.0

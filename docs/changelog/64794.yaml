@@ -1,8 +1,0 @@
-pr: 64794
-issues:
-  - 62198
-area: Features/CAT APIs
-type: deprecation
-summary: Adjust deprecation version after backport
-versions:
-  - v8.0.0

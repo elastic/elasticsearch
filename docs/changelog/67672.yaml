@@ -1,7 +1,0 @@
-pr: 67672
-issues: []
-area: EQL, SQL
-type: UNKNOWN
-summary: Refactor function resolution strategy
-versions:
-  - v8.0.0

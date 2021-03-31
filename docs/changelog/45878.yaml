@@ -1,8 +1,0 @@
-pr: 45878
-issues:
-  - 19069
-area: Infra/Core
-type: UNKNOWN
-summary: Remove `ExceptionHelper.detailedMessage`
-versions:
-  - v8.0.0

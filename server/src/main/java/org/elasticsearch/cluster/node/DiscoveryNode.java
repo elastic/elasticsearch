@@ -64,6 +64,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Check if the given settings are indicative of having the top-level data role.
      *
+     * Note that if you want to test for whether or not the given settings are indicative of any role that can contain data, you should use
+     * {@link #canContainData(Settings)}.
+     *
      * @param settings the settings
      * @return true if the given settings are indicative of having the top-level data role, otherwise false
      */
@@ -73,6 +76,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /**
      * Check if the given settings are indicative of any role that can contain data.
+     *
+     * Note that if you want to test for exactly the data role, you should use {@link #hasDataRole(Settings)}.
      *
      * @param settings the settings
      * @return true if the given settings are indicative of having any role that can contain data, otherwise false

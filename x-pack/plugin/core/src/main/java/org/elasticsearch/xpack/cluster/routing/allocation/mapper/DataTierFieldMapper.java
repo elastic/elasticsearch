@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -63,6 +64,10 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
+            String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(context.getIndexSettings().getSettings());
+            if (tierPreference == null) {
+                return new MatchNoDocsQuery();
+            }
             return new MatchAllDocsQuery();
         }
 

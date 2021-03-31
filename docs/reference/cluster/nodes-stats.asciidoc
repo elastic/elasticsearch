@@ -256,6 +256,16 @@ Total size of all shards assigned to the node.
 (integer)
 Total size, in bytes, of all shards assigned to the node.
 
+`total_data_set_size`::
+(<<byte-units,byte value>>)
+Total data set size of all shards assigned to the node.
+This includes the size of shards not stored fully on the node (shared cache searchable snapshots).
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to the node.
+This includes the size of shards not stored fully on the node (shared cache searchable snapshots).
+
 `reserved`::
 (<<byte-units,byte value>>)
 A prediction of how much larger the shard stores on this node will eventually

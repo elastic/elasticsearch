@@ -198,14 +198,19 @@ public class IndexMetadataVerifier {
         final Settings settings = indexMetadata.getSettings();
         // Only remove these settings for a shared_cache searchable snapshot
         if ("snapshot".equals(settings.get("index.store.type", "")) && settings.getAsBoolean("index.store.snapshot.partial", false)) {
-            final Settings.Builder newSettings = Settings.builder().put(settings);
+            final Settings.Builder settingsBuilder = Settings.builder().put(settings);
             // Clear any allocation rules other than preference for tier
-            newSettings.remove("index.routing.allocation.include._tier");
-            newSettings.remove("index.routing.allocation.exclude._tier");
-            newSettings.remove("index.routing.allocation.require._tier");
+            settingsBuilder.remove("index.routing.allocation.include._tier");
+            settingsBuilder.remove("index.routing.allocation.exclude._tier");
+            settingsBuilder.remove("index.routing.allocation.require._tier");
             // Override the tier preference to be only on frozen nodes, regardless of its current setting
-            newSettings.put("index.routing.allocation.include._tier_preference", "data_frozen");
-            return IndexMetadata.builder(indexMetadata).settings(newSettings.build()).build();
+            settingsBuilder.put("index.routing.allocation.include._tier_preference", "data_frozen");
+            final Settings newSettings = settingsBuilder.build();
+            if (settings.equals(newSettings)) {
+                return indexMetadata;
+            } else {
+                return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
+            }
         } else {
             return indexMetadata;
         }

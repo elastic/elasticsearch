@@ -67,6 +67,15 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         indexMetadata = service.convertSharedCacheTierPreference(src);
         assertSame(indexMetadata, src);
 
+        // A shared_cache searchable snapshot with valid settings (metadata should be untouched)
+        src = newIndexMeta("foo", Settings.builder()
+            .put("index.store.type", "snapshot")
+            .put("index.store.snapshot.partial", false)
+            .put("index.routing.allocation.include._tier_preference", "data_frozen")
+            .build());
+        indexMetadata = service.convertSharedCacheTierPreference(src);
+        assertSame(indexMetadata, src);
+
         // A shared_cache searchable snapshot (should have its settings converted)
         src = newIndexMeta("foo", Settings.builder()
             .put("index.store.type", "snapshot")

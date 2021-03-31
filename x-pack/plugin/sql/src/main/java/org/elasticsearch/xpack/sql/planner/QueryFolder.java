@@ -113,7 +113,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {        
+    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         Batch rollup = new Batch("Fold queries",
                 new FoldPivot(),
                 new FoldAggregate(),

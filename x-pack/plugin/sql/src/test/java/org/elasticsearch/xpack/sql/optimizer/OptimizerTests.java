@@ -1083,7 +1083,8 @@ public class OptimizerTests extends ESTestCase {
         {
             assertTrue(optimizedPlan instanceof Filter);
             Filter filterOnAggregate = (Filter) optimizedPlan;
-            assertEquals(conditionOnAggregate, filterOnAggregate.condition());
+            And expectedCondition = new And(EMPTY, TRUE, conditionOnAggregate);
+            assertEquals(expectedCondition, filterOnAggregate.condition());
             assertTrue(filterOnAggregate.child() instanceof Aggregate);
             {
                 Aggregate optimizedAggregate = (Aggregate) filterOnAggregate.child();
@@ -1091,6 +1092,46 @@ public class OptimizerTests extends ESTestCase {
                 {
                     Filter filterOnGrouping = (Filter) optimizedAggregate.child();
                     assertEquals(conditionOnGrouping, filterOnGrouping.condition());
+                    assertEquals(FROM(), filterOnGrouping.child());
+                }
+            }
+        }
+    }
+
+    public void testFilterOnAggregateBreakupPossibleMultipleBranches() {
+        FieldAttribute g = getFieldAttribute("g");
+        FieldAttribute a = getFieldAttribute("a");
+        Sum sum = new Sum(EMPTY, a);
+        Alias sumAlias = new Alias(EMPTY, "sum", sum);
+        Alias gAlias = new Alias(EMPTY, "g2", g);
+
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), asList(g), asList(gAlias, sumAlias));
+        Expression conditionOnGrouping = new Equals(EMPTY, g, literal(2));
+        Expression conditionOnAggregate = new GreaterThan(EMPTY, sum, literal(1), randomZone());
+        Expression conditionOnGrouping2 = new Equals(EMPTY, g, literal(3));
+        Expression conditionOnAggregate2 = new GreaterThan(EMPTY, sum, literal(2), randomZone());
+        Filter filter = new Filter(EMPTY, aggregate,
+            new And(EMPTY,
+                new And(EMPTY, conditionOnGrouping, conditionOnAggregate),
+                new And(EMPTY, conditionOnGrouping2, conditionOnAggregate2)
+            ));
+
+        LogicalPlan optimizedPlan = new Optimizer.PushDownFilters().rule(filter);
+        {
+            assertTrue(optimizedPlan instanceof Filter);
+            Filter filterOnAggregate = (Filter) optimizedPlan;
+            And expectedCondition = new And(EMPTY,
+                new And(EMPTY, TRUE, conditionOnAggregate),
+                new And(EMPTY, TRUE, conditionOnAggregate2));
+            assertEquals(expectedCondition, filterOnAggregate.condition());
+            assertTrue(filterOnAggregate.child() instanceof Aggregate);
+            {
+                Aggregate optimizedAggregate = (Aggregate) filterOnAggregate.child();
+                assertTrue(optimizedAggregate.child() instanceof Filter);
+                {
+                    Filter filterOnGrouping = (Filter) optimizedAggregate.child();
+                    And expectedPushedDownCondition = new And(EMPTY, conditionOnGrouping, conditionOnGrouping2);
+                    assertEquals(expectedPushedDownCondition, filterOnGrouping.condition());
                     assertEquals(FROM(), filterOnGrouping.child());
                 }
             }
@@ -1150,17 +1191,25 @@ public class OptimizerTests extends ESTestCase {
         Aggregate aggregate = new Aggregate(EMPTY, FROM(), asList(g), asList(gAlias, sumAlias));
         Expression conditionOnGrouping = new Equals(EMPTY, g, literal(2));
         Expression conditionOnAggregate = new GreaterThan(EMPTY, sum, literal(1), randomZone());
-        Source conditionSource = Source.synthetic("TEST!!!");
-        Expression condition = randomBoolean() 
-            ? new Or(conditionSource, conditionOnGrouping, conditionOnAggregate)
-            : new GreaterThan(EMPTY, new Greatest(conditionSource, asList(g, sum)), literal(2), randomZone());
+        Expression conditionOnGrouping2 = new Equals(EMPTY, g, literal(3));
+        Expression conditionOnAggregate2 = new GreaterThan(EMPTY, sum, literal(1), randomZone());
+        Source unbreakable = Source.synthetic("UNBREAKABLE!!!");
+        Expression condition = randomFrom( 
+            new Or(unbreakable, conditionOnGrouping, conditionOnAggregate),
+            new And(EMPTY,
+                TRUE,
+                new Or(unbreakable, 
+                    new And(EMPTY, conditionOnGrouping, conditionOnAggregate), 
+                    new And(EMPTY, conditionOnGrouping2, conditionOnAggregate2))),
+            new GreaterThan(EMPTY, new Greatest(unbreakable, asList(g, sum)), literal(2), randomZone())
+        );
         Filter filter = new Filter(EMPTY, aggregate, condition);
 
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> {
             LogicalPlan optimizedPlan = new Optimizer.PushDownFilters().rule(filter);
         });        
         assertEquals("Found 1 problem\n" + 
-            "line -1:-1: [TEST!!!] is part of a condition on top of a GROUP BY that references both a grouping " +
-            "and an aggregate in an unsplittable expression, cannot be translated (yet)", ex.getMessage());
+            "line -1:-1: [UNBREAKABLE!!!] is part of a condition on top of a GROUP BY that references both a grouping " +
+            "and an aggregate in an unsplittable expression, cannot be translated", ex.getMessage());
     }
 }

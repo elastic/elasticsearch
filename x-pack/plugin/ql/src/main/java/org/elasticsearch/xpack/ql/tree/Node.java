@@ -149,6 +149,17 @@ public abstract class Node<T extends Node<T>> {
         return matches;
     }
 
+    public T collectOnlyChild(Predicate<? super T> predicate) {
+        List<T> matches = collectFirstChildren(predicate);
+        if (matches.size() > 1) {
+            throw new IllegalArgumentException("multiple matches");
+        }
+        if (matches.isEmpty()) {
+            return null;
+        }
+        return matches.get(0);
+    }
+
     @SuppressWarnings("unchecked")
     protected void doCollectFirst(Predicate<? super T> predicate, List<T> matches) {
         T t = (T) this;

@@ -52,21 +52,26 @@ WHERE s > 50000
 ORDER BY s DESC NULLS last
 ;
 
+// TODO add a case with the following in the inner select
+//        ORDER BY i ASC NULLS LAST
+//        LIMIT 4
+
 multiLevelFilterOnGroupingAfterGroupBy
-SELECT k as l 
+SELECT k as l
 FROM (
-    SELECT j AS k 
+    SELECT j AS k, s
     FROM (
-        SELECT i AS j 
+        SELECT i AS j, SUM(salary) as s
         FROM (
-            SELECT ROUND(salary, -4)::int AS i FROM test_emp
+            SELECT ROUND(salary, -4)::int AS i, salary FROM test_emp
         )
         GROUP BY j
         HAVING COUNT(i) > 1
     )
-    WHERE j < 5
+    WHERE j < 100000
 )
-WHERE k > 3
+WHERE k > 30000 AND s > 10000
+ORDER BY k DESC NULLS last
 ;
 
 // WHERE on top of GROUP BY, should be equivalent with HAVING 
@@ -137,4 +142,9 @@ SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM (SELECT * FROM test_emp) ORDE
 
 inAndIsNotNull
 SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM (SELECT * FROM test_emp WHERE emp_no IN (10019, 10020, 10021)) WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+
+// TODO we need a Verifier for this one, we cannot have order by X limit ... order by Y limit ...
+// we cannot have multiple limits, with the order by changing between the limits
+orderByAndLimitInSubselect-Ignore
+SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC NULLS LAST LIMIT 10) ORDER BY emp_no ASC NULLS LAST LIMIT 3;
 

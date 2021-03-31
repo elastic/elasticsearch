@@ -2737,7 +2737,36 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec optimized = (EsQueryExec) optimizeAndPlan("SELECT k as l FROM (SELECT j AS k FROM (SELECT i AS j FROM " +
             "( SELECT int AS i FROM test) GROUP BY j HAVING COUNT(i) > 1) WHERE j < 5) WHERE k > 3");
         assertEquals(manual.queryContainer().toString(), optimized.queryContainer().toString());
-    } 
+    }
+
+    public void testMultiLevelComplexFilterOnGroupBy() {
+        EsQueryExec manual = (EsQueryExec) optimizeAndPlan(
+            "SELECT i, SUM(s)\n" +
+            "FROM (\n" +
+            "    SELECT ROUND(int, -4)::int AS i, int s\n" +
+            "    FROM test\n" +
+            "    WHERE ROUND(int, -4)::int < 100000 AND ROUND(int, -4)::int > 30000\n" +
+            ")\n" +
+            "GROUP BY i\n" +
+            "HAVING SUM(s) > 10000 AND COUNT(i) > 1\n" +
+            "ORDER BY i DESC NULLS last");
+        EsQueryExec optimized = (EsQueryExec) optimizeAndPlan("SELECT k as l\n" +
+            "FROM (\n" +
+            "    SELECT j AS k, s\n" +
+            "    FROM (\n" +
+            "        SELECT i AS j, SUM(s) as s\n" +
+            "        FROM (\n" +
+            "            SELECT ROUND(int, -4)::int AS i, int s FROM test\n" +
+            "        )\n" +
+            "        GROUP BY j\n" +
+            "        HAVING COUNT(i) > 1\n" +
+            "    )\n" +
+            "    WHERE j < 100000\n" +
+            ")\n" +
+            "WHERE k > 30000 AND s > 10000\n" +
+            "ORDER BY k DESC NULLS last");
+        assertEquals(manual.queryContainer().toString(), optimized.queryContainer().toString());
+    }
 
     public void testSubqueryWithAlias() {
         optimizeAndPlan("SELECT t.int FROM test AS t LIMIT 1");

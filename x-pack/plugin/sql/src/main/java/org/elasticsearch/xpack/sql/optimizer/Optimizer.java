@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullE
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
@@ -508,6 +507,31 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             });
         }
     }
+
+    static class CombineFilters extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter plan) {
+            // merge the current filter with a Filter above a Limit/Pivot/Aggregate
+            LogicalPlan maybeFilterChild = plan.child().collectOnlyChild(
+                c -> c instanceof Filter || c instanceof Limit || c instanceof Pivot || c instanceof Aggregate);
+
+            LogicalPlan result = plan;
+            if (maybeFilterChild instanceof Filter) {
+                Filter childFilter = (Filter) maybeFilterChild;
+                // merge the filter with the child filter, move the condition down into the childFilter
+                result = plan.child().transformDown(p -> {
+                    if (p == childFilter) {
+                        return new Filter(Source.EMPTY, childFilter.child(),
+                            new And(Source.EMPTY, plan.condition(), childFilter.condition()));
+                    } else {
+                        return p;
+                    }
+                });
+            }
+            return result;
+        }
+    }
     
     public static class PushDownFilters extends OptimizerRule<Filter> {
 
@@ -523,17 +547,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // the aggregates in this context mean only the aggregates that are not part of the grouping
             // 
             // Filter[condition=f(aggregate)] -> Filter[condition=f(grouping)] -> ... -> Aggregate[grouping, aggregates]
-            
+
             Aggregate aggregate = findFirstAggregateChild(plan);
             if (aggregate == null) {
                 // there is no aggregate below the Filter that we could push the filters below
                 return plan;
             }
-            
+
             // we have an aggregate below the filter, so let's try to break up the filter into two separate ones
             // let's try to break up the condition into two parts
             final Expression condition = plan.condition();
-            
+
             final IdentityHashMap<Expression, Markers> markerMap = 
                 markConditionChildren(aggregate, condition, java.util.function.Function.identity());
             Set<Failure> failures = new LinkedHashSet<>();
@@ -541,34 +565,45 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (failures.isEmpty() == false) {
                 throw new QlIllegalArgumentException(Failure.failMessage(failures));
             }
-            
+
             List<Expression> conditionsOnGroupings = new LinkedList<>();
-            
+
             //now figure out which parts should be moved into a filter that we can push down
             Expression conditionOnAggregates = null;
             if (markerMap.get(condition).hasAggregate) {
-                // we can break up the ANDs with both groupings and aggregates in them
-                // we want to push-down the biggest possible condition structure and don't need to look into the children of
-                // a node that we already decided to push down
+                // we can break up the ANDs with both groupings and aggregates in them, we start from the bottom and going up
+
+                // first figure out which expressions to break up
+                Set<Expression> breakupCandidates = newSetFromMap(new IdentityHashMap<>());
                 Set<Expression> toBreakup = newSetFromMap(new IdentityHashMap<>());
-                toBreakup.addAll(condition.collectFirstChildren(e -> {
+                condition.forEachUp(e -> {
                     Markers markers = markerMap.get(e);
-                    return e instanceof And && markers.hasGrouping && markers.hasAggregate;
-                }));                
+                    // the reason of this limitation is https://github.com/elastic/elasticsearch/issues/23874
+                    // AND can be broken up into two pieces, but we cannot break up anything else
+                    if (markers.hasGrouping && markers.hasAggregate && e instanceof And) {
+                        breakupCandidates.add(e);
+                        // only add, if the issues did not propagate from the children
+                        if (e.children().stream().noneMatch(breakupCandidates::contains)) {
+                            toBreakup.add(e);
+                        }
+                    }
+                });
                 
+                // let's break up the condition into two pieces
                 conditionOnAggregates = condition.transformUp(e -> {
                     if (toBreakup.contains(e)) {
                         And and = (And) e;
                         // one of the children is a condition on grouping, let's remove that
                         // and return the other item (And will always have two children)
-                        return and.children().stream().filter(andExp -> {
+                        List<Expression> newAndChildren = and.children().stream().map(andExp -> {
                             if (markerMap.get(andExp).hasGrouping) {
                                 conditionsOnGroupings.add(andExp);
-                                return false;
+                                return Literal.TRUE;
                             } else {
-                                return true;
+                                return andExp;
                             }
-                        }).findFirst().get();
+                        }).collect(Collectors.toList());
+                        return and.replaceChildrenSameSize(newAndChildren);
                     }
                     return e;
                 });
@@ -623,7 +658,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             
             expressionsToReport.forEach(e -> 
                 failures.add(fail(e, "[{}] is part of a condition on top of a GROUP BY that references both a grouping " +
-                "and an aggregate in an unsplittable expression, cannot be translated (yet)", e)));
+                "and an aggregate in an unsplittable expression, cannot be translated", e)));
         }
 
         private static class Markers {
@@ -707,15 +742,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private static Aggregate findFirstAggregateChild(LogicalPlan plan) {
-            List<LogicalPlan> aggregateChildren = plan.collectFirstChildren(c -> c instanceof Aggregate || c instanceof Pivot);
-            if (aggregateChildren.isEmpty()) {
-                return null;
-            }
-            if (aggregateChildren.size() > 1) {
-                throw new IllegalStateException("should not have more than aggregate children");
-            }
-            LogicalPlan child = aggregateChildren.get(0);
-            // won't push down the filters under the Pivots, or the any Group By under the Pivot, so make sure we skip them
+            LogicalPlan child = plan.collectOnlyChild(c -> c instanceof Aggregate || c instanceof Pivot || c instanceof Limit);
+            // don't push down the filters under the Pivots, or the any Group By under the Pivot (for now)
+            // don't push the conditions below a limit (it would change the result set)
             return child instanceof Aggregate ? (Aggregate) child : null;
         }
     }

@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
@@ -1500,18 +1499,6 @@ public final class OptimizerRules {
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan.optimized() == false) {
                 plan.setOptimized();
-            }
-            return plan;
-        }
-    }
-
-    public static class CombineFilters extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter plan) {
-            if (plan.child() instanceof Filter) {
-                Filter childFilter = (Filter) plan.child();
-                return new Filter(Source.EMPTY, childFilter.child(), new And(Source.EMPTY, plan.condition(), childFilter.condition()));
             }
             return plan;
         }

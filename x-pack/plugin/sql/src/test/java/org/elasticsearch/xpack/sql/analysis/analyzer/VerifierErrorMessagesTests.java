@@ -939,10 +939,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testWhereOnGroupings() {
         assertEquals("1:74: [int > 2 OR cnt > 1] is part of a condition on top of a GROUP BY that references both a grouping " +
-                "and an aggregate in an unsplittable expression, cannot be translated (yet)",
+                "and an aggregate in an unsplittable expression, cannot be translated",
             error("SELECT * FROM (SELECT int, count(*) as cnt FROM test GROUP BY int) WHERE int > 2 OR cnt > 1"));
         assertEquals("1:74: [int * cnt] is part of a condition on top of a GROUP BY that references both a grouping " +
-                "and an aggregate in an unsplittable expression, cannot be translated (yet)",
+                "and an aggregate in an unsplittable expression, cannot be translated",
             error("SELECT * FROM (SELECT int, count(*) as cnt FROM test GROUP BY int) WHERE int * cnt > 2 AND int > 2 AND cnt > 3"));
     }
 

@@ -30,7 +30,7 @@ Dynamic templates are specified as an array of named objects:
   "dynamic_templates": [
     {
       "my_template_name": { <1>
-        ...  match conditions ... <2>
+        ... match conditions ... <2>
         "mapping": { ... } <3>
       }
     },
@@ -287,7 +287,7 @@ PUT my-index-000001/_doc/2
 ==== Template variables
 
 The `{name}` and `{dynamic_type}` placeholders are replaced in the `mapping`
-with the field name and detected dynamic type.  The following example sets all
+with the field name and detected dynamic type. The following example sets all
 string fields to use an <<analyzer,`analyzer`>> with the same name as the
 field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 

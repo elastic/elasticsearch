@@ -177,7 +177,7 @@ you will only be able to configure this setting on nodes with the
 <<data-frozen-node,`data_frozen`>> role.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
-couple of gigabytes up to 90% of available disk space. We only recommend higher
+couple of gigabytes up to 90% of available disk space. We only recommend larger
 sizes if you use the node exclusively on a frozen tier or for searchable
 snapshots.
 
@@ -219,7 +219,7 @@ repository storage then you are responsible for its reliability.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
-=== Configure a frozen tier on the {ess}
+=== Configure a frozen tier on {ess}
 
 The frozen data tier is not yet available on the {ess-trial}[{ess}]. However,
 you can configure another tier to use <<shared-cache,shared snapshot caches>>.

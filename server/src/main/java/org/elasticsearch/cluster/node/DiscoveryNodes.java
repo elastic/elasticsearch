@@ -368,7 +368,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 // the role is not a data role, we require an exact match (e.g., ingest)
                                 predicate = s -> s.contains(role);
                             }
-                            Function<String, Boolean> mutation;
+                            final Function<String, Boolean> mutation;
                             if (Booleans.parseBoolean(matchAttrValue, true)) {
                                 mutation = resolvedNodesIds::add;
                             } else {

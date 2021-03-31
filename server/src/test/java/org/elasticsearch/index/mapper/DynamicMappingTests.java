@@ -186,6 +186,17 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
                 "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
+
+    }
+
+    public void testDynamicFieldOnIncorrectDate() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "2020-01-01T01-01-01Z")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        assertEquals(
+            "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
+                "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
     public void testDynamicUpdateWithRuntimeField() throws Exception {

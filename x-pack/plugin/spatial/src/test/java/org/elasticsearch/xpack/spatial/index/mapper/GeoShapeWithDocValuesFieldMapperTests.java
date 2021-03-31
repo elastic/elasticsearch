@@ -82,6 +82,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
+    @Override
     protected Collection<Plugin> getPlugins() {
         return Collections.singletonList(new LocalStateSpatialPlugin());
     }

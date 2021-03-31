@@ -58,7 +58,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
                 b.field("coerce", "true");
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [coerce] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [coerce] cannot be set in conjunction with field [script]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -67,7 +67,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
                 b.field("null_value", 7);
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -76,7 +76,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
                 b.field("ignore_malformed", "true");
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
         }
     }
 

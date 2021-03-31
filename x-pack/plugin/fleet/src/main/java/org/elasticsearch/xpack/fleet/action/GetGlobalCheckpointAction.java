@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -172,7 +173,7 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
                                 globalCheckpointAdvanced(shardId, request, listener);
                             } else {
                                 assert e != null;
-                                globalCheckpointAdvancementFailure(shardId, e, listener);
+                                globalCheckpointAdvancementFailure(shardId, request.pollTimeout(), e, listener);
                             }
                         }
 
@@ -194,21 +195,11 @@ public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAct
             }
         }
 
-        private void globalCheckpointAdvancementFailure(final ShardId shardId, final Exception e, final ActionListener<Response> listener) {
+        private void globalCheckpointAdvancementFailure(final ShardId shardId, final TimeValue timeout, final Exception e,
+                                                        final ActionListener<Response> listener) {
             if (e instanceof TimeoutException) {
-                try {
-                    final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
-                    // TODO: Necessary?
-                    if (indexMetadata == null) {
-                        listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                } catch (final Exception caught) {
-                    caught.addSuppressed(e);
-                    listener.onFailure(caught);
-                }
-
+                listener.onFailure(new ElasticsearchTimeoutException("Wait for global checkpoint advance timed out [timeout: "
+                    + timeout + ", shard_id: " + shardId + "]"));
             } else {
                 listener.onFailure(e);
             }

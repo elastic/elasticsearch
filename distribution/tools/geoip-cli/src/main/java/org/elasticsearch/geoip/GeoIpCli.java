@@ -114,7 +114,10 @@ public class GeoIpCli extends Command {
                 terminal.println("Adding " + db.getFileName() + " to overview.json");
                 MessageDigest md5 = MessageDigests.md5();
                 try (InputStream dis = new DigestInputStream(new BufferedInputStream(Files.newInputStream(db)), md5)) {
-                    dis.transferTo(OutputStream.nullOutputStream());
+                    byte[] buf = new byte[4096];
+                    while (dis.read(buf) != -1) {
+                        //just read whole stream
+                    }
                 }
                 String digest = MessageDigests.toHexString(md5.digest());
                 generator.writeStartObject();

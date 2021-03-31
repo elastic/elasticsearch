@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -118,7 +119,7 @@ public class GeoIpCliTests extends LuceneTestCase {
     }
 
     private void verifyTarball(Map<String, byte[]> data) throws Exception {
-        for (String tgz : List.of("a.tgz", "b.tgz")) {
+        for (String tgz : org.elasticsearch.common.collect.List.of("a.tgz", "b.tgz")) {
             try (
                 TarArchiveInputStream tis = new TarArchiveInputStream(
                     new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz))))
@@ -130,7 +131,13 @@ public class GeoIpCliTests extends LuceneTestCase {
                 byte[] bytes = data.get(tgz);
                 assertEquals(tgz.replace(".tgz", ".mmdb"), entry.getName());
                 assertEquals(bytes.length, entry.getSize());
-                assertArrayEquals(bytes, tis.readAllBytes());
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buf = new byte[4096];
+                int read;
+                while ((read = tis.read(buf, 0, buf.length)) != -1) {
+                    baos.write(buf, 0, read);
+                }
+                assertArrayEquals(bytes, baos.toByteArray());
                 assertEquals(1000, entry.getLongUserId());
                 assertEquals(1000, entry.getLongGroupId());
                 assertEquals(420, entry.getMode()); // 644oct=420dec

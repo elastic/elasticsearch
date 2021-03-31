@@ -51,7 +51,7 @@ offsets.
 payloads.
 <6> Set `filterSettings` to filter the terms that can be returned based
 on their tf-idf scores.
-<7> Set `perFieldAnalyzer` to specify  a different analyzer than
+<7> Set `perFieldAnalyzer` to specify a different analyzer than
 the one that the field has.
 <8> Set `realtime` to `false` (default is `true`) to retrieve term vectors
 near realtime.

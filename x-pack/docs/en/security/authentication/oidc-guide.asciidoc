@@ -38,7 +38,7 @@ RP that you commonly need to provide for registration are the following:
 nor the Elastic Stack implementation impose any constraints on this value.
 - `Redirect URI`: This is the URI where the OP will redirect the user's browser after authentication. The
 appropriate value for this will depend on your setup and whether or not {kib} sits behind a proxy or
-load balancer. It will typically be +$\{kibana-url}/api/security/oidc/callback+ (for the authorization code flow) or +$\{kibana-url}/api/security/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_  is the base URL for your {kib} instance. You might also see this
+load balancer. It will typically be +$\{kibana-url}/api/security/oidc/callback+ (for the authorization code flow) or +$\{kibana-url}/api/security/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_ is the base URL for your {kib} instance. You might also see this
 called `Callback URI`.
 
 At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
@@ -68,7 +68,7 @@ For more information, see
 [[oidc-enable-token]]
 ==== Enable the token service
 
-The {es} OpenID Connect implementation makes use of the {es} Token Service.  This service
+The {es} OpenID Connect implementation makes use of the {es} Token Service. This service
 is automatically enabled if you configure TLS on the HTTP interface, and can be
 explicitly configured by including the following in your `elasticsearch.yml` file:
 
@@ -157,7 +157,7 @@ op.authorization_endpoint::
 
 op.token_endpoint::
     The URL for the Token Endpoint in the OpenID Connect Provider. This is the endpoint where
-    {es} will send a request to exchange the code for an ID Token.  This setting is optional when
+    {es} will send a request to exchange the code for an ID Token. This setting is optional when
     you use the implicit flow. The value for this setting should be provided by your OpenID Connect Provider.
 
 op.jwkset_path::

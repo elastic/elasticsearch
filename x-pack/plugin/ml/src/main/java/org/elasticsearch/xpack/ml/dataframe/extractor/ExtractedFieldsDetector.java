@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.extractor.ProcessedField;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -56,11 +57,9 @@ public class ExtractedFieldsDetector {
     private static final Logger LOGGER = LogManager.getLogger(ExtractedFieldsDetector.class);
 
     /**
-     * Fields to ignore. These are mostly internal meta fields.
+     * Internal fields to ignore.
      */
-    private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.INCREMENTAL_ID,
-        "_data_stream_timestamp", "_doc_count");
+    private static final List<String> IGNORE_FIELDS = Collections.singletonList(DestinationIndex.INCREMENTAL_ID);
 
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
@@ -100,9 +99,13 @@ public class ExtractedFieldsDetector {
     }
 
     private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection, Set<String> requiredFieldsForProcessors) {
-        Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
         validateFieldsRequireForProcessors(requiredFieldsForProcessors);
-        fields.removeAll(IGNORE_FIELDS);
+        Set<String> fields = new TreeSet<>();
+        // filter metadata field
+        fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(f -> fieldCapabilitiesResponse.isMetadataField(f) == false
+                && IGNORE_FIELDS.contains(f) == false)
+            .forEach(fields::add);
         removeFieldsUnderResultsField(fields);
         removeObjects(fields);
         applySourceFiltering(fields);
@@ -138,9 +141,14 @@ public class ExtractedFieldsDetector {
         if (fieldsForProcessor.size() < processorFields.size()) {
             throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects");
         }
-        fieldsForProcessor.removeAll(IGNORE_FIELDS);
-        if (fieldsForProcessor.size() < processorFields.size()) {
-            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", IGNORE_FIELDS);
+        Collection<String> errorFields = new ArrayList<>();
+        for (String fieldName : fieldsForProcessor) {
+            if (fieldCapabilitiesResponse.isMetadataField(fieldName) || IGNORE_FIELDS.contains(fieldName)) {
+                errorFields.add(fieldName);
+            }
+        }
+        if (errorFields.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("the following fields cannot be used in feature_processors {}", errorFields);
         }
         List<String> fieldsMissingInMapping = processorFields.stream()
             .filter(f -> fieldCapabilitiesResponse.get().containsKey(f) == false)
@@ -300,7 +308,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             if (includes.contains(field)) {
-                if (IGNORE_FIELDS.contains(field)) {
+                if (fieldCapabilitiesResponse.isMetadataField(field) || IGNORE_FIELDS.contains(field)) {
                     throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
                 }
                 if (excludes.contains(field)) {

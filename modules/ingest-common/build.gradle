@@ -22,7 +22,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
+    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
   }
 }
 

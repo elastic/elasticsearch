@@ -40,11 +40,17 @@ or from `artifacts.elastic.co/maven` by adding it to the repositories list:
 </repositories>
 ----
 
+[[jdbc-compatibility]]
+[discrete]
+=== Version compatibility
+
+include::version-compat.asciidoc[]
+
 [[jdbc-setup]]
 [discrete]
 === Setup
 
-The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`. 
+The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`.
 Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
 as long as it is available in the classpath.
 
@@ -75,7 +81,7 @@ The driver recognized the following properties:
 ===== Essential
 [[jdbc-cfg-timezone]]
 `timezone` (default JVM timezone)::
-Timezone used by the driver _per connection_ indicated by its `ID`. 
+Timezone used by the driver _per connection_ indicated by its `ID`.
 *Highly* recommended to set it (to, say, `UTC`) as the JVM timezone can vary, is global for the entire JVM and can't be changed easily when running under a security manager.
 
 [[jdbc-cfg-network]]

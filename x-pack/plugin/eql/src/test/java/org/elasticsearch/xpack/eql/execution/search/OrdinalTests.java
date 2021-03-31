@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.test.ESTestCase;
 
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"unchecked", "rawtypes"})
 public class OrdinalTests extends ESTestCase {
 
     public void testCompareToDifferentTs() {
@@ -20,7 +20,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsDifferentTie() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Ordinal one = new Ordinal(ts, (Comparable) randomLong());
         Ordinal two = new Ordinal(ts, (Comparable) randomLong());
 
@@ -28,16 +28,15 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsOneTieNull() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Ordinal one = new Ordinal(ts, (Comparable) randomLong());
         Ordinal two = new Ordinal(ts, null);
 
         assertEquals(-1, one.compareTo(two));
     }
 
-    @SuppressWarnings("rawtypes")
     public void testCompareToSameTsSameTie() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Comparable c = randomLong();
         Ordinal one = new Ordinal(ts, c);
         Ordinal two = new Ordinal(ts, c);
@@ -48,7 +47,7 @@ public class OrdinalTests extends ESTestCase {
     }
 
     public void testCompareToSameTsSameTieNull() {
-        Long ts = randomLong();
+        long ts = randomLong();
         Ordinal one = new Ordinal(ts, null);
         Ordinal two = new Ordinal(ts, null);
 

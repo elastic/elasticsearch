@@ -11,7 +11,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security', 'transform'
+    include '_common', 'bulk', 'indices', 'cluster', 'search', 'security', 'transform'
   }
 }
 

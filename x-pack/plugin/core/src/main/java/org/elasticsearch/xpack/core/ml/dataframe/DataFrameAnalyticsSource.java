@@ -43,6 +43,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField _SOURCE = new ParseField("_source");
 
+    @SuppressWarnings({ "unchecked"})
     public static ConstructingObjectParser<DataFrameAnalyticsSource, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<DataFrameAnalyticsSource, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_source",
             ignoreUnknownFields, a -> new DataFrameAnalyticsSource(

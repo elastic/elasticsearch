@@ -76,7 +76,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
                 new ReplaceWildcards(),
                 new ReplaceSurrogateFunction(),
-                new ReplaceRegexMatch());
+                new ReplaceRegexMatch(),
+                new ReplaceNullChecks());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -85,7 +86,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanLiteralsOnTheRight(),
                 new BooleanFunctionEqualsElimination(),
                 // needs to occur before BinaryComparison combinations
-                new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
@@ -165,11 +165,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Expression result = cmp;
                 // expr == null || expr != null
                 if (cmp instanceof Equals || cmp instanceof NotEquals) {
+                    Expression comparableToNull = null;
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
+                        comparableToNull = cmp.left();
+                    } else if (cmp.left().foldable() && cmp.left().fold() == null) {
+                        comparableToNull = cmp.right();
+                    }
+                    if (comparableToNull != null) {
                         if (cmp instanceof Equals) {
-                            result = new IsNull(cmp.source(), cmp.left());
+                            result = new IsNull(cmp.source(), comparableToNull);
                         } else {
-                            result = new IsNotNull(cmp.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), comparableToNull);
                         }
                     }
                 }

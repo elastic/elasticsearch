@@ -323,4 +323,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
 
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
 }

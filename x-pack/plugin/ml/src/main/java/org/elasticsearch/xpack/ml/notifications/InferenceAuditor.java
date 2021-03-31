@@ -7,19 +7,12 @@
 package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
-import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.InferenceAuditMessage;
-import org.elasticsearch.xpack.ml.MlIndexTemplateRegistry;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-
-public class InferenceAuditor extends AbstractAuditor<InferenceAuditMessage> {
+public class InferenceAuditor extends AbstractMlAuditor<InferenceAuditMessage> {
 
     public InferenceAuditor(Client client, ClusterService clusterService) {
-        super(new OriginSettingClient(client, ML_ORIGIN), NotificationsIndex.NOTIFICATIONS_INDEX,
-            MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE, clusterService.getNodeName(), InferenceAuditMessage::new, clusterService);
+        super(client, InferenceAuditMessage::new, clusterService);
     }
 }

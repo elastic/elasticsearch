@@ -484,6 +484,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * any unique and interesting failure case. See the tests for
      * {@link DateFieldMapper} for some examples.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71053")
     public final void testFetchMany() throws IOException {
         MapperService mapperService = randomFetchTestMapper();
         try {

@@ -192,6 +192,7 @@ public class Constants {
         "cluster:admin/xpack/security/saml/logout",
         "cluster:admin/xpack/security/saml/prepare",
         "cluster:admin/xpack/security/service_account/token/create",
+        "cluster:admin/xpack/security/service_account/token/delete",
         "cluster:admin/xpack/security/service_account/token/get",
         "cluster:admin/xpack/security/token/create",
         "cluster:admin/xpack/security/token/invalidate",

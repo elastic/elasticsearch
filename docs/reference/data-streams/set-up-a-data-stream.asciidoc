@@ -124,7 +124,7 @@ PUT _component_template/my-mappings
     }
   },
   "_meta": {
-    "description": "My optional metadata",
+    "description": "mappings for timestamp and message fields",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }
@@ -138,7 +138,7 @@ PUT _component_template/my-settings
     }
   },
   "_meta": {
-    "description": "My optional metadata",
+    "description": "settings for ILM",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }
@@ -178,7 +178,7 @@ PUT _index_template/my-index-template
   "composed_of": [ "my-mappings", "my-settings" ],
   "priority": 500,
   "_meta": {
-    "description": "My optional metadata",
+    "description": "template for my timeseries data",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }

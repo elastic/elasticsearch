@@ -158,33 +158,36 @@ public class EncryptedRepository extends BlobStoreRepository {
             return;
         }
         final StepListener<Void> putPasswordHashInRepositoryMetadataStep = new StepListener<>();
+        // this repository has just been created and no operations have yet triggered a hash publication
         if (false == repositoryPasswords.containsPasswordsHash(metadata)) {
-            // this repository has just been created and no writes operations have yet triggered a hash publication
+            // trigger hash publication
             maybePublishCurrentPasswordHash(putPasswordHashInRepositoryMetadataStep);
         } else {
             putPasswordHashInRepositoryMetadataStep.onResponse(null);
         }
         final StepListener<Void> verifyRepoHashesStep = new StepListener<>();
         putPasswordHashInRepositoryMetadataStep.whenComplete(
+                // best to verify the passwords hash before starting a snapshot
+                // rather than wait to fail in finalize
             aVoid -> repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(metadata, verifyRepoHashesStep),
             onFailure
         );
         verifyRepoHashesStep.whenComplete(aVoid -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure), e -> {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
-                onFailure.accept(new RepositoryException(metadata.name(), "Interrupted while verifying password hashes", e));
+                onFailure.accept(new RepositoryException(metadata.name(), "Interrupted while verifying password(s) hash", e));
             } else {
-                onFailure.accept(new RepositoryException(metadata.name(), "Error verifying password hashes", e));
+                onFailure.accept(new RepositoryException(metadata.name(), "Error verifying password(s) hash", e));
             }
         });
     }
 
-    // for tests only
+    // protected for tests
     protected void maybePublishCurrentPasswordHash(ActionListener<Void> listener) {
         updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
             // something else published the hashes in the meantime
             if (repositoryPasswords.containsPasswordsHash(latestRepositoryMetadata)) {
-                logger.debug("Repository [" + latestRepositoryMetadata.name() + "] already contains some password hashes");
+                logger.debug("Repository [" + latestRepositoryMetadata.name() + "] already contains some passwords hash");
                 listener.onResponse(null);
                 return;
             }
@@ -221,7 +224,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         try {
             seedAndHashes = unpackSeed(packedSeed);
         } catch (Exception e) {
-            throw new RepositoryVerificationException(metadata.name(), "Error verifying password hashes", e);
+            throw new RepositoryVerificationException(metadata.name(), "Error verifying passwords hash", e);
         }
         this.delegatedRepository.endVerification(seedAndHashes.v1());
     }
@@ -250,9 +253,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         // TODO move this to plugin repository factory
         super.start();
         try {
-            if (null == repositoryPasswords.currentLocalPassword(metadata)) {
-                throw new IllegalArgumentException("Missing secure settings");
-            }
+            repositoryPasswords.currentLocalPassword(metadata);
         } catch (Exception e) {
             throw new RepositoryVerificationException(metadata.name(), "Error starting repository", e);
         }
@@ -399,9 +400,9 @@ public class EncryptedRepository extends BlobStoreRepository {
         final RepositoryMetadata repositoryMetadata = metadata;
         // check that the local passwords that are used to wrap the DEKs match the repository's
         verifyPublishedPasswordsHash(repositoryPasswords, repositoryMetadata);
-        final List<SecureString> passwords = repositoryPasswords.passwordsForDekWrapping(repositoryMetadata);
-        final List<Tuple<String, byte[]>> wrappedDeks = new ArrayList<>(passwords.size());
+        final List<Tuple<String, byte[]>> wrappedDeks = new ArrayList<>(2);
         try {
+            final List<SecureString> passwords = repositoryPasswords.passwordsForDekWrapping(repositoryMetadata);
             for (SecureString password : passwords) {
                 // we rely on the DEK Id being generated randomly so it can be used as a salt
                 SecretKey kek = AESKeyUtils.generatePasswordBasedKey(password, dekId);
@@ -425,8 +426,8 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unWrapDek(String dekId) throws RepositoryException {
         final RepositoryMetadata repositoryMetadata = metadata;
-        final SecureString currentPassword = repositoryPasswords.currentLocalPassword(repositoryMetadata);
         try {
+            final SecureString currentPassword = repositoryPasswords.currentLocalPassword(repositoryMetadata);
             final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(currentPassword, dekId);
             final String kekId = AESKeyUtils.computeId(kek);
             logger.debug("Repository [{}] computed KEK [{}] for DEK [{}] for unwrapping", repositoryMetadata.name(), kekId, dekId);
@@ -781,9 +782,9 @@ public class EncryptedRepository extends BlobStoreRepository {
             repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while verifying password hashes", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while verifying passwords hash", e);
         } catch (Exception e) {
-            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while verifying password hashes", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while verifying passwords hash", e);
         }
     }
 

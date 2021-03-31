@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING;
+
 public final class RepositoryPasswords {
     static final Setting<String> CURRENT_PASSWORD_NAME_SETTING = Setting.simpleString("password_name", "");
     static final Setting<String> CHANGE_FROM_PASSWORD_NAME_SETTING = Setting.simpleString("change_from_password_name", "");
@@ -89,18 +91,35 @@ public final class RepositoryPasswords {
     }
 
     public SecureString currentLocalPassword(RepositoryMetadata repositoryMetadata) {
-        return localPasswords(repositoryMetadata).get(CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings()));
+        String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
+        SecureString currentPassword = localPasswords(repositoryMetadata).get(currentPasswordName);
+        if (null == currentPassword) {
+            throw new IllegalArgumentException("Missing secure setting [" +
+                    ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(currentPasswordName).getKey() +
+                    "] on the local node");
+        }
+        return currentPassword;
     }
 
     public List<SecureString> passwordsForDekWrapping(RepositoryMetadata repositoryMetadata) {
         Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
         String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         SecureString currentPassword = localPasswords.get(currentPasswordName);
+        if (null == currentPassword) {
+            throw new IllegalArgumentException("Missing secure setting [" +
+                    ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(currentPasswordName).getKey() +
+                    "] on the local node");
+        }
         String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         if (currentPasswordName.equals(fromPasswordName)) {
             // in-progress password change away from the current password
             String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
             SecureString toPassword = localPasswords.get(toPasswordName);
+            if (null == toPassword) {
+                throw new IllegalArgumentException("Missing secure setting [" +
+                        ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey() +
+                        "] on the local node");
+            }
             return List.of(currentPassword, toPassword);
         } else {
             return List.of(currentPassword);
@@ -150,13 +169,15 @@ public final class RepositoryPasswords {
     }
 
     public void verifyPublishedPasswordsHashForBlobWrite(RepositoryMetadata repositoryMetadata, ActionListener<Void> listener) {
+        // hashes verification happens on a dedicated thread pool, but the listener is forked on the generic pool
         verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata, threadPool.generic(), listener);
     }
 
     public void verifyPublishedPasswordsHashForBlobWrite(RepositoryMetadata repositoryMetadata) throws ExecutionException,
         InterruptedException {
         StepListener<Void> stepWait = new StepListener<>();
-        verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata, stepWait);
+        // blocks the current thread until hash verification completes on a different thread
+        verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata, EsExecutors.newDirectExecutorService(), stepWait);
         stepWait.asFuture().get();
     }
 
@@ -169,7 +190,7 @@ public final class RepositoryPasswords {
         final String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         final String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         final String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
-        // only the passwords that can be used to encrypt blobs
+        // check only the passwords that can be used to encrypt blobs, see {@link #passwordsForDekWrapping}
         final Map<String, String> hashesToVerify;
         try {
             if (isPasswordChangeInProgress(repositoryMetadata) && currentPasswordName.equals(fromPasswordName)) {
@@ -229,13 +250,14 @@ public final class RepositoryPasswords {
         final AtomicInteger hashesToVerifyCount = new AtomicInteger(0);
         for (Map.Entry<String, String> passwordNameAndHash : passwordsHash.entrySet()) {
             if (false == Strings.hasLength(passwordNameAndHash.getValue())) {
-                listener.onFailure(new IllegalStateException("Null or empty hash for [" + passwordNameAndHash.getKey() + "]"));
+                listener.onFailure(new IllegalStateException("Null or empty hash to verify for [" + passwordNameAndHash.getKey() + "]"));
                 return;
             }
             SecureString password = localRepositoryPasswordsMap.get(passwordNameAndHash.getKey());
             if (password == null) {
-                logger.debug(() -> new ParameterizedMessage("Missing local password [{}] to verify", passwordNameAndHash.getKey()));
-                listener.onFailure(new IllegalArgumentException("Missing local password [" + passwordNameAndHash.getKey() + "] to verify"));
+                listener.onFailure(new IllegalArgumentException("Missing secure setting [" +
+                        ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordNameAndHash.getKey() +
+                        "] on the local node")));
                 return;
             } else {
                 hashesToVerifyCount.incrementAndGet();
@@ -251,17 +273,17 @@ public final class RepositoryPasswords {
                     threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME)
                 )
             ).addListener(ActionListener.wrap(hashVerify -> {
-                if (hashesToVerifyCount.decrementAndGet() == 0 && hashVerify && done.compareAndSet(false, true)) {
-                    if (isCryptoThread()) {
-                        executor.execute(() -> listener.onResponse(true));
-                    } else {
-                        listener.onResponse(true);
-                    }
-                } else if (false == hashVerify && done.compareAndSet(false, true)) {
+                if (false == hashVerify && done.compareAndSet(false, true)) {
                     if (isCryptoThread()) {
                         executor.execute(() -> listener.onResponse(false));
                     } else {
                         listener.onResponse(false);
+                    }
+                } else if (hashVerify && hashesToVerifyCount.decrementAndGet() == 0 && done.compareAndSet(false, true)) {
+                    if (isCryptoThread()) {
+                        executor.execute(() -> listener.onResponse(true));
+                    } else {
+                        listener.onResponse(true);
                     }
                 }
             }, e -> {
@@ -276,7 +298,11 @@ public final class RepositoryPasswords {
         }
     }
 
-    // also ensures settings integrity, but does not validate hashes and does not ensure that referenced passwords exist
+    /**
+     * Returns the passwords value for the given repository metadata.
+     * If a password does not exist on the local node's keystore the returned {@code Map} associates a {@code null} value.
+     * This also performs a couple of integrity checks on the metadata, but does not verify passwords' hash.
+     */
     private Map<String, SecureString> localPasswords(RepositoryMetadata repositoryMetadata) {
         Settings settings = repositoryMetadata.settings();
         Map<String, SecureString> localPasswordsSubset = new HashMap<>(3);
@@ -362,8 +388,9 @@ public final class RepositoryPasswords {
     private void computePasswordHash(String passwordName, ExecutorService executor, ActionListener<String> listener) {
         SecureString password = this.localRepositoryPasswordsMap.get(passwordName);
         if (null == password) {
-            listener.onFailure(new IllegalArgumentException("Missing local password [" + passwordName + "]"));
-            return;
+            listener.onFailure(new IllegalArgumentException("Missing secure setting [" +
+                    ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey() +
+                    "] on the local node"));
         }
         this.localRepositoryPasswordsHashMap.computeIfAbsent(
             passwordName,
@@ -371,6 +398,7 @@ public final class RepositoryPasswords {
         ).addListener(listener, executor);
     }
 
+    // there should probably be a generic way to tell if a thread is assigned to a particular executor
     private static boolean isCryptoThread() {
         return Thread.currentThread().getName().contains("[" + SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME + "]");
     }

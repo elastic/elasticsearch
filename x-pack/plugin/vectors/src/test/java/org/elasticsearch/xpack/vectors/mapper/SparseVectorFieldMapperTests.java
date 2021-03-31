@@ -57,6 +57,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return Collections.singletonMap("1", 1);
     }

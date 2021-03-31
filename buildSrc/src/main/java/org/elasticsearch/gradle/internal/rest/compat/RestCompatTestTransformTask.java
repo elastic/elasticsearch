@@ -102,6 +102,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     public void replaceMatch(String subKey, Object value) {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
     }
+
     /**
      * Replaces all the values of a is_true assertion all project REST tests.
      * For example "is_true": "value_to_replace" to "match": "value_replaced"

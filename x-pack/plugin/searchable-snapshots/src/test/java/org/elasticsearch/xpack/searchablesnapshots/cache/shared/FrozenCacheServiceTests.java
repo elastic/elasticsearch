@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
@@ -214,6 +215,33 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
             .build();
         FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
+        assertWarnings(
+            "setting ["
+                + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                + "] to be positive ["
+                + new ByteSizeValue(size(500)).getStringRep()
+                + "] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        );
+    }
+
+    public void testCacheSizeReturnsZeroOnNonFrozenNodes() {
+        DiscoveryNode.setAdditionalRoles(
+            new HashSet<>(
+                Arrays.asList(
+                    DataTier.DATA_HOT_NODE_ROLE,
+                    DataTier.DATA_WARM_NODE_ROLE,
+                    DataTier.DATA_COLD_NODE_ROLE,
+                    DataTier.DATA_FROZEN_NODE_ROLE
+                )
+            )
+        );
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
+            .build();
+        final ByteSizeValue value = FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
+        assertThat(value, equalTo(ByteSizeValue.ZERO));
         assertWarnings(
             "setting ["
                 + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()

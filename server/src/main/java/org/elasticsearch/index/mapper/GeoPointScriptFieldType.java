@@ -92,7 +92,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         Map<String, String> meta,
         ToXContent toXContent
     ) {
-        super(name, scriptFactory::newFactory, script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
     }
 
     @Override

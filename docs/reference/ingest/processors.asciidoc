@@ -24,7 +24,7 @@ You must install any plugin processors on all nodes in your cluster. Otherwise,
 {es} will fail to create pipelines containing the processor.
 
 Mark a plugin as mandatory by setting `plugin.mandatory` in
-`elasticsearch.yml`. A node will fail to start is a mandatory plugin is not
+`elasticsearch.yml`. A node will fail to start if a mandatory plugin is not
 installed.
 
 [source,yaml]

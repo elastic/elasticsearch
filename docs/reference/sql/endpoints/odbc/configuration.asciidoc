@@ -360,7 +360,7 @@ particular connection, in case the default behavior of the driver is not
 suitable. For earlier versions of the driver, this needs to be done within the
 client application, in a manner particular to that application, generally in a
 free text input box (sometimes named "Connection string", "String extras", or
-similar).  The format of the string is `Attribute1=Value1`. Multiple attributes
+similar). The format of the string is `Attribute1=Value1`. Multiple attributes
 can be specified, separated by a semicolon
 `Attribute1=Value1;Attribute2=Value2;`. The attribute names are given below.
 

@@ -714,7 +714,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
             final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
-            RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
+            RequestOptions allowSystemIndexAccessAndSecurityNotEnabledWarningOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(warnings -> {
                     if (warnings.size() == 0) {
                         return false;
@@ -732,7 +732,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         && warning.contains("/get-started-enable-security.html for more information");
                     return isSystemIndexWarning == false && isSecurityDisabledWarning == false;
                 }).build();
-            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
+            deleteRequest.setOptions(allowSystemIndexAccessAndSecurityNotEnabledWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));

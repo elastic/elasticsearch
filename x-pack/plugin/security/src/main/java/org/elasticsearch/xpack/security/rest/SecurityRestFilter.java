@@ -90,9 +90,11 @@ public class SecurityRestFilter implements RestHandler {
                         e -> handleException("Secondary authentication", request, channel, e)));
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
-            HeaderWarning.addWarning("Elasticsearch built-in security features are not enabled, your cluster may be accessible without " +
-                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                Version.CURRENT.minor + "/get-started-enable-security.html for more information");
+            if (request.method() != Method.OPTIONS) {
+                HeaderWarning.addWarning("Elasticsearch built-in security features are not enabled, your cluster may be accessible " +
+                    "without authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                    Version.CURRENT.minor + "/get-started-enable-security.html for more information");
+            }
             restHandler.handleRequest(request, channel, client);
         }
     }

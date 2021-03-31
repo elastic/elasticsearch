@@ -27,14 +27,6 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class SetSecurityUserProcessorWithSecurityNotEnabledIT extends ESRestTestCase {
 
-    @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-        builder.setStrictDeprecationMode(false);
-        return builder.build();
-    }
-
     public void testDefineAndUseProcessor() throws Exception {
         final String pipeline = "pipeline-" + getTestName();
         final String index = "index-" + getTestName();

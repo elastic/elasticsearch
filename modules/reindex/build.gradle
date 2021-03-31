@@ -32,10 +32,6 @@ testClusters.all {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-testClusters.matching { it.name == "yamlRestCompatTest" }.configureEach {
-  setting 'xpack.security.enabled', 'false'
-}
-
 tasks.named("test").configure {
   /*
    * We have to disable setting the number of available processors as tests in the

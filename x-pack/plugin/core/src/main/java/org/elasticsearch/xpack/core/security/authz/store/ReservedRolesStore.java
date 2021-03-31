@@ -217,7 +217,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "view_index_metadata").build()
                     },
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana-*").resources("*").privileges("reserved_ml_apm_user").build()
+                        RoleDescriptor
+                                .ApplicationResourcePrivileges
+                                .builder()
+                                .application("kibana-*")
+                                .resources("*")
+                                .privileges("reserved_ml_apm_user")
+                                .build()
                     },
                     null,
                     null,

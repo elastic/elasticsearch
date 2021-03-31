@@ -101,7 +101,7 @@ public class ServiceAccountTokenTests extends ESTestCase {
             Character[]::new,
             () -> randomFrom(VALID_TOKEN_NAME_CHARS));
         final String name = Arrays.stream(chars).map(String::valueOf).collect(Collectors.joining());
-        return name.startsWith("_") ? "-" + name.substring(1) : name;
+        return name.startsWith("_") ? randomAlphaOfLength(1) + name.substring(1) : name;
     }
 
     public static String randomInvalidTokenName() {

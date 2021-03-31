@@ -230,6 +230,8 @@ PUT my-data-stream/_bulk?pipeline=my-pipeline
 { "create":{ } }
 { "@timestamp": "2099-03-07T11:04:07.000Z", "my-keyword-field": "bar" }
 ----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 You can also use the `pipeline` parameter with the <<docs-update-by-query,update
 by query>> or <<docs-reindex,reindex>> APIs.
@@ -250,7 +252,8 @@ POST _reindex
   }
 }
 ----
-// TEST[continued]
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 [discrete]
 [[set-default-pipeline]]

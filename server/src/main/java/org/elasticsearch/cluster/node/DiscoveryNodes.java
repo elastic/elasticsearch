@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.set.Sets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -685,14 +684,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
-                if (nodeEntry.value.isDataNode()) {
+                if (nodeEntry.value.canContainData()) {
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
                 if (nodeEntry.value.isMasterNode()) {
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
                 }
                 final Version version = nodeEntry.value.getVersion();
-                if (nodeEntry.value.isDataNode() || nodeEntry.value.isMasterNode()) {
+                if (nodeEntry.value.canContainData() || nodeEntry.value.isMasterNode()) {
                     if (minNonClientNodeVersion == null) {
                         minNonClientNodeVersion = version;
                         maxNonClientNodeVersion = version;

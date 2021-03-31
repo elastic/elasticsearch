@@ -41,7 +41,7 @@ public class DataTierTests extends ESTestCase {
         final String[] dataNodes =
             StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                 .map(n -> n.value)
-                .filter(DiscoveryNode::isDataNode)
+                .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 

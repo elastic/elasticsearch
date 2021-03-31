@@ -62,11 +62,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Due to the way that plugins may not be available when settings are being initialized,
-     * not all roles may be available from a static/initializing context such as a {@link Setting}
-     * default value function. In that case, be warned that this may not include all plugin roles.
+     * Check if the given settings are indicative of having the top-level data role.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having the top-level data role, otherwise false
      */
-    public static boolean isDataNode(final Settings settings) {
+    public static boolean hasDataRole(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+    }
+
+    /**
+     * Check if the given settings are indicative of any role that can contain data.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having any role that can contain data, otherwise false
+     */
+    public static boolean canContainData(final Settings settings) {
         return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
@@ -322,7 +333,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean isDataNode() {
+    public boolean canContainData() {
         return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 

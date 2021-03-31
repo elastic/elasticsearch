@@ -716,6 +716,17 @@ public class ApiKeyService {
         return null;
     }
 
+    public static boolean isApiKeyAuthentication(Authentication authentication) {
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        if (Authentication.AuthenticationType.API_KEY == authType) {
+            assert API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
+                : "API key authentication must have API key realm type";
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
         threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {

@@ -72,8 +72,9 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 
 Use the restore snapshot API to restore a snapshot of a cluster, including all data streams and indices in the snapshot. If you do not want to restore the entire snapshot, you can select specific data streams or indices to restore.
 
-NOTE: You cannot restore a data stream if a stream with the same name already
-exists.
+NOTE: On 7.12.0 and earlier, you cannot restore a data stream if a stream with
+the same name already exists. This restriction doesn't apply from version
+7.12.1.
 
 You can run the restore operation on a cluster that contains an elected
 <<master-node,master node>> and has data nodes with enough capacity to accommodate the snapshot

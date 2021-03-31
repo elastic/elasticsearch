@@ -37,11 +37,13 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
     public static final Setting<Integer> CACHE_MAX_TOKENS_SETTING = Setting.intSetting(
         "xpack.security.authc.service_token.cache.max_tokens", 100_000, Setting.Property.NodeScope);
 
+    private final Settings settings;
     private final ThreadPool threadPool;
     private final Cache<String, ListenableFuture<CachedResult>> cache;
     private final Hasher hasher;
 
     CachingServiceAccountsTokenStore(Settings settings, ThreadPool threadPool) {
+        this.settings = settings;
         this.threadPool = threadPool;
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
@@ -120,6 +122,10 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
             logger.trace("invalidating cache for all service tokens");
             cache.invalidateAll();
         }
+    }
+
+    protected Settings getSettings() {
+        return settings;
     }
 
     protected ThreadPool getThreadPool() {

@@ -12,14 +12,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.support.FileLineParser;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
@@ -27,12 +30,14 @@ import org.elasticsearch.xpack.security.support.SecurityFiles;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenStore {
 
@@ -67,6 +72,17 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
         listener.onResponse(Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
             .map(hash -> Hasher.verifyHash(token.getSecret(), hash))
             .orElse(false));
+    }
+
+    @Override
+    public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
+        final String principal = accountId.asPrincipal();
+        final List<TokenInfo> tokenInfos = tokenHashes.keySet()
+            .stream()
+            .filter(k -> k.startsWith(principal + "/"))
+            .map(k -> TokenInfo.fileToken(Strings.substring(k, principal.length() + 1, k.length())))
+            .collect(Collectors.toUnmodifiableList());
+        listener.onResponse(tokenInfos);
     }
 
     public void addListener(Runnable listener) {

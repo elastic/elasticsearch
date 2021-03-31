@@ -112,7 +112,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -330,7 +329,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
             final FrozenCacheService frozenCacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
@@ -379,8 +378,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
-        if (DiscoveryNode.isDataNode(settings)) {
-            return singletonList(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get));
+        if (DiscoveryNode.canContainData(settings)) {
+            return org.elasticsearch.common.collect.List.of(
+                new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get)
+            );
         }
         return emptyList();
     }

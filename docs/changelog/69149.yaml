@@ -9,12 +9,13 @@ versions:
 breaking:
   notable: false
   title: Remove support for `JAVA_HOME`
-  anchor: remove_support_for_java_home_
-  body: >-
-    This commit removes support for JAVA_HOME. As we previously deprecated usage
-    of JAVA_HOME to override the path for the JDK, this commit follows up by
-    removing support for JAVA_HOME. Note that we do not treat JAVA_HOME being
-    set as a failure, as it is perfectly reasonable for a user to have JAVA_HOME
-    configured at the system level.
-
-    Closes #55820
+  anchor: remove_support_for_java_home
+  area: Packaging
+  details: >-
+    {es} no longer supports the `JAVA_HOME` environment variable. Note
+    that {es} does not treat `JAVA_HOME` being set as a failure, as it is
+    perfectly reasonable to have this configured at a system level.
+  impact: >-
+    If you rely on the `JAVA_HOME` environment variable to configure the
+    JDK for {es}, you now need to use the `ES_JAVA_HOME` environment
+    variable instead.

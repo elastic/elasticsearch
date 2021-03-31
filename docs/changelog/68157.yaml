@@ -1,9 +1,0 @@
-pr: 68157
-issues:
-  - 68101
-  - 68101
-area: Infra/Scripting
-type: UNKNOWN
-summary: "[DOCS] Fixing Painless tests"
-versions:
-  - v8.0.0

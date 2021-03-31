@@ -11,8 +11,9 @@ breaking:
   notable: false
   title: Remove support for `_type` in searches
   anchor: remove_support_for_type_in_searches
-  body: >-
-    Types are no longer allowed in requests in 8.0, so we can remove support
-    forusing the `_type` field within a search request.
-
-    Relates to #41059.Closes #68311.
+  area: Search
+  details: >-
+    Types are no longer allowed in requests in 8.0, so support for
+    the `_type` field within search requests has been removed.
+  impact:
+    If you include the `_type` field in search requests, you now need to remove it.

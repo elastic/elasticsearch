@@ -1,7 +1,0 @@
-pr: 68754
-issues: []
-area: EQL, SQL
-type: UNKNOWN
-summary: Improve exact match detection in `StringPattern`
-versions:
-  - v8.0.0

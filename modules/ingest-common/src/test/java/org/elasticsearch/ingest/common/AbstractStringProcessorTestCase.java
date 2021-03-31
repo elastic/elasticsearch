@@ -144,6 +144,6 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
     }
 
     protected boolean isSupportedValue(Object value) {
-        return false;
+        return true;
     }
 }

@@ -242,7 +242,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
     }
 
     public void testCreateJob() throws Exception {

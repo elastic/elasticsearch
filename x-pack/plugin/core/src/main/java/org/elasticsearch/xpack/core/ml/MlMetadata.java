@@ -323,6 +323,7 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
                 jobs = new TreeMap<>(previous.jobs);
                 datafeeds = new TreeMap<>(previous.datafeeds);
                 upgradeMode = previous.upgradeMode;
+                resetMode = previous.resetMode;
             }
         }
 

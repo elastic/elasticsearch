@@ -189,7 +189,7 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
+boolean bwc_tests_enabled = true //Jake - don't commit this !...only here to run tests via CI
 // place a PR link here when committing bwc changes:
 String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/70625"
 /*

@@ -51,7 +51,7 @@ This behavior has been deprecated in favor of two new, explicit fields: `calenda
 and `fixed_interval`.
 
 By forcing a choice between calendar and intervals up front, the semantics of the interval
-are clear to the user immediately and there is no ambiguity.  The old `interval` field
+are clear to the user immediately and there is no ambiguity. The old `interval` field
 will be removed in the future.
 ==================================
 

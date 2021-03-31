@@ -92,8 +92,13 @@ password: `elastic-password`.
 
 === Test case filtering.
 
+<<<<<<< HEAD
 - `tests.class` is a class-filtering shell-like glob pattern,
 - `tests.method` is a method-filtering glob pattern.
+=======
+You can run a single test, provided that you specify the Gradle project. See the documentation on
+https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
+>>>>>>> 693807a6d39... [DOCS] Fix double spaces (#71082)
 
 Run a single test case (variants)
 
@@ -387,12 +392,18 @@ vagrant plugin install vagrant-cachier
 . You can run all of the OS packaging tests with `./gradlew packagingTest`.
 This task includes our legacy `bats` tests. To run only the OS tests that are
 written in Java, run `.gradlew distroTest`, will cause Gradle to build the tar,
-zip, and deb packages and all the plugins.  It will then run the tests on every
+zip, and deb packages and all the plugins. It will then run the tests on every
 available system. This will take a very long time.
 +
 Fortunately, the various systems under test have their own Gradle tasks under
+<<<<<<< HEAD
 `qa/os`. To find out what packaging combinations can be tested on a system, run
 the `tasks` task.  For example:
+=======
+`qa/os`. To find the systems tested, do a listing of the `qa/os` directory.
+To find out what packaging combinations can be tested on a system, run
+the `tasks` task. For example:
+>>>>>>> 693807a6d39... [DOCS] Fix double spaces (#71082)
 +
 ----------------------------------
 ./gradlew :qa:os:ubuntu-1804:tasks
@@ -586,7 +597,7 @@ fetching the latest from the remote.
 
 == Testing in FIPS 140-2 mode
 
-We have a CI matrix job that periodically runs all our tests with the JVM  configured
+We have a CI matrix job that periodically runs all our tests with the JVM configured
 to be FIPS 140-2 compliant with the use of the BouncyCastle FIPS approved Security Provider.
 FIPS 140-2 imposes certain requirements that affect how our tests should be set up or what
 can be tested. This section summarizes what one needs to take into consideration so that

@@ -11,7 +11,7 @@ get field mappings APIs.
 === What are mapping types?
 
 Since the first release of Elasticsearch, each document has been stored in a
-single index and assigned a single mapping type.  A mapping type was used to
+single index and assigned a single mapping type. A mapping type was used to
 represent the type of document or entity being indexed, for instance a
 `twitter` index might have a `user` type and a `tweet` type.
 
@@ -54,12 +54,12 @@ SQL database, and a ``type'' being equivalent to a
 ``table''.
 
 This was a bad analogy that led to incorrect assumptions. In an SQL database,
-tables are independent of each other.  The columns in one table have no
-bearing on columns with the same name in another table.  This is not the case
+tables are independent of each other. The columns in one table have no
+bearing on columns with the same name in another table. This is not the case
 for fields in a mapping type.
 
 In an Elasticsearch index, fields that have the same name in different mapping
-types are backed by the same Lucene field internally.  In other words, using
+types are backed by the same Lucene field internally. In other words, using
 the example above, the `user_name` field in the `user` type is stored in
 exactly the same field as the `user_name` field in the `tweet` type, and both
 `user_name` fields must have the same mapping (definition) in both types.
@@ -81,7 +81,7 @@ Elasticsearch.
 [discrete]
 ==== Index per document type
 
-The first alternative is to have an index per document type.  Instead of
+The first alternative is to have an index per document type. Instead of
 storing tweets and users in a single `twitter` index, you could store tweets
 in the `tweets` index and users in the `user` index. Indices are completely
 independent of each other and so there will be no conflict of field types
@@ -105,10 +105,10 @@ larger number of primary shards for `tweets`.
 
 Of course, there is a limit to how many primary shards can exist in a cluster
 so you may not want to waste an entire shard for a collection of only a few
-thousand documents.  In this case, you can implement your own custom `type`
+thousand documents. In this case, you can implement your own custom `type`
 field which will work in a similar way to the old `_type`.
 
-Let's take the `user`/`tweet` example above.  Originally, the workflow would
+Let's take the `user`/`tweet` example above. Originally, the workflow would
 have looked something like this:
 
 [source,js]
@@ -220,8 +220,8 @@ GET twitter/_search
 ==== Parent/Child without mapping types
 
 Previously, a parent-child relationship was represented by making one mapping
-type the parent, and one or more other mapping types the children.  Without
-types, we can no longer use this syntax.  The parent-child feature will
+type the parent, and one or more other mapping types the children. Without
+types, we can no longer use this syntax. The parent-child feature will
 continue to function as before, except that the way of expressing the
 relationship between documents has been changed to use the new
 <<parent-join,`join` field>>.
@@ -231,7 +231,7 @@ relationship between documents has been changed to use the new
 === Schedule for removal of mapping types
 
 This is a big change for our users, so we have tried to make it as painless as
-possible.  The change will roll out as follows:
+possible. The change will roll out as follows:
 
 Elasticsearch 5.6.0::
 
@@ -245,7 +245,7 @@ Elasticsearch 6.x::
 
 * Indices created in 5.x will continue to function in 6.x as they did in 5.x.
 
-* Indices created in 6.x only allow a single-type per index.  Any name
+* Indices created in 6.x only allow a single-type per index. Any name
   can be used for the type, but there can be only one. The preferred type name
   is `_doc`, so that index APIs have the same path as they will have in 7.0:
   `PUT {index}/_doc/{id}` and `POST {index}/_doc`
@@ -268,7 +268,7 @@ Elasticsearch 6.x::
 Elasticsearch 7.x::
 
 * Specifying types in requests is deprecated. For instance, indexing a
-  document no longer requires a document `type`.  The new index APIs
+  document no longer requires a document `type`. The new index APIs
   are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
   for auto-generated ids. Note that in 7.0, `_doc` is a permanent part of the
   path, and represents the endpoint name rather than the document type.
@@ -290,7 +290,7 @@ Elasticsearch 8.x::
 
 The <<docs-reindex,Reindex API>> can be used to convert multi-type indices to
 single-type indices. The following examples can be used in Elasticsearch 5.6
-or Elasticsearch 6.x.  In 6.x, there is no need to specify
+or Elasticsearch 6.x. In 6.x, there is no need to specify
 `index.mapping.single_type` as that is the default.
 
 [discrete]
@@ -375,7 +375,7 @@ POST _reindex
 ==== Custom type field
 
 This next example adds a custom `type` field and sets it to the value of the
-original `_type`.  It also adds the type to the `_id` in case there are any
+original `_type`. It also adds the type to the `_id` in case there are any
 documents of different types which have conflicting IDs:
 
 [source,js]

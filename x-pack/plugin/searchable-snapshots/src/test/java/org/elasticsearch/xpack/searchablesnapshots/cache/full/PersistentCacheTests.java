@@ -13,6 +13,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -47,11 +48,10 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCacheFileEquals;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.sumOfCompletedRangesLengths;
-import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.createCacheIndexWriter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.resolveCacheIndexFolder;
 import static org.hamcrest.Matchers.equalTo;
@@ -188,7 +188,10 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         final Settings nodeSettings = Settings.builder()
-            .put(NODE_ROLES_SETTING.getKey(), randomValueOtherThan(DATA_ROLE, () -> randomFrom(BUILT_IN_ROLES)).roleName())
+            .put(
+                NODE_ROLES_SETTING.getKey(),
+                randomValueOtherThanMany(DiscoveryNodeRole::canContainData, () -> randomFrom(BUILT_IN_ROLES)).roleName()
+            )
             .build();
 
         assertTrue(cacheFiles.stream().allMatch(Files::exists));

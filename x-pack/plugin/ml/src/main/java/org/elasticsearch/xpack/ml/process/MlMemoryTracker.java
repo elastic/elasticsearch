@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -108,7 +109,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             logger.warn("unexpected failure while attempting asynchronous refresh on new master assignment", ex);
         }
         logger.trace("ML memory tracker on master");
-        asyncRefresh();
     }
 
     @Override
@@ -152,7 +152,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public boolean isRecentlyRefreshed(Duration customDuration) {
         Instant localLastUpdateTime = lastUpdateTime;
-        return localLastUpdateTime != null &&
+        return isMaster && localLastUpdateTime != null &&
             localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).plus(customDuration).isAfter(Instant.now());
     }
 
@@ -255,7 +255,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void refreshAnomalyDetectorJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
 
         if (isMaster == false) {
-            listener.onResponse(null);
+            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirements on non-master node"));
             return;
         }
 
@@ -275,7 +275,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
 
         if (isMaster == false) {
-            listener.onResponse(null);
+            listener.onFailure(new NotMasterException("Request to put data frame analytics memory requirement on non-master node"));
             return;
         }
 
@@ -303,13 +303,20 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
             synchronized (fullRefreshCompletionListeners) {
-                lastUpdateTime = Instant.now();
                 assert fullRefreshCompletionListeners.isEmpty() == false;
-                for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
-                    listener.onResponse(null);
+                if (isMaster) {
+                    lastUpdateTime = Instant.now();
+                    for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                        listener.onResponse(null);
+                    }
+                    logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
+                } else {
+                    Exception e = new NotMasterException("Node ceased to be master during ML memory tracker refresh");
+                    for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                        listener.onFailure(e);
+                    }
                 }
                 fullRefreshCompletionListeners.clear();
-                logger.trace("ML memory tracker last update time now [{}] and listeners called", lastUpdateTime);
             }
         },
         e -> {
@@ -389,7 +396,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public void refreshAnomalyDetectorJobMemory(String jobId, ActionListener<Long> listener) {
         if (isMaster == false) {
-            listener.onResponse(null);
+            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirement on non-master node"));
             return;
         }
 

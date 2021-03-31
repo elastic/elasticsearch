@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -25,6 +26,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -166,6 +170,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 context.sourceToParse().id(), valuePreview);
         }
         multiFields.parse(this, context);
+    }
+
+    /**
+     * @return whether this field mapper uses a script to generate its values
+     */
+    public boolean hasScript() {
+        return false;
+    }
+
+    /**
+     * Execute the index-time script associated with this field mapper.
+     *
+     * This method should only be called if {@link #hasScript()} has returned {@code true}
+     * @param searchLookup  a SearchLookup to be passed the script
+     * @param ctx           a LeafReaderContext exposing values from an incoming document
+     * @param pc            the ParseContext over the incoming document
+     */
+    public void executeScript(SearchLookup searchLookup, LeafReaderContext ctx, int doc, ParseContext pc) {
+        throw new UnsupportedOperationException("FieldMapper " + name() + " does not have an index-time script");
     }
 
     /**
@@ -509,6 +532,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
+        private List<Parameter<?>> requires = new ArrayList<>();
+        private List<Parameter<?>> precludes = new ArrayList<>();
 
         /**
          * Creates a new Parameter
@@ -639,9 +664,31 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
+        public Parameter<T> requiresParameters(Parameter<?>... ps) {
+            this.requires.addAll(Arrays.asList(ps));
+            return this;
+        }
+
+        public Parameter<T> precludesParameters(Parameter<?>... ps) {
+            this.precludes.addAll(Arrays.asList(ps));
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
+            }
+            if (this.isConfigured()) {
+                for (Parameter<?> p : requires) {
+                    if (p.isConfigured() == false) {
+                        throw new IllegalArgumentException("Field [" + name + "] requires field [" + p.name + "] to be configured");
+                    }
+                }
+                for (Parameter<?> p : precludes) {
+                    if (p.isConfigured()) {
+                        throw new IllegalArgumentException("Field [" + p.name + "] cannot be set in conjunction with field [" + name + "]");
+                    }
+                }
             }
         }
 
@@ -821,6 +868,32 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+        /**
+         * Defines a script parameter
+         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
+         * @return a script parameter
+         */
+        public static FieldMapper.Parameter<Script> scriptParam(
+            Function<FieldMapper, Script> initializer
+        ) {
+            return new FieldMapper.Parameter<>(
+                "script",
+                false,
+                () -> null,
+                (n, c, o) -> {
+                    if (o == null) {
+                        return null;
+                    }
+                    Script script = Script.parse(o);
+                    if (script.getType() == ScriptType.STORED) {
+                        throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
+                    }
+                    return script;
+                },
+                initializer
+            ).acceptsNull();
         }
 
     }

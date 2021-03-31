@@ -9,7 +9,7 @@ import org.elasticsearch.gradle.info.BuildParams
 dependencies {
   javaRestTestImplementation project(':test:framework')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation project(xpackModule('ql:test'))
+  javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 

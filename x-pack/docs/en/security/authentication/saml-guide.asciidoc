@@ -14,7 +14,7 @@ performs that actual authentication of users.
 If you are interested in configuring SSO into {kib}, then you will need to
 provide {es} with information about your _Identity Provider_, and you will need
 to register the Elastic Stack as a known _Service Provider_ within that
-Identity Provider.  There are also a few configuration changes that are
+Identity Provider. There are also a few configuration changes that are
 required in {kib} to activate the SAML authentication provider.
 
 NOTE: The SAML support in {kib} is designed on the expectation that it will be
@@ -49,7 +49,7 @@ read the metadata document to find it - look for the `entityID` attribute on the
 `EntityDescriptor` element.
 
 Most IdPs will provide an appropriate metadata file with all the features that
-the Elastic Stack requires, and should only require the  configuration steps
+the Elastic Stack requires, and should only require the configuration steps
 described below. For completeness sake, the minimum requirements that the Elastic
 Stack has for the IdP's metadata are:
 
@@ -96,7 +96,7 @@ For more information, see
 [[saml-enable-token]]
 ==== Enable the token service
 
-The {es} SAML implementation makes use of the {es} Token Service.  This service
+The {es} SAML implementation makes use of the {es} Token Service. This service
 is automatically enabled if you configure TLS on the HTTP interface, and can be
 explicitly configured by including the following in your `elasticsearch.yml` file:
 
@@ -233,7 +233,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   your IdP. At a _minimum_, the `principal` attribute is required.
 
 . Configure your IdP to "release" those attributes to your {kib} SAML service
-  provider.  This process varies by provider - some will provide a user interface
+  provider. This process varies by provider - some will provide a user interface
   for this, while others may require that you edit configuration files.
   Usually the IdP (or your local administrator) will have suggestions about what
   URI to use for each attribute. You can simply accept those suggestions, as the
@@ -265,7 +265,7 @@ additional names that can be used:
     This uses the SAML `NameID` value, but only if the NameID format is
     `urn:oasis:names:tc:SAML:2.0:nameid-format:persistent`.
     A SAML `NameID` element has an optional `Format` attribute that indicates
-    the semantics of the provided name.  It is common for IdPs to be configured
+    the semantics of the provided name. It is common for IdPs to be configured
     with "transient" NameIDs that present a new identifier for each session.
     Since it is rarely useful to use a transient NameID as part of an attribute
     mapping, the "nameid:persistent" attribute name can be used as a safety
@@ -950,7 +950,7 @@ POST /_security/saml/prepare
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `realm` and `id`. The custom web application would need to store the value for `id`
  in the user's session (client side in a cookie or server side if session information is
-persisted this way). It must also redirect the user's browser to the URL that  was returned in the
+persisted this way). It must also redirect the user's browser to the URL that was returned in the
   `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in
 order to mitigate against replay attacks.
 . Handle a subsequent response from the SAML IdP. After the user is successfully authenticated with the

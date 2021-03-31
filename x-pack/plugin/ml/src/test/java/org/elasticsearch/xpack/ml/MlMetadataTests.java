@@ -81,6 +81,14 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
+    public void testBuilderClone() {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            MlMetadata first = createTestInstance();
+            MlMetadata cloned = MlMetadata.Builder.from(first).build();
+            assertThat(cloned, equalTo(first));
+        }
+    }
+
     public void testPutJob() {
         Job job1 = buildJobBuilder("1").build();
         Job job2 = buildJobBuilder("2").build();

@@ -14,19 +14,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.DocValueFetcher;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.RuntimeField;
-import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -49,12 +41,12 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  */
 abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType implements RuntimeField {
     protected final Script script;
-    private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
+    private final Function<SearchLookup, LeafFactory> factory;
     private final ToXContent toXContent;
 
     AbstractScriptFieldType(
         String name,
-        TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory,
+        Function<SearchLookup, LeafFactory> factory,
         Script script,
         Map<String, String> meta,
         ToXContent toXContent
@@ -195,7 +187,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(name(), script.getParams(), searchLookup);
+        return factory.apply(searchLookup);
     }
 
     /**

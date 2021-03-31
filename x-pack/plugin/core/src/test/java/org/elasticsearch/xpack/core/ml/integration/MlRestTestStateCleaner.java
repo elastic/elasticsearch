@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.integration;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -18,6 +19,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
 
 public class MlRestTestStateCleaner {
 
@@ -40,6 +43,23 @@ public class MlRestTestStateCleaner {
 
     @SuppressWarnings("unchecked")
     private void deleteAllTrainedModels() throws IOException {
+        final Request getAllTrainedModelStats = new Request("GET", "/_ml/trained_models/_stats");
+        getAllTrainedModelStats.addParameter("size", "10000");
+        final Response trainedModelsStatsResponse = adminClient.performRequest(getAllTrainedModelStats);
+
+        final List<Map<String, Object>> pipelines = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "trained_model_stats.ingest.pipelines",
+            ESRestTestCase.entityAsMap(trainedModelsStatsResponse)
+        );
+        Set<String> pipelineIds = pipelines.stream().flatMap(m -> m.keySet().stream()).collect(Collectors.toSet());
+        for (String pipelineId : pipelineIds) {
+            try {
+                adminClient.performRequest(new Request("DELETE", "/_ingest/pipeline/" + pipelineId));
+            } catch (Exception ex) {
+                logger.warn(() -> new ParameterizedMessage("failed to delete pipeline [{}]", pipelineId), ex);
+            }
+        }
+
         final Request getTrainedModels = new Request("GET", "/_ml/trained_models");
         getTrainedModels.addParameter("size", "10000");
         final Response trainedModelsResponse = adminClient.performRequest(getTrainedModels);

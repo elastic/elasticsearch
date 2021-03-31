@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.Factory.countNumberInferenceProcessors;
@@ -44,20 +47,31 @@ import static org.hamcrest.Matchers.is;
 
 public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
 
+    private final Set<String> createdPipelines = new HashSet<>();
+
     @After
     public void cleanup() throws Exception {
         cleanUp();
+        for (String pipeline : createdPipelines) {
+            try {
+                client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
+            } catch (Exception ex) {
+                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
+            }
+        }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71072")
     public void testMLFeatureReset() throws Exception {
         startRealtime("feature_reset_anomaly_job");
         startDataFrameJob("feature_reset_data_frame_analytics_job");
         putTrainedModelIngestPipeline("feature_reset_inference_pipeline");
+        createdPipelines.add("feature_reset_inference_pipeline");
         for(int i = 0; i < 100; i ++) {
             indexDocForInference("feature_reset_inference_pipeline");
         }
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
+        createdPipelines.remove("feature_reset_inference_pipeline");
+
         assertBusy(() ->
             assertThat(countNumberInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0))
         );
@@ -71,6 +85,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
 
     public void testMLFeatureResetFailureDueToPipelines() throws Exception {
         putTrainedModelIngestPipeline("feature_reset_failure_inference_pipeline");
+        createdPipelines.add("feature_reset_failure_inference_pipeline");
         Exception ex = expectThrows(Exception.class, () -> client().execute(
             ResetFeatureStateAction.INSTANCE,
             new ResetFeatureStateRequest()
@@ -82,6 +97,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             )
         );
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_failure_inference_pipeline")).actionGet();
+        createdPipelines.remove("feature_reset_failure_inference_pipeline");
         assertThat(isResetMode(), is(false));
     }
 

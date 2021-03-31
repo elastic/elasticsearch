@@ -16,10 +16,12 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,6 +64,11 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
             void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
                 doAuthenticateInvoked.set(true);
                 listener.onResponse(validSecret.equals(token.getSecret()));
+            }
+
+            @Override
+            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
+                listener.onFailure(new UnsupportedOperationException());
             }
         };
 
@@ -139,6 +146,11 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
                 listener.onResponse(success);
+            }
+
+            @Override
+            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
+                listener.onFailure(new UnsupportedOperationException());
             }
         };
         assertThat(store.getCache(), nullValue());

@@ -186,7 +186,7 @@ One or more primary shards are unassigned, so some data is unavailable.
 Name of the index template used to create the data stream's backing indices.
 +
 The template's index pattern must match the name of this data stream. See
-<<create-index-template>>.
+<<create-index-template,create an index template>>.
 
 `ilm_policy`::
 (string)

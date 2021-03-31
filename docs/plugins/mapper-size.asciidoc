@@ -65,12 +65,12 @@ GET my-index-000001/_search
       }
     }
   ],
+  "fields": ["_size"],                <4>
   "script_fields": {
     "size": {
-      "script": "doc['_size']"        <4>
+      "script": "doc['_size']"        <5>
     }
-  },
-  "fields": ["_size"]                 <5>
+  }
 }
 --------------------------
 // TEST[continued]
@@ -78,7 +78,8 @@ GET my-index-000001/_search
 <1> Querying on the `_size` field
 <2> Aggregating on the `_size` field
 <3> Sorting on the `_size` field
-<4> Uses a
+<4> Use the `fields` parameter to return the `_size` in the search response.
+<5> Uses a
 {ref}/search-fields.html#script-fields[script field]
 to return the `_size` field in the search response.
-<5> Use the `fields` API to return the `_size` in the search response.
+

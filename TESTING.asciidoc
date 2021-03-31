@@ -92,13 +92,8 @@ password: `elastic-password`.
 
 === Test case filtering.
 
-<<<<<<< HEAD
 - `tests.class` is a class-filtering shell-like glob pattern,
 - `tests.method` is a method-filtering glob pattern.
-=======
-You can run a single test, provided that you specify the Gradle project. See the documentation on
-https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
->>>>>>> 693807a6d39... [DOCS] Fix double spaces (#71082)
 
 Run a single test case (variants)
 
@@ -396,14 +391,8 @@ zip, and deb packages and all the plugins. It will then run the tests on every
 available system. This will take a very long time.
 +
 Fortunately, the various systems under test have their own Gradle tasks under
-<<<<<<< HEAD
 `qa/os`. To find out what packaging combinations can be tested on a system, run
 the `tasks` task.  For example:
-=======
-`qa/os`. To find the systems tested, do a listing of the `qa/os` directory.
-To find out what packaging combinations can be tested on a system, run
-the `tasks` task. For example:
->>>>>>> 693807a6d39... [DOCS] Fix double spaces (#71082)
 +
 ----------------------------------
 ./gradlew :qa:os:ubuntu-1804:tasks

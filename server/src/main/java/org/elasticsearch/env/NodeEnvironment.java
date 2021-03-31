@@ -281,7 +281,7 @@ public final class NodeEnvironment  implements Closeable {
                 assertCanWrite();
             }
 
-            if (DiscoveryNode.isDataNode(settings) == false) {
+            if (DiscoveryNode.canContainData(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
                     ensureNoIndexMetadata(nodePaths);
                 }

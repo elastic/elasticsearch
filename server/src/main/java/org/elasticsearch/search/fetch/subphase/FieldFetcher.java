@@ -65,6 +65,7 @@ public class FieldFetcher {
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
+            boolean isWildcardPattern = Regex.isSimpleMatchPattern(fieldPattern);
             if (fieldAndFormat.includeUnmapped != null && fieldAndFormat.includeUnmapped) {
                 unmappedFetchPattern.add(fieldAndFormat.field);
             }
@@ -76,7 +77,7 @@ public class FieldFetcher {
                     continue;
                 }
                 // we want to skip metadata fields if we have a wildcard pattern
-                if (context.isMetadataField(field) && Regex.isSimpleMatchPattern(fieldPattern)) {
+                if (context.isMetadataField(field) && isWildcardPattern) {
                     continue;
                 }
                 if (field.startsWith(nestedScopePath) == false) {

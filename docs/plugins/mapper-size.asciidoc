@@ -26,7 +26,7 @@ PUT my-index-000001
 --------------------------
 
 The value of the `_size` field is accessible in queries, aggregations, scripts,
-and when sorting. It can be retrieved using the <<search-fields,fields API>>:
+and when sorting. It can be retrieved using the {ref}/search-fields.html#search-fields-param[fields API]:
 
 [source,console]
 --------------------------
@@ -81,4 +81,4 @@ GET my-index-000001/_search
 <4> Uses a
 {ref}/search-fields.html#script-fields[script field]
 to return the `_size` field in the search response.
-<5> Use the `fields` API to return the `_size` field in the search response.
+<5> Use the `fields` API to return the `_size` in the search response.

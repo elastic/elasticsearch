@@ -26,7 +26,7 @@ import java.util.Objects;
 public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedModelDeploymentAction.Response> {
 
     public static final StopTrainedModelDeploymentAction INSTANCE = new StopTrainedModelDeploymentAction();
-    public static final String NAME = "cluster:internal/xpack/ml/trained_models/deployment/stop";
+    public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/stop";
 
     public StopTrainedModelDeploymentAction() {
         super(NAME, StopTrainedModelDeploymentAction.Response::new);

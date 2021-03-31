@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
-    public static final String NAME = "cluster:internal/xpack/ml/trained_models/deployment/start";
+    public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 

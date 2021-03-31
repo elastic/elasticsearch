@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
@@ -181,6 +182,19 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
         assertThat(
             exception.getMessage(),
             equalTo("current_checkpoints must equal number of shards. [shard count: 3, current_checkpoints: 2]")
+        );
+    }
+
+    public void testIndexDoesNotExist() throws Exception {
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            "non-existent",
+            false,
+            EMPTY_ARRAY,
+            TEN_SECONDS
+        );
+        ElasticsearchException exception = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
         );
     }
 }

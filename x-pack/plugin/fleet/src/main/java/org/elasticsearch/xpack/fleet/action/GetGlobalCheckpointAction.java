@@ -42,7 +42,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAction.Response> {
 
     public static final GetGlobalCheckpointAction INSTANCE = new GetGlobalCheckpointAction();
-    // TODO: Do we still use xpack?
     public static final String NAME = "indices:monitor/fleet/global_checkpoint";
 
     private GetGlobalCheckpointAction() {

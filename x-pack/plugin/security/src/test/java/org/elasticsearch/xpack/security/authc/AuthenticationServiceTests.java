@@ -1910,10 +1910,10 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testCanAuthenticateServiceAccount() throws ExecutionException, InterruptedException {
         Mockito.reset(serviceAccountService);
         final Authentication authentication = new Authentication(
-            new User("elastic/fleet"),
+            new User("elastic/fleet-server"),
             new RealmRef("service_account", "service_account", "foo"), null);
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
-            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc");
+            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
@@ -1930,7 +1930,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Mockito.reset(serviceAccountService);
         final RuntimeException bailOut = new RuntimeException("bail out");
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
-            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc");
+            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];

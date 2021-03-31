@@ -112,6 +112,8 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAc
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -179,6 +181,8 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessi
 import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
+import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountTokensAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction;
@@ -200,10 +204,13 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountsTokenStore.CompositeServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountsTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -256,6 +263,8 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessi
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountTokensAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
@@ -343,6 +352,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
+    private final SetOnce<Transport> transportReference = new SetOnce<>();
 
     public Security(Settings settings, final Path configPath) {
         this(settings, configPath, Collections.emptyList());
@@ -530,10 +540,20 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(
-            new CompositeServiceAccountsTokenStore(
-                List.of(new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool)),
-                threadPool.getThreadContext()));
+        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);
+        components.add(httpTlsRuntimeCheck);
+
+        final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore = new IndexServiceAccountsTokenStore(
+            settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
+        components.add(indexServiceAccountsTokenStore);
+
+        final FileServiceAccountsTokenStore fileServiceAccountsTokenStore =
+            new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool);
+
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(
+            org.elasticsearch.common.collect.List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore),
+            threadPool.getThreadContext()), httpTlsRuntimeCheck);
+        components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
@@ -756,6 +776,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
         settingsList.add(OPERATOR_PRIVILEGES_ENABLED);
+        settingsList.add(CachingServiceAccountsTokenStore.CACHE_TTL_SETTING);
+        settingsList.add(CachingServiceAccountsTokenStore.CACHE_HASH_ALGO_SETTING);
+        settingsList.add(CachingServiceAccountsTokenStore.CACHE_MAX_TOKENS_SETTING);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -886,7 +909,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
                 new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
                 new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
-                new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class)
+                new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
+                new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
+                new ActionHandler<>(GetServiceAccountTokensAction.INSTANCE, TransportGetServiceAccountTokensAction.class)
         );
     }
 
@@ -948,7 +973,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestGrantApiKeyAction(settings, getLicenseState()),
                 new RestInvalidateApiKeyAction(settings, getLicenseState()),
                 new RestGetApiKeyAction(settings, getLicenseState()),
-                new RestDelegatePkiAuthenticationAction(settings, getLicenseState())
+                new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
+                new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
+                new RestGetServiceAccountTokensAction(settings, getLicenseState())
         );
     }
 
@@ -1055,12 +1082,20 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         IPFilter ipFilter = this.ipFilter.get();
+
         Map<String, Supplier<Transport>> transports = new HashMap<>();
-        transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(),
-            getNettySharedGroupFactory(settings)));
-        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
-            pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(), getNioGroupFactory(settings)));
+        transports.put(SecurityField.NAME4, () -> {
+            transportReference.set(new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
+                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(),
+                getNettySharedGroupFactory(settings)));
+            return transportReference.get();
+        });
+        transports.put(SecurityField.NIO, () -> {
+            transportReference.set(new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
+                pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(),
+                getNioGroupFactory(settings)));
+            return transportReference.get();
+        });
 
         return Collections.unmodifiableMap(transports);
     }

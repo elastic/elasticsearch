@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -167,8 +168,8 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
         final StepListener<Void> verifyRepoHashesStep = new StepListener<>();
         putPasswordHashInRepositoryMetadataStep.whenComplete(
-                // best to verify the passwords hash before starting a snapshot
-                // rather than wait to fail in finalize
+            // best to verify the passwords hash before starting a snapshot
+            // rather than wait to fail in finalize
             aVoid -> repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(metadata, verifyRepoHashesStep),
             onFailure
         );
@@ -182,6 +183,53 @@ public class EncryptedRepository extends BlobStoreRepository {
         });
     }
 
+    public void startOrResumePasswordChange(
+        @Nullable String fromPasswordName,
+        @Nullable String toPasswordName,
+        ActionListener<Void> listener
+    ) {
+        RepositoryMetadata currentMetadata = metadata;
+        String changeFromPasswordName = fromPasswordName != null
+            ? fromPasswordName
+            : repositoryPasswords.currentLocalPassword(currentMetadata).v1();
+        String changeToPasswordName = toPasswordName != null
+            ? toPasswordName
+            : repositoryPasswords.currentLocalPassword(currentMetadata).v1();
+        if (repositoryPasswords.isPasswordChangeInProgress(currentMetadata)) {
+            repositoryPasswords.verifyResumePasswordChange(currentMetadata, changeFromPasswordName, changeToPasswordName, listener);
+        } else {
+            updateMetadata(
+                (latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
+                    // unlikely concurrent password change
+                    if (repositoryPasswords.isPasswordChangeInProgress(latestRepositoryMetadata)) {
+                        // resume or fail, probably not important
+                        repositoryPasswords.verifyResumePasswordChange(
+                            latestRepositoryMetadata,
+                            fromPasswordName,
+                            toPasswordName,
+                            listener
+                        );
+                    } else {
+                        repositoryPasswords.updateMetadataForPasswordChange(
+                            latestRepositoryMetadata,
+                            fromPasswordName,
+                            toPasswordName,
+                            newRepositoryMetadataListener
+                        );
+                    }
+                },
+                "start encrypted repository ["
+                    + metadata.name()
+                    + "] password change from ["
+                    + fromPasswordName
+                    + "] to ["
+                    + toPasswordName
+                    + "]",
+                listener
+            );
+        }
+    }
+
     // protected for tests
     protected void maybePublishCurrentPasswordHash(ActionListener<Void> listener) {
         updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
@@ -191,7 +239,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 listener.onResponse(null);
                 return;
             }
-            repositoryPasswords.updateWithHashForCurrentPassword(latestRepositoryMetadata, newRepositoryMetadataListener);
+            repositoryPasswords.updateMetadataWithHashForCurrentPassword(latestRepositoryMetadata, newRepositoryMetadataListener);
         }, "update encrypted repository [" + metadata.name() + "] current password hash", listener);
     }
 
@@ -306,10 +354,6 @@ public class EncryptedRepository extends BlobStoreRepository {
     protected void doClose() {
         super.doClose();
         this.delegatedRepository.close();
-    }
-
-    protected void initiatePasswordChange(String fromPasswordName, String toPasswordName, ActionListener<RepositoryData> listener) {
-        // TODO
     }
 
     // protected for tests
@@ -427,7 +471,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unWrapDek(String dekId) throws RepositoryException {
         final RepositoryMetadata repositoryMetadata = metadata;
         try {
-            final SecureString currentPassword = repositoryPasswords.currentLocalPassword(repositoryMetadata);
+            final SecureString currentPassword = repositoryPasswords.currentLocalPassword(repositoryMetadata).v2();
             final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(currentPassword, dekId);
             final String kekId = AESKeyUtils.computeId(kek);
             logger.debug("Repository [{}] computed KEK [{}] for DEK [{}] for unwrapping", repositoryMetadata.name(), kekId, dekId);

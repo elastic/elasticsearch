@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -88,7 +89,10 @@ public final class EncryptedRepositoryChangePasswordRequest extends Acknowledged
             validationException = addValidationError("repository name is missing", validationException);
         }
         if (toPasswordName == null && fromPasswordName == null) {
-            validationException = addValidationError("either from-password or to-password must be set", validationException);
+            validationException = addValidationError("either \"from\" password or \"to\" password must be set", validationException);
+        }
+        if (Objects.equals(fromPasswordName, toPasswordName)) {
+            validationException = addValidationError("\"from\" and \"to\" passwords must be different", validationException);
         }
         return validationException;
     }

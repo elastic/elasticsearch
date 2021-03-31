@@ -111,7 +111,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .setSettings(repositorySettings)
                 .get()
         );
-        assertThat(e.getRootCause().getMessage(), containsString("Missing secure settings"));
+        assertThat(e.getRootCause().getMessage(), containsString("Missing secure setting"));
         expectThrows(RepositoryMissingException.class, () -> client().admin().cluster().prepareGetRepositories(repositoryName).get());
 
         if (randomBoolean()) {

@@ -16,6 +16,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.encrypted.EncryptedRepository;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -27,10 +30,13 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
     EncryptedRepositoryChangePasswordRequest,
     EncryptedRepositoryChangePasswordResponse> {
 
+    private final RepositoriesService repositoriesService;
+
     @Inject
     public TransportEncryptedRepositoryChangePasswordAction(
         TransportService transportService,
         ClusterService clusterService,
+        RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -46,6 +52,7 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
             EncryptedRepositoryChangePasswordResponse::new,
             ThreadPool.Names.GENERIC
         );
+        this.repositoriesService = repositoriesService;
     }
 
     @Override
@@ -55,12 +62,19 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
         ClusterState state,
         ActionListener<EncryptedRepositoryChangePasswordResponse> listener
     ) throws Exception {
-        // TODO
-        // update cluster state to initiate password change (ensure passwords exists and no change is already in progress)
-        // move all existing DEKs to use the new password and the new name
-        // update cluster state to decommission the old password
-        // remove the now old DEKs
-        // update cluster state to conclude the password change
+        Repository repository = repositoriesService.repository(request.repositoryName());
+        if (false == (repository instanceof EncryptedRepository)) {
+            listener.onFailure(new IllegalArgumentException("Repository [" + request.repositoryName() + "] is not encrypted"));
+            return;
+        }
+        EncryptedRepository encryptedRepository = (EncryptedRepository) repository;
+        encryptedRepository.startOrResumePasswordChange(request.fromPasswordName(), request.toPasswordName(), ActionListener.wrap(aVoid -> {
+            // TODO
+            // move all existing DEKs to use the new password and the new name
+            // update cluster state to decommission the old password
+            // remove the now old DEKs
+            // update cluster state to conclude the password change
+        }, listener::onFailure));
         listener.onResponse(new EncryptedRepositoryChangePasswordResponse(false));
     }
 

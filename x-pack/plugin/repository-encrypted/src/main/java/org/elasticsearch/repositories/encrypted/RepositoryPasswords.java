@@ -9,11 +9,11 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -90,15 +90,17 @@ public final class RepositoryPasswords {
             .equals(repositoryMetadata2.settings().filter(passwordSettingsPredicate.negate()));
     }
 
-    public SecureString currentLocalPassword(RepositoryMetadata repositoryMetadata) {
+    public Tuple<String, SecureString> currentLocalPassword(RepositoryMetadata repositoryMetadata) {
         String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         SecureString currentPassword = localPasswords(repositoryMetadata).get(currentPasswordName);
         if (null == currentPassword) {
-            throw new IllegalArgumentException("Missing secure setting [" +
-                    ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(currentPasswordName).getKey() +
-                    "] on the local node");
+            throw new IllegalArgumentException(
+                "Missing secure setting ["
+                    + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(currentPasswordName).getKey()
+                    + "] on the local node"
+            );
         }
-        return currentPassword;
+        return new Tuple<>(currentPasswordName, currentPassword);
     }
 
     public List<SecureString> passwordsForDekWrapping(RepositoryMetadata repositoryMetadata) {
@@ -106,9 +108,11 @@ public final class RepositoryPasswords {
         String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         SecureString currentPassword = localPasswords.get(currentPasswordName);
         if (null == currentPassword) {
-            throw new IllegalArgumentException("Missing secure setting [" +
-                    ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(currentPasswordName).getKey() +
-                    "] on the local node");
+            throw new IllegalArgumentException(
+                "Missing secure setting ["
+                    + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(currentPasswordName).getKey()
+                    + "] on the local node"
+            );
         }
         String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         if (currentPasswordName.equals(fromPasswordName)) {
@@ -116,9 +120,11 @@ public final class RepositoryPasswords {
             String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
             SecureString toPassword = localPasswords.get(toPasswordName);
             if (null == toPassword) {
-                throw new IllegalArgumentException("Missing secure setting [" +
-                        ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey() +
-                        "] on the local node");
+                throw new IllegalArgumentException(
+                    "Missing secure setting ["
+                        + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey()
+                        + "] on the local node"
+                );
             }
             return List.of(currentPassword, toPassword);
         } else {
@@ -126,7 +132,10 @@ public final class RepositoryPasswords {
         }
     }
 
-    public void updateWithHashForCurrentPassword(RepositoryMetadata repositoryMetadata, ActionListener<RepositoryMetadata> listener) {
+    public void updateMetadataWithHashForCurrentPassword(
+        RepositoryMetadata repositoryMetadata,
+        ActionListener<RepositoryMetadata> listener
+    ) {
         String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         computePasswordHash(currentPasswordName, threadPool.generic(), ActionListener.wrap(currentPasswordHash -> {
             Settings.Builder newSettingsBuilder = Settings.builder();
@@ -144,6 +153,81 @@ public final class RepositoryPasswords {
                 repositoryMetadata.pendingGeneration()
             );
             listener.onResponse(newRepositoryMetadata);
+        }, listener::onFailure));
+    }
+
+    public void updateMetadataForPasswordChange(
+        RepositoryMetadata repositoryMetadata,
+        String fromPasswordName,
+        String toPasswordName,
+        ActionListener<RepositoryMetadata> listener
+    ) {
+        // might as well be an assert
+        if (CHANGE_FROM_PASSWORD_NAME_SETTING.exists(repositoryMetadata.settings())
+            || CHANGE_TO_PASSWORD_NAME_SETTING.exists(repositoryMetadata.settings())
+            || containsPasswordsHash(repositoryMetadata)) {
+            listener.onFailure(new IllegalStateException("Cannot initiate password change"));
+            return;
+        }
+        computePasswordsHash(Set.of(fromPasswordName, toPasswordName), threadPool.generic(), ActionListener.wrap(computedPasswordsHash -> {
+            Settings.Builder newSettingsBuilder = Settings.builder();
+            assert computedPasswordsHash.containsKey(fromPasswordName);
+            assert computedPasswordsHash.containsKey(toPasswordName);
+            newSettingsBuilder.put(repositoryMetadata.settings())
+                .put(CHANGE_FROM_PASSWORD_NAME_SETTING.getKey(), fromPasswordName)
+                .put(CHANGE_TO_PASSWORD_NAME_SETTING.getKey(), toPasswordName)
+                .put(
+                    PASSWORDS_HASH_SETTING.getConcreteSettingForNamespace(fromPasswordName).getKey(),
+                    computedPasswordsHash.get(fromPasswordName)
+                )
+                .put(
+                    PASSWORDS_HASH_SETTING.getConcreteSettingForNamespace(toPasswordName).getKey(),
+                    computedPasswordsHash.get(toPasswordName)
+                );
+            RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+                repositoryMetadata.name(),
+                repositoryMetadata.uuid(),
+                repositoryMetadata.type(),
+                newSettingsBuilder.build(),
+                repositoryMetadata.generation(),
+                repositoryMetadata.pendingGeneration()
+            );
+            listener.onResponse(newRepositoryMetadata);
+        }, listener::onFailure));
+    }
+
+    public void verifyResumePasswordChange(
+        RepositoryMetadata repositoryMetadata,
+        String fromPasswordName,
+        String toPasswordName,
+        ActionListener<Void> listener
+    ) {
+        final String inProgressFromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
+        final String inProgressFromPasswordHash = PASSWORDS_HASH_SETTING.getConcreteSettingForNamespace(inProgressFromPasswordName)
+            .get(repositoryMetadata.settings());
+        final String inProgressToPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
+        final String inProgressToPasswordHash = PASSWORDS_HASH_SETTING.getConcreteSettingForNamespace(inProgressToPasswordName)
+            .get(repositoryMetadata.settings());
+        // might as well be an assert
+        if (Strings.isNullOrEmpty(inProgressFromPasswordName)
+            || Strings.isNullOrEmpty(inProgressToPasswordName)
+            || Strings.isNullOrEmpty(inProgressFromPasswordHash)
+            || Strings.isNullOrEmpty(inProgressToPasswordHash)) {
+            listener.onFailure(new IllegalStateException("Cannot resume password change"));
+            return;
+        }
+        final Map<String, String> hashesToVerify = Map.of(
+            fromPasswordName,
+            inProgressFromPasswordHash,
+            toPasswordName,
+            inProgressToPasswordHash
+        );
+        verifyPasswordsHash(hashesToVerify, threadPool.generic(), ActionListener.wrap(verifyResult -> {
+            if (false == verifyResult) {
+                listener.onFailure(new IllegalArgumentException("Local passwords different from when password change started"));
+            } else {
+                listener.onResponse(null);
+            }
         }, listener::onFailure));
     }
 
@@ -216,25 +300,6 @@ public final class RepositoryPasswords {
         }, listener::onFailure));
     }
 
-    public void verifyPublishedPasswordsHashForChange(RepositoryMetadata repositoryMetadata, ActionListener<Void> listener) {
-        final Map<String, String> publishedPasswordsHash = getPasswordsHash(repositoryMetadata);
-        final String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
-        final String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
-        final Map<String, String> hashesToVerify = Map.of(
-            fromPasswordName,
-            publishedPasswordsHash.get(fromPasswordName),
-            toPasswordName,
-            publishedPasswordsHash.get(toPasswordName)
-        );
-        verifyPasswordsHash(hashesToVerify, threadPool.generic(), ActionListener.wrap(verifyResult -> {
-            if (false == verifyResult) {
-                listener.onFailure(new IllegalArgumentException("Local passwords different from when password change started"));
-            } else {
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
-    }
-
     public boolean verifyPasswordsHash(Map<String, String> passwordsHash) throws ExecutionException, InterruptedException {
         StepListener<Boolean> waitStep = new StepListener<>();
         verifyPasswordsHash(passwordsHash, EsExecutors.newDirectExecutorService(), waitStep);
@@ -255,9 +320,14 @@ public final class RepositoryPasswords {
             }
             SecureString password = localRepositoryPasswordsMap.get(passwordNameAndHash.getKey());
             if (password == null) {
-                listener.onFailure(new IllegalArgumentException("Missing secure setting [" +
-                        ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordNameAndHash.getKey() +
-                        "] on the local node")));
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "Missing secure setting ["
+                            + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(
+                                passwordNameAndHash.getKey() + "] on the local node"
+                            )
+                    )
+                );
                 return;
             } else {
                 hashesToVerifyCount.incrementAndGet();
@@ -388,9 +458,14 @@ public final class RepositoryPasswords {
     private void computePasswordHash(String passwordName, ExecutorService executor, ActionListener<String> listener) {
         SecureString password = this.localRepositoryPasswordsMap.get(passwordName);
         if (null == password) {
-            listener.onFailure(new IllegalArgumentException("Missing secure setting [" +
-                    ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey() +
-                    "] on the local node"));
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Missing secure setting ["
+                        + ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(passwordName).getKey()
+                        + "] on the local node"
+                )
+            );
+            return;
         }
         this.localRepositoryPasswordsHashMap.computeIfAbsent(
             passwordName,

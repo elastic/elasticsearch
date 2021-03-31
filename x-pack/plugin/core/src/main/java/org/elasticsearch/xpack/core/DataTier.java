@@ -69,19 +69,23 @@ public class DataTier {
     }
 
     public static boolean isContentNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isHotNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_HOT_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isWarmNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_WARM_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isColdNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_COLD_NODE_ROLE) || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)
+            || discoveryNode.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     public static boolean isFrozenNode(DiscoveryNode discoveryNode) {

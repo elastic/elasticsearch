@@ -32,7 +32,7 @@ public class GeoIpHttpFixture {
                 byteArrayOutputStream.write(bytes, 0, read);
             }
         }
-        String rawData = new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8);
+        String data = new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
         this.server.createContext("/", exchange -> {
             String query = exchange.getRequestURI().getQuery();
@@ -41,7 +41,6 @@ public class GeoIpHttpFixture {
                 exchange.getResponseBody().close();
                 return;
             }
-            String data = rawData.replace("endpoint", "http://" + exchange.getRequestHeaders().getFirst("Host"));
             exchange.sendResponseHeaders(200, data.length());
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(exchange.getResponseBody()))) {
                 writer.write(data);

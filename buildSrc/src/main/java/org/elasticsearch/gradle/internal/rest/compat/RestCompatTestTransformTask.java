@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.Version;
@@ -24,6 +25,7 @@ import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.test.rest.transform.match.ReplaceTextual;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
@@ -99,6 +101,27 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceMatch(String subKey, Object value) {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
+    }
+    /**
+     * Replaces all the values of a is_true assertion all project REST tests.
+     * For example "is_true": "value_to_replace" to "match": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsTrue(String oldValue, Object newValue) {
+        transformations.add(new ReplaceTextual("is_true", oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_true assertion all project REST tests.
+     * For example "is_false": "value_to_replace" to "match": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsFalse(String oldValue, Object newValue) {
+        transformations.add(new ReplaceTextual("is_false", oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
     /**

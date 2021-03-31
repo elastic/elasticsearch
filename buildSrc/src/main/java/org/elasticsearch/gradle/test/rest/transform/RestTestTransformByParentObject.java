@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.test.rest.transform;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -26,5 +27,9 @@ public interface RestTestTransformByParentObject extends RestTestTransform<Objec
      */
     default String requiredChildKey() {
         return null;
+    }
+
+    default boolean matches(JsonNode child) {
+        return child.has(requiredChildKey());
     }
 }

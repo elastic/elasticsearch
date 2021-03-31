@@ -49,6 +49,7 @@ List projects = [
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
+  'distribution:tools:geoip-cli',
   'server',
   'server:cli',
   'test:framework',

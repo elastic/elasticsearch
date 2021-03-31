@@ -222,8 +222,7 @@ meets one or more of the following conditions:
 
 * The index was created 7 or more days ago.
 * The index contains 1,000 or more documents.
-* The total size of the index's primary shards reach 5GB or greater.
-* The index's largest primary shard reaches 2GB or greater.
+* The index's largest primary shard is 50GB or larger.
 // end::rollover-conditions-ex[]
 
 [source,console]
@@ -233,8 +232,7 @@ POST my-data-stream/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb",
-    "max_primary_shard_size": "2gb"
+    "max_primary_shard_size": "50gb"
   }
 }
 ----
@@ -256,8 +254,7 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 5gb]": false,
-    "[max_primary_shard_size: 2gb]": false
+    "[max_primary_shard_size: 50gb]": false
   }
 }
 ----
@@ -304,8 +301,7 @@ POST my-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb",
-    "max_primary_shard_size": "2gb"
+    "max_primary_shard_size": "50gb"
   }
 }
 ----
@@ -327,8 +323,7 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 5gb]": false,
-    "[max_primary_shard_size: 2gb]": false
+    "[max_primary_shard_size: 50gb]": false
   }
 }
 ----
@@ -375,8 +370,7 @@ POST my-write-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb",
-    "max_primary_shard_size": "2gb"
+    "max_primary_shard_size": "50gb"
   }
 }
 ----
@@ -398,8 +392,7 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 5gb]": false,
-    "[max_primary_shard_size: 2gb]": false
+    "[max_primary_shard_size: 50gb]": false
   }
 }
 ----

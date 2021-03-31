@@ -52,6 +52,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         // no configurable parameters
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);

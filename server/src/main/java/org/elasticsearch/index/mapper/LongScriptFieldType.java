@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
-    private static final LongFieldScript.Factory PARSE_FROM_SOURCE
+    static final LongFieldScript.Factory PARSE_FROM_SOURCE
         = (field, params, lookup) -> (LongFieldScript.LeafFactory) ctx -> new LongFieldScript
         (
             field,

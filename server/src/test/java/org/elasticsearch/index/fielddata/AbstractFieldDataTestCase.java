@@ -92,22 +92,22 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                     .fielddata(true).build(contentPath).fieldType();
             }
         } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("geo_point")) {
             fieldType = new GeoPointFieldMapper.Builder(fieldName, false).docValues(docValues).build(contentPath).fieldType();

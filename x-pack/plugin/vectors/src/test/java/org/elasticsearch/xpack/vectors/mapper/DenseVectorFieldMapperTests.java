@@ -54,6 +54,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5)));
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDims() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

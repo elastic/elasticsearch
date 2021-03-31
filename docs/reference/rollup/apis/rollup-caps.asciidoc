@@ -1,20 +1,3 @@
-ifdef::permanently-unreleased-branch[]
-
-[role="xpack"]
-[testenv="basic"]
-[[rollup-get-rollup-caps]]
-=== Get legacy {rollup-job} capabilities API
-++++
-<titleabbrev>Get legacy rollup caps</titleabbrev>
-++++
-
-include::put-job.asciidoc[tag=legacy-rollup-admon]
-
-Returns the capabilities of legacy {rollup-jobs} for an index pattern.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-rollup-caps]]
@@ -27,8 +10,6 @@ Returns the capabilities of any {rollup-jobs} that have been configured for a
 specific index or index pattern.
 
 experimental[]
-
-endif::[]
 
 [[rollup-get-rollup-caps-request]]
 ==== {api-request-title}

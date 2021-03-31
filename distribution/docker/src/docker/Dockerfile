@@ -222,8 +222,12 @@ FROM ${base_image} AS builder
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-<% /* Fetch or copy the appropriate Elasticsearch distribution for this architecture */ %>
-${source_elasticsearch}
+<% /*
+  Fetch the appropriate Elasticsearch distribution for this architecture.
+  Keep this command on one line - it is replaced with a `COPY` during local builds.
+  It uses the `arch` command to fetch the correct distro for the build machine.
+*/ %>
+RUN curl --retry 10 -S -L --output /opt/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 
@@ -281,7 +285,7 @@ RUN <%= retry.loop(
 %>
 RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
     ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils zip unzip && \\
+      nc shadow-utils zip findutils unzip procps-ng && \\
     ${package_manager} clean all
 
 <% } %>

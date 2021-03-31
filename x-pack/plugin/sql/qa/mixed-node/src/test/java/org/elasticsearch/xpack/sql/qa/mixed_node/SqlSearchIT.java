@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.document.HalfFloatPoint;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -94,7 +95,7 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
+                columns.add(columnInfo("half_float_field", "half_float"));
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -113,9 +114,18 @@ public class SqlSearchIT extends ESRestTestCase {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
+                    /*
+                     * Double.valueOf(float.toString) gets a `double` representing
+                     * the `float` that we'd get by going through json which is
+                     * base 10. just casting the `float` to a `double` will get
+                     * a lower number with a lot more trailing digits because
+                     * the cast adds *binary* 0s to the end. And those binary
+                     * 0s don't translate the same as json's decimal 0s.
+                     */
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":\"123.456\"");
-                    // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
+                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                    fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
                 }
             }
         );
@@ -127,7 +137,7 @@ public class SqlSearchIT extends ESRestTestCase {
             columns -> {
                 columns.add(columnInfo("geo_point_field", "geo_point"));
                 columns.add(columnInfo("float_field", "float"));
-                // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
+                columns.add(columnInfo("half_float_field", "half_float"));
             },
             (builder, fieldValues) -> {
                 Float randomFloat = randomFloat();
@@ -143,9 +153,18 @@ public class SqlSearchIT extends ESRestTestCase {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
+                    /*
+                     * Double.valueOf(float.toString) gets a `double` representing
+                     * the `float` that we'd get by going through json which is
+                     * base 10. just casting the `float` to a `double` will get
+                     * a lower number with a lot more trailing digits because
+                     * the cast adds *binary* 0s to the end. And those binary
+                     * 0s don't translate the same as json's decimal 0s.
+                     */
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":\"123.456\"");
-                    // Until #70653 is backported we won't assert that the half_float is returned with any kind of precision
+                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                    fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
                 }
             }
         );

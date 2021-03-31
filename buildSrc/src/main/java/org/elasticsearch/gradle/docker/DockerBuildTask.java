@@ -14,7 +14,9 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
@@ -35,17 +37,22 @@ public class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
     private final WorkerExecutor workerExecutor;
-    private final RegularFileProperty markerFile = getProject().getObjects().fileProperty();
-    private final DirectoryProperty dockerContext = getProject().getObjects().directoryProperty();
+    private final RegularFileProperty markerFile;
+    private final DirectoryProperty dockerContext;
 
     private String[] tags;
     private boolean pull = true;
     private boolean noCache = true;
     private String[] baseImages;
+    private MapProperty<String, String> buildArgs;
 
     @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor) {
+    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
         this.workerExecutor = workerExecutor;
+        this.markerFile = objectFactory.fileProperty();
+        this.dockerContext = objectFactory.directoryProperty();
+        this.buildArgs = objectFactory.mapProperty(String.class, String.class);
+
         this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
@@ -57,7 +64,8 @@ public class DockerBuildTask extends DefaultTask {
             params.getTags().set(Arrays.asList(tags));
             params.getPull().set(pull);
             params.getNoCache().set(noCache);
-            params.getBaseImages().set(baseImages);
+            params.getBaseImages().set(Arrays.asList(baseImages));
+            params.getBuildArgs().set(buildArgs);
         });
     }
 
@@ -101,6 +109,15 @@ public class DockerBuildTask extends DefaultTask {
 
     public void setBaseImages(String[] baseImages) {
         this.baseImages = baseImages;
+    }
+
+    @Input
+    public MapProperty<String, String> getBuildArgs() {
+        return buildArgs;
+    }
+
+    public void setBuildArgs(MapProperty<String, String> buildArgs) {
+        this.buildArgs = buildArgs;
     }
 
     @OutputFile
@@ -147,9 +164,7 @@ public class DockerBuildTask extends DefaultTask {
             final Parameters parameters = getParameters();
 
             if (parameters.getPull().get()) {
-                for (String baseImage : parameters.getBaseImages().get()) {
-                    pullBaseImage(baseImage);
-                }
+                parameters.getBaseImages().get().forEach(this::pullBaseImage);
             }
 
             LoggedExec.exec(execOperations, spec -> {
@@ -162,6 +177,8 @@ public class DockerBuildTask extends DefaultTask {
                 }
 
                 parameters.getTags().get().forEach(tag -> spec.args("--tag", tag));
+
+                parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
             });
 
             try {
@@ -183,6 +200,8 @@ public class DockerBuildTask extends DefaultTask {
 
         Property<Boolean> getNoCache();
 
-        Property<String[]> getBaseImages();
+        ListProperty<String> getBaseImages();
+
+        MapProperty<String, String> getBuildArgs();
     }
 }

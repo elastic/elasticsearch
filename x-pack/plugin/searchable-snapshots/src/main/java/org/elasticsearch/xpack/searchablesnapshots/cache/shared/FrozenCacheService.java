@@ -64,18 +64,32 @@ public class FrozenCacheService implements Releasable {
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
-    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "range_size",
-        ByteSizeValue.ofMb(16),                                 // default
+        ByteSizeValue.ofMb(16).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
+        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
         Setting.Property.NodeScope
     );
 
-    // TODO: require range size to be multiple of 4kb
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
         SHARED_CACHE_RANGE_SIZE_SETTING,
+        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
+        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
         Setting.Property.NodeScope
     );
+
+    private static Setting.Validator<ByteSizeValue> getPageSizeAlignedByteSizeValueValidator(String settingName) {
+        return value -> {
+            if (value.getBytes() == -1) {
+                throw new SettingsException("setting [{}] must be non-negative", settingName);
+            }
+            if (value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
+                throw new SettingsException("setting [{}] must be multiple of {}", settingName, SharedBytes.PAGE_SIZE);
+            }
+        };
+    }
 
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "size",

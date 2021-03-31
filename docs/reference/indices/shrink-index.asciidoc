@@ -82,7 +82,7 @@ in the index must be present on the same node.
 
 The current write index on a data stream cannot be shrunk. In order to shrink
 the current write index, the data stream must first be
-<<rollover-data-stream-ex,rolled over>> so that a new write index is created
+<<data-streams-rollover,rolled over>> so that a new write index is created
 and then the previous write index can be shrunk.
 
 [[how-shrink-works]]

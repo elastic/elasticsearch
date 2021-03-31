@@ -45,8 +45,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ExtractedFieldsDetectorTests extends ESTestCase {
 
@@ -318,7 +316,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
     public void testDetect_GivenIgnoredField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
-            .addAggregatableField("_id", "float").build();
+            .addField("_id", true, true, "float").build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
@@ -330,7 +328,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
     public void testDetect_GivenIncludedIgnoredField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
-            .addAggregatableField("_id", "float")
+            .addField("_id", true, false, "float")
             .build();
         analyzedFields = new FetchSourceContext(true, new String[]{"_id"}, new String[0]);
 
@@ -801,17 +799,17 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             buildRegressionConfig("field_2.double"), 100, fieldCapabilities, Collections.emptyMap());
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(fieldExtraction.v1().getAllFields(), hasSize(2));
+        assertThat(fieldExtraction.v1().getAllFields(), hasSize(3));
         List<String> extractedFieldNames = fieldExtraction.v1().getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
-        assertThat(extractedFieldNames, contains("field_1", "field_2.double"));
+        assertThat(extractedFieldNames, contains("field_1", "field_2.double", "field_2.keyword"));
 
         assertFieldSelectionContains(fieldExtraction.v2(),
             FieldSelection.included("field_1", Collections.singleton("keyword"), false, FieldSelection.FeatureType.CATEGORICAL),
             FieldSelection.excluded("field_1.keyword", Collections.singleton("keyword"),
                 "[field_1] is preferred because it is aggregatable"),
             FieldSelection.included("field_2.double", Collections.singleton("double"), true, FieldSelection.FeatureType.NUMERICAL),
-            FieldSelection.excluded("field_2.keyword", Collections.singleton("float"), "[field_2.double] is required instead")
+            FieldSelection.included("field_2.keyword", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
         );
     }
 
@@ -940,6 +938,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
     private static FieldCapabilitiesResponse simpleFieldResponse() {
         return new MockFieldCapsResponseBuilder()
+            .addField("_id", true, false, "_id")
             .addAggregatableField("field_11", "float")
             .addNonAggregatableField("field_21", "float")
             .addAggregatableField("field_21.child", "float")
@@ -1226,22 +1225,22 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         }
 
         private MockFieldCapsResponseBuilder addField(String field, boolean isAggregatable, String... types) {
+            return addField(field, false, isAggregatable, types);
+        }
+
+        private MockFieldCapsResponseBuilder addField(String field, boolean isMetadataField,
+                                                      boolean isAggregatable, String... types) {
             Map<String, FieldCapabilities> caps = new HashMap<>();
             for (String type : types) {
-                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, null, null, null, Collections.emptyMap()));
+                caps.put(type, new FieldCapabilities(field, type,
+                    isMetadataField, true, isAggregatable, null, null, null, Collections.emptyMap()));
             }
             fieldCaps.put(field, caps);
             return this;
         }
 
         private FieldCapabilitiesResponse build() {
-            FieldCapabilitiesResponse response = mock(FieldCapabilitiesResponse.class);
-            when(response.get()).thenReturn(fieldCaps);
-
-            for (String field : fieldCaps.keySet()) {
-                when(response.getField(field)).thenReturn(fieldCaps.get(field));
-            }
-            return response;
+            return new FieldCapabilitiesResponse(new String[] { "test" }, fieldCaps);
         }
     }
 }

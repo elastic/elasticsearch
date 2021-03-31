@@ -177,7 +177,7 @@ you will only be able to configure this setting on nodes with the
 <<data-frozen-node,`data_frozen`>> role.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
-couple of gigabytes up to 90% of available disk space. We only recommend higher
+couple of gigabytes up to 90% of available disk space. We only recommend larger
 sizes if you use the node exclusively on a frozen tier or for searchable
 snapshots.
 

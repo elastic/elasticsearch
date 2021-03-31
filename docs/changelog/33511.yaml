@@ -1,0 +1,36 @@
+pr: 33511
+issues: []
+area: Search
+type: breaking, enhancement
+summary: Make Fuzziness reject illegal values earlier
+versions:
+  - v8.0.0
+breaking:
+  notable: false
+  title: Make Fuzziness reject illegal values earlier
+  anchor: make_fuzziness_reject_illegal_values_earlier
+  body: >-
+    The current java implementation of Fuzziness leaves a lot of room
+    forinitializing it with illegal values that either cause errors later when
+    thequeries reach the shards where they are executed or values that are
+    silentlyignored in favour of defaults. We should instead tighten the java
+    implementationof the class so that we only accept supported values.
+    Currently those arenumeric values representing the edit distances 0, 1 and
+    2, optionally also asfloat or string, and the "AUTO" fuzziness, which can
+    come in a cusomizablevariant that allows specifying two value that define
+    the positions in a termwhere the AUTO option increases the allowed edit
+    distance.
+
+    This change removes several redundant ways of object construction and
+    adds inputvalidation to the remaining ones. Java users should either
+    use one of thepredefined constants or use the static factory methods
+    `fromEdits(int)` or`fromString(String)` to create instances of the
+    class, while other ctors arehidden. This allows for instance control,
+    e.g. returning one of the constantswhen creating instances from an
+    integer value.
+
+    Previously the class would accept any positive integer value and any
+    floatvalue, while in effect the maximum allowed edit distance was
+    capped at 2 inpractice. These values while throw an error now, as will
+    any other String valueother than "AUTO" that where previously accepted
+    but led to numeric exceptionswhen the query was executed.

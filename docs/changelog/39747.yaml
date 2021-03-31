@@ -1,0 +1,7 @@
+pr: 39747
+issues: []
+area: Highlighting
+type: bug
+summary: Bug fix for `AnnotatedTextHighlighter` - port of 39525
+versions:
+  - v8.0.0

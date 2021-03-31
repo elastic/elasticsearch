@@ -21,8 +21,8 @@ streams] in the {fleet} Guide.
 [[create-index-lifecycle-policy]]
 === Step 1. Create an index lifecycle policy
 
-{ilm-init} uses an index lifecycle policy to automate the management of your
-data stream's backing indices.
+While optional, we recommend using {ilm-init} and an index lifecycle policy to
+automate the management of your data stream's backing indices.
 
 To create an index lifecycle policy in {kib}, open the main menu and go to
 *Stack Management > Index Lifecycle Policies*. Click *Create policy*.
@@ -85,9 +85,10 @@ PUT _ilm/policy/my-lifecycle-policy
 [[create-component-templates]]
 === Step 2. Create component templates
 
-A data stream requires a matching index template. You can compose this template
-from zero or more component templates. You typically use separate component
-templates for mappings and index settings that you intend to reuse from multiple index templates.
+A data stream requires a matching index template. In most cases, you compose
+this index template using one or more component templates. You typically use
+separate component templates for mappings and index settings. This lets you
+reuse the component templates in multiple index templates.
 
 When creating your component templates, include:
 
@@ -121,6 +122,10 @@ PUT _component_template/my-mappings
         }
       }
     }
+  },
+  "_meta": {
+    "description": "My optional, arbitrary metadata",
+    "my-custom-meta-field": "More arbitrary metadata"
   }
 }
 
@@ -131,6 +136,10 @@ PUT _component_template/my-settings
     "settings": {
       "index.lifecycle.name": "my-lifecycle-policy"
     }
+  },
+  "_meta": {
+    "description": "My optional, arbitrary metadata",
+    "my-custom-meta-field": "More arbitrary metadata"
   }
 }
 ----
@@ -167,7 +176,11 @@ PUT _index_template/my-index-template
   "index_patterns": ["my-data-stream*"],
   "data_stream": { },
   "composed_of": [ "my-mappings", "my-settings" ],
-  "priority": 500
+  "priority": 500,
+  "_meta": {
+    "description": "My optional, arbitrary metadata",
+    "my-custom-meta-field": "More arbitrary metadata"
+  }
 }
 ----
 // TEST[continued]

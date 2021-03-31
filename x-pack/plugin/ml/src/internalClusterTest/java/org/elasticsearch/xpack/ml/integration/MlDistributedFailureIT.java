@@ -38,7 +38,6 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -397,10 +396,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         assertTrue(closeJobResponse.isClosed());
     }
 
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/68685",
-        value = "org.elasticsearch.xpack.ml.process:TRACE,"
-            + "org.elasticsearch.xpack.ml.job:TRACE,"
-            + "org.elasticsearch.persistent.PersistentTasksClusterService:TRACE")
     public void testJobRelocationIsMemoryAware() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();

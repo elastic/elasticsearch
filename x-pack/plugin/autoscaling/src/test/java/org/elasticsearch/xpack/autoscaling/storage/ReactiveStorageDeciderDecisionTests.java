@@ -393,8 +393,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
             createAllocationDeciders(allocationDeciders)
         );
-        TestAutoscalingDeciderContext context =
-            createContext(state, org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+        TestAutoscalingDeciderContext context = createContext(
+            state,
+            org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
+        );
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
         if (context.currentCapacity != null) {
             assertThat(

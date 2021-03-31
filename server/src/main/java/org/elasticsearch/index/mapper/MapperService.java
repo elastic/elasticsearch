@@ -333,6 +333,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
     }
 
+    public static boolean isMappingSourceTyped(Map<String, Object> mapping) {
+        return mapping.size() == 1 &&
+            mapping.keySet().iterator().next().equals("properties") == false;
+    }
+
     /**
      * Resolves a type from a mapping-related request into the type that should be used when
      * merging and updating mappings.

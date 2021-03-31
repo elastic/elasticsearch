@@ -11,6 +11,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -20,6 +22,8 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -36,9 +40,11 @@ public class ModelStorage implements ToXContentObject, Writeable {
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField DOC_PREFIX = new ParseField("doc_prefix");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
+    public static final ParseField FIELD_NAME = new ParseField("field_name");
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField MODEL_DOC_COUNT = new ParseField("model_doc_count");
     public static final ParseField MODEL_SIZE_BYTES = new ParseField("model_size_bytes");
+
 
     public static final ConstructingObjectParser<ModelStorage, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<ModelStorage, Void> LENIENT_PARSER = createParser(true);
@@ -47,7 +53,7 @@ public class ModelStorage implements ToXContentObject, Writeable {
         ConstructingObjectParser<ModelStorage, Void> parser =
             new ConstructingObjectParser<>(TYPE, ignoreUnknownFields,
                 a -> new ModelStorage((String) a[0], (String) a[1], (Instant) a[2], (String) a[3],
-                    (int) a[4], (long) a[5]));
+                    (String) a[4], (int) a[5], (long) a[6]));
 
         parser.declareString(constructorArg(), MODEL_ID);
         parser.declareString(constructorArg(), DOC_PREFIX);
@@ -56,6 +62,7 @@ public class ModelStorage implements ToXContentObject, Writeable {
             CREATE_TIME,
             ObjectParser.ValueType.VALUE);
         parser.declareString(optionalConstructorArg(), DESCRIPTION);
+        parser.declareString(constructorArg(), FIELD_NAME);
         parser.declareInt(constructorArg(), MODEL_DOC_COUNT);
         parser.declareLong(constructorArg(), MODEL_SIZE_BYTES);
         return parser;
@@ -68,27 +75,39 @@ public class ModelStorage implements ToXContentObject, Writeable {
     private final String modelId;
     private final String documentPrefix;
     private final Instant createTime;
+    private final String fieldName;
     private final String description;
     private final int modelDocCount;
-    private final long modelSizeInBytes;
+    private final ByteSizeValue modelSizeInBytes;
 
-    public ModelStorage(String modelId, String prefix, Instant createTime,
+    public ModelStorage(String modelId, String prefix, Instant createTime, String fieldName,
                         String description, int modelDocCount, long modelSizeInBytes) {
         this.modelId = Objects.requireNonNull(modelId);
         this.documentPrefix = Objects.requireNonNull(prefix);
         this.createTime = Objects.requireNonNull(createTime);
+        this.fieldName = Objects.requireNonNull(fieldName);
         this.description = description;
         this.modelDocCount = modelDocCount;
-        this.modelSizeInBytes = modelSizeInBytes;
+        this.modelSizeInBytes = ByteSizeValue.ofBytes(modelSizeInBytes);
     }
 
     public ModelStorage(StreamInput in) throws IOException {
         modelId = in.readString();
         documentPrefix = in.readString();
         createTime = in.readInstant();
+        fieldName = in.readString();
         description = in.readOptionalString();
         modelDocCount = in.readInt();
-        modelSizeInBytes = in.readLong();
+        modelSizeInBytes = new ByteSizeValue(in);
+    }
+
+    public List<String> documentIds() {
+        List<String> ids = new ArrayList<>(modelDocCount);
+        for (int i = 0; i<modelDocCount; i++) {
+            ids.add(documentPrefix + i);
+        }
+
+        return ids;
     }
 
     public String getModelId() {
@@ -97,6 +116,14 @@ public class ModelStorage implements ToXContentObject, Writeable {
 
     public String getDocumentPrefix() {
         return documentPrefix;
+    }
+
+    /**
+     * The field in the document containing the model definition
+     * @return The name
+     */
+    public String getFieldName() {
+        return fieldName;
     }
 
     public Instant getCreateTime() {
@@ -111,7 +138,7 @@ public class ModelStorage implements ToXContentObject, Writeable {
         return modelDocCount;
     }
 
-    public long getModelSizeInBytes() {
+    public ByteSizeValue getModelSize() {
         return modelSizeInBytes;
     }
 
@@ -120,9 +147,10 @@ public class ModelStorage implements ToXContentObject, Writeable {
         out.writeString(modelId);
         out.writeString(documentPrefix);
         out.writeInstant(createTime);
+        out.writeString(fieldName);
         out.writeOptionalString(description);
         out.writeInt(modelDocCount);
-        out.writeLong(modelSizeInBytes);
+        modelSizeInBytes.writeTo(out);
     }
 
     @Override
@@ -131,11 +159,12 @@ public class ModelStorage implements ToXContentObject, Writeable {
         builder.field(MODEL_ID.getPreferredName(), modelId);
         builder.field(DOC_PREFIX.getPreferredName(), documentPrefix);
         builder.field(CREATE_TIME.getPreferredName(), createTime);
+        builder.field(FIELD_NAME.getPreferredName(), fieldName);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.field(MODEL_DOC_COUNT.getPreferredName(), modelDocCount);
-        builder.field(MODEL_SIZE_BYTES.getPreferredName(), modelSizeInBytes);
+        builder.field(MODEL_SIZE_BYTES.getPreferredName(), modelSizeInBytes.getBytes());
         builder.endObject();
         return builder;
     }
@@ -148,6 +177,7 @@ public class ModelStorage implements ToXContentObject, Writeable {
         return Objects.equals(modelId, that.modelId) &&
             Objects.equals(documentPrefix, that.documentPrefix) &&
             Objects.equals(createTime, that.createTime) &&
+            Objects.equals(fieldName, that.fieldName) &&
             Objects.equals(description, that.description) &&
             modelDocCount == that.modelDocCount &&
             modelSizeInBytes == that.modelSizeInBytes;
@@ -156,6 +186,6 @@ public class ModelStorage implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(modelId, documentPrefix, createTime, description,
-            modelDocCount, modelSizeInBytes);
+            fieldName, modelDocCount, modelSizeInBytes);
     }
 }

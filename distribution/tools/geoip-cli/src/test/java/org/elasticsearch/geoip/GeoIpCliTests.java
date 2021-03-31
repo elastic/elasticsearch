@@ -8,6 +8,8 @@
 
 package org.elasticsearch.geoip;
 
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.SuppressForbidden;
@@ -16,11 +18,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.BufferedReader;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -29,17 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
 
-import static org.apache.lucene.util.Constants.WINDOWS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesRegex;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class GeoIpCliTests extends LuceneTestCase {
@@ -63,7 +58,7 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     public void testNoSource() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new GeoIpCli().main(new String[] {}, terminal);
+        new GeoIpCli().main(new String[]{}, terminal);
         assertThat(terminal.getErrorOutput(), containsString("Missing required option(s) [s/source]"));
     }
 
@@ -71,7 +66,7 @@ public class GeoIpCliTests extends LuceneTestCase {
         Map<String, byte[]> data = createTestFiles(source);
 
         GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[] { "-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString() }, new MockTerminal());
+        cli.main(new String[]{"-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString()}, new MockTerminal());
 
         try (Stream<Path> list = Files.list(source)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -91,7 +86,7 @@ public class GeoIpCliTests extends LuceneTestCase {
         Map<String, byte[]> data = createTestFiles(target);
 
         GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[] { "-s", target.toAbsolutePath().toString() }, new MockTerminal());
+        cli.main(new String[]{"-s", target.toAbsolutePath().toString()}, new MockTerminal());
 
         try (Stream<Path> list = Files.list(target)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -111,7 +106,7 @@ public class GeoIpCliTests extends LuceneTestCase {
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
         ) {
-            @SuppressWarnings({ "unchecked" })
+            @SuppressWarnings({"unchecked"})
             List<Map<String, String>> list = (List) parser.list();
             assertThat(list, containsInAnyOrder(hasEntry("name", "a.tgz"), hasEntry("name", "b.tgz"), hasEntry("name", "c.tgz")));
             assertThat(list, containsInAnyOrder(hasEntry("url", "a.tgz"), hasEntry("url", "b.tgz"), hasEntry("url", "c.tgz")));
@@ -123,29 +118,22 @@ public class GeoIpCliTests extends LuceneTestCase {
     }
 
     private void verifyTarball(Map<String, byte[]> data) throws Exception {
-        // skip tarball verifications on Windows, no tar utility there
-        if (WINDOWS) {
-            return;
-        }
-
-        Map<String, Integer> sizes = Map.of("a.tgz", 514, "b.tgz", 100);
         for (String tgz : List.of("a.tgz", "b.tgz")) {
-            String mmdb = tgz.replace(".tgz", ".mmdb");
-            Process process = new ProcessBuilder("tar", "-tvf", tgz).directory(getTargetFile()).start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line = reader.readLine();
-                assertThat(line, startsWith("-rw-r--r--"));
-                assertThat(line, endsWith(mmdb));
-                assertThat(line, matchesRegex(".*1000.+1000.*" + sizes.get(tgz) + ".*"));
-                assertThat(reader.readLine(), nullValue());
+            try (TarArchiveInputStream tis =
+                     new TarArchiveInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz)))))) {
+                TarArchiveEntry entry = tis.getNextTarEntry();
+                assertNotNull(entry);
+                assertTrue(entry.isFile());
+                byte[] bytes = data.get(tgz);
+                assertEquals(tgz.replace(".tgz", ".mmdb"), entry.getName());
+                assertEquals(bytes.length, entry.getSize());
+                assertArrayEquals(bytes, tis.readAllBytes());
+                assertEquals(1000, entry.getLongUserId());
+                assertEquals(1000, entry.getLongGroupId());
+                assertEquals(420, entry.getMode()); // 644oct=420dec
+
+                assertNull(tis.getNextTarEntry());
             }
-            int exitCode = process.waitFor();
-            assertThat(exitCode, is(0));
-            process = new ProcessBuilder("tar", "-xzf", tgz).directory(getTargetFile()).start();
-            exitCode = process.waitFor();
-            assertThat(exitCode, is(0));
-            assertTrue(Files.exists(target.resolve(mmdb)));
-            assertArrayEquals(data.get(tgz), Files.readAllBytes(target.resolve(mmdb)));
         }
     }
 

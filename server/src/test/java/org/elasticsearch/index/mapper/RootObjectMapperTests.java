@@ -15,9 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -296,7 +293,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getRootCause().getMessage(), equalTo("No mapper found for type [string]"));
     }
 
-    public void testIllegalDynamicTemplateUnknownRuntimeFieldType() throws Exception {
+    public void testIllegalDynamicTemplateUnknownRuntimeField() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {

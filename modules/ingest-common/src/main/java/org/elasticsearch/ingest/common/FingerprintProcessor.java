@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -216,7 +217,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        public static final String[] SUPPORTED_DIGESTS = { "MD5", "SHA-1", "SHA-256", "SHA-512" };
+        public static final String[] SUPPORTED_DIGESTS = { "MD5", "SHA-1", "SHA-256", "SHA-512", MurmurHasher.METHOD };
 
         static final String DEFAULT_TARGET = "fingerprint";
         static final String DEFAULT_SALT = "";
@@ -284,9 +285,13 @@ public final class FingerprintProcessor extends AbstractProcessor {
             this.md = md;
         }
 
-        static MessageDigestHasher getInstance(String method) throws NoSuchAlgorithmException {
-            MessageDigest md = MessageDigest.getInstance(method);
-            return new MessageDigestHasher(md);
+        static Hasher getInstance(String method) throws NoSuchAlgorithmException {
+            if (method.equalsIgnoreCase(MurmurHasher.METHOD)) {
+                return MurmurHasher.getInstance(method);
+            } else {
+                MessageDigest md = MessageDigest.getInstance(method);
+                return new MessageDigestHasher(md);
+            }
         }
 
         @Override
@@ -309,4 +314,42 @@ public final class FingerprintProcessor extends AbstractProcessor {
             return md.getAlgorithm();
         }
     }
+
+    static class MurmurHasher implements Hasher {
+
+        public static final String METHOD = Murmur3Hasher.METHOD;
+        private final Murmur3Hasher mh;
+
+        private MurmurHasher() {
+            this.mh = new Murmur3Hasher(0);
+        }
+
+        static Hasher getInstance(String method) throws NoSuchAlgorithmException {
+            if (method.equalsIgnoreCase(METHOD) == false) {
+                throw new NoSuchAlgorithmException("supports only [" + METHOD + "] as method");
+            }
+            return new MurmurHasher();
+        }
+
+        @Override
+        public void reset() {
+            mh.reset();
+        }
+
+        @Override
+        public void update(byte[] input) {
+            mh.update(input);
+        }
+
+        @Override
+        public byte[] digest() {
+            return mh.digest();
+        }
+
+        @Override
+        public String getAlgorithm() {
+            return mh.getAlgorithm();
+        }
+    }
+
 }

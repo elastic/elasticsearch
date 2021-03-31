@@ -25,6 +25,8 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -1685,6 +1687,48 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             terms.collectDebugInfo(info::put);
             assertThat(info, hasEntry("collection_strategy", "remap using many bucket ords packed using [2/62] bits"));
         }, dft, kft);
+    }
+
+    public void testWithFilterAndPreciseSize() throws IOException {
+        KeywordFieldType kft = new KeywordFieldType("k", true, true, Collections.emptyMap());
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            iw.addDocument(
+                List.of(
+                    new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new SortedSetDocValuesField("k", new BytesRef("a"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new SortedSetDocValuesField("k", new BytesRef("b"))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new SortedSetDocValuesField("k", new BytesRef("c"))
+                )
+            );
+        };
+        TermsAggregationBuilder builder = new TermsAggregationBuilder("k").field("k");
+        /*
+         * There was a bug where we would accidentally send buckets with 0
+         * docs in them back to the coordinating node which would take up a
+         * slot that a bucket with docs in it deserves. Combination of
+         * ordering by bucket, the precise size, and the top level query
+         * would trigger that bug.
+         */
+        builder.size(2).order(BucketOrder.key(true));
+        Query topLevel = new TermInSetQuery("k", new BytesRef[] {new BytesRef("b"), new BytesRef("c")});
+        testCase(builder, topLevel, buildIndex, (StringTerms terms) -> {
+            assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
+        }, kft);
+        withAggregator(builder, topLevel, buildIndex, (searcher, terms) -> {
+            Map<String, Object> info = new HashMap<>();
+            terms.collectDebugInfo(info::put);
+            assertThat(info, hasEntry("delegate", "FiltersAggregator.FilterByFilter"));
+        }, kft);
     }
 
     private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();

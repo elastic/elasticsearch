@@ -151,7 +151,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             remoteCluster.ensureAtLeastNumDataNodes(3);
             List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
-                .filter(DiscoveryNode::isDataNode)
+                .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
                 .collect(Collectors.toList());
             assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));

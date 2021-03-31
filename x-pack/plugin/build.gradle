@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -10,24 +10,19 @@ archivesBaseName = 'x-pack'
 dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))));
-  if (false == isEclipse) {
-    // let the yamlRestTest see the classpath of test
-    // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
-    yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
-  }
 }
+
+// let the yamlRestTest see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
 
 restResources {
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
-//The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
 artifacts {
-  restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
-  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 tasks.named("testJar").configure {
@@ -66,9 +61,6 @@ tasks.register("copyKeyCerts", Copy) {
 // Add keystores to test classpath: it expects it there
 sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
 tasks.named("processYamlRestTestResources").configure {
-  dependsOn("copyKeyCerts")
-}
-tasks.named("processJavaRestTestResources").configure {
   dependsOn("copyKeyCerts")
 }
 
@@ -115,10 +107,26 @@ testClusters.all {
   setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
-  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }
 
+tasks.register('enforceApiSpecsConvention').configure {
+  doLast {
+    if (fileTree('src/test/resources/rest-api-spec/api').files) {
+      throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
+    }
+  }
+}
 
+tasks.register('enforceYamlTestConvention').configure {
+  doLast {
+    if (fileTree('src/test/resources/rest-api-spec/test').files) {
+      throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
+}

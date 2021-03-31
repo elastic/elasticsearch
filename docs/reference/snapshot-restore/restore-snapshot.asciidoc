@@ -107,9 +107,6 @@ new indices if they didn't exist in the cluster.
 If a data stream is restored, its backing indices are also restored. The restore
 operation automatically opens restored backing indices if they were closed.
 
-NOTE: You cannot restore a data stream if a stream with the same name already
-exists.
-
 In addition to entire data streams, you can restore only specific backing
 indices from a snapshot. However, restored backing indices are not automatically
 added to any existing data streams. For example, if only the

@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -52,13 +52,13 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.GeoPointScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.IpScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
+import org.elasticsearch.index.mapper.BooleanScriptFieldType;
+import org.elasticsearch.index.mapper.DateScriptFieldType;
+import org.elasticsearch.index.mapper.DoubleScriptFieldType;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.index.mapper.IpScriptFieldType;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,7 +76,7 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFieldTypes(mapperPlugins),
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
     }
 
@@ -140,8 +140,8 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
-    private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
-        Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+    private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {
+        Map<String, RuntimeField.Parser> runtimeParsers = new LinkedHashMap<>();
         runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
         runtimeParsers.put(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER);
         runtimeParsers.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER);
@@ -151,7 +151,7 @@ public class IndicesModule extends AbstractModule {
         runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
+            for (Map.Entry<String, RuntimeField.Parser> entry : mapperPlugin.getRuntimeFields().entrySet()) {
                 if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Runtime field type [" + entry.getKey() + "] is already registered");
                 }

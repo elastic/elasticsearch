@@ -55,6 +55,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
@@ -322,5 +327,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
 
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

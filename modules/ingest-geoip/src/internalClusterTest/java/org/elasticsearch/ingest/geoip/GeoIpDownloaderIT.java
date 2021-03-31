@@ -31,19 +31,15 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,17 +52,13 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
-import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static java.nio.file.StandardOpenOption.WRITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     private static final String ENDPOINT = System.getProperty("geoip_endpoint");
@@ -89,7 +81,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void disableDownloader() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
     }
@@ -136,11 +128,16 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         data.add((byte[]) hit.getSourceAsMap().get("data"));
                     }
 
-                    GZIPInputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
-                    Path tempFile = createTempFile();
-                    try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(tempFile, TRUNCATE_EXISTING, WRITE, CREATE))) {
-                        stream.transferTo(os);
+                    TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
+                    TarInputStream.TarEntry entry;
+                    while ((entry = stream.getNextEntry()) != null) {
+                        if (entry.getName().endsWith(".mmdb")) {
+                            break;
+                        }
                     }
+
+                    Path tempFile = createTempFile();
+                    Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
                     parseDatabase(tempFile);
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -151,6 +148,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         // setup:
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -236,26 +234,22 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
             .map(c -> c.value.getId())
             .collect(Collectors.toSet());
-        final List<Path> geoipTmpDirs = StreamSupport.stream(internalCluster().getDataNodeInstances(Environment.class).spliterator(), false)
-            .map(env -> {
-                Path geoipTmpDir = env.tmpFile().resolve("geoip-databases");
-                assertThat(Files.exists(geoipTmpDir), is(true));
-                return geoipTmpDir;
-            }).flatMap(path -> {
-                try {
-                    return Files.list(path);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).filter(path -> ids.contains(path.getFileName().toString()))
-            .collect(Collectors.toList());
+        // All nodes share the same geoip base dir in the shared tmp dir:
+        Path geoipBaseTmpDir = internalCluster().getDataNodeInstance(Environment.class).tmpFile().resolve("geoip-databases");
+        assertThat(Files.exists(geoipBaseTmpDir), is(true));
+        final List<Path> geoipTmpDirs;
+        try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
+            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
+        }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, containsInAnyOrder(endsWith("GeoLite2-City.mmdb"), endsWith("GeoLite2-Country.mmdb"),
-                        endsWith("GeoLite2-ASN.mmdb")));
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
+                        "GeoLite2-City.mmdb_COPYRIGHT.txt","GeoLite2-Country.mmdb_COPYRIGHT.txt","GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                        "GeoLite2-City.mmdb_LICENSE.txt","GeoLite2-Country.mmdb_LICENSE.txt","GeoLite2-ASN.mmdb_LICENSE.txt",
+                        "GeoLite2-ASN.mmdb_README.txt"));
                 }
             }
         });
@@ -266,6 +260,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
             assertThat(simulateResponse.getResults().size(), equalTo(1));
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
+            assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
             assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
             assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
@@ -278,7 +273,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
                     assertThat(files, empty());
                 }
             }

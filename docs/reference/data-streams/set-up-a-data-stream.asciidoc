@@ -20,8 +20,8 @@ a data stream>>.
 {ilm-init} uses an index lifecycle policy to automate the management of your
 data stream's backing indices.
 
-To create an index lifecycle policy in {kib}, open the menu and go to *Stack
-Management > Index Lifecycle Policies*. Click *Create policy*.
+To create an index lifecycle policy in {kib}, open the main menu and go to
+*Stack Management > Index Lifecycle Policies*. Click *Create policy*.
 
 You can also use the <<ilm-put-lifecycle,create lifecycle policy API>>.
 
@@ -100,7 +100,7 @@ with default options.
 
 * Your lifecycle policy in the `index.lifecycle.name` index setting.
 
-To create a component template in {kib}, open the menu and go to *Stack
+To create a component template in {kib}, open the main menu and go to *Stack
 Management > Index Management*. In the *Index Templates* view, click *Create a
 component template*.
 
@@ -156,8 +156,9 @@ stream naming scheme].
 * A priority higher than `200` to avoid collisions with built-in templates.
 See <<avoid-index-pattern-collisions>>.
 
-To create an index template in {kib}, open the menu and go to *Stack Management
-> Index Management*. In the *Index Templates* view, click *Create template*.
+To create an index template in {kib}, open the main menu and go to *Stack
+Management > Index Management*. In the *Index Templates* view, click *Create
+template*.
 
 You can also use the <<indices-put-template,create index template API>>.
 Include the `data_stream` object to enable data streams.

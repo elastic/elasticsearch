@@ -94,7 +94,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a match assertion all project REST tests. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
+     * Replaces all the values of a match assertion for all project REST tests. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
      *
      * @param subKey the key name directly under match to replace. For example "_type"
      * @param value  the value used in the replacement. For example "bar"
@@ -104,7 +104,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a is_true assertion all project REST tests.
+     * Replaces all the values of a is_true assertion for all project REST tests.
      * For example "is_true": "value_to_replace" to "match": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
@@ -115,7 +115,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a is_true assertion all project REST tests.
+     * Replaces all the values of a is_true assertion for all project REST tests.
      * For example "is_false": "value_to_replace" to "match": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced

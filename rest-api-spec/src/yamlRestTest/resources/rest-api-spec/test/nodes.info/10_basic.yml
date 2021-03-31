@@ -3,6 +3,9 @@ setup:
       features: [arbitrary_key]
 ---
 "node_info test":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71147"
   - do:
       nodes.info: {}
   - set:

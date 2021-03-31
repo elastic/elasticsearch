@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
@@ -491,9 +492,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             int count = between(2, 10);
             List<Object> values = new ArrayList<>(count);
             while (values.size() < count) {
-                // values should be unique since we also get de-duplication fetching from docvalues
-                values.add(randomValueOtherThanMany(v -> values.contains(v), () -> generateRandomInputValue(ft)));
+                values.add(generateRandomInputValue(ft));
             }
+            // values should be unique since we also get de-duplication fetching from docvalues
+            values = values.stream().distinct().collect(Collectors.toList());
             assertFetch(mapperService, "field", values, randomFetchTestFormat());
         } finally {
             assertParseMinimalWarnings();

@@ -58,7 +58,7 @@ stream enabled. See <<set-up-a-data-stream>>.
 (Required, string) Name of the data stream or index to target.
 +
 If the target doesn't exist and matches the name or wildcard (`*`) pattern of an
-<<create-a-data-stream-template,index template with a `data_stream`
+<<create-index-template,index template with a `data_stream`
 definition>>, this request creates the data stream. See
 <<set-up-a-data-stream>>.
 +
@@ -195,7 +195,7 @@ exist. To update an existing document, you must use the `_doc` resource.
 ===== Automatically create data streams and indices
 
 If request's target doesn't exist and matches an
-<<create-a-data-stream-template,index template with a `data_stream`
+<<create-index-template,index template with a `data_stream`
 definition>>, the index operation automatically creates the data stream. See
 <<set-up-a-data-stream>>.
 

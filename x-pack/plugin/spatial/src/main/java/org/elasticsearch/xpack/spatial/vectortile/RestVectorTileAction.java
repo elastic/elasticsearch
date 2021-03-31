@@ -6,25 +6,14 @@
  */
 package org.elasticsearch.xpack.spatial.vectortile;
 
-
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalVectorTile;
 import org.elasticsearch.xpack.spatial.search.aggregations.VectorTileAggregationBuilder;
@@ -34,7 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestVectorTileAction extends BaseRestHandler {
+public class RestVectorTileAction extends AbstractVectorTileSearchAction {
 
     @Override
     public List<Route> routes() {
@@ -42,13 +31,8 @@ public class RestVectorTileAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final String index  = restRequest.param("index");
-        final String field  = restRequest.param("field");
-        final int z = Integer.parseInt(restRequest.param("z"));
-        final int x = Integer.parseInt(restRequest.param("x"));
-        final int y = Integer.parseInt(restRequest.param("y"));
-
+    protected ResponseBuilder doParseRequest(
+        RestRequest restRequest, String field, int z, int x, int y, SearchRequestBuilder searchRequestBuilder) throws IOException {
         QueryBuilder queryBuilder = null;
         if (restRequest.hasContent()) {
             try (XContentParser parser = restRequest.contentParser()) {
@@ -66,28 +50,28 @@ public class RestVectorTileAction extends BaseRestHandler {
                             throw new IllegalArgumentException("Unsupported field " + currentFieldName);
                         }
                     } else {
-                       throw new IllegalArgumentException("Invalid content format");
+                        throw new IllegalArgumentException("Invalid content format");
                     }
                 }
             }
         }
 
-        final SearchRequestBuilder builder = searchBuilder(client, index.split(","), field, z, x, y, queryBuilder);
-        // TODO: how do we handle cancellations?
-        return channel -> builder.execute( new RestResponseListener<>(channel) {
-
-            @Override
-            public RestResponse buildResponse(SearchResponse searchResponse) throws Exception {
-                final InternalVectorTile t = searchResponse.getAggregations().get(field);
-                final BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
-                t.writeTileToStream(bytesOut);
-                return new BytesRestResponse(RestStatus.OK, "application/x-protobuf", bytesOut.bytes());
-            }
-        });
+        searchBuilder(searchRequestBuilder, field, z, x, y, queryBuilder);
+        return (s, b) -> {
+            InternalVectorTile t = s.getAggregations().get(field);
+            // TODO: Error processing
+            t.writeTileToStream(b);
+        };
     }
 
-    public static SearchRequestBuilder searchBuilder(Client client, String[] index, String field, int z, int x, int y,
-                                                     QueryBuilder queryBuilder) throws IOException {
+    private static void searchBuilder(
+        SearchRequestBuilder searchRequestBuilder,
+        String field,
+        int z,
+        int x,
+        int y,
+        QueryBuilder queryBuilder
+    ) throws IOException {
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
         if (queryBuilder != null) {
@@ -97,7 +81,7 @@ public class RestVectorTileAction extends BaseRestHandler {
             qBuilder = boolQueryBuilder;
         }
         final VectorTileAggregationBuilder aBuilder = new VectorTileAggregationBuilder(field).field(field).z(z).x(x).y(y);
-        return client.prepareSearch(index).setQuery(qBuilder).addAggregation(aBuilder).setSize(0);
+        searchRequestBuilder.setQuery(qBuilder).addAggregation(aBuilder).setSize(0);
     }
 
     @Override

@@ -11,7 +11,7 @@ an index.
 
 [[index-modules-settings-description]]
 // tag::index-modules-settings-description-tag[]
-Index level settings can be set per-index.  Settings may be:
+Index level settings can be set per-index. Settings may be:
 
 _static_::
 
@@ -50,7 +50,7 @@ NOTE: The number of shards are limited to `1024` per index. This limitation is a
 Number of routing shards used to <<indices-split-index,split>> an index.
 
 For example, a 5 shard index with `number_of_routing_shards` set to `30` (`5 x
-2 x 3`) could be split by a factor of `2` or `3`.  In other words, it could be
+2 x 3`) could be split by a factor of `2` or `3`. In other words, it could be
 split as follows:
 
 * `5` -> `10` -> `30`  (split by 2, then by 3)
@@ -140,7 +140,7 @@ specific index module:
 [[dynamic-index-number-of-replicas]]
 `index.number_of_replicas`::
 
-    The number of replicas each primary shard has.  Defaults to 1.
+    The number of replicas each primary shard has. Defaults to 1.
 
 `index.auto_expand_replicas`::
 Auto-expand the number of replicas based on the number of data nodes in the
@@ -165,7 +165,7 @@ are ignored for this index.
 `index.refresh_interval`::
 
     How often to perform a refresh operation, which makes recent changes to the
-    index visible to search. Defaults to `1s`.  Can be set to `-1` to disable
+    index visible to search. Defaults to `1s`. Can be set to `-1` to disable
     refresh. If this setting is not explicitly set, shards that haven't seen
     search traffic for at least `index.search.idle.after` seconds will not receive
     background refreshes until they receive a search request. Searches that hit an

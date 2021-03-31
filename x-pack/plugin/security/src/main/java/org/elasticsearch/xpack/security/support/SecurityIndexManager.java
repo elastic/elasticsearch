@@ -333,53 +333,63 @@ public class SecurityIndexManager implements ClusterStateListener {
                     systemIndexDescriptor.getAliasName()
                 );
 
-                // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases for
-                // system indices, we nonetheless specify them here so that the values from `this.systemIndexDescriptor` are used.
-                CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
-                    .origin(systemIndexDescriptor.getOrigin())
-                    .mapping(systemIndexDescriptor.getMappings())
-                    .settings(systemIndexDescriptor.getSettings())
-                    .alias(new Alias(systemIndexDescriptor.getAliasName()))
-                    .waitForActiveShards(ActiveShardCount.ALL);
+                final SystemIndexDescriptor descriptorForVersion =
+                    systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+                if (descriptorForVersion == null) {
+                    final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
+                    consumer.accept(new IllegalStateException(error));
+                } else {
+                    // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases
+                    // for system indices, we nonetheless specify them here so that the values from `this.systemIndexDescriptor` are used.
+                    CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
+                        .origin(descriptorForVersion.getOrigin())
+                        .mapping(descriptorForVersion.getMappings())
+                        .settings(descriptorForVersion.getSettings())
+                        .alias(new Alias(descriptorForVersion.getAliasName()))
+                        .waitForActiveShards(ActiveShardCount.ALL);
 
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), systemIndexDescriptor.getOrigin(), request,
-                    new ActionListener<CreateIndexResponse>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse createIndexResponse) {
-                            if (createIndexResponse.isAcknowledged()) {
-                                andThen.run();
-                            } else {
-                                consumer.accept(new ElasticsearchException("Failed to create security index"));
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), descriptorForVersion.getOrigin(), request,
+                        new ActionListener<CreateIndexResponse>() {
+                            @Override
+                            public void onResponse(CreateIndexResponse createIndexResponse) {
+                                if (createIndexResponse.isAcknowledged()) {
+                                    andThen.run();
+                                } else {
+                                    consumer.accept(new ElasticsearchException("Failed to create security index"));
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            if (cause instanceof ResourceAlreadyExistsException) {
-                                // the index already exists - it was probably just created so this
-                                // node hasn't yet received the cluster state update with the index
-                                andThen.run();
-                            } else {
-                                consumer.accept(e);
+                            @Override
+                            public void onFailure(Exception e) {
+                                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                if (cause instanceof ResourceAlreadyExistsException) {
+                                    // the index already exists - it was probably just created so this
+                                    // node hasn't yet received the cluster state update with the index
+                                    andThen.run();
+                                } else {
+                                    consumer.accept(e);
+                                }
                             }
-                        }
-                    }, client.admin().indices()::create);
+                        }, client.admin().indices()::create
+                    );
+                }
             } else if (indexState.mappingUpToDate == false) {
-                final String error = systemIndexDescriptor.checkMinimumNodeVersion("create index", indexState.minimumNodeVersion);
-                if (error != null) {
+                final SystemIndexDescriptor descriptorForVersion =
+                    systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+                if (descriptorForVersion == null) {
+                    final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
                         "Index [{}] (alias [{}]) is not up to date. Updating mapping",
                         indexState.concreteIndexName,
-                        systemIndexDescriptor.getAliasName()
+                        descriptorForVersion.getAliasName()
                     );
                     PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName).source(
-                        systemIndexDescriptor.getMappings(),
+                        descriptorForVersion.getMappings(),
                         XContentType.JSON
-                    ).origin(systemIndexDescriptor.getOrigin());
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), systemIndexDescriptor.getOrigin(), request,
+                    ).origin(descriptorForVersion.getOrigin());
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), descriptorForVersion.getOrigin(), request,
                         ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                             if (putMappingResponse.isAcknowledged()) {
                                 andThen.run();

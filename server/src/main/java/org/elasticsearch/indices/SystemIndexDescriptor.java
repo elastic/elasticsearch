@@ -23,10 +23,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A system index descriptor describes one or more system indices. It can match a number of indices using
@@ -34,7 +36,7 @@ import java.util.Objects;
  * indices that are managed internally to Elasticsearch, a descriptor can also include information for
  * creating the system index, upgrading its mappings, and creating an alias.
  */
-public class SystemIndexDescriptor {
+public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> {
     /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
     private final String indexPattern;
 
@@ -71,7 +73,7 @@ public class SystemIndexDescriptor {
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
 
-    /** The minimum cluster node version required for this descriptor, or null if there is no restriction */
+    /** The minimum cluster node version required for this descriptor */
     private final Version minimumNodeVersion;
 
     /** Whether there are dynamic fields in this descriptor's mappings */
@@ -84,13 +86,20 @@ public class SystemIndexDescriptor {
     private final List<String> allowedElasticProductOrigins;
 
     /**
+     * A list of prior system index descriptors that can be used when one or more data/master nodes is on a version lower than the
+     * minimum supported version for this descriptor
+     */
+    private final List<SystemIndexDescriptor> priorSystemIndexDescriptors;
+
+    /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, null, Type.INTERNAL, List.of());
+        this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(),
+            Type.INTERNAL, List.of(), List.of());
     }
 
     /**
@@ -103,7 +112,8 @@ public class SystemIndexDescriptor {
      *                                     indices
      */
     public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, null, type, allowedElasticProductOrigins);
+        this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(), type,
+            allowedElasticProductOrigins, List.of());
     }
 
     /**
@@ -111,6 +121,7 @@ public class SystemIndexDescriptor {
      * by Elasticsearch internally if mappings or settings are provided.
      *
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param primaryIndex The primary index name of this descriptor. Used when creating the system index for the first time.
      * @param description The name of the plugin responsible for this system index.
      * @param mappings The mappings to apply to this index when auto-creating, if appropriate
      * @param settings The settings to apply to this index when auto-creating, if appropriate
@@ -119,10 +130,12 @@ public class SystemIndexDescriptor {
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
     *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
-     * @param minimumNodeVersion the minimum cluster node version required for this descriptor, or null if there is no restriction
+     * @param minimumNodeVersion the minimum cluster node version required for this descriptor
      * @param type The {@link Type} of system index
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
      *                                     indices
+     * @param priorSystemIndexDescriptors A list of system index descriptors that describe the same index in a way that is compatible with
+     *                                    older versions of Elasticsearch
      */
     SystemIndexDescriptor(
         String indexPattern,
@@ -136,7 +149,8 @@ public class SystemIndexDescriptor {
         String origin,
         Version minimumNodeVersion,
         Type type,
-        List<String> allowedElasticProductOrigins
+        List<String> allowedElasticProductOrigins,
+        List<SystemIndexDescriptor> priorSystemIndexDescriptors
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -188,6 +202,27 @@ public class SystemIndexDescriptor {
         } else if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
         }
+        Objects.requireNonNull(minimumNodeVersion, "minimumNodeVersion must be provided!");
+        Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
+        // the rules for prior system index descriptors
+        // 1. No values with the same version
+        // 2. All prior system index descriptors must have a minimumNodeVersion after this one
+        // 3. Prior system index descriptors may not have other prior system index descriptors
+        //    to avoid multiple branches that need followed
+        Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
+        versions.add(minimumNodeVersion);
+        for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
+            if (versions.add(prior.minimumNodeVersion) == false) {
+                throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
+            }
+            if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
+                throw new IllegalArgumentException(prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after ["
+                    + minimumNodeVersion + "]");
+            }
+            if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
+                throw new IllegalArgumentException(prior + " has its own prior descriptors but only a depth of 1 is allowed");
+            }
+        }
 
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
@@ -207,6 +242,16 @@ public class SystemIndexDescriptor {
         this.allowedElasticProductOrigins = allowedElasticProductOrigins;
         this.hasDynamicMappings = this.mappings != null
             && findDynamicMapping(XContentHelper.convertToMap(JsonXContent.jsonXContent, mappings, false));
+
+        final List<SystemIndexDescriptor> sortedPriorSystemIndexDescriptors;
+        if (priorSystemIndexDescriptors.isEmpty() || priorSystemIndexDescriptors.size() == 1) {
+            sortedPriorSystemIndexDescriptors = List.copyOf(priorSystemIndexDescriptors);
+        } else {
+            List<SystemIndexDescriptor> copy = new ArrayList<>(priorSystemIndexDescriptors);
+            Collections.sort(copy);
+            sortedPriorSystemIndexDescriptors = List.copyOf(copy);
+        }
+        this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
     }
 
 
@@ -312,30 +357,52 @@ public class SystemIndexDescriptor {
     }
 
     /**
-     * Checks that this descriptor can be used within this cluster, by comparing the supplied minimum
-     * node version to this descriptor's minimum version.
+     * Gets a standardized message when the node contains a data or master node whose version is less
+     * than that of the minimum supported version of this descriptor and its prior descriptors.
      *
      * @param cause the action being attempted that triggered the check. Used in the error message.
-     * @param actualMinimumNodeVersion the lower node version in the cluster
-     * @return an error message if the lowest node version is lower that the version in this descriptor,
-     * or <code>null</code> if the supplied version is acceptable or this descriptor has no minimum version.
+     * @return the standardized error message
      */
-    public String checkMinimumNodeVersion(String cause, Version actualMinimumNodeVersion) {
+    public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
-        if (this.minimumNodeVersion != null && this.minimumNodeVersion.after(actualMinimumNodeVersion)) {
-            return String.format(
-                Locale.ROOT,
-                "[%s] failed - system index [%s] requires all cluster nodes to be at least version [%s]",
-                cause,
-                this.getPrimaryIndex(),
-                minimumNodeVersion
-            );
+        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty() ? minimumNodeVersion :
+            priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
+        return String.format(
+            Locale.ROOT,
+            "[%s] failed - system index [%s] requires all data and master nodes to be at least version [%s]",
+            cause,
+            this.getPrimaryIndex(),
+            actualMinimumVersion
+        );
+    }
+
+    /**
+     * Finds the descriptor that can be used within this cluster, by comparing the supplied minimum
+     * node version to this descriptor's minimum version and the prior descriptors minimum version.
+     *
+     * @param version the lower node version in the cluster
+     * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
+     * or the appropriate descriptor if the supplied version is acceptable.
+     */
+    public SystemIndexDescriptor getDescriptorCompatibleWith(Version version) {
+        if (minimumNodeVersion.before(version)) {
+            return this;
+        }
+        for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
+            if (version.onOrAfter(prior.minimumNodeVersion)) {
+                return prior;
+            }
         }
         return null;
     }
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public int compareTo(SystemIndexDescriptor other) {
+        return minimumNodeVersion.compareTo(other.minimumNodeVersion) * -1;
     }
 
     /**
@@ -389,9 +456,10 @@ public class SystemIndexDescriptor {
         private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
-        private Version minimumNodeVersion = null;
+        private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
         private Type type = Type.INTERNAL;
         private List<String> allowedElasticProductOrigins = List.of();
+        private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
 
         private Builder() {}
 
@@ -460,6 +528,11 @@ public class SystemIndexDescriptor {
             return this;
         }
 
+        public Builder setPriorSystemIndexDescriptors(List<SystemIndexDescriptor> priorSystemIndexDescriptors) {
+            this.priorSystemIndexDescriptors = priorSystemIndexDescriptors;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -478,7 +551,8 @@ public class SystemIndexDescriptor {
                 origin,
                 minimumNodeVersion,
                 type,
-                allowedElasticProductOrigins
+                allowedElasticProductOrigins,
+                priorSystemIndexDescriptors
             );
         }
     }

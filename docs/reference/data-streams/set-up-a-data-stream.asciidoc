@@ -39,8 +39,7 @@ PUT _ilm/policy/my-lifecycle-policy
         "actions": {
           "rollover": {
             "max_age": "30d",
-            "max_size": "50gb",
-            "max_primary_shard_size": "25gb"
+            "max_primary_shard_size": "50gb"
           }
         }
       },
@@ -52,9 +51,6 @@ PUT _ilm/policy/my-lifecycle-policy
           },
           "forcemerge": {
             "max_num_segments": 1
-          },
-          "set_priority": {
-            "priority": 50
           }
         }
       },
@@ -63,9 +59,6 @@ PUT _ilm/policy/my-lifecycle-policy
         "actions": {
           "searchable_snapshot": {
             "snapshot_repository": "my-snapshot-repo"
-          },
-          "set_priority": {
-            "priority": 0
           }
         }
       },
@@ -93,8 +86,8 @@ PUT _ilm/policy/my-lifecycle-policy
 === Step 2. Create component templates
 
 A data stream requires a matching index template. You can compose this template
-from one or more component templates. You typically use separate component
-templates for mappings and index settings.
+from zero or more component templates. You typically use separate component
+templates for mappings and index settings that you intend to reuse from multiple index templates.
 
 When creating your component templates, include:
 

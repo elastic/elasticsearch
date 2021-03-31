@@ -37,11 +37,11 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -52,7 +52,6 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
@@ -182,7 +181,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -352,15 +350,15 @@ public class Node implements Closeable {
             );
             {
                 // are there any legacy settings in use?
-                final List<Tuple<DiscoveryNodeRole, Setting<Boolean>>> maybeLegacyRoleSettings = DiscoveryNode.getPossibleRoles()
+                final List<Setting<Boolean>> maybeLegacyRoleSettings = DiscoveryNode.getPossibleRoles()
                     .stream()
                     .filter(s -> s.legacySetting() != null)
-                    .map(s -> Tuple.tuple(s, s.legacySetting()))
-                    .filter(t -> t.v2().exists(settings))
+                    .map(DiscoveryNodeRole::legacySetting)
+                    .filter(s -> s.exists(settings))
                     .collect(Collectors.toUnmodifiableList());
                 if (maybeLegacyRoleSettings.isEmpty() == false) {
                     final String legacyRoleSettingNames =
-                        maybeLegacyRoleSettings.stream().map(Tuple::v2).map(Setting::getKey).collect(Collectors.joining(", "));
+                        maybeLegacyRoleSettings.stream().map(Setting::getKey).collect(Collectors.joining(", "));
                     deprecationLogger.deprecate(
                         DeprecationCategory.SETTINGS,
                         "legacy role settings",

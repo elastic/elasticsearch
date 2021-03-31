@@ -215,6 +215,8 @@ public class Constants {
         "cluster:internal/xpack/ml/job/finalize_job_execution",
         "cluster:internal/xpack/ml/job/kill/process",
         "cluster:internal/xpack/ml/job/update/process",
+        "cluster:internal/xpack/ml/trained_models/deployment/start",
+        "cluster:internal/xpack/ml/trained_models/deployment/stop",
         "cluster:internal/xpack/ml/reset_mode",
         "cluster:monitor/allocation/explain",
         "cluster:monitor/async_search/status",

@@ -3,9 +3,6 @@ setup:
       features: [arbitrary_key]
 ---
 "node_info test":
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71147"
   - do:
       nodes.info: {}
   - set:
@@ -16,10 +13,13 @@ setup:
 
 ---
 "node_info role test":
+  #- skip:
+  #    version: " - 7.7.99"
+  #    reason: "node roles were not sorted before 7.8.0"
+  #    features: [no_xpack]
   - skip:
-      version: " - 7.7.99"
-      reason: "node roles were not sorted before 7.8.0"
-      features: [no_xpack]
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71147"
 
   - do:
       nodes.info: {}

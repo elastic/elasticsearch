@@ -219,7 +219,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             protected BlobStore createBlobStore() throws Exception {
                 final DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
                 if (localNode.getRoles().contains(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)) {
-                    assertTrue(localNode.isDataNode());
+                    assertTrue(localNode.canContainData());
                 }
                 return super.createBlobStore();
             }

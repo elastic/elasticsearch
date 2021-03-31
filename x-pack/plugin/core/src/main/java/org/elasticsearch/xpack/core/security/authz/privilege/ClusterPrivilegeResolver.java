@@ -57,6 +57,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of("cluster:monitor/*");
     private static final Set<String> MONITOR_ML_PATTERN = Set.of("cluster:monitor/xpack/ml/*");
@@ -124,6 +125,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SERVICE_ACCOUNT = new ActionClusterPrivilege("manage_service_account",
+        MANAGE_SERVICE_ACCOUNT_PATTERN);
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
         "/ingest/pipeline/*"));
@@ -176,6 +179,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_OIDC,
         MANAGE_API_KEY,
         GRANT_API_KEY,
+        MANAGE_SERVICE_ACCOUNT,
         MANAGE_PIPELINE,
         MANAGE_ROLLUP,
         MANAGE_AUTOSCALING,

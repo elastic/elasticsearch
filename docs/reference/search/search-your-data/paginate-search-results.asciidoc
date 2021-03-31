@@ -267,7 +267,7 @@ JavaScript::
 *********************************************
 
 NOTE: The results that are returned from a scroll request reflect the state of
-the data stream or index at the time that the initial `search` request was  made, like a
+the data stream or index at the time that the initial `search` request was made, like a
 snapshot in time. Subsequent changes to documents (index, update or delete)
 will only affect later search requests.
 
@@ -310,7 +310,7 @@ POST /_search/scroll                                                            
 <3> The `scroll_id` parameter
 
 The `size` parameter allows you to configure the maximum number of hits to be
-returned with each batch of results.  Each call to the `scroll` API returns the
+returned with each batch of results. Each call to the `scroll` API returns the
 next batch of results until there are no more results left to return, ie the
 `hits` array is empty.
 
@@ -351,7 +351,7 @@ request) tells Elasticsearch how long it should keep the search context alive.
 Its value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
 process all data -- it just needs to be long enough to process the previous
 batch of results. Each `scroll` request (with the `scroll` parameter) sets a
-new  expiry time. If a `scroll` request doesn't pass in the `scroll`
+new expiry time. If a `scroll` request doesn't pass in the `scroll`
 parameter, then the search context will be freed as part of _that_ `scroll`
 request.
 

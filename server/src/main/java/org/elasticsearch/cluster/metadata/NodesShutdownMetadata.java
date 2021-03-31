@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  */
 public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
-    public static final Version NODE_SHUTDOWN_VERSION = Version.V_8_0_0;
+    public static final Version NODE_SHUTDOWN_VERSION = Version.V_7_13_0;
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
 

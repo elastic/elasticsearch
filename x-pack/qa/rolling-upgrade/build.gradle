@@ -127,7 +127,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
       'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
       'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
-      'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster'
+      'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
+      'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
+      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster'
     ].join(',')
   }
 

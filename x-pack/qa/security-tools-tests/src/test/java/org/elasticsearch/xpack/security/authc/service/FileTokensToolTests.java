@@ -128,21 +128,29 @@ public class FileTokensToolTests extends CommandTestCase {
     }
 
     public void testCreateToken() throws Exception {
-        final String tokenName1 = ServiceAccountTokenTests.randomTokenName();
+        final String tokenName1 = randomValueOtherThanMany(n -> n.startsWith("-"), ServiceAccountTokenTests::randomTokenName);
         execute("create", pathHomeParameter, "elastic/fleet-server", tokenName1);
         assertServiceTokenExists("elastic/fleet-server/" + tokenName1);
-        final String tokenName2 = ServiceAccountTokenTests.randomTokenName();
+        final String tokenName2 = randomValueOtherThanMany(n -> n.startsWith("-") || n.equals(tokenName1),
+            ServiceAccountTokenTests::randomTokenName);
         execute("create", pathHomeParameter, "elastic/fleet-server", tokenName2);
         assertServiceTokenExists("elastic/fleet-server/" + tokenName2);
+        // token name with a leading hyphen requires an option terminator
+        final String tokenName3 = "-" + ServiceAccountTokenTests.randomTokenName().substring(1);
+        execute("create", pathHomeParameter, "elastic/fleet-server", "--", tokenName3);
+        assertServiceTokenExists("elastic/fleet-server/" + tokenName3);
         final String output = terminal.getOutput();
         assertThat(output, containsString("SERVICE_TOKEN elastic/fleet-server/" + tokenName1 + " = "));
         assertThat(output, containsString("SERVICE_TOKEN elastic/fleet-server/" + tokenName2 + " = "));
+        assertThat(output, containsString("SERVICE_TOKEN elastic/fleet-server/" + tokenName3 + " = "));
     }
 
     public void testCreateTokenWithInvalidTokenName() throws Exception {
         final String tokenName = ServiceAccountTokenTests.randomInvalidTokenName();
-        final UserException e = expectThrows(UserException.class,
-            () -> execute("create", pathHomeParameter, "elastic/fleet-server", tokenName));
+        final String[] args = tokenName.startsWith("-") ?
+            new String[] { "create", pathHomeParameter, "elastic/fleet-server", "--", tokenName } :
+            new String[] { "create", pathHomeParameter, "elastic/fleet-server", tokenName };
+        final UserException e = expectThrows(UserException.class, () -> execute(args));
         assertServiceTokenNotExists("elastic/fleet-server/" + tokenName);
         assertThat(e.getMessage(), containsString(ServiceAccountToken.INVALID_TOKEN_NAME_MESSAGE));
     }
@@ -150,7 +158,7 @@ public class FileTokensToolTests extends CommandTestCase {
     public void testCreateTokenWithInvalidServiceAccount() throws Exception {
         final UserException e = expectThrows(UserException.class,
             () -> execute("create", pathHomeParameter,
-                randomFrom("elastic/foo", "foo/fleet", randomAlphaOfLengthBetween(6, 16)),
+                randomFrom("elastic/foo", "foo/fleet-server", randomAlphaOfLengthBetween(6, 16)),
                 randomAlphaOfLengthBetween(3, 8)));
         assertThat(e.getMessage(), containsString("Unknown service account principal: "));
         assertThat(e.getMessage(), containsString("Must be one of "));

@@ -25,12 +25,14 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
@@ -842,13 +844,12 @@ public final class MoreLikeThis2 {
       if (isSkipTerm(fieldName, term)) {
           continue;
       }
-      final int freq = (int) termsEnum.totalTermFreq();
-      // TODO in XMoreLikeThis we use the following, not entirely sure why
-//      final PostingsEnum docs = termsEnum.postings(null);
-//      int freq = 0;
-//      while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-//          freq += docs.freq();
-//      }
+
+      final PostingsEnum docs = termsEnum.postings(null);
+      int freq = 0;
+      while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+          freq += docs.freq();
+      }
 
       // increment frequency
       Int cnt = termFreqMap.get(term);

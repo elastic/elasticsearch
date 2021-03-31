@@ -11,8 +11,9 @@ The keyword family includes the following field types:
 addresses, hostnames, status codes, zip codes, or tags. 
 * <<constant-keyword-field-type,`constant_keyword`>> for keyword fields that always contain
 the same value.
-* <<wildcard-field-type,`wildcard`>>, which optimizes log lines and similar keyword values
-for grep-like <<query-dsl-wildcard-query,wildcard queries>>.
+* <<wildcard-field-type,`wildcard`>> for unstructured machine-generated content.
+The `wildcard` type is optimized for fields with large values or high
+cardinality.
 
 Keyword fields are often used in <<sort-search-results,sorting>>,
 <<search-aggregations,aggregations>>, and <<term-level-queries,term-level

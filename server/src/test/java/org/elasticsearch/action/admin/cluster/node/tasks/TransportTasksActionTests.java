@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -517,9 +518,20 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             };
         }
 
+        final StringBuilder taskDescriptions = new StringBuilder();
         for (TestNode testNode : testNodes) {
-            assertEquals(0, testNode.transportService.getTaskManager().getTasks().size());
+            final Map<Long, Task> tasks = testNode.transportService.getTaskManager().getTasks();
+            if (tasks.isEmpty() == false) {
+                taskDescriptions.append("still running tasks on node [").append(testNode.getNodeId()).append("]\n");
+                for (Map.Entry<Long, Task> entry : tasks.entrySet()) {
+                    final Task task = entry.getValue();
+                    taskDescriptions.append(entry.getKey()).append(": [").append(task.getId()).append("][").append(task.getAction())
+                            .append("] started at ").append(task.getStartTime()).append('\n');
+                }
+            }
         }
+        assertThat(taskDescriptions.toString(), taskDescriptions.length(), equalTo(0));
+
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlockingWithTask(testNodes[0].transportService.getTaskManager(),
             testNodes[0].transportService.getLocalNodeConnection(), actions[0], request);

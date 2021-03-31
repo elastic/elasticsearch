@@ -111,4 +111,15 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
         request.includeGlobalState(includeGlobalState);
         return this;
     }
+
+    /**
+     * Provide a list of features whose state indices should be included in the snapshot
+     *
+     * @param featureStates A list of feature names
+     * @return this builder
+     */
+    public CreateSnapshotRequestBuilder setFeatureStates(String... featureStates) {
+        request.featureStates(featureStates);
+        return this;
+    }
 }

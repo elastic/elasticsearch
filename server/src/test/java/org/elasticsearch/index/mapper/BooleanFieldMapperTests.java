@@ -162,4 +162,20 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomBoolean();
+            case 1:
+                return randomBoolean() ? "true" : "false";
+            case 2:
+                return randomBoolean() ? "true" : "";
+            case 3:
+                return randomBoolean() ? "true" : null;
+            default:
+                throw new IllegalStateException();
+        }
+    }
 }

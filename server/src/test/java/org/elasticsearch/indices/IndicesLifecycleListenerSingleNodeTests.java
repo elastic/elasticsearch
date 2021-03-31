@@ -65,7 +65,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+            public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
                 assertEquals(3, counter.get());
                 counter.incrementAndGet();
             }

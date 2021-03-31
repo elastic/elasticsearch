@@ -642,14 +642,37 @@ POST /example/_doc
 ===== Circle
 
 Elasticsearch supports a `circle` type, which consists of a center
-point with a radius. Note that this circle representation can only
-be indexed when using the `recursive` Prefix Tree strategy. For
-the default <<geoshape-indexing-approach>> circles should be approximated using
-a `POLYGON`.
+point with a radius.
+
+IMPORTANT: You cannot index the `circle` type using the default
+<<geoshape-indexing-approach,BKD tree indexing approach>>. Instead, use a
+<<ingest-circle-processor,circle ingest processor>> to approximate the circle as
+a <<geo-polygon,`polygon`>>.
+
+The `circle` type requires a `geo_shape` field mapping with the deprecated
+`recursive` Prefix Tree strategy.
 
 [source,console]
---------------------------------------------------
-POST /example/_doc
+----
+PUT /circle-example
+{
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape",
+        "strategy": "recursive"
+      }
+    }
+  }
+}
+----
+// TEST[warning:Parameter [strategy] is deprecated and will be removed in a future version]
+
+The following request indexes a `circle` geo-shape.
+
+[source,console]
+----
+POST /circle-example/_doc
 {
   "location" : {
     "type" : "circle",
@@ -657,8 +680,8 @@ POST /example/_doc
     "radius" : "100m"
   }
 }
---------------------------------------------------
-// TEST[skip:not supported in default]
+----
+// TEST[continued]
 
 Note: The inner `radius` field is required. If not specified, then
 the units of the `radius` will default to `METERS`.

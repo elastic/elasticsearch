@@ -202,7 +202,7 @@ cluster. This setting has three valid values:
 --
 `all`::: All operations on the node (both read and write operations) are rejected.
 This also applies for API cluster state read or write operations, like the get
-index settings, put mapping and cluster state API.
+index settings, update mapping, and cluster state API.
 
 `write`::: (default) Write operations are rejected. Read operations succeed,
 based on the last known cluster configuration. This situation may result in

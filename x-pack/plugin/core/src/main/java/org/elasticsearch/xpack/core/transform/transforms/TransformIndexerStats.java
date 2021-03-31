@@ -182,7 +182,7 @@ public class TransformIndexerStats extends IndexerJobStats {
             this.expAvgDocumentsIndexed = in.readDouble();
             this.expAvgDocumentsProcessed = in.readDouble();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo: V_7_12_0
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             this.numDeletedDocuments = in.readVLong();
             this.deleteTime = in.readVLong();
         }
@@ -199,7 +199,7 @@ public class TransformIndexerStats extends IndexerJobStats {
             out.writeDouble(this.expAvgDocumentsIndexed);
             out.writeDouble(this.expAvgDocumentsProcessed);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeVLong(numDeletedDocuments);
             out.writeVLong(deleteTime);
         }

@@ -16,7 +16,6 @@ import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
@@ -97,8 +96,6 @@ public abstract class Types {
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
             } else if (esDataType == DATETIME) {
                 field = DateEsField.dateEsField(name, properties, docValues);
-            } else if (esDataType == DATETIME_NANOS) {
-                field = DateEsField.dateNanosEsField(name, properties, docValues);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);

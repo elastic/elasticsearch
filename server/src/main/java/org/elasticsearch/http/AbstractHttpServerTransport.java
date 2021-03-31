@@ -45,8 +45,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -59,6 +61,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
+
+    private static final long PRUNE_THROTTLE_INTERVAL = TimeUnit.SECONDS.toMillis(60);
+    private static final long MAX_CLIENT_STATS_AGE = TimeUnit.MINUTES.toMillis(5);
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -78,10 +83,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
 
     private final HttpTracer tracer;
 
     private volatile long slowLogThresholdMs;
+    protected volatile long lastClientStatsPruneTime;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -128,7 +135,26 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+        pruneClientStats(false);
+        return new HttpStats(new ArrayList<>(httpChannelStats.values()), httpChannels.size(), totalChannelsAccepted.get());
+    }
+
+    /**
+     * Prunes client stats of entries that have been disconnected for more than five minutes.
+     *
+     * @param throttled When true, executes the prune process only if more than 60 seconds has elapsed since the last execution.
+     */
+    void pruneClientStats(boolean throttled) {
+        if (throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
+            long nowMillis = threadPool.absoluteTimeInMillis();
+            for (var statsEntry : httpChannelStats.entrySet()) {
+                long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
+                if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > MAX_CLIENT_STATS_AGE)) {
+                    httpChannelStats.remove(statsEntry.getKey());
+                }
+            }
+            lastClientStatsPruneTime = threadPool.relativeTimeInMillis();
+        }
     }
 
     protected void bindServer() {
@@ -291,7 +317,23 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        httpChannelStats.put(
+            HttpStats.ClientStats.getChannelKey(httpChannel),
+            new HttpStats.ClientStats(threadPool.absoluteTimeInMillis())
+        );
+        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+            try {
+                httpChannels.remove(httpChannel);
+                HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+                if (clientStats != null) {
+                    clientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+                }
+            } catch (Exception e) {
+                // the listener code about should never throw
+                logger.trace("error removing HTTP channel listener", e);
+            }
+        }));
+        pruneClientStats(true);
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
     }
 
@@ -302,6 +344,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        updateClientStats(httpRequest, httpChannel);
         final long startTime = threadPool.relativeTimeInMillis();
         try {
             handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
@@ -313,6 +356,41 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                         httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
             }
         }
+    }
+
+    void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+        if (clientStats != null) {
+            if (clientStats.agent == null) {
+                if (hasAtLeastOneHeaderValue(httpRequest, "x-elastic-product-origin")) {
+                    clientStats.agent = httpRequest.getHeaders().get("x-elastic-product-origin").get(0);
+                } else if (hasAtLeastOneHeaderValue(httpRequest, "User-Agent")) {
+                    clientStats.agent = httpRequest.getHeaders().get("User-Agent").get(0);
+                }
+            }
+            if (clientStats.localAddress == null) {
+                clientStats.localAddress = NetworkAddress.format(httpChannel.getLocalAddress());
+                clientStats.remoteAddress = NetworkAddress.format(httpChannel.getRemoteAddress());
+            }
+            if (clientStats.forwardedFor == null) {
+                if (hasAtLeastOneHeaderValue(httpRequest, "x-forwarded-for")) {
+                    clientStats.forwardedFor = httpRequest.getHeaders().get("x-forwarded-for").get(0);
+                }
+            }
+            if (clientStats.opaqueId == null) {
+                if (hasAtLeastOneHeaderValue(httpRequest, "x-opaque-id")) {
+                    clientStats.opaqueId = httpRequest.getHeaders().get("x-opaque-id").get(0);
+                }
+            }
+            clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
+            clientStats.lastUri = httpRequest.uri();
+            clientStats.requestCount.increment();
+            clientStats.requestSizeBytes.add(httpRequest.content().length());
+        }
+    }
+
+    private static boolean hasAtLeastOneHeaderValue(final HttpRequest request, final String header) {
+        return request.getHeaders().containsKey(header) && request.getHeaders().get(header).size() > 0;
     }
 
     // Visible for testing

@@ -15,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -275,18 +274,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             in.addDynamicRuntimeField(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return in.getDynamicRuntimeFields();
-        }
-
-        @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return in.getDynamicRuntimeFieldsBuilder();
         }
 
         @Override
@@ -311,8 +305,7 @@ public abstract class ParseContext {
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
-        private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
-        private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
+        private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -321,12 +314,10 @@ public abstract class ParseContext {
 
         public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
-                                    DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
             this.parserContextFunction = parserContextFunction;
-            this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
             this.document = new Document();
             this.documents.add(document);
@@ -389,7 +380,7 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return this.mappingLookup.getMapping().root();
+            return this.mappingLookup.getMapping().getRoot();
         }
 
         @Override
@@ -399,7 +390,7 @@ public abstract class ParseContext {
 
         @Override
         public MetadataFieldMapper getMetadataMapper(String mapperName) {
-            return mappingLookup.getMapping().getMetadataMapper(mapperName);
+            return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
         }
 
         @Override
@@ -446,18 +437,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             dynamicRuntimeFields.add(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return Collections.unmodifiableList(dynamicRuntimeFields);
-        }
-
-        @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return dynamicRuntimeFieldsBuilder;
         }
 
         @Override
@@ -676,16 +662,10 @@ public abstract class ParseContext {
     /**
      * Add a new runtime field dynamically created while parsing.
      */
-    public abstract void addDynamicRuntimeField(RuntimeFieldType runtimeField);
+    public abstract void addDynamicRuntimeField(RuntimeField runtimeField);
 
     /**
      * Get dynamic runtime fields created while parsing.
      */
-    public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
-
-    /**
-     * Retrieve the builder for dynamically created runtime fields
-     * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
-     */
-    public abstract DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder();
+    public abstract List<RuntimeField> getDynamicRuntimeFields();
 }

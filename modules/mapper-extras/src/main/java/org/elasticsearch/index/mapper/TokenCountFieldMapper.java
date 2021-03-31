@@ -77,13 +77,13 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
                             boolean hasDocValues, Number nullValue, Map<String, String> meta) {
-            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta, null);
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, ignoredFields) -> List.of();
+                return lookup -> List.of();
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }

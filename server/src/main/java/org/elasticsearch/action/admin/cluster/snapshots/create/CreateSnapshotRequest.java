@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,6 +65,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
 
+    private String[] featureStates = EMPTY_ARRAY;
+
     private boolean partial = false;
 
     private boolean includeGlobalState = true;
@@ -95,6 +98,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (in.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             readSettingsFromStream(in);
         }
+        if (in.getVersion().onOrAfter(SnapshotsService.FEATURE_STATES_VERSION)) {
+            featureStates = in.readStringArray();
+        }
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
@@ -110,6 +116,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             writeSettingsToStream(Settings.EMPTY, out);
+        }
+        if (out.getVersion().onOrAfter(SnapshotsService.FEATURE_STATES_VERSION)) {
+            out.writeStringArray(featureStates);
         }
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
@@ -138,6 +147,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is null", validationException);
+        }
+        if (featureStates == null) {
+            validationException = addValidationError("featureStates is null", validationException);
         }
         final int metadataSize = metadataSize(userMetadata);
         if (metadataSize > MAXIMUM_METADATA_BYTES) {
@@ -338,6 +350,28 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
+     * @return Which plugin states should be included in the snapshot
+     */
+    public String[] featureStates() {
+        return featureStates;
+    }
+
+    /**
+     * @param featureStates The plugin states to be included in the snapshot
+     */
+    public CreateSnapshotRequest featureStates(String[] featureStates) {
+        this.featureStates = featureStates;
+        return this;
+    }
+
+    /**
+     * @param featureStates The plugin states to be included in the snapshot
+     */
+    public CreateSnapshotRequest featureStates(List<String> featureStates) {
+        return featureStates(featureStates.toArray(EMPTY_ARRAY));
+    }
+
+    /**
      * Parses snapshot definition.
      *
      * @param source snapshot definition
@@ -354,6 +388,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     indices((List<String>) entry.getValue());
                 } else {
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
+                }
+            } else if (name.equals("feature_states")) {
+                if (entry.getValue() instanceof List) {
+                    featureStates((List<String>) entry.getValue());
+                } else {
+                    throw new IllegalArgumentException("malformed feature_states section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
@@ -380,6 +420,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.value(index);
         }
         builder.endArray();
+        if (featureStates != null) {
+            builder.startArray("feature_states");
+            for (String plugin : featureStates) {
+                builder.value(plugin);
+            }
+            builder.endArray();
+        }
         builder.field("partial", partial);
         builder.field("include_global_state", includeGlobalState);
         if (indicesOptions != null) {
@@ -407,6 +454,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             Objects.equals(repository, that.repository) &&
             Arrays.equals(indices, that.indices) &&
             Objects.equals(indicesOptions, that.indicesOptions) &&
+            Arrays.equals(featureStates, that.featureStates) &&
             Objects.equals(masterNodeTimeout, that.masterNodeTimeout) &&
             Objects.equals(userMetadata, that.userMetadata);
     }
@@ -416,6 +464,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState,
             waitForCompletion, userMetadata);
         result = 31 * result + Arrays.hashCode(indices);
+        result = 31 * result + Arrays.hashCode(featureStates);
         return result;
     }
 
@@ -426,6 +475,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             ", repository='" + repository + '\'' +
             ", indices=" + (indices == null ? null : Arrays.asList(indices)) +
             ", indicesOptions=" + indicesOptions +
+            ", featureStates=" + Arrays.asList(featureStates) +
             ", partial=" + partial +
             ", includeGlobalState=" + includeGlobalState +
             ", waitForCompletion=" + waitForCompletion +

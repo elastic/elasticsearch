@@ -1,13 +1,11 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))}
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'indices', 'index', 'snapshot'
-    includeXpack 'ilm', 'slm', 'stack', 'indices'
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm', 'stack', 'indices'
   }
 }
 

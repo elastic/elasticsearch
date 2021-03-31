@@ -19,12 +19,11 @@ import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -128,9 +127,9 @@ public abstract class ScalarFunction extends Function {
 
     // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
     private String basicTemplate(Function function) {
-        if (function.dataType().name().equals("DATE") || function.dataType() == DataTypes.DATETIME ||
-            // Aggregations on date_nanos are returned as double
-            (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME_NANOS)) {
+        if (function.dataType().name().equals("DATE") || function.dataType() == DATETIME ||
+            // Aggregations on date_nanos are returned as string
+            (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
 
             return "{sql}.asDateTime({})";
         } else {

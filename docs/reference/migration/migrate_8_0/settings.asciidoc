@@ -134,7 +134,7 @@ in {es} 8.0.0:
 * `xpack.transform.enabled`
 * `xpack.vectors.enabled`
 
-These basic license features are now always enabled for the {default-dist}.
+These basic license features are now always enabled.
 
 If you have disabled ILM so that you can use another tool to manage Watcher
 indices, the newly introduced `xpack.watcher.use_ilm_index_management` setting

@@ -66,7 +66,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * @param onFailure  is called when this step is completed with a failure
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
-        delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
+        addListener(ActionListener.wrap(onResponse, onFailure));
     }
 
     /**
@@ -100,4 +100,12 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
         }
         return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
     }
+
+    /**
+     * Registers the given listener to be notified with the result of this step.
+     */
+    public void addListener(ActionListener<Response> listener) {
+        delegate.addListener(listener, EsExecutors.newDirectExecutorService());
+    }
+
 }

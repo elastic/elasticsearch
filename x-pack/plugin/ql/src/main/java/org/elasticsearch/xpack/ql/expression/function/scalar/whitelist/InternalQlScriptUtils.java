@@ -115,8 +115,12 @@ public class InternalQlScriptUtils {
     // Regex
     //
     public static Boolean regex(String value, String pattern) {
+        return regex(value, pattern, Boolean.FALSE);
+    }
+
+    public static Boolean regex(String value, String pattern, Boolean caseInsensitive) {
         // TODO: this needs to be improved to avoid creating the pattern on every call
-        return RegexOperation.match(value, pattern);
+        return RegexOperation.match(value, pattern, caseInsensitive);
     }
 
     //

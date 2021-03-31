@@ -14,12 +14,13 @@ not be included yet.
 * <<autoscaling-apis, Autoscaling APIs>>
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
+* <<features-apis,Features APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
-* <<graph-explore-api,Graph Explore API>>
-* <<find-structure>>
+* <<graph-explore-api,Graph explore API>>
+* <<find-structure,Find structure API>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<ingest-apis,Ingest APIs>>
@@ -29,8 +30,8 @@ not be included yet.
 * <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<migration-api,Migration APIs>>
-* <<indices-reload-analyzers,Reload Search Analyzers API>>
-* <<repositories-metering-apis,Repositories Metering APIs>>
+* <<indices-reload-analyzers,Reload search analyzers API>>
+* <<repositories-metering-apis,Repositories metering APIs>>
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
 * <<searchable-snapshots-apis, Searchable snapshots APIs>>
@@ -50,6 +51,7 @@ include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
+include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
 include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]

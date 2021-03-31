@@ -520,7 +520,7 @@ public final class MockTransportService extends TransportService {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
-        super.openConnection(node, connectionProfile, ActionListener.delegateFailure(listener, (l, connection) -> {
+        super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
                 connection.addCloseListener(ActionListener.wrap(() -> {

@@ -1,7 +1,7 @@
 [[indices-component-template]]
-=== Put component template API
+=== Create or update component template API
 ++++
-<titleabbrev>Put component template</titleabbrev>
+<titleabbrev>Create or update component template</titleabbrev>
 ++++
 
 Creates or updates a component template.

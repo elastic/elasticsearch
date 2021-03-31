@@ -6,7 +6,7 @@ Phases allowed: hot, warm, cold, frozen.
 
 Converts a {ref}/ccr-apis.html[{ccr-init}] follower index into a regular index. 
 This enables the shrink, rollover, and searchable snapshot actions
-to be be performed safely on follower indices.
+to be performed safely on follower indices.
 You can also use unfollow directly when moving follower indices through the lifecycle.
 Has no effect on indices that are not followers, phase execution just moves to the next action.
 

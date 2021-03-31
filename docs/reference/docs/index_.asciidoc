@@ -208,7 +208,7 @@ include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templ
 If no mapping exists, the index operation
 creates a dynamic mapping. By default, new fields and objects are
 automatically added to the mapping if needed. For more information about field
-mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.
+mapping, see <<mapping,mapping>> and the <<indices-put-mapping,update mapping>> API.
 
 Automatic index creation is controlled by the `action.auto_create_index`
 setting. This setting defaults to `true`, which allows any index to be created

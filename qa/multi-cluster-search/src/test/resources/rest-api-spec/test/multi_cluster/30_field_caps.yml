@@ -73,6 +73,19 @@
   - match: {fields.number.double.searchable:            true}
   - match: {fields.number.double.aggregatable:          true}
 
+  # make sure runtime_mappings section gets propagated
+  - do:
+      field_caps:
+        index: 'my_remote_cluster:field_caps_index_1'
+        fields: [number]
+        body:
+          runtime_mappings:
+            number:
+              type: keyword
+  - match: {fields.number.keyword.searchable:           true}
+  - match: {fields.number.keyword.aggregatable:         true}
+  - match: {fields.number.keyword.type:                 keyword}
+
 ---
 "Get field caps from remote cluster with index filter":
   - skip:

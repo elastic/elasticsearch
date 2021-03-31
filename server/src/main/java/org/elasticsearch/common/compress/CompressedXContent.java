@@ -64,9 +64,13 @@ public final class CompressedXContent {
         CRC32 crc32 = new CRC32();
         OutputStream checkedStream = new CheckedOutputStream(compressedStream, crc32);
         try (XContentBuilder builder = XContentFactory.contentBuilder(type, checkedStream)) {
-            builder.startObject();
+            if (xcontent.isFragment()) {
+                builder.startObject();
+            }
             xcontent.toXContent(builder, params);
-            builder.endObject();
+            if (xcontent.isFragment()) {
+                builder.endObject();
+            }
         }
         this.bytes = BytesReference.toBytes(bStream.bytes());
         this.crc32 = (int) crc32.getValue();

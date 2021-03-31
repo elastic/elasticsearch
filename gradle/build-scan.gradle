@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
@@ -15,6 +16,7 @@ buildScan {
     String nodeName = System.getenv('NODE_NAME')
 
     tag OS.current().name()
+    tag Architecture.current().name()
 
     // Tag if this build is run in FIPS mode
     if (BuildParams.inFipsJvm) {
@@ -63,7 +65,7 @@ buildScan {
 
       tag 'CI'
       link 'CI Build', buildUrl
-      link 'GCP Upload', "https://console.cloud.google.com/storage/_details/elasticsearch-ci-artifacts/jobs/${jobName}/build/${buildNumber}.tar.bz2"
+      link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
       value 'Job Number', buildNumber
 
       System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {

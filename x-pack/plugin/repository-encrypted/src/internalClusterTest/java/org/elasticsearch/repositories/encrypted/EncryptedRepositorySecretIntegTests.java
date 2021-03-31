@@ -574,7 +574,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         );
 
         internalCluster().fullRestart();
-        ensureStableCluster(2);
+        ensureGreen();
         // maybe recreate the repository
         if (randomBoolean()) {
             deleteRepository(repositoryName);
@@ -617,7 +617,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             goodPassword
         );
         internalCluster().fullRestart();
-        ensureStableCluster(2);
+        ensureGreen();
         // ensure get snapshot works
         getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());

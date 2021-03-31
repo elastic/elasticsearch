@@ -189,5 +189,6 @@ public class Installation {
         public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
         public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
         public final Executable usersTool = new Executable("elasticsearch-users");
+        public final Executable serviceTokensTool = new Executable("elasticsearch-service-tokens");
     }
 }

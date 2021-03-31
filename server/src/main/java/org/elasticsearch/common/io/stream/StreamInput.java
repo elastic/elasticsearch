@@ -1262,6 +1262,18 @@ public abstract class StreamInput extends InputStream {
         return readEnum(enumClass, enumClass.getEnumConstants());
     }
 
+    /**
+     * Reads an optional enum with type E that was serialized based on the value of its ordinal
+     */
+    @Nullable
+    public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
+        if (readBoolean()) {
+            return readEnum(enumClass, enumClass.getEnumConstants());
+        } else {
+            return null;
+        }
+    }
+
     private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values) throws IOException {
         int ordinal = readVInt();
         if (ordinal < 0 || ordinal >= values.length) {

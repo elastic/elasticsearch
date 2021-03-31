@@ -473,7 +473,7 @@ If any of the two arguments is `null` or the pattern is an empty string `null` i
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
-(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+(e.g. 'dd', 'MM', 'yyyy', etc.). If it contains such units an error is returned.
 
 [source, sql]
 --------------------------------------------------
@@ -515,7 +515,7 @@ If any of the two arguments is `null` or an empty string `null` is returned.
 
 
 [NOTE]
-If the parsing pattern contains only date or only time units (e.g. 'dd/MM/uuuu', 'HH:mm:ss', etc.) an error is returned
+If the parsing pattern contains only date or only time units (e.g. 'dd/MM/yyyy', 'HH:mm:ss', etc.) an error is returned
 as the function needs to return a value of `datetime` type which must contain both.
 
 [source, sql]
@@ -564,7 +564,7 @@ https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/Da
 If any of the two arguments is `null` or an empty string `null` is returned.
 
 [NOTE]
-If the parsing pattern contains only date units (e.g. 'dd/MM/uuuu') an error is returned
+If the parsing pattern contains only date units (e.g. 'dd/MM/yyyy') an error is returned
 as the function needs to return a value of `time` type which will contain only time.
 
 [source, sql]

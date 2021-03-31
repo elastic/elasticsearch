@@ -248,7 +248,7 @@ Contains parameters for a search request:
 Aggregations you wish to run during the search. See <<search-aggregations>>.
 
 `query`::
-(Optional, <<query-dsl,query DSL object>>) Query you wish to run during the
+(Optional, <<query-dsl,Query DSL object>>) Query you wish to run during the
 search. Hits matching this query are returned in the response.
 
 `from`::

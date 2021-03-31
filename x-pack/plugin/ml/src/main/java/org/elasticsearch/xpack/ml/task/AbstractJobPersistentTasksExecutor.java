@@ -152,7 +152,8 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return true;
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState) {
+    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState,
+                                                                                     boolean isMemoryTrackerRecentlyRefreshed) {
         // If we are waiting for an upgrade to complete, we should not assign to a node
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return Optional.of(AWAITING_UPGRADE);
@@ -165,7 +166,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         if (missingIndices.isPresent()) {
             return missingIndices;
         }
-        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId);
+        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId, isMemoryTrackerRecentlyRefreshed);
         if (staleMemory.isPresent()) {
             return staleMemory;
         }
@@ -212,8 +213,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return Optional.empty();
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId) {
-        boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
+    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId, boolean isMemoryTrackerRecentlyRefreshed) {
         if (isMemoryTrackerRecentlyRefreshed == false) {
             boolean scheduledRefresh = memoryTracker.asyncRefresh();
             if (scheduledRefresh) {

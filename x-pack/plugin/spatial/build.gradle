@@ -11,16 +11,15 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk', 'indices', 'index', 'search'
-    includeXpack 'xpack'
+    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
   }
   restTests {
     includeCore 'geo_shape'

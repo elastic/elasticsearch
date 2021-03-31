@@ -10,7 +10,6 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -57,22 +56,14 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry);
             if (searchRequest != null) {
-                client.search(searchRequest, new ActionListener<SearchResponse>() {
-                    @Override
-                    public void onResponse(SearchResponse searchResponse) {
-                        try {
-                            response.setResponse(searchResponse);
-                            listener.onResponse(response);
-                        } catch (Exception t) {
-                            listener.onFailure(t);
-                        }
+                client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
+                    try {
+                        response.setResponse(searchResponse);
+                        l.onResponse(response);
+                    } catch (Exception t) {
+                        l.onFailure(t);
                     }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        listener.onFailure(t);
-                    }
-                });
+                }));
             } else {
                 listener.onResponse(response);
             }

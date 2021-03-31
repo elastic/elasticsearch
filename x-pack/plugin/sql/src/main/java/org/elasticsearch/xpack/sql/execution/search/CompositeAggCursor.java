@@ -135,20 +135,15 @@ public class CompositeAggCursor implements Cursor {
 
         SearchRequest request = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
 
-        client.search(request, new ActionListener<>() {
+        client.search(request, new ActionListener.Delegating<>(listener) {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(response, request.source(),
                         makeRowSet(response),
                         makeCursor(),
                         () -> client.search(request, this),
-                        listener,
+                        delegate,
                         Schema.EMPTY);
-            }
-
-            @Override
-            public void onFailure(Exception ex) {
-                listener.onFailure(ex);
             }
         });
     }

@@ -174,7 +174,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
      */
     public static EngineFactory getEngineFactory() {
         return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
-            readerWrapper(config), true);
+            readerWrapper(config), true, false);
     }
 
     public static Function<DirectoryReader, DirectoryReader> readerWrapper(EngineConfig engineConfig) {

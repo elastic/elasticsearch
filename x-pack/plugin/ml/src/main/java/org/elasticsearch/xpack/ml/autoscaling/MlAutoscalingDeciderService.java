@@ -43,6 +43,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -222,13 +223,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         this.scaleDownDetected = NO_SCALE_DOWN_POSSIBLE;
     }
 
-    private boolean canScaleDown(TimeValue coolDown) {
-        if (this.scaleDownDetected == NO_SCALE_DOWN_POSSIBLE) {
-            return false;
-        }
-        return timeSupplier.get() - scaleDownDetected >= coolDown.millis();
-    }
-
     private boolean newScaleDownCheck() {
         return scaleDownDetected == NO_SCALE_DOWN_POSSIBLE;
     }
@@ -325,8 +319,18 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             return noScaleResultOrRefresh(reasonBuilder, memoryTrackingStale, new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder
-                    .setSimpleReason("Passing currently perceived capacity as there are analytics and anomaly jobs in the queue, " +
-                        "but the number in the queue is less than the configured maximum allowed.")
+                    .setSimpleReason(
+                        String.format(
+                            Locale.ROOT,
+                            "Passing currently perceived capacity as there are [%d] analytics and [%d] anomaly jobs in the queue, "
+                                + "but the number in the queue is less than the configured maximum allowed. "
+                                + "[%d] for analytics and [%d] for anomaly jobs",
+                            waitingAnalyticsJobs.size(),
+                            waitingAnomalyJobs.size(),
+                            NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration),
+                            NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration)
+                        )
+                    )
                     .build()));
         }
         if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
@@ -379,11 +383,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             checkForScaleDown(nodes, clusterState, largestJob, currentScale, reasonBuilder);
 
         if (scaleDownDecision.isPresent()) {
+            final long now = timeSupplier.get();
             if (newScaleDownCheck()) {
-                scaleDownDetected = timeSupplier.get();
+                scaleDownDetected = now;
             }
             TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
-            if (canScaleDown(downScaleDelay)) {
+            long msLeftToScale = downScaleDelay.millis() - (now - scaleDownDetected);
+            if (msLeftToScale <= 0) {
                 return scaleDownDecision.get();
             }
             logger.debug(() -> new ParameterizedMessage(
@@ -396,11 +402,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 context.currentCapacity(),
                 reasonBuilder
                     .setSimpleReason(
-                        "Passing currently perceived capacity as configured down scale delay has not be satisfied; configured delay ["
-                            + downScaleDelay.millis()
-                            + "] last detected scale down event ["
-                            + scaleDownDetected
-                            + "]")
+                        String.format(
+                            Locale.ROOT,
+                            "Passing currently perceived capacity as down scale delay has not be satisfied; configured delay [%s]"
+                                + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
+                            downScaleDelay.getStringRep(),
+                            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                            TimeValue.timeValueMillis(msLeftToScale).getStringRep()
+                        )
+                    )
                     .build());
         }
 

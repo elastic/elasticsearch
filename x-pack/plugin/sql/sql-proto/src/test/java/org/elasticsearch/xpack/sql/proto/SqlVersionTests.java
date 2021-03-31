@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MAJOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.MINOR_MULTIPLIER;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.REVISION_MULTIPLIER;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.V_7_7_0;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
 public class SqlVersionTests extends ESTestCase {
     public void test123FromString() {
@@ -45,7 +48,7 @@ public class SqlVersionTests extends ESTestCase {
     }
 
     public void testFromId() {
-        SqlVersion ver = new SqlVersion((byte)randomIntBetween(0, 99), (byte)randomIntBetween(0, 99), (byte)randomIntBetween(0, 99));
+        SqlVersion ver = new SqlVersion((byte) randomIntBetween(0, 99), (byte) randomIntBetween(0, 99), (byte) randomIntBetween(0, 99));
         assertEquals(ver, SqlVersion.fromId(ver.id));
     }
 
@@ -73,4 +76,34 @@ public class SqlVersionTests extends ESTestCase {
         assertNotEquals(ver1, ver2);
     }
 
+    public void testVersionCompatibilityClientWithNoCompatibility() {
+        SqlVersion server = SqlVersion.fromId(CURRENT.id);
+        int major = randomIntBetween(1, 7);
+        SqlVersion client = new SqlVersion(major, randomIntBetween(0, major == 7 ? 6 : 99), randomIntBetween(0, 99));
+        assertFalse(isClientCompatible(server, client));
+    }
+
+    public void testVersionCompatibilityClientNewer() {
+        int major = randomIntBetween(7, 99);
+        SqlVersion server = new SqlVersion(major, randomIntBetween(major > 7 ? 0 : 7, 99), randomIntBetween(0, 98));
+        SqlVersion client = new SqlVersion(server.major, server.minor, (byte) (server.revision + 1));
+        assertFalse(isClientCompatible(server, client));
+    }
+
+    public void testVersionCompatibilityClientTooOld() {
+        int major = randomIntBetween(9, 99);
+        SqlVersion server = new SqlVersion(major, randomIntBetween(0, 99), randomIntBetween(0, 99));
+        SqlVersion client = new SqlVersion(major - 2, randomIntBetween(0, 99), randomIntBetween(0, 99));
+        assertFalse(isClientCompatible(server, client));
+    }
+
+    public void testVersionCompatibile() {
+        SqlVersion client = new SqlVersion(randomIntBetween(V_7_7_0.major, 99 - 1), randomIntBetween(V_7_7_0.minor, 99),
+            randomIntBetween(0, 99));
+        int serverMajor = client.major + (randomBoolean() ? 0 : 1);
+        int serverMinor = randomIntBetween(client.major == serverMajor ? client.minor : 0, 99);
+        int serverRevision = randomIntBetween(client.major == serverMajor && client.minor == serverMinor ? client.revision : 0, 99);
+        SqlVersion server = new SqlVersion(serverMajor, serverMinor, serverRevision);
+        assertTrue(isClientCompatible(server, client));
+    }
 }

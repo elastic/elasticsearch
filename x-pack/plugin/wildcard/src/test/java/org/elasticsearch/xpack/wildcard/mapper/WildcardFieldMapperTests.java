@@ -98,6 +98,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     static KeywordFieldMapper keywordFieldType;
 
     @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
+    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singleton(new Wildcard());
     }
@@ -565,7 +570,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
     }
-    
+
     public void testQueryCachingEquality() throws IOException, ParseException {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
@@ -742,7 +747,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
         testExpectedAccelerationQuery(regex, combinedQuery, expectedAccelerationQuery);
     }
-    
+
     private Query unwrapAnyConstantScore(Query q) {
         if (q instanceof ConstantScoreQuery) {
             ConstantScoreQuery csq = (ConstantScoreQuery) q;

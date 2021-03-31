@@ -99,6 +99,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         return 50.0;
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     /**
      * Test parsing field mapping and adding simple field
      */

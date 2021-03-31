@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
-    private static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
+    static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
         = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
         (
             field,

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexTimeScriptTests extends MapperServiceTestCase {
 
-    public void testCalculatedFieldLength() throws IOException {
+    public void testSimpleFieldReference() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("message").field("type", "text").endObject();
             b.startObject("message_length");

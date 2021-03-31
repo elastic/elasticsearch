@@ -25,6 +25,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
@@ -40,8 +42,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
- * A LeafReader over a lucene document that exposes doc values and stored fields.
- * Note that unlike lucene's MemoryIndex implementation, this holds no state and
+ * A {@link LeafReader} over a lucene document that exposes doc values and stored fields.
+ * Note that unlike lucene's {@link MemoryIndex} implementation, this holds no state and
  * does not attempt to do any analysis on text fields.  It also supports stored
  * fields where MemoryIndex does not.  It is used to back index-time scripts that
  * reference field data and stored fields from a document that has not yet been
@@ -253,6 +255,7 @@ class DocumentLeafReader extends LeafReader {
         if (values.size() == 0) {
             return null;
         }
+        DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new NumericDocValues() {
             @Override
             public long longValue() {
@@ -260,28 +263,28 @@ class DocumentLeafReader extends LeafReader {
             }
 
             @Override
-            public boolean advanceExact(int target) {
-                return true;
+            public boolean advanceExact(int target) throws IOException {
+                return disi.advance(target) == target;
             }
 
             @Override
             public int docID() {
-                return 0;
+                return disi.docID();
             }
 
             @Override
-            public int nextDoc() {
-                return 0;
+            public int nextDoc() throws IOException {
+                return disi.nextDoc();
             }
 
             @Override
-            public int advance(int target) {
-                return 0;
+            public int advance(int target) throws IOException {
+                return disi.advance(target);
             }
 
             @Override
             public long cost() {
-                return 0;
+                return disi.cost();
             }
         };
     }
@@ -290,6 +293,7 @@ class DocumentLeafReader extends LeafReader {
         if (values.size() == 0) {
             return null;
         }
+        DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new SortedNumericDocValues() {
 
             int i = -1;
@@ -306,28 +310,31 @@ class DocumentLeafReader extends LeafReader {
             }
 
             @Override
-            public boolean advanceExact(int target) {
-                return true;
+            public boolean advanceExact(int target) throws IOException {
+                i = -1;
+                return disi.advance(target) == target;
             }
 
             @Override
             public int docID() {
-                return 0;
+                return disi.docID();
             }
 
             @Override
-            public int nextDoc() {
-                return 0;
+            public int nextDoc() throws IOException {
+                i = -1;
+                return disi.nextDoc();
             }
 
             @Override
-            public int advance(int target) {
-                return 0;
+            public int advance(int target) throws IOException {
+                i = -1;
+                return disi.advance(target);
             }
 
             @Override
             public long cost() {
-                return 0;
+                return disi.cost();
             }
         };
     }
@@ -336,6 +343,7 @@ class DocumentLeafReader extends LeafReader {
         if (values.size() == 0) {
             return null;
         }
+        DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new BinaryDocValues() {
             @Override
             public BytesRef binaryValue() {
@@ -343,28 +351,28 @@ class DocumentLeafReader extends LeafReader {
             }
 
             @Override
-            public boolean advanceExact(int target) {
-                return true;
+            public boolean advanceExact(int target) throws IOException {
+                return disi.advance(target) == target;
             }
 
             @Override
             public int docID() {
-                return 0;
+                return disi.docID();
             }
 
             @Override
-            public int nextDoc() {
-                return 0;
+            public int nextDoc() throws IOException {
+                return disi.nextDoc();
             }
 
             @Override
-            public int advance(int target) {
-                return 0;
+            public int advance(int target) throws IOException {
+                return disi.advance(target);
             }
 
             @Override
             public long cost() {
-                return 0;
+                return disi.cost();
             }
         };
     }
@@ -373,6 +381,7 @@ class DocumentLeafReader extends LeafReader {
         if (values.size() == 0) {
             return null;
         }
+        DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new SortedDocValues() {
 
             @Override
@@ -391,28 +400,28 @@ class DocumentLeafReader extends LeafReader {
             }
 
             @Override
-            public boolean advanceExact(int target) {
-                return true;
+            public boolean advanceExact(int target) throws IOException {
+                return disi.advance(target) == target;
             }
 
             @Override
             public int docID() {
-                return 0;
+                return disi.docID();
             }
 
             @Override
-            public int nextDoc() {
-                return 0;
+            public int nextDoc() throws IOException {
+                return disi.nextDoc();
             }
 
             @Override
-            public int advance(int target) {
-                return 0;
+            public int advance(int target) throws IOException {
+                return disi.advance(target);
             }
 
             @Override
             public long cost() {
-                return 0;
+                return disi.cost();
             }
         };
     }
@@ -421,6 +430,7 @@ class DocumentLeafReader extends LeafReader {
         if (values.size() == 0) {
             return null;
         }
+        DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new SortedSetDocValues() {
 
             int i = -1;
@@ -445,31 +455,31 @@ class DocumentLeafReader extends LeafReader {
             }
 
             @Override
-            public boolean advanceExact(int target) {
+            public boolean advanceExact(int target) throws IOException {
                 i = -1;
-                return true;
+                return disi.advance(target) == target;
             }
 
             @Override
             public int docID() {
-                return 0;
+                return disi.docID();
             }
 
             @Override
-            public int nextDoc() {
+            public int nextDoc() throws IOException {
                 i = -1;
-                return 0;
+                return disi.nextDoc();
             }
 
             @Override
-            public int advance(int target) {
+            public int advance(int target) throws IOException {
                 i = -1;
-                return 0;
+                return disi.advance(target);
             }
 
             @Override
             public long cost() {
-                return 0;
+                return disi.cost();
             }
         };
     }

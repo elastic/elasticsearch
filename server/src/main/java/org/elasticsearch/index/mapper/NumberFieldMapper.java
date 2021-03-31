@@ -129,7 +129,7 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
-        private FieldValues<Number> mapperScript() {
+        private FieldValues<Number> scriptValues() {
             if (this.script.get() == null) {
                 return null;
             }
@@ -379,16 +379,10 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
                 DoubleFieldScript.Factory scriptFactory = compiler.compile(script, DoubleFieldScript.CONTEXT);
-                return (lookup, ctx, doc, consumer) -> {
-                    DoubleFieldScript s = scriptFactory
-                        .newFactory(fieldName, script.getParams(), lookup)
-                        .newInstance(ctx);
-                    s.runForDoc(doc);
-                    double[] vs = s.values();
-                    for (int i = 0; i < s.count(); i++) {
-                        consumer.accept(vs[i]);
-                    }
-                };
+                return (lookup, ctx, doc, consumer) -> scriptFactory
+                    .newFactory(fieldName, script.getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer::accept);
             }
 
             @Override
@@ -697,16 +691,10 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
                 final LongFieldScript.Factory scriptFactory = compiler.compile(script, LongFieldScript.CONTEXT);
-                return (lookup, ctx, doc, consumer) -> {
-                    LongFieldScript s = scriptFactory
-                        .newFactory(fieldName, script.getParams(), lookup)
-                        .newInstance(ctx);
-                    s.runForDoc(doc);
-                    long[] vs = s.values();
-                    for (int i = 0; i < s.count(); i++) {
-                        consumer.accept(vs[i]);
-                    }
-                };
+                return (lookup, ctx, doc, consumer) -> scriptFactory
+                    .newFactory(fieldName, script.getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer::accept);
             }
 
             @Override
@@ -977,7 +965,7 @@ public class NumberFieldMapper extends FieldMapper {
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
-                builder.mapperScript());
+                builder.scriptValues());
         }
 
         public NumberFieldType(String name, NumberType type) {
@@ -1127,7 +1115,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
-        this.scriptValues = builder.mapperScript();
+        this.scriptValues = builder.scriptValues();
         this.onScriptError = builder.onScriptError.get();
         this.builder = builder;
     }
@@ -1211,15 +1199,15 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean hasIndexTimeScript() {
+    public boolean hasScript() {
         return this.scriptValues != null;
     }
 
     @Override
-    public void executeIndexTimeScript(SearchLookup searchLookup, LeafReaderContext readerContext, ParseContext parseContext) {
+    public void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
         assert this.scriptValues != null;
         try {
-            this.scriptValues.valuesForDoc(searchLookup, readerContext, 0, value -> indexValue(parseContext, value));
+            this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
         } catch (Exception e) {
             if ("ignore".equals(onScriptError)) {
                 parseContext.addIgnoredField(name());

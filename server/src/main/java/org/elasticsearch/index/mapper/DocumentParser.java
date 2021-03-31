@@ -141,7 +141,7 @@ final class DocumentParser {
             @Override
             public void accept(LeafReaderContext leafReaderContext) {
                 if (executed == false) {
-                    mapper.executeIndexTimeScript(searchLookup, leafReaderContext, context);
+                    mapper.executeScript(searchLookup, leafReaderContext, 0, context);
                     executed = true;
                 }
             }

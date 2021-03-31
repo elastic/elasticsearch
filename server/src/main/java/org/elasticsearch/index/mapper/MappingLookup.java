@@ -54,7 +54,7 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
-    private final FieldTypeLookup indexTimeLookup;
+    private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final DocumentParser documentParser;
@@ -139,7 +139,7 @@ public final class MappingLookup {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
-            if (mapper.hasIndexTimeScript()) {
+            if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
             }
         }

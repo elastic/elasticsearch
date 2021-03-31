@@ -66,15 +66,10 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
 
-        boolean includeTypeName = false;
-        if(builder.getRestApiVersion() == RestApiVersion.V_7) {
-            includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-                DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        }
-
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
-            if (includeTypeName) {
+            if(builder.getRestApiVersion() == RestApiVersion.V_7 &&
+                params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
                 IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
             } else {
                 IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);

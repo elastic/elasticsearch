@@ -58,7 +58,6 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if(request.getRestApiVersion() == RestApiVersion.V_7) {
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                request.param(INCLUDE_TYPE_NAME_PARAMETER);
                 deprecationLogger.compatibleApiWarning("get_index_template_include_type_name", TYPES_DEPRECATION_MESSAGE);
             }
         }

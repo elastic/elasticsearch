@@ -59,12 +59,8 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
         if(request.getRestApiVersion() == RestApiVersion.V_7){
-            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-//            if (includeTypeName == false /*&& types.length > 0*/) {
-//                throw new IllegalArgumentException("Types cannot be specified unless include_type_name" +
-//                    " is set to true.");
-//            }
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
                 deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
             }
         }

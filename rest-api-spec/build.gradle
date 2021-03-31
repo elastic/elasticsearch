@@ -206,8 +206,6 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.get_mapping/40_aliases/Getting mapping for aliases should return the real index as key',
     'indices.get_mapping/61_empty_with_types/Check empty mapping when getting all mappings via /_mapping',
     'indices.get_mapping/70_mix_typeless_typeful/GET mapping with typeless API on an index that has types',
-//    'indices.get_template/11_basic_with_types/Get template',
-//    'indices.get_template/11_basic_with_types/Get template with no mappings',
     'indices.open/10_basic/?wait_for_active_shards default is deprecated',
     'indices.open/10_basic/?wait_for_active_shards=index-setting',
     'indices.put_mapping/10_basic/Put mappings with explicit _doc type',

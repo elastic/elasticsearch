@@ -56,10 +56,10 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
             request.getXContentType()).v2();
         if(request.getRestApiVersion() == RestApiVersion.V_7) {
-            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) ) {
                 deprecationLogger.compatibleApiWarning("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
             }
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if(includeTypeName) {
                 sourceAsMap = RestCreateIndexAction.prepareMappingsV7(sourceAsMap, request);
             } else {

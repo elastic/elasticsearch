@@ -21,8 +21,8 @@ streams] in the {fleet} Guide.
 [[create-index-lifecycle-policy]]
 === Step 1. Create an index lifecycle policy
 
-While optional, we recommend using {ilm-init} and an index lifecycle policy to
-automate the management of your data stream's backing indices.
+While optional, we recommend using {ilm-init} to automate the management of your
+data stream's backing indices. {ilm-init} requires an index lifecycle policy.
 
 To create an index lifecycle policy in {kib}, open the main menu and go to
 *Stack Management > Index Lifecycle Policies*. Click *Create policy*.
@@ -124,7 +124,7 @@ PUT _component_template/my-mappings
     }
   },
   "_meta": {
-    "description": "My optional, arbitrary metadata",
+    "description": "My optional metadata",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }
@@ -138,7 +138,7 @@ PUT _component_template/my-settings
     }
   },
   "_meta": {
-    "description": "My optional, arbitrary metadata",
+    "description": "My optional metadata",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }
@@ -178,7 +178,7 @@ PUT _index_template/my-index-template
   "composed_of": [ "my-mappings", "my-settings" ],
   "priority": 500,
   "_meta": {
-    "description": "My optional, arbitrary metadata",
+    "description": "My optional metadata",
     "my-custom-meta-field": "More arbitrary metadata"
   }
 }

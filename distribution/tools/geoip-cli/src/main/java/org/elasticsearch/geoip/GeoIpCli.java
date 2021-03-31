@@ -116,7 +116,7 @@ public class GeoIpCli extends Command {
                 try (InputStream dis = new DigestInputStream(new BufferedInputStream(Files.newInputStream(db)), md5)) {
                     byte[] buf = new byte[4096];
                     while (dis.read(buf) != -1) {
-                        //just read whole stream
+                        // just read whole stream
                     }
                 }
                 String digest = MessageDigests.toHexString(md5.digest());

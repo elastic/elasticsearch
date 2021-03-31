@@ -60,6 +60,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);

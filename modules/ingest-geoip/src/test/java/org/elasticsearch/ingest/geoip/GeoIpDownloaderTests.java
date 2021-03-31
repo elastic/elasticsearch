@@ -180,7 +180,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
     public void testProcessDatabaseNew() throws IOException {
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
-        when(httpClient.get("a.b/t1")).thenReturn(bais);
+        when(httpClient.get("http://a.b/t1")).thenReturn(bais);
 
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
@@ -210,12 +210,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY);
-        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
-        when(httpClient.get("a.b/t1")).thenReturn(bais);
+        when(httpClient.get("http://a.b/t1")).thenReturn(bais);
 
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
@@ -245,7 +245,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         };
 
         geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test.mmdb", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
-        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
     }
 
 
@@ -280,7 +280,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.setState(taskState);
-        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "a.b/t1", "md5_hash", "1"));
+        geoIpDownloader.processDatabase(Map.of("name", "test.tgz", "url", "http://a.b/t1", "md5_hash", "1"));
     }
 
     @SuppressWarnings("unchecked")

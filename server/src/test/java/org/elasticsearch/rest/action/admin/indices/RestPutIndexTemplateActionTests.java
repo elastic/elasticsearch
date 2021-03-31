@@ -30,7 +30,7 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 import static org.mockito.Mockito.mock;
 
 public class RestPutIndexTemplateActionTests extends ESTestCase {
-    final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
+    final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
     private RestPutIndexTemplateAction action;
 
@@ -61,7 +61,7 @@ public class RestPutIndexTemplateActionTests extends ESTestCase {
             .withMethod(RestRequest.Method.PUT)
             .withParams(params)
             .withPath("/_template/_some_template")
-            .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
+            .withContent(BytesReference.bytes(typedContent), null)
             .build();
         action.prepareRequest(request, mock(NodeClient.class));
         assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);

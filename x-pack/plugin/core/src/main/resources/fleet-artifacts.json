@@ -1,5 +1,7 @@
 {
-  "settings": {},
+  "settings": {
+    "auto_expand_replicas": "0-1"
+  },
   "mappings": {
     "_doc" : {
       "dynamic": false,

@@ -206,7 +206,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
-        if (NODE_ROLES_SETTING.exists(settings)) {
+        // are any legacy settings in use?
+        boolean usesLegacySettings =
+            getPossibleRoles().stream().anyMatch(s -> s.legacySetting() != null && s.legacySetting().exists(settings));
+        if (NODE_ROLES_SETTING.exists(settings) || usesLegacySettings == false) {
             validateLegacySettings(settings, roleMap);
             return Set.copyOf(NODE_ROLES_SETTING.get(settings));
         } else {

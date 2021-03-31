@@ -143,39 +143,6 @@
   - is_true: acknowledged
 
 ---
-"Close write index for data stream fails":
-  - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
-
-  - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template1
-        body:
-          index_patterns: [simple-data-stream1]
-          data_stream: {}
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  - do:
-      catch: bad_request
-      indices.close:
-        index: ".ds-simple-data-stream1-*000001"
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
-
-  - do:
-      indices.delete_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
----
 "Prohibit split on data stream's write index":
   - skip:
       version: " - 7.8.99"

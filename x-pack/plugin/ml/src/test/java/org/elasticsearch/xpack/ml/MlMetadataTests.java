@@ -56,7 +56,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 builder.putJob(job, false);
             }
         }
-        return builder.build();
+        return builder.isResetMode(randomBoolean()).isUpgradeMode(randomBoolean()).build();
     }
 
     @Override
@@ -146,6 +146,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     protected MlMetadata mutateInstance(MlMetadata instance) {
         Map<String, Job> jobs = instance.getJobs();
         Map<String, DatafeedConfig> datafeeds = instance.getDatafeeds();
+        boolean isUpgrade = instance.isUpgradeMode();
+        boolean isReset = instance.isResetMode();
         MlMetadata.Builder metadataBuilder = new MlMetadata.Builder();
 
         for (Map.Entry<String, Job> entry : jobs.entrySet()) {
@@ -155,7 +157,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap(), xContentRegistry());
         }
 
-        switch (between(0, 1)) {
+        switch (between(0, 3)) {
         case 0:
             metadataBuilder.putJob(JobTests.createRandomizedJob(), true);
             break;
@@ -174,6 +176,12 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
             metadataBuilder.putJob(randomJob, false);
             metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
+            break;
+        case 2:
+            metadataBuilder.isUpgradeMode(isUpgrade == false);
+            break;
+        case 3:
+            metadataBuilder.isResetMode(isReset == false);
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

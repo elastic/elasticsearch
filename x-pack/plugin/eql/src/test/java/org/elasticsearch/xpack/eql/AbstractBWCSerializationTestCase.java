@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.Version.getDeclaredVersions;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.EQL_GA_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
 
     private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
-    private static Version EQL_GA_VERSION = Version.V_7_10_0;
 
     private static List<Version> getAllBWCVersions(Version version) {
         return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v)).collect(

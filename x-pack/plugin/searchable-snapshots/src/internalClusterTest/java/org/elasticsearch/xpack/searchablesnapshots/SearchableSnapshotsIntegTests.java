@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
@@ -53,6 +54,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -111,6 +114,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
@@ -503,6 +507,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
         }
 
+        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO);
         final AtomicBoolean statsWatcherRunning = new AtomicBoolean(true);
         final Thread statsWatcher = new Thread(() -> {
             while (statsWatcherRunning.get()) {
@@ -515,12 +520,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 }
 
                 for (ShardStats shardStats : indicesStatsResponse.getShards()) {
-                    assertThat(
-                        shardStats.getShardRouting().toString(),
-                        shardStats.getStats().getStore().getReservedSize().getBytes(),
-                        equalTo(0L)
-                    );
-                    assertThat(shardStats.getShardRouting().toString(), shardStats.getStats().getStore().getSize().getBytes(), equalTo(0L));
+                    StoreStats store = shardStats.getStats().getStore();
+                    assertThat(shardStats.getShardRouting().toString(), store.getReservedSize().getBytes(), equalTo(0L));
+                    assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), equalTo(0L));
+                }
+                if (indicesStatsResponse.getShards().length > 0) {
+                    assertThat(indicesStatsResponse.getTotal().getStore().getReservedSize().getBytes(), equalTo(0L));
+                    assertThat(indicesStatsResponse.getTotal().getStore().getSize().getBytes(), equalTo(0L));
                 }
             }
         }, "test-stats-watcher");
@@ -539,6 +545,44 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        final Map<Integer, SnapshotIndexShardStatus> snapshotShards = clusterAdmin().prepareSnapshotStatus(fsRepoName)
+            .setSnapshots(snapshotInfo.snapshotId().getName())
+            .get()
+            .getSnapshots()
+            .get(0)
+            .getIndices()
+            .get(indexName)
+            .getShards();
+
+        final IndicesStatsResponse indicesStatsResponse = client().admin()
+            .indices()
+            .prepareStats(restoredIndexName)
+            .clear()
+            .setStore(true)
+            .get();
+        assertThat(indicesStatsResponse.getShards().length, greaterThan(0));
+        long totalExpectedSize = 0;
+        for (ShardStats shardStats : indicesStatsResponse.getShards()) {
+            StoreStats store = shardStats.getStats().getStore();
+            assertThat(shardStats.getShardRouting().toString(), store.getReservedSize().getBytes(), equalTo(0L));
+            assertThat(shardStats.getShardRouting().toString(), store.getSize().getBytes(), equalTo(0L));
+
+            // the extra segments_N file created for bootstrap new history and associate translog makes us unable to precisely assert this.
+            final long expectedSize = snapshotShards.get(shardStats.getShardRouting().getId()).getStats().getTotalSize();
+            assertThat(shardStats.getShardRouting().toString(), store.getTotalDataSetSize().getBytes(), greaterThanOrEqualTo(expectedSize));
+            // the extra segments_N file only has a new history UUID and translog UUID, both of which have constant size. It's size is
+            // therefore identical to the original segments_N file from the snapshot. We expect at least 1 byte of other content, making
+            // it safe to assert that the total data set size is less than 2x the size.
+            assertThat(shardStats.getShardRouting().toString(), store.getTotalDataSetSize().getBytes(), lessThan(expectedSize * 2));
+
+            totalExpectedSize += expectedSize;
+        }
+
+        // the extra segments_N file created for bootstrap new history and associate translog makes us unable to precisely assert this.
+        final StoreStats store = indicesStatsResponse.getTotal().getStore();
+        assertThat(store.getTotalDataSetSize().getBytes(), greaterThanOrEqualTo(totalExpectedSize));
+        assertThat(store.getTotalDataSetSize().getBytes(), lessThan(totalExpectedSize * 2));
 
         statsWatcherRunning.set(false);
         statsWatcher.join();

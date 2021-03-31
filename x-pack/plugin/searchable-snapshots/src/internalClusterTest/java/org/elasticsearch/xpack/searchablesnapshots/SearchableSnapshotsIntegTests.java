@@ -502,12 +502,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             expectedReplicas = 0;
         }
         final String expectedDataTiersPreference;
-        if (randomBoolean()) {
-            expectedDataTiersPreference = String.join(",", randomSubsetOf(DataTier.ALL_DATA_TIERS));
-            indexSettingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, expectedDataTiersPreference);
-        } else {
-            expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
-        }
+        expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 
         indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO);
         final AtomicBoolean statsWatcherRunning = new AtomicBoolean(true);

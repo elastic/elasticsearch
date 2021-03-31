@@ -58,7 +58,7 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     public void testNoSource() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new GeoIpCli().main(new String[]{}, terminal);
+        new GeoIpCli().main(new String[] {}, terminal);
         assertThat(terminal.getErrorOutput(), containsString("Missing required option(s) [s/source]"));
     }
 
@@ -66,7 +66,7 @@ public class GeoIpCliTests extends LuceneTestCase {
         Map<String, byte[]> data = createTestFiles(source);
 
         GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[]{"-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString()}, new MockTerminal());
+        cli.main(new String[] { "-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString() }, new MockTerminal());
 
         try (Stream<Path> list = Files.list(source)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -86,7 +86,7 @@ public class GeoIpCliTests extends LuceneTestCase {
         Map<String, byte[]> data = createTestFiles(target);
 
         GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[]{"-s", target.toAbsolutePath().toString()}, new MockTerminal());
+        cli.main(new String[] { "-s", target.toAbsolutePath().toString() }, new MockTerminal());
 
         try (Stream<Path> list = Files.list(target)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -106,7 +106,7 @@ public class GeoIpCliTests extends LuceneTestCase {
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
         ) {
-            @SuppressWarnings({"unchecked"})
+            @SuppressWarnings({ "unchecked" })
             List<Map<String, String>> list = (List) parser.list();
             assertThat(list, containsInAnyOrder(hasEntry("name", "a.tgz"), hasEntry("name", "b.tgz"), hasEntry("name", "c.tgz")));
             assertThat(list, containsInAnyOrder(hasEntry("url", "a.tgz"), hasEntry("url", "b.tgz"), hasEntry("url", "c.tgz")));
@@ -119,8 +119,11 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     private void verifyTarball(Map<String, byte[]> data) throws Exception {
         for (String tgz : List.of("a.tgz", "b.tgz")) {
-            try (TarArchiveInputStream tis =
-                     new TarArchiveInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz)))))) {
+            try (
+                TarArchiveInputStream tis = new TarArchiveInputStream(
+                    new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz))))
+                )
+            ) {
                 TarArchiveEntry entry = tis.getNextTarEntry();
                 assertNotNull(entry);
                 assertTrue(entry.isFile());

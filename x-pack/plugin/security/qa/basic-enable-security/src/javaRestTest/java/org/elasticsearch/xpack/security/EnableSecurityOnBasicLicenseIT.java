@@ -74,7 +74,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        if (settings.hasValue("xpack.security.enabled")) {
+        if (System.getProperty("tests.has_security") != null) {
             builder.setStrictDeprecationMode(true);
         } else {
             builder.setStrictDeprecationMode(false);

@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.AfterClass;
@@ -37,18 +36,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TlsWithBasicLicenseIT extends ESRestTestCase {
     private static Path httpTrustStore;
 
-    @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-        if (settings.hasValue("xpack.security.enabled")) {
-            builder.setStrictDeprecationMode(true);
-        } else {
-            builder.setStrictDeprecationMode(false);
-        }
-        return builder.build();
-    }
-
     @BeforeClass
     public static void findTrustStore() throws Exception {
         final URL resource = TlsWithBasicLicenseIT.class.getResource("/ssl/ca.p12");
@@ -70,7 +57,9 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
         return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(TRUSTSTORE_PATH, httpTrustStore)
             .put(TRUSTSTORE_PASSWORD, "password")
             .build();

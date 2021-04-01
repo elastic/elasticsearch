@@ -141,8 +141,8 @@ GET /_search
 }
 --------------------------------------------------
 
-Like the `terms` aggregation it is also possible to use a
-<<runtime,runtime field>> to create the values for the composite buckets:
+Like the `terms` aggregation, it's possible to use a
+<<runtime,runtime field>> to create values for the composite buckets:
 
 [source,console,id=composite-aggregation-terms-runtime-field-example]
 ----
@@ -229,8 +229,8 @@ GET /_search
 }
 --------------------------------------------------
 
-Like the `histogram` aggregation it is also possible to use a
-<<runtime,runtime field>> to create the values for the composite buckets:
+Like the `histogram` aggregation it's possible to use a
+<<runtime,runtime field>> to create values for the composite buckets:
 
 [source,console,id=composite-aggregation-histogram-runtime-field-example]
 ----

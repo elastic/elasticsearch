@@ -172,8 +172,8 @@ Response:
 
 ==== Script
 
-Use a <<runtime,runtime field>> if the data in your documents doesn't
-exactly match what you'd like to aggregate. If, for example, you need to
+If the data in your documents doesn't exactly match what you'd like to aggregate,
+use a <<runtime,runtime field>>. For example, if you need to
 apply a particular currency conversion rate:
 
 [source,console,id=range-aggregation-runtime-field-example]

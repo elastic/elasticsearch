@@ -621,9 +621,9 @@ Response:
 [[date-histogram-scripts]]
 ==== Scripts
 
-Use a <<runtime,runtime field>> if the data in your documents doesn't
-exactly match what you'd like to aggregate. If, for example, revenue
-for promoted sales should be recognized a day after their sale date:
+If the data in your documents doesn't exactly match what you'd like to aggregate,
+use a <<runtime,runtime field>> . For example, if the revenue
+for promoted sales should be recognized a day after the sale date:
 
 [source,console,id=datehistogram-aggregation-runtime-field]
 ----
@@ -739,8 +739,8 @@ the `order` setting. This setting supports the same `order` functionality as
 [[date-histogram-aggregate-scripts]]
 ===== Using a script to aggregate by day of the week
 
-When you need to aggregate the results by day of the week run a `terms`
-aggregation on a <<runtime,runtime field>> that returns the day of the week.
+When you need to aggregate the results by day of the week, run a `terms`
+aggregation on a <<runtime,runtime field>> that returns the day of the week:
 
 [source,console,id=datehistogram-aggregation-day-of-week-runtime-field]
 ----

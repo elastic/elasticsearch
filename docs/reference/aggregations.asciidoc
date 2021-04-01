@@ -330,7 +330,7 @@ the aggregated field.
 [[use-scripts-in-an-agg]]
 === Use scripts in an aggregation
 
-When a field doesn't exactly match the aggregation you need to do you
+When a field doesn't exactly match the aggregation you need, you
 should aggregate on a <<runtime,runtime field>>:
 
 [source,console]
@@ -382,11 +382,11 @@ GET /my-index-000001/_search?size=0
 ----
 ////
 
-Scripts will calculate the values on the fly, adding a little overhead
-to the execution of the aggretion. Some aggregations like
+Scripts calculate field values dynamically, which adds overhead
+to the aggregation. Certain aggregations like
 <<search-aggregations-bucket-terms-aggregation,`terms`>> and
-<<search-aggregations-bucket-filters-aggregation,`filters`>> have to
-give up some optimizations.
+<<search-aggregations-bucket-filters-aggregation,`filters`>> are
+less optimized when using scripts.
 
 // TODO when we have calculated fields we can link to them here.
 

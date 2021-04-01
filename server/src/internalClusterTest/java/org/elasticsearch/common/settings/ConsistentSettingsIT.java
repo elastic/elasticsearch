@@ -56,7 +56,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
 
     public void testConsistencyFailures() throws Exception {
         nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, ));
             MockSecureSettings secureSettings = new MockSecureSettings();
             if (randomBoolean()) {
                 // different value
@@ -90,7 +90,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, ));
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
             if (randomBoolean()) {
@@ -137,7 +137,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Function<Integer, Settings> nodeSettingsOverrideFunction = nodeSettingsOverride.get();
         if (nodeSettingsOverrideFunction != null) {
             final Settings overrideSettings = nodeSettingsOverrideFunction.apply(nodeOrdinal);
@@ -145,7 +145,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
                 return overrideSettings;
             }
         }
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
         secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");

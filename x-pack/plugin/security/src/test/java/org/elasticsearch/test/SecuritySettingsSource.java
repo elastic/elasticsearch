@@ -119,7 +119,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path home = nodePath(nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {

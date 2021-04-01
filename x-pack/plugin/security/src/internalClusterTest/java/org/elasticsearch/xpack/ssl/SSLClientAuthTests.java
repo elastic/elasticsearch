@@ -55,8 +55,8 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings baseSettings = super.nodeSettings(nodeOrdinal);
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings baseSettings = super.nodeSettings(nodeOrdinal, otherSettings);
 
         Settings.Builder builder = Settings.builder().put(baseSettings);
         baseSettings.getByPrefix("xpack.security.transport.ssl.")

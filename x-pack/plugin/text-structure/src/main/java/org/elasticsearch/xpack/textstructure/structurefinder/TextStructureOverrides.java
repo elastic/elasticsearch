@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRequest;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
@@ -35,7 +36,7 @@ public class TextStructureOverrides {
     private final String timestampFormat;
     private final String timestampField;
 
-    public TextStructureOverrides(FindStructureAction.Request request) {
+    public TextStructureOverrides(AbstractFindStructureRequest request) {
 
         this(
             request.getCharset(),

@@ -82,6 +82,7 @@ public final class ClientHelper {
     public static final String SECURITY_ORIGIN = "security";
     public static final String WATCHER_ORIGIN = "watcher";
     public static final String ML_ORIGIN = "ml";
+    public static final String TEXT_STRUCTURE_ORIGIN = "text_structure";
     public static final String INDEX_LIFECYCLE_ORIGIN = "index_lifecycle";
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";

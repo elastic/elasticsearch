@@ -1,0 +1,73 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: raw-log-data
+        body:
+          mappings:
+            properties:
+              log:
+                type: text
+
+  - do:
+      index:
+        index: raw-log-data
+        body: >
+          {
+            "log": "2017-02-18T00:00:00Z foo 1.0 5"
+          }
+  - do:
+      index:
+        index: raw-log-data
+        body: >
+          {
+            "log": "2018-02-18T00:00:00Z foo 1.0 5"
+          }
+  - do:
+      index:
+        index: raw-log-data
+        body: >
+          {
+            "log": "2020-02-18T12:00:00Z bar 12038.0 2"
+          }
+  - do:
+      index:
+        index: raw-log-data
+        body: >
+          {
+            "log": "2019-04-11T00:00:20Z foo 5.0 1"
+          }
+  - do:
+      index:
+        index: raw-log-data
+        body: >
+          {
+            "log": "2014-01-11T10:01:00Z bar 1235.1 50"
+          }
+  - do:
+      indices.refresh:
+        index: raw-log-data
+---
+"Test raw log field structure analysis without overrides":
+  - do:
+      headers:
+        Content-Type: "application/json"
+      text_structure.find_field_structure:
+        index: raw-log-data
+        lines_to_sample: 5
+        line_merge_size_limit: 1234
+        timeout: 10s
+        body: >
+          {
+            "field_name": "log"
+          }
+
+  - match: { num_lines_analyzed: 4 }
+  - match: { num_messages_analyzed: 4 }
+  - match: { grok_pattern: "%{TIMESTAMP_ISO8601:timestamp} .*? %{NUMBER:field2} %{INT:field}" }
+  - match: { joda_timestamp_formats.0: ISO8601 }
+  - match: { java_timestamp_formats.0: ISO8601 }
+  - match: { mappings.properties.field.type: long }
+  - match: { mappings.properties.field2.type: double }
+  - match: { mappings.properties.@timestamp.type: date }

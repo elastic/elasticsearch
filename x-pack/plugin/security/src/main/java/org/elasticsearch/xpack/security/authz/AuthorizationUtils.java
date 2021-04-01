@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TEXT_STRUCTURE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -116,6 +117,7 @@ public final class AuthorizationUtils {
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
+            case TEXT_STRUCTURE_ORIGIN:
             case TRANSFORM_ORIGIN:
             case DEPRECATION_ORIGIN:
             case PERSISTENT_TASK_ORIGIN:

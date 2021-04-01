@@ -99,14 +99,14 @@ public class DiscoveryNodesTests extends ESTestCase {
         final String[] coordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+                    .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isMasterNode() == false)
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isMasterNode() || n.isDataNode() || n.isIngestNode())
+                    .filter(n -> n.isMasterNode() || n.canContainData() || n.isIngestNode())
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 

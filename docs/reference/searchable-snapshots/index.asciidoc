@@ -219,7 +219,7 @@ repository storage then you are responsible for its reliability.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
-=== Configure a frozen tier on the {ess}
+=== Configure a frozen tier on {ess}
 
 The frozen data tier is not yet available on the {ess-trial}[{ess}]. However,
 you can configure another tier to use <<shared-cache,shared snapshot caches>>.

@@ -12,14 +12,17 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.Response> {
 
@@ -55,17 +58,34 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         public ActionRequestValidationException validate() {
             return null;
         }
+
+        @Override public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if ((o instanceof Request) == false)
+                return false;
+            Request request = (Request) o;
+            return Arrays.equals(nodeIds, request.nodeIds);
+        }
+
+        @Override public int hashCode() {
+            return Arrays.hashCode(nodeIds);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
         List<SingleNodeShutdownMetadata> shutdownStatuses = Collections.emptyList();
 
         public Response(List<SingleNodeShutdownMetadata> shutdownStatuses) {
-            this.shutdownStatuses = shutdownStatuses;
+            this.shutdownStatuses = Objects.requireNonNull(shutdownStatuses, "shutdown statuses must not be null");
         }
 
         public Response(StreamInput in) throws IOException {
-            in.readList(SingleNodeShutdownMetadata::new);
+            shutdownStatuses = in.readList(SingleNodeShutdownMetadata::new);
+        }
+
+        public List<SingleNodeShutdownMetadata> getShutdownStatuses() {
+            return shutdownStatuses;
         }
 
         @Override
@@ -85,6 +105,23 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(shutdownStatuses);
+        }
+
+        @Override public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if ((o instanceof Response) == false)
+                return false;
+            Response response = (Response) o;
+            return shutdownStatuses.equals(response.shutdownStatuses);
+        }
+
+        @Override public int hashCode() {
+            return Objects.hash(shutdownStatuses);
+        }
+
+        @Override public String toString() {
+            return Strings.toString(this);
         }
     }
 }

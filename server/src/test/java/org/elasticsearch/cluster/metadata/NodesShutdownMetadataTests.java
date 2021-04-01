@@ -16,11 +16,46 @@ import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
 public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+
+    public void testInsertNewNodeShutdownMetadata() {
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
+        SingleNodeShutdownMetadata newNodeMetadata = randomNodeShutdownInfo();
+
+        nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(newNodeMetadata);
+
+        assertThat(nodesShutdownMetadata.getNodeMetadata(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.getAllNodeMetadata(), contains(newNodeMetadata));
+    }
+
+    public void testRemoveShutdownMetadata() {
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
+        List<SingleNodeShutdownMetadata> nodes = randomList(1, 20, this::randomNodeShutdownInfo);
+
+        for (SingleNodeShutdownMetadata node : nodes) {
+            nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(node);
+        }
+
+        SingleNodeShutdownMetadata nodeToRemove = randomFrom(nodes);
+        nodesShutdownMetadata = nodesShutdownMetadata.removeSingleNodeMetadata(nodeToRemove.getNodeId());
+
+        assertThat(nodesShutdownMetadata.getNodeMetadata(nodeToRemove.getNodeId()), nullValue());
+        assertThat(nodesShutdownMetadata.getAllNodeMetadata(), hasSize(nodes.size() - 1));
+        assertThat(nodesShutdownMetadata.getAllNodeMetadata(), not(hasItem(nodeToRemove)));
+    }
 
     @Override
     protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {

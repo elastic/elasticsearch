@@ -24,8 +24,8 @@ public class ServiceAccountTokenTests extends ESTestCase {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         ServiceAccountToken.newToken(accountId, ValidationTests.randomTokenName());
 
-        final IllegalArgumentException e1 =
-            expectThrows(IllegalArgumentException.class, () -> ServiceAccountToken.newToken(accountId, ValidationTests.randomInvalidTokenName()));
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
+            () -> ServiceAccountToken.newToken(accountId, ValidationTests.randomInvalidTokenName()));
         assertThat(e1.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
 
         final NullPointerException e2 =
@@ -42,8 +42,8 @@ public class ServiceAccountTokenTests extends ESTestCase {
             expectThrows(NullPointerException.class, () -> new ServiceAccountToken(null, ValidationTests.randomTokenName(), secret));
         assertThat(e1.getMessage(), containsString("service account ID cannot be null"));
 
-        final IllegalArgumentException e2 =
-            expectThrows(IllegalArgumentException.class, () -> new ServiceAccountToken(accountId, ValidationTests.randomInvalidTokenName(), secret));
+        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> new ServiceAccountToken(accountId, ValidationTests.randomInvalidTokenName(), secret));
         assertThat(e2.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
 
         final NullPointerException e3 =

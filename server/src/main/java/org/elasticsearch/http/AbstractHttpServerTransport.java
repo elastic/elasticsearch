@@ -148,7 +148,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param throttled When true, executes the prune process only if more than 60 seconds has elapsed since the last execution.
      */
     void pruneClientStats(boolean throttled) {
-        if (clientStatsEnabled && throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
+        if (clientStatsEnabled && throttled == false ||
+            (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
             long nowMillis = threadPool.absoluteTimeInMillis();
             for (var statsEntry : httpChannelStats.entrySet()) {
                 long closedTimeMillis = statsEntry.getValue().closedTimeMillis;

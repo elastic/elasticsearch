@@ -388,7 +388,7 @@ POST /my_alias/_rollover/my_new_index_name
 
 If the rollover target is an index alias, it can be useful to use <<date-math-index-names,date math>>
 to name the rollover index according to the date that the index rolled over, e.g.
-`logstash-2016.02.03`.  The rollover API supports date math, but requires the
+`logstash-2016.02.03`. The rollover API supports date math, but requires the
 index name to end with a dash followed by a number, e.g. `logstash-2016.02.03-1`
 which is incremented every time the index is rolled over. For instance:
 
@@ -448,7 +448,7 @@ GET _alias
 //////////////////////////
 
 These indices can then be referenced as described in the
-<<date-math-index-names,date math documentation>>.  For example, to search
+<<date-math-index-names,date math documentation>>. For example, to search
 over indices created in the last three days, you could do the following:
 
 [source,console]

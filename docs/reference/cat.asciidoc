@@ -103,14 +103,14 @@ with `queue`.
 ==== Numeric formats
 
 Many commands provide a few types of numeric output, either a byte, size
-or a time value.  By default, these types are human-formatted,
-for example, `3.5mb` instead of `3763212`.  The human values are not
+or a time value. By default, these types are human-formatted,
+for example, `3.5mb` instead of `3763212`. The human values are not
 sortable numerically, so in order to operate on these values where
 order is important, you can change it.
 
 Say you want to find the largest index in your cluster (storage used
-by all the shards, not number of documents).  The `/_cat/indices` API
-is ideal.  You only need to add three things to the API request:
+by all the shards, not number of documents). The `/_cat/indices` API
+is ideal. You only need to add three things to the API request:
 
 . The `bytes` query string parameter with a value of `b` to get byte-level resolution.
 . The `s` (sort) parameter with a value of `store.size:desc` and a comma with `index:asc` to sort the output

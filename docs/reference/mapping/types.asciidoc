@@ -119,7 +119,7 @@ same field type. See <<array>>.
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for
-sorting or aggregations.  Alternatively, you could index a text field with
+sorting or aggregations. Alternatively, you could index a text field with
 the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.

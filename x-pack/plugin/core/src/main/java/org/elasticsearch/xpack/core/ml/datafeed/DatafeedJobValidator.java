@@ -24,12 +24,14 @@ public final class DatafeedJobValidator {
      * Validates a datafeedConfig in relation to the job it refers to
      * @param datafeedConfig the datafeed config
      * @param job the job
+     * @param xContentRegistry the named xcontent registry for parsing datafeed aggs
      */
     public static void validate(DatafeedConfig datafeedConfig, Job job, NamedXContentRegistry xContentRegistry) {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig.getLatency() != null && analysisConfig.getLatency().seconds() > 0) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
+        // TODO should we validate that the aggs define the fields requested in the analysis config?
         if (datafeedConfig.hasAggregations()) {
             checkSummaryCountFieldNameIsSet(analysisConfig);
             checkValidHistogramInterval(datafeedConfig, analysisConfig, xContentRegistry);

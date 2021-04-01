@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class QueryTranslationTests extends AbstractQueryFolderTestCase {
+public class QueryTranslationTests extends AbstractQueryTranslationTestCase {
 
     public void testLikeExactEqualsNoOptimization() throws Exception {
         PhysicalPlan plan = plan("process where process_name == \"*\" ");

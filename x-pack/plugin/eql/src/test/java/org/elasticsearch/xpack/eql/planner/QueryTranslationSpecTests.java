@@ -10,25 +10,29 @@ package org.elasticsearch.xpack.eql.planner;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.ql.TestUtils;
+import org.hamcrest.Matcher;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
+public class QueryTranslationSpecTests extends AbstractQueryTranslationTestCase {
 
     private final String name;
     private final String query;
-    private final Object expect;
+    private final List<Matcher<String>> matchers;
 
-    public QueryFolderOkTests(String name, String query, Object expect) {
+    public QueryTranslationSpecTests(String name, String query, List<Matcher<String>> matchers) {
         this.name = name;
         this.query = query;
-        this.expect = expect;
+        this.matchers = matchers;
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return QueriesUtils.readSpec("/queryfolder_tests.txt");
+        return TestUtils.readSpec(QueryTranslationSpecTests.class, "/querytranslation_tests.txt");
     }
 
     public void test() {
@@ -40,15 +44,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
 
         // test query term
-        if (expect != null) {
-            if (expect instanceof Object[]) {
-                for (Object item : (Object[]) expect) {
-                    assertThat(query, containsString((String) item));
-                }
-            } else {
-                assertThat(query, containsString((String) expect));
-            }
-        }
+        matchers.forEach(m -> assertThat(query, m));
 
         // test common term
         assertThat(query, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));

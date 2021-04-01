@@ -10,6 +10,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -30,6 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
@@ -247,10 +250,12 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                     .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
                 ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
                 // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
+                final PlainActionFuture<ClusterInfo> clusterInfoFuture = new PlainActionFuture<>();
                 threadPool.schedule(
-                        () -> ClusterInfoServiceUtils.refresh(infoService),
+                        () -> ClusterInfoServiceUtils.refreshAsync(infoService, clusterInfoFuture),
                         TimeValue.timeValueMillis(randomIntBetween(1, 100)),
                         ThreadPool.Names.MANAGEMENT);
+                clusterInfoFuture.actionGet(10, TimeUnit.SECONDS);
                 // The delete by query request will be executed successfully because the block will be released
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
                     matcher().deleted(docs));

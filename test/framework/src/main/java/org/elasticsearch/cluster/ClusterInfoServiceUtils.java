@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 
@@ -35,5 +36,10 @@ public class ClusterInfoServiceUtils {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    public static void refreshAsync(InternalClusterInfoService internalClusterInfoService, ActionListener<ClusterInfo> listener) {
+        logger.trace("refreshing cluster info");
+        internalClusterInfoService.refreshAsync(listener);
     }
 }

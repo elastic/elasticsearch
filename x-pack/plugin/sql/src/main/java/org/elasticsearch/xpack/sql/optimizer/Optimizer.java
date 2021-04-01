@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -494,23 +495,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    // NB: it is important to start replacing casts from the bottom to properly replace aliases
-    static class PruneCast extends Rule<LogicalPlan, LogicalPlan> {
+    static class PruneCast extends OptimizerRules.PruneCast<Cast> {
 
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return rule(plan);
+        PruneCast() {
+            super(Cast.class);
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            // eliminate redundant casts
-            return plan.transformExpressionsUp(Cast.class, c -> {
-                if (c.from() == c.to()) {
-                    return c.field();
-                }
-                return c;
-            });
+        protected Expression maybePruneCast(Cast cast) {
+            return cast.from() == cast.to() ? cast.field() : cast;
         }
     }
 

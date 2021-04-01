@@ -293,9 +293,12 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     /**
      * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
      */
-    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
-        "es.searchable.snapshot.shared_cache.write_buffer.size").getBytes());
+    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
+            "es.searchable.snapshot.shared_cache.write_buffer.size"
+        ).getBytes()
+    );
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)

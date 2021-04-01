@@ -41,7 +41,7 @@ public class DataTierTests extends ESTestCase {
         final String[] dataNodes =
             StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                 .map(n -> n.value)
-                .filter(DiscoveryNode::isDataNode)
+                .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
@@ -73,64 +73,61 @@ public class DataTierTests extends ESTestCase {
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
+        final String[] frozenNodes =
+            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                .map(n -> n.value)
+                .filter(DataTier::isFrozenNode)
+                .map(DiscoveryNode::getId)
+                .toArray(String[]::new);
+
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(dataNodes));
         assertThat(discoveryNodes.resolveNodes("data_content:true"), arrayContainingInAnyOrder(contentNodes));
         assertThat(discoveryNodes.resolveNodes("data_hot:true"), arrayContainingInAnyOrder(hotNodes));
         assertThat(discoveryNodes.resolveNodes("data_warm:true"), arrayContainingInAnyOrder(warmNodes));
         assertThat(discoveryNodes.resolveNodes("data_cold:true"), arrayContainingInAnyOrder(coldNodes));
+        assertThat(discoveryNodes.resolveNodes("data_frozen:true"), arrayContainingInAnyOrder(frozenNodes));
         Set<String> allTiers = new HashSet<>(Arrays.asList(contentNodes));
         allTiers.addAll(Arrays.asList(hotNodes));
         allTiers.addAll(Arrays.asList(warmNodes));
         allTiers.addAll(Arrays.asList(coldNodes));
+        allTiers.addAll(Arrays.asList(frozenNodes));
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(allTiers.toArray(Strings.EMPTY_ARRAY)));
     }
 
     public void testDefaultRolesImpliesTieredDataRoles() {
-        DiscoveryNode.setAdditionalRoles(
-            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
-        );
         final DiscoveryNode node = DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_CONTENT_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_HOT_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_WARM_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_COLD_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
     }
 
     public void testDataRoleDoesNotImplyTieredDataRoles() {
-        DiscoveryNode.setAdditionalRoles(
-            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
-        );
         final Settings settings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "data").build();
         final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_CONTENT_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_HOT_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_WARM_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_COLD_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
     }
 
     public void testLegacyDataRoleImpliesTieredDataRoles() {
-        DiscoveryNode.setAdditionalRoles(
-            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
-        );
         final Settings settings = Settings.builder().put(DiscoveryNodeRole.DATA_ROLE.legacySetting().getKey(), true).build();
         final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_CONTENT_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_HOT_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_WARM_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DataTier.DATA_COLD_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
     }
 
     public void testDisablingLegacyDataRoleDisablesTieredDataRoles() {
-        DiscoveryNode.setAdditionalRoles(
-            Set.of(DataTier.DATA_CONTENT_NODE_ROLE, DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE)
-        );
         final Settings settings = Settings.builder().put(DiscoveryNodeRole.DATA_ROLE.legacySetting().getKey(), false).build();
         final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_CONTENT_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_HOT_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_WARM_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DataTier.DATA_COLD_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)));
+        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
     }
 
@@ -154,10 +151,6 @@ public class DataTierTests extends ESTestCase {
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
         Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
-        allRoles.add(DataTier.DATA_CONTENT_NODE_ROLE);
-        allRoles.add(DataTier.DATA_HOT_NODE_ROLE);
-        allRoles.add(DataTier.DATA_WARM_NODE_ROLE);
-        allRoles.add(DataTier.DATA_COLD_NODE_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();

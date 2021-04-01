@@ -68,7 +68,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) {
-                        return NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+                        return NodeRoles.removeRoles(nonDataNode(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
                     }
                 }));
         if (writeDanglingIndices) {

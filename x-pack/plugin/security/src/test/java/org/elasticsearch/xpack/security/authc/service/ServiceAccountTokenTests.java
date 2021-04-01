@@ -33,7 +33,7 @@ public class ServiceAccountTokenTests extends ESTestCase {
     );
 
     private static final Set<Character> INVALID_TOKEN_NAME_CHARS = Set.of(
-        '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[',
+        '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '.', '/', ';', '<', '=', '>', '?', '@', '[',
         '\\', ']', '^', '`', '{', '|', '}', '~', ' ', '\t', '\n', '\r');
 
     public void testIsValidTokenName() {
@@ -82,11 +82,12 @@ public class ServiceAccountTokenTests extends ESTestCase {
 
     public void testBearerString() throws IOException {
         final ServiceAccountToken serviceAccountToken =
-            new ServiceAccountToken(new ServiceAccountId("elastic", "fleet"),
+            new ServiceAccountToken(new ServiceAccountId("elastic", "fleet-server"),
                 "token1", new SecureString("supersecret".toCharArray()));
-        assertThat(serviceAccountToken.asBearerString(), equalTo("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnN1cGVyc2VjcmV0"));
+        assertThat(serviceAccountToken.asBearerString(), equalTo("AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpzdXBlcnNlY3JldA"));
 
-        assertThat(ServiceAccountToken.fromBearerString(new SecureString("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray())),
+        assertThat(ServiceAccountToken.fromBearerString(
+            new SecureString("AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpzdXBlcnNlY3JldA".toCharArray())),
             equalTo(serviceAccountToken));
 
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -101,7 +102,7 @@ public class ServiceAccountTokenTests extends ESTestCase {
             Character[]::new,
             () -> randomFrom(VALID_TOKEN_NAME_CHARS));
         final String name = Arrays.stream(chars).map(String::valueOf).collect(Collectors.joining());
-        return name.startsWith("_") ? "-" + name.substring(1) : name;
+        return name.startsWith("_") ? randomAlphaOfLength(1) + name.substring(1) : name;
     }
 
     public static String randomInvalidTokenName() {

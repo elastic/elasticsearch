@@ -51,7 +51,7 @@ include::version-compat.asciidoc[]
 === Setup
 
 The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`.
-Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
+Note the driver implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
 as long as it is available in the classpath.
 
 Once registered, the driver understands the following syntax as an URL:

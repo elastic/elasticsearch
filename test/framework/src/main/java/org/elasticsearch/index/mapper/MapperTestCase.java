@@ -497,8 +497,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             while (values.size() < count) {
                 values.add(generateRandomInputValue(ft));
             }
-            // values should be unique since we also get de-duplication fetching from docvalues
-            values = values.stream().distinct().collect(Collectors.toList());
             assertFetch(mapperService, "field", values, randomFetchTestFormat());
         } finally {
             assertParseMinimalWarnings();
@@ -575,6 +573,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
                 return o;
             }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
             /*
              * Doc values sort according to something appropriate to the field
              * and the native fetchers usually don't sort. We're ok with this
@@ -582,6 +584,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
              */
             assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
         });
+    }
+
+    /**
+     * A few field types (e.g. keyword fields) don't allow duplicate values, so in those cases we need to de-dup our expected values.
+     * Field types where this is the case should overwrite this. The default is to not de-duplicate though.
+     */
+    protected boolean dedupAfterFetch() {
+        return false;
     }
 
     /**

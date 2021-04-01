@@ -185,3 +185,27 @@ If you would like to use wildcard patterns for destructive actions, set
 `action.destructive_requires_name` to `false` using the <<cluster-update-settings,
 cluster settings>> API.
 ====
+
+.Legacy role settings are removed
+[%collapsible]
+====
+*Details* +
+The legacy role settings:
+
+* `node.data`
+* `node.ingest`
+* `node.master`
+* `node.ml`
+* `node.remote_cluster_client`
+* `node.transform`
+* `node.voting_only`
+
+have been removed. Instead, use the `node.roles` setting. If you were previously
+using the legacy role settings on 7.13 or later cluster, you will have a
+deprecation log message on each of your node informing you of the exact
+replacement value of `node.roles` to use on each of your nodes.
+
+*Impact* +
+Discontinue use of the removed settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
+====

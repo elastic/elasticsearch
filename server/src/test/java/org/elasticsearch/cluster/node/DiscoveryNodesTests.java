@@ -273,11 +273,6 @@ public class DiscoveryNodesTests extends ESTestCase {
             if (frequently()) {
                 roles.add(new DiscoveryNodeRole("custom_role", "cr") {
 
-                    @Override
-                    public Setting<Boolean> legacySetting() {
-                        return null;
-                    }
-
                 });
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);

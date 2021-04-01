@@ -59,17 +59,9 @@ import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
-    private static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
-        = Setting.boolSetting("node.voting_only", false, Property.Deprecated, Property.NodeScope);
-
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
 
     static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            return VOTING_ONLY_NODE_SETTING;
-        }
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -95,11 +87,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
         return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Collections.singletonList(VOTING_ONLY_NODE_SETTING);
     }
 
     @Override

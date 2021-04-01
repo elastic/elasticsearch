@@ -111,26 +111,6 @@ public class DataTierTests extends ESTestCase {
         assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
     }
 
-    public void testLegacyDataRoleImpliesTieredDataRoles() {
-        final Settings settings = Settings.builder().put(DiscoveryNodeRole.DATA_ROLE.legacySetting().getKey(), true).build();
-        final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
-        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
-        assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
-    }
-
-    public void testDisablingLegacyDataRoleDisablesTieredDataRoles() {
-        final Settings settings = Settings.builder().put(DiscoveryNodeRole.DATA_ROLE.legacySetting().getKey(), false).build();
-        final DiscoveryNode node = DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), randomAlphaOfLength(8));
-        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)));
-        assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{DiscoveryNodeRole.DATA_ROLE.legacySetting()});
-    }
-
     private static DiscoveryNodes buildDiscoveryNodes() {
         int numNodes = randomIntBetween(3, 15);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -160,11 +140,6 @@ public class DataTierTests extends ESTestCase {
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(allRoles));
             if (frequently()) {
                 roles.add(new DiscoveryNodeRole("custom_role", "cr") {
-
-                    @Override
-                    public Setting<Boolean> legacySetting() {
-                        return null;
-                    }
 
                 });
             }

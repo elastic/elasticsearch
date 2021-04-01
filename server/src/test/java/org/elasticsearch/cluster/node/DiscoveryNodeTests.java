@@ -88,10 +88,6 @@ public class DiscoveryNodeTests extends ESTestCase {
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
         DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true) {
-            @Override
-            public Setting<Boolean> legacySetting() {
-                return null;
-            }
 
         };
 

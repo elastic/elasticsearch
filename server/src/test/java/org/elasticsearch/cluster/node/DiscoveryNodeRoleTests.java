@@ -25,18 +25,8 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
                         new DiscoveryNodeRole("foo", "f") {
 
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
                         },
                         new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
 
                         })));
         assertThat(e, hasToString(containsString("Duplicate key")));
@@ -48,18 +38,8 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
                         new DiscoveryNodeRole("foo_1", "f") {
 
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
                         },
                         new DiscoveryNodeRole("foo_2", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
 
                         })));
         assertThat(e, hasToString(containsString("Duplicate key")));

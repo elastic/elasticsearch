@@ -39,11 +39,6 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
 
         static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
 
-            @Override
-            public Setting<Boolean> legacySetting() {
-                return NODE_ADDITIONAL_SETTING;
-            }
-
         };
 
         @Override

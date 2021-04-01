@@ -84,6 +84,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     private void maybeNextSlice() throws IOException {
         if (sliceIndex == slice.length) {
+            // moveToNextSlice is intentionally extracted to another method since it's the assumed cold-path
             moveToNextSlice();
         }
     }

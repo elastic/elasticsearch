@@ -20,6 +20,6 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search', 'msearch'
+    include '_common', 'indices', 'index', 'search', 'msearch'
   }
 }

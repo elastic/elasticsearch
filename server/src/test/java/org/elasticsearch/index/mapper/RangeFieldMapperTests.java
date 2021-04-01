@@ -69,6 +69,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         return 6;
     }
 
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -345,5 +350,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             () -> createMapperService(fieldMapping(b -> b.field("type", "date_range").array("format", "test_format")))
         );
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        // Doc value fetching crashes.
+        // https://github.com/elastic/elasticsearch/issues/70269
+        // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
+        assumeFalse("DocValuesFetcher doesn't work", true);
+        return null;
     }
 }

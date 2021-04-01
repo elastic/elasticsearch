@@ -58,6 +58,11 @@ public class ClusterStatsIT extends ESIntegTestCase {
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);

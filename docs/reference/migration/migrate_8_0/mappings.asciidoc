@@ -69,13 +69,13 @@ Disabling _field_names is not necessary because it no longer carries a large ind
 ====
 *Details* +
 Index-time boosts have been deprecated since the 5x line, but it was still possible
-to declare field-specific boosts in the mappings.  This is now removed completely.
+to declare field-specific boosts in the mappings. This is now removed completely.
 Indexes built in 7x that contain mapping boosts will emit warnings, and the boosts
-will have no effect in 8.0.  New indexes will not permit boosts to be set in their
+will have no effect in 8.0. New indexes will not permit boosts to be set in their
 mappings at all.
 
 *Impact* +
-The `boost` setting should be removed from templates and mappings.  Use boosts
+The `boost` setting should be removed from templates and mappings. Use boosts
 directly on queries instead.
 ====
 
@@ -103,13 +103,13 @@ time migration guide].
 *Details* +
 The only permissible values for the `strategy` parameter on `geo_shape` mappings
 are `term` and `recursive`. In 7.x if a non-permissible value was used as a
-parameter here, the mapping would silently fall back to using `recursive`.  The
+parameter here, the mapping would silently fall back to using `recursive`. The
 mapping will now be rejected instead.
 
 *Impact* +
 This will have no impact on existing mappings created with non-permissible
 strategy values, as they will already be serializing themselves as if they
-had been configured as `recursive`.  New indexes will need to use one of the
+had been configured as `recursive`. New indexes will need to use one of the
 permissible strategies, or preferably not define a strategy at all and use
 the far more efficient BKD index.
 ====

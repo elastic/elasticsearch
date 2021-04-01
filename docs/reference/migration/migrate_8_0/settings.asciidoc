@@ -166,3 +166,22 @@ Discontinue use of the removed settings. If needed, use
 `gateway.expected_data_nodes` or `gateway.recover_after_data_nodes` to defer
 cluster recovery pending a certain number of data nodes.
 ====
+
+.By default, destructive index actions do not allow wildcards.
+[%collapsible]
+====
+*Details* +
+The default value of the setting `action.destructive_requires_name` changes from `false`
+to `true` in {es} 8.0.0.
+
+In previous versions, the default setting allowed users to use wildcard
+patterns to delete, close, or change index blocks on indices. In order
+to prevent the accidental deletion of indices that happen to match a
+wildcard pattern, we now require, by default, that any such destructive
+operation explicitly name the indices it intends to modify.
+
+*Impact* +
+If you would like to use wildcard patterns for destructive actions, set
+`action.destructive_requires_name` to `false` using the <<cluster-update-settings,
+cluster settings>> API.
+====

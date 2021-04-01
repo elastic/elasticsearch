@@ -317,7 +317,7 @@ PUT _ingest/pipeline/logs-my_app-default
 . Create an <<index-templates,index template>> that includes your pipeline in
 the <<index-default-pipeline,`index.default_pipeline`>> or
 <<index-final-pipeline,`index.final_pipeline`>> index setting. Ensure the
-template is <<create-a-data-stream-template,data stream enabled>>. The
+template is <<create-index-template,data stream enabled>>. The
 template's index pattern should match `logs-<dataset-name>-*`.
 +
 --

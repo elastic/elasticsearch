@@ -1443,6 +1443,28 @@ public final class OptimizerRules {
         }
     }
 
+    // NB: it is important to start replacing casts from the bottom to properly replace aliases
+    public abstract static class PruneCast<C extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
+
+        private final Class<C> castType;
+
+        public PruneCast(Class<C> castType) {
+            this.castType = castType;
+        }
+
+        @Override
+        public final LogicalPlan apply(LogicalPlan plan) {
+            return rule(plan);
+        }
+
+        @Override
+        protected final LogicalPlan rule(LogicalPlan plan) {
+            // eliminate redundant casts
+            return plan.transformExpressionsUp(castType, this::maybePruneCast);
+        }
+
+        protected abstract Expression maybePruneCast(C cast);
+    }
 
     public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override

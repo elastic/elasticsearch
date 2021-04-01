@@ -664,7 +664,7 @@ See <<cat-transforms>>.
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[#55257]) from the {es} Reference
+({es-issue}55257[#55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -674,7 +674,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+({es-issue}55257[55257]) from the {es} Guide because it was out of date and
 erroneously implied that it should be used by application developers.
 
 There is an issue ({es-issue}55258[#55258]) for providing general testing
@@ -686,7 +686,7 @@ guidance for applications that communicate with {es}.
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -697,7 +697,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -708,7 +708,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -719,7 +719,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.

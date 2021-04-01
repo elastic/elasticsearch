@@ -5,11 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.OrdinalMap;
-import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
@@ -17,18 +16,16 @@ import org.apache.lucene.util.LongValues;
 import java.io.IOException;
 
 /**
- * A {@link SortedSetDocValues} implementation that returns global ordinals
- * instead of segment ordinals.
+ * {@link SortedDocValues} implementation that returns global ordinals instead
+ * of segment ordinals.
  */
-final class GlobalOrdinalMapping extends SortedSetDocValues {
-
-    private final SortedSetDocValues values;
+class SingletonGlobalOrdinalMapping extends SortedDocValues {
+    private final SortedDocValues values;
     private final OrdinalMap ordinalMap;
     private final LongValues mapping;
     private final TermsEnum[] lookups;
 
-    GlobalOrdinalMapping(OrdinalMap ordinalMap, SortedSetDocValues values, TermsEnum[] lookups, int segmentIndex) {
-        super();
+    SingletonGlobalOrdinalMapping(OrdinalMap ordinalMap, SortedDocValues values, TermsEnum[] lookups, int segmentIndex) {
         this.values = values;
         this.lookups = lookups;
         this.ordinalMap = ordinalMap;
@@ -36,12 +33,13 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     }
 
     @Override
-    public long getValueCount() {
-        return ordinalMap.getValueCount();
+    public int getValueCount() {
+        return (int) ordinalMap.getValueCount();
     }
 
-    public long getGlobalOrd(long segmentOrd) {
-        return mapping.get(segmentOrd);
+    @Override
+    public int ordValue() throws IOException {
+        return (int) mapping.get(values.ordValue());
     }
 
     @Override
@@ -50,17 +48,7 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     }
 
     @Override
-    public long nextOrd() throws IOException {
-        long segmentOrd = values.nextOrd();
-        if (segmentOrd == SortedSetDocValues.NO_MORE_ORDS) {
-            return SortedSetDocValues.NO_MORE_ORDS;
-        } else {
-            return getGlobalOrd(segmentOrd);
-        }
-    }
-
-    @Override
-    public BytesRef lookupOrd(long globalOrd) throws IOException {
+    public BytesRef lookupOrd(int globalOrd) throws IOException {
         final long segmentOrd = ordinalMap.getFirstSegmentOrd(globalOrd);
         int readerIndex = ordinalMap.getFirstSegmentNumber(globalOrd);
         lookups[readerIndex].seekExact(segmentOrd);
@@ -86,5 +74,4 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
     public long cost() {
         return values.cost();
     }
-
 }

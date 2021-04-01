@@ -111,6 +111,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
+
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
             if (acceptedGlobalOrdinals == ALWAYS_TRUE) {

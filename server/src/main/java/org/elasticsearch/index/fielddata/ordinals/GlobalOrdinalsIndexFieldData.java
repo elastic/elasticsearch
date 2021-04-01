@@ -8,8 +8,10 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
@@ -219,6 +221,20 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                         return values;
                     }
                     final TermsEnum[] atomicLookups = getOrLoadTermsEnums();
+                    /*
+                     * If we can manage it we try to use a wrapped singleton.
+                     * Lots of other code tries to unwrap the singleton with
+                     * DocValues.unwrapSingleton. It'll take a fast path if
+                     * it gets a singleton. This 
+                     */
+                    if (ordinalMap.getValueCount() < Integer.MAX_VALUE) {
+                        SortedDocValues singleton = DocValues.unwrapSingleton(values);
+                        if (singleton != null) {
+                            return DocValues.singleton(
+                                new SingletonGlobalOrdinalMapping(ordinalMap, singleton, atomicLookups, context.ord)
+                            );
+                        }
+                    }
                     return new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord);
                 }
 

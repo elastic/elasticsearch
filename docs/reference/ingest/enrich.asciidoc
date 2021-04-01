@@ -208,13 +208,13 @@ using your ingest pipeline.
 Once created, you can't update or change an enrich policy.
 Instead, you can:
 
-.   Create and <<execute-enrich-policy-api,execute>> a new enrich policy.
+. Create and <<execute-enrich-policy-api,execute>> a new enrich policy.
 
-.   Replace the previous enrich policy
+. Replace the previous enrich policy
     with the new enrich policy
     in any in-use enrich processors.
 
-.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
+. Use the <<delete-enrich-policy-api, delete enrich policy>> API
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
 

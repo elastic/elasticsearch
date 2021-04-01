@@ -147,7 +147,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed.  Instead, see
+The `_upgrade` API is no longer useful and will be removed. Instead, see
 <<reindex-upgrade>>.
 
 [role="exclude",id="mapping-parent-field"]
@@ -1124,7 +1124,7 @@ See <<ilm-gs-apply-policy>>.
 [role="exclude",id="indices-status"]
 === Index status API
 
-The  index `_status` API has been replaced with the <<indices-stats,index
+The index `_status` API has been replaced with the <<indices-stats,index
 stats>> and <<indices-recovery,index recovery>> APIs.
 
 [role="exclude",id="search-facets"]

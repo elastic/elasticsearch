@@ -184,7 +184,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         }
     }
 
-    private void writeBacklog() {
+    protected void clearBacklog() {
+        backlog = null;
+    }
+
+    protected void writeBacklog() {
         assert backlog != null;
         if (backlog == null) {
             logger.error("Message back log has already been written");

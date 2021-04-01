@@ -23,7 +23,7 @@ public class GeoIpHttpFixture {
     private final HttpServer server;
 
     GeoIpHttpFixture(final String[] args) throws Exception {
-        String rawData = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
+        String data = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
         this.server.createContext("/", exchange -> {
             String query = exchange.getRequestURI().getQuery();
@@ -32,7 +32,6 @@ public class GeoIpHttpFixture {
                 exchange.getResponseBody().close();
                 return;
             }
-            String data = rawData.replace("endpoint", "http://" + exchange.getRequestHeaders().getFirst("Host"));
             exchange.sendResponseHeaders(200, data.length());
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(exchange.getResponseBody()))) {
                 writer.write(data);

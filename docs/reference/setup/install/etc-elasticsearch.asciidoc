@@ -10,5 +10,5 @@ Running commands from this directory or any subdirectories, such as the
 permissions.
 
 Elasticsearch loads its configuration from the
-`/etc/elasticsearch/elasticsearch.yml` file by default.  The format of this
+`/etc/elasticsearch/elasticsearch.yml` file by default. The format of this
 config file is explained in <<settings>>.

@@ -22,7 +22,7 @@ chosen tier.
 
 . In the `elasticsearch.yml` configuration, set
 <<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
-to up to 90% of the node's available disk space. The tier uses this space to
+to up to 90% of available disk space. The tier uses this space to
 create a <<shared-cache,shared, fixed-size cache>> for
 <<searchable-snapshots,searchable snapshots>>.
 +

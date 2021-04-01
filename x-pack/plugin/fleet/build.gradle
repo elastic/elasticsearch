@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'x-pack-fleet'
@@ -15,12 +16,12 @@ esplugin {
 }
 
 dependencies {
-  api project(path: ':modules:reindex')
   compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(path: xpackModule('core')))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testClusters.all {
-  module ':modules:reindex'
+  testDistribution = 'DEFAULT'
 }
-
-addQaCheckDependencies()

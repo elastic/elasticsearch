@@ -443,26 +443,19 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(conditionalFunction, rule.rule(conditionalFunction));
     }
 
-    public void testSimplifyCoalesceNulls() {
-        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, asList(NULL, NULL)));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
-    }
-
     public void testSimplifyCoalesceRandomNulls() {
-        List<Expression> nulls = randomListOfNulls();
-        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, nulls));
-        if (nulls.size() == 1) {
-            assertEquals(NULL, e);
-        } else {
-            assertEquals(Coalesce.class, e.getClass());
-            assertEquals(0, e.children().size());
-        }
+        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, randomListOfNulls()));
+        assertEquals(NULL, e);
     }
 
     public void testSimplifyCoalesceWithOnlyOneChild() {
         Expression fa = fieldAttribute();
         assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, singletonList(fa))));
+    }
+
+    public void testSimplifyCoalesceSameExpression() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, randomList(2, 10, () -> fa))));
     }
 
     public void testSimplifyCoalesceRandomNullsWithValue() {
@@ -491,8 +484,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIfNullNulls() {
         Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, NULL, NULL));
-        assertEquals(IfNull.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
     }
 
     public void testSimplifyIfNullWithNullAndValue() {

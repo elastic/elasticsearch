@@ -708,10 +708,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (e instanceof ArbitraryConditionalFunction) {
                     ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                    // there's no need for a conditional with only one child
-                    if (c instanceof Coalesce) {
-                        if (children.size() == 1) {
-                            return c.children().get(0);
+                    // there's no need for a conditional if all the children are the same (this includes the case of just one value)
+                    if (c instanceof Coalesce && children.size() > 0) {
+                        Expression firstChild = children.get(0);
+                        boolean sameChild = true;
+                        for (int i = 1; i < children.size(); i++) {
+                            Expression child =  children.get(i);
+                            if (firstChild.semanticEquals(child) == false) {
+                                sameChild = false;
+                                break;
+                            }
+                        }
+                        if (sameChild) {
+                            return firstChild;
                         }
                     }
 

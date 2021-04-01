@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.function.DoubleConsumer;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_script_field", Factory.class);
@@ -44,6 +45,16 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         count = 0;
         setDocument(docId);
         execute();
+    }
+
+    /**
+     * Execute the script for the provided {@code docId}, passing results to the {@code consumer}
+     */
+    public final void runForDoc(int docId, DoubleConsumer consumer) {
+        runForDoc(docId);
+        for (int i = 0; i < count; i++) {
+            consumer.accept(values[i]);
+        }
     }
 
     /**

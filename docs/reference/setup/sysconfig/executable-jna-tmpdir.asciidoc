@@ -16,7 +16,7 @@ the JVM process from being able to map this code as executable. On some hardened
 Linux installations this is a default mount option for `/tmp`. One indication
 that the underlying mount is mounted with `noexec` is that at startup JNA will
 fail to load with a `java.lang.UnsatisfiedLinkerError` exception with a message
-along the lines of `failed to map segment from shared object`.  Note that the
+along the lines of `failed to map segment from shared object`. Note that the
 exception message can differ amongst JVM versions. Additionally, the components
 of Elasticsearch that rely on execution of native code via JNA will fail with
 messages indicating that it is `because JNA is not available`. If you are seeing

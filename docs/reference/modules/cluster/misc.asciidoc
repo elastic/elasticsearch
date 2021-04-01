@@ -83,7 +83,7 @@ setting.
 User-defined metadata can be stored and retrieved using the Cluster Settings API.
 This can be used to store arbitrary, infrequently-changing data about the cluster
 without the need to create an index to store it. This data may be stored using
-any key prefixed with `cluster.metadata.`.  For example, to store the email
+any key prefixed with `cluster.metadata.`. For example, to store the email
 address of the administrator of a cluster under the key `cluster.metadata.administrator`,
 issue this request:
 
@@ -107,7 +107,7 @@ metadata will be viewable by anyone with access to the
 ===== Index tombstones
 
 The cluster state maintains index tombstones to explicitly denote indices that
-have been deleted.  The number of tombstones maintained in the cluster state is
+have been deleted. The number of tombstones maintained in the cluster state is
 controlled by the following setting:
 
 `cluster.indices.tombstones.size`::
@@ -128,7 +128,7 @@ this situation.
 ===== Logger
 
 The settings which control logging can be updated <<dynamic-cluster-setting,dynamically>> with the
-`logger.` prefix.  For instance, to increase the logging level of the
+`logger.` prefix. For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
 [source,console]

@@ -64,7 +64,7 @@ ensure your policy:
 
 * Includes a phase for each data tier you've configured.
 * Calculates the threshold, or `min_age`, for phase transition from rollover.
-* Uses searchable snapshots in the cold and frozen phases, if desired.
+* Uses searchable snapshots in the cold and frozen phases, if wanted.
 * Includes a delete phase, if needed.
 
 include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]

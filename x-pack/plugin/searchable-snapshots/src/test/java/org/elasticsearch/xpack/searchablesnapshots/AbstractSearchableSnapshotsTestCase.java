@@ -101,7 +101,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
-        threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
+        threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders(Settings.EMPTY));
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
     }

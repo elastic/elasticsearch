@@ -109,13 +109,6 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     @Override
-    public void testSelectScoreInScalar() throws Exception {
-        index("test", body -> body.field("foo", 1));
-        assertFoundOneProblem(command("SELECT SIN(SCORE()) FROM test"));
-        assertEquals("line 1:12: [SCORE()] cannot be an argument to a function" + END, readLine());
-    }
-
-    @Override
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("test", body -> body.field("a", 1).field("b", 2));
         String commandResult = command("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000");

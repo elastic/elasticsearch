@@ -9,7 +9,6 @@ To get the most out of your time series data in {es}, follow these steps:
 
 * <<set-up-data-tiers>>
 * <<register-snapshot-repository>>
-* <<create-snapshot-lifecycle-policy>>
 * <<create-edit-index-lifecycle-policy>>
 * <<create-ts-component-templates>>
 * <<create-ts-index-template>>
@@ -54,39 +53,8 @@ type and storage provider:
 include::{es-repo-dir}/tab-widgets/snapshot-repo-widget.asciidoc[]
 
 [discrete]
-[[create-snapshot-lifecycle-policy]]
-=== Step 3. Create a snapshot lifecycle policy
-
-<<snapshot-lifecycle-management,{slm-init}>> uses a snapshot lifecycle policy to
-automate the creation and deletion of snapshots. This ensures your data is
-backed up on a regular basis.
-
-To create a snapshot lifecycle policy in {kib}, open the main menu and go to
-**Stack Management > Snapshot and Restore > Policies**. Click **Create Policy**.
-
-You can also use the <<slm-api-put-policy,create snapshot lifecycle policy
-API>>.
-
-[source,console]
-----
-PUT /_slm/policy/my-snapshot-policy
-{
-  "schedule": "0 30 2 * * ?",
-  "name": "<nightly-snapshot-{now/d}>",
-  "repository": "my-snapshot-repository",
-  "retention": {
-    "expire_after": "750d",
-    "min_count": 5,
-    "max_count": 800
-  }
-}
-----
-// TEST[setup:setup-repository]
-// TEST[s/my-snapshot-repository/my_repository/]
-
-[discrete]
 [[create-edit-index-lifecycle-policy]]
-=== Step 4. Create or edit an index lifecycle policy
+=== Step 3. Create or edit an index lifecycle policy
 
 A <<data-streams,data stream>> stores your data across multiple backing
 indices. {ilm-init} uses an <<ilm-index-lifecycle,index lifecycle policy>> to
@@ -109,7 +77,7 @@ include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]
 
 [discrete]
 [[create-ts-component-templates]]
-=== Step 5. Create component templates
+=== Step 4. Create component templates
 
 TIP: If you use {fleet} or {agent}, skip to <<search-visualize-your-data>>.
 {fleet} and {agent} use built-in templates to create data streams for you.
@@ -119,19 +87,19 @@ include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-
 
 [discrete]
 [[create-ts-index-template]]
-=== Step 6. Create an index template
+=== Step 5. Create an index template
 
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-index-template]
 
 [discrete]
 [[index-to-data-stream]]
-=== Step 7. Add data to a data stream
+=== Step 6. Add data to a data stream
 
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-data-stream]
 
 [discrete]
 [[search-visualize-your-data]]
-=== Step 8. Search and visualize your data
+=== Step 7. Search and visualize your data
 
 To explore and search your data in {kib}, open the main menu and select
 **Discover**. See {kib}'s {kibana-ref}/discover.html[Discover documentation].

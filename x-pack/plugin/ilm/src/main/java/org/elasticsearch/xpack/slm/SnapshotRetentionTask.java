@@ -148,6 +148,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                             .collect(Collectors.toMap(Map.Entry::getKey,
                                     e -> e.getValue().stream()
                                             .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshots, policiesWithRetention))
+                                            // SnapshotInfo instances can be quite large in case they contain e.g. a large collection of
+                                            // exceptions so we extract the only two things (id + policy id) here so they can be GCed
                                             .map(snapshotInfo -> Tuple.tuple(snapshotInfo.snapshotId(), getPolicyId(snapshotInfo)))
                                             .collect(Collectors.toList())));
 

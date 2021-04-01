@@ -39,9 +39,8 @@ include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
 [[register-snapshot-repository]]
 === Step 2. Register a snapshot repository
 
-A <<snapshot-restore,snapshot>> backs up your cluster and its data. The cold and
-frozen tiers uses <<searchable-snapshots,searchable snapshots>> to reduce local
-storage costs.
+The cold and frozen tiers use <<searchable-snapshots,searchable snapshots>> to
+reduce local storage costs.
 
 To create snapshots, you must register a snapshot repository. The repository is
 typically a remote object store, such as Google Cloud Storage (GCS) or Azure

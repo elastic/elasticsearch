@@ -1044,6 +1044,18 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(sum, ((InnerAggregate) alias.child()).inner());
     }
 
+    public void testReplaceCast() {
+        FieldAttribute a = getFieldAttribute("a");
+        Cast c = new Cast(EMPTY, a, a.dataType());
+        assertSame(a, new Optimizer.PruneCast().maybePruneCast(c));
+    }
+
+    public void testReplaceCastOnLiteral() {
+        Literal literal = literal("string");
+        Cast c = new Cast(EMPTY, literal, literal.dataType());
+        assertSame(literal, new Optimizer.PruneCast().maybePruneCast(c));
+    }
+
     /**
      * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation
      * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>),

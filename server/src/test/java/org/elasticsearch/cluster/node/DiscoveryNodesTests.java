@@ -271,9 +271,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
             if (frequently()) {
-                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
-
-                });
+                roles.add(new DiscoveryNodeRole("custom_role", "cr"));
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);

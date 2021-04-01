@@ -23,12 +23,9 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo", "f") {
-
-                        },
-                        new DiscoveryNodeRole("foo", "f") {
-
-                        })));
+                        new DiscoveryNodeRole("foo", "f"),
+                        new DiscoveryNodeRole("foo", "f")
+                )));
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
@@ -36,12 +33,9 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo_1", "f") {
-
-                        },
-                        new DiscoveryNodeRole("foo_2", "f") {
-
-                        })));
+                        new DiscoveryNodeRole("foo_1", "f"),
+                        new DiscoveryNodeRole("foo_2", "f")
+                )));
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 

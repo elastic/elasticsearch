@@ -87,9 +87,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true) {
-
-        };
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true);
 
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
             Collections.singleton(customRole), Version.CURRENT);

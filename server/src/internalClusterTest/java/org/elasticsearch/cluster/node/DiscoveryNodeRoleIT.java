@@ -37,9 +37,7 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
                 Setting.boolSetting("node.additional", true, Property.Deprecated, Property.NodeScope);
 
-        static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
-
-        };
+        static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a");
 
         @Override
         public Set<DiscoveryNodeRole> getRoles() {

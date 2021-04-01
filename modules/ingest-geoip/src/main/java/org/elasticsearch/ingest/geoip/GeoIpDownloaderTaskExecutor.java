@@ -38,8 +38,8 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_V2_FEATURE_FL
  */
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("ingest.geoip.downloader.enabled", GEOIP_V2_FEATURE_FLAG_ENABLED,
-        Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("ingest.geoip.downloader.enabled",
+        GEOIP_V2_FEATURE_FLAG_ENABLED, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 

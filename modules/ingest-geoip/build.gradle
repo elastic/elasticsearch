@@ -59,7 +59,7 @@ tasks.named("internalClusterTest").configure {
 
 testClusters.all {
   systemProperty "es.geoip_v2_feature_flag_enabled", "true"
-  setting "geoip.downloader.enabled", "false"
+  setting "ingest.geoip.downloader.enabled", "false"
 }
 
 tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {

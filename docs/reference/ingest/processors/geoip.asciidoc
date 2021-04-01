@@ -11,12 +11,15 @@ IPv6 addresses.
 The `ingest-geoip` module ships by default with the GeoLite2 City, GeoLite2 Country and GeoLite2 ASN GeoIP2 databases from Maxmind made available
 under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
-The `geoip` processor can run with other city, country and ASN GeoIP2 databases
+Databases will be updated automatically as long as cluster can connect to https://geoip.elastic.co/. This endpoint
+can be changed using <<ingest-geoip-settings,ingest.geoip.downloader.endpoint>> setting. Updated databases will be stored in
+`$ES_TMPDIR/geoip-databases/{node_id}` directory.
+
+The `geoip` processor can run with other or manually updated city, country and ASN GeoIP2 databases
 from Maxmind. The database files must be copied into the `ingest-geoip` config
 directory located at `$ES_CONFIG/ingest-geoip`. Custom database files must be
 stored uncompressed and the extension must be `-City.mmdb`, `-Country.mmdb`, or
-`-ASN.mmdb` to indicate the type of the database. These database files can not
-have the same filename as any of the built-in database names. The
+`-ASN.mmdb` to indicate the type of the database. The
 `database_file` processor option is used to specify the filename of the custom
 database to use for the processor.
 
@@ -310,3 +313,36 @@ The `geoip` processor supports the following setting:
     The maximum number of results that should be cached. Defaults to `1000`.
 
 Note that these settings are node settings and apply to all `geoip` processors, i.e. there is one cache for all defined `geoip` processors.
+
+===== Cluster Settings
+
+The `geoip` processor supports the following cluster settings:
+
+`ingest.geoip.downloader.endpoint`::
+
+   (<<static-cluster-setting,Static>>) The endpoint used to update databases used by `geoip` processor. Defaults to https://geoip.elastic.co/v1/database
+
+
+`ingest.geoip.downloader.enabled`::
+
+    Set to `true` (default) to enable automic updates of GeoIP databases. If set to `false` all downloaded databases will be removed.
+
+`ingest.geoip.downloader.poll.interval`::
+
+    How often there will be a check for new databases. Defaults to `3d`, minimum is `1d`
+
+[[ingest-geoip-air-gapped]]
+==== Updating GeoIP databases in air-gapped environments
+
+If cluster can't connect to default endpoint for update due to firewalls or other restrictions there are still a couple of ways
+to use updated databases:
+
+. Create secured proxy to default endpoint and use it with `ingest.geoip.downloader.endpoint` setting
+. Upload databases (`*.mmdb` files) to each ingest node to `$ES_CONFIG/ingest-geoip` directory
+. Create service that mimics defeult endpoint and use it with `ingest.geoip.downloader.endpoint`. There's CLI tool located at
+`bin/elasticsearch-geoip` that can ease that process. To use it
+.. copy databases (`*.mmdb` files) to single directory
+.. run the tool with `/bin/elasticsearch-geoip -s source/directory/to/use [-t target/directory]`
+.. serve static files from that directory (for example with `docker run -v source/directory/to/use:/usr/share/nginx/html:ro nginx`)
+
+Note that for last two options databases have to be manually downloaded from MaxMind site.

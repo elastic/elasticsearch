@@ -19,7 +19,10 @@ import static org.hamcrest.Matchers.is;
 public class NodeClientIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(Client.CLIENT_TYPE_SETTING_S.getKey(), "anything").build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "anything")
+            .build();
     }
 
     public void testThatClientTypeSettingCannotBeChanged() {

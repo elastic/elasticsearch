@@ -1,5 +1,5 @@
 [[elasticsearch-reference]]
-= Elasticsearch Reference
+= Elasticsearch Guide
 
 
 include::index-shared.asciidoc[]

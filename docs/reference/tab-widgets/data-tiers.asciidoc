@@ -81,7 +81,7 @@ node.roles: [ data_hot, data_warm ]
 ----
 
 Assign your nodes any other roles needed for your cluster. For example, a small
-cluster may have a node with multiple roles:
+cluster may have nodes with multiple roles.
 
 [source,yaml]
 ----

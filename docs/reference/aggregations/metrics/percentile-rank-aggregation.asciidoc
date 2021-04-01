@@ -17,10 +17,10 @@ regarding approximation and memory use of the percentile ranks aggregation
 ==================================================
 
 Percentile rank show the percentage of observed values which are below certain
-value.  For example, if a value is greater than or equal to 95% of the observed values
+value. For example, if a value is greater than or equal to 95% of the observed values
 it is said to be at the 95th percentile rank.
 
-Assume your data consists of website load times.  You may have a service agreement that
+Assume your data consists of website load times. You may have a service agreement that
 95% of page loads complete within 500ms and 99% of page loads complete within 600ms.
 
 Let's look at a range of percentiles representing load time:
@@ -120,7 +120,7 @@ Response:
 
 ==== Script
 
-The percentile rank metric supports scripting.  For example, if our load times
+The percentile rank metric supports scripting. For example, if our load times
 are in milliseconds but we want to specify values in seconds, we could use
 a script to convert them on-the-fly:
 

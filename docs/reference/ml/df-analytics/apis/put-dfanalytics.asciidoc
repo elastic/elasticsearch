@@ -461,8 +461,8 @@ may contain documents that don't have an {olscore}.
 * {regression-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
 supported are included in the analysis, other fields are ignored. Documents
-where included fields contain  an array with two or more values are also
-ignored. Documents in the `dest` index  that don’t contain a results field are
+where included fields contain an array with two or more values are also
+ignored. Documents in the `dest` index that don’t contain a results field are
 not included in the {reganalysis}.
 * {classification-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
@@ -470,7 +470,7 @@ supported are included in the analysis, other fields are ignored. Documents
 where included fields contain an array with two or more values are also ignored.
 Documents in the `dest` index that don’t contain a results field are not
 included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
-ordinal variable values to a  single number. For example, in case of age ranges,
+ordinal variable values to a single number. For example, in case of age ranges,
 you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
 If `analyzed_fields` is not set, only the relevant fields will be included. For

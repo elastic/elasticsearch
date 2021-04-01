@@ -71,8 +71,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             }
         }
         dataNoMasterSettings = nonMasterNode(dataMasterSettings);
-        noDataNoMasterSettings = removeRoles(dataMasterSettings, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
-
+        noDataNoMasterSettings = removeRoles(nonDataNode(dataMasterSettings), Set.of(DiscoveryNodeRole.MASTER_ROLE));
         noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 

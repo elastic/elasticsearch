@@ -51,7 +51,7 @@ GET my-index-000001/_search
 
 Aggregations like the <<search-aggregations-bucket-terms-aggregation,`terms`
 aggregation>>  use `1` and `0` for the `key`, and the strings `"true"` and
-`"false"` for the `key_as_string`. Boolean fields  when used in scripts,
+`"false"` for the `key_as_string`. Boolean fields when used in scripts,
 return `1` and `0`:
 
 [source,console]
@@ -106,7 +106,7 @@ The following parameters are accepted by `boolean` fields:
 <<null-value,`null_value`>>::
 
     Accepts any of the true or false values listed above. The value is
-    substituted for any explicit `null` values.  Defaults to `null`, which
+    substituted for any explicit `null` values. Defaults to `null`, which
     means the field is treated as missing.
 
 <<mapping-store,`store`>>::

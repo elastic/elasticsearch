@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -88,11 +87,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public List<DiscoveryNodeRole> roles() {
         return List.of(
             DiscoveryNodeRole.DATA_ROLE,
-            DataTier.DATA_CONTENT_NODE_ROLE,
-            DataTier.DATA_HOT_NODE_ROLE,
-            DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE,
-            DataTier.DATA_FROZEN_NODE_ROLE
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
         );
     }
 

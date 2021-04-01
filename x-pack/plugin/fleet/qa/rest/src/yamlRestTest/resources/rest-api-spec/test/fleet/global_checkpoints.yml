@@ -4,37 +4,36 @@ setup:
         index: test-1
         body:
           settings:
-            number_of_shards: "1"
+            number_of_shards: "2"
 
   - do:
       indices.create:
         index: test-2
         body:
           settings:
-            number_of_shards: "2"
+            number_of_shards: "1"
 
-#  - do:
-#      index:
-#        index:  test-2
-#        body:   { max: 2 }
-#
-#  - do:
-#      index:
-#        index:  test-1
-#        body:   { max: 1 }
-#
-#  - do:
-#      index:
-#        index:  test-3
-#        body:   { max: 3 }
-#
-#  - do:
-#      indices.refresh: {}
+  - do:
+      index:
+        index:  test-2
+        body:   { max: 2 }
+
+  - do:
+      indices.refresh: {}
 
 ---
 "Get Global Checkpoints":
   - do:
       fleet.global_checkpoints:
-        name: "test-1"
+        index: "test-1"
 
-  - match: [-1]
+  - match: { global_checkpoints.0: -1 }
+  - match: { global_checkpoints.1: -1 }
+
+---
+"Get Global Checkpoints after advance":
+  - do:
+      fleet.global_checkpoints:
+        index: "test-2"
+
+  - match: { global_checkpoints.0: 0 }

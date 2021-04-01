@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
@@ -687,6 +690,18 @@ public class OptimizerTests extends ESTestCase {
 
         assertTrue(gte.right() instanceof Literal);
         assertEquals(6, ((Literal) gte.right()).value());
+    }
+
+    public void testReplaceCastOnField() {
+        Attribute a = TestUtils.fieldAttribute("string", DataTypes.KEYWORD);
+        ToString ts = new ToString(EMPTY, a);
+        assertSame(a, new Optimizer.PruneCast().maybePruneCast(ts));
+    }
+
+    public void testReplaceCastOnLiteral() {
+        Literal l = new Literal(EMPTY, "string", DataTypes.KEYWORD);
+        ToString ts = new ToString(EMPTY, l);
+        assertSame(l, new Optimizer.PruneCast().maybePruneCast(ts));
     }
 
     private static Attribute timestamp() {

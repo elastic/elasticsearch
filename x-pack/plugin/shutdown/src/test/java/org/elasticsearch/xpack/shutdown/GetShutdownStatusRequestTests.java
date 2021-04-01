@@ -18,12 +18,16 @@ import java.util.Set;
 
 public class GetShutdownStatusRequestTests extends AbstractWireSerializingTestCase<GetShutdownStatusAction.Request> {
 
-    @Override protected Writeable.Reader<GetShutdownStatusAction.Request> instanceReader() {
+    @Override
+    protected Writeable.Reader<GetShutdownStatusAction.Request> instanceReader() {
         return GetShutdownStatusAction.Request::readFrom;
     }
 
-    @Override protected GetShutdownStatusAction.Request createTestInstance() {
-        return new GetShutdownStatusAction.Request(randomList(0, 20, () -> randomAlphaOfLengthBetween(15,25)).toArray(Strings.EMPTY_ARRAY));
+    @Override
+    protected GetShutdownStatusAction.Request createTestInstance() {
+        return new GetShutdownStatusAction.Request(
+            randomList(0, 20, () -> randomAlphaOfLengthBetween(15, 25)).toArray(Strings.EMPTY_ARRAY)
+        );
     }
 
     @Override

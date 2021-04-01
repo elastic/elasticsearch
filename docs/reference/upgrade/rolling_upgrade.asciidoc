@@ -170,7 +170,7 @@ status will change to `green`.
 ====================================================
 
 Shards that were not <<indices-flush,flushed>> might take longer to
-recover.  You can monitor the recovery status of individual shards by
+recover. You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
 [source,console]
@@ -186,7 +186,7 @@ recovery completes.
 +
 --
 
-When  the node has recovered and the cluster is stable, repeat these steps
+When the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be updated. You can monitor the health of the cluster
 with a <<cat-health,`_cat/health`>> request:
 

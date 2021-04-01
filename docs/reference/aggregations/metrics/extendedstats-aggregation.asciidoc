@@ -63,7 +63,7 @@ The name of the aggregation (`grades_stats` above) also serves as the key by whi
 
 ==== Standard Deviation Bounds
 By default, the `extended_stats` metric will return an object called `std_deviation_bounds`, which provides an interval of plus/minus two standard
-deviations from the mean.  This can be a useful way to visualize variance of your data.  If you want a different boundary, for example
+deviations from the mean. This can be a useful way to visualize variance of your data. If you want a different boundary, for example
 three standard deviations, you can set `sigma` in the request:
 
 [source,console]
@@ -84,7 +84,7 @@ GET /exams/_search
 // TEST[setup:exams]
 <1> `sigma` controls how many standard deviations +/- from the mean should be displayed
 
-`sigma` can be any non-negative double, meaning you can request non-integer values such as `1.5`.  A value of `0` is valid, but will simply
+`sigma` can be any non-negative double, meaning you can request non-integer values such as `1.5`. A value of `0` is valid, but will simply
 return the average for both `upper` and `lower` bounds.
 
 The `upper` and `lower` bounds are calculated as population metrics so they are always the same as `upper_population` and
@@ -93,8 +93,8 @@ The `upper` and `lower` bounds are calculated as population metrics so they are 
 .Standard Deviation and Bounds require normality
 [NOTE]
 =====
-The standard deviation and its bounds are displayed by default, but they are not always applicable to all data-sets.  Your data must
-be normally distributed for the metrics to make sense.  The statistics behind standard deviations assumes normally distributed data, so
+The standard deviation and its bounds are displayed by default, but they are not always applicable to all data-sets. Your data must
+be normally distributed for the metrics to make sense. The statistics behind standard deviations assumes normally distributed data, so
 if your data is skewed heavily left or right, the value returned will be misleading.
 =====
 

@@ -173,7 +173,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
     }
 
     private static boolean isSnapshotNode(DiscoveryNode discoveryNode) {
-        return (discoveryNode.isDataNode() || discoveryNode.isMasterNode())
+        return (discoveryNode.canContainData() || discoveryNode.isMasterNode())
             && RepositoriesService.isDedicatedVotingOnlyNode(discoveryNode.getRoles()) == false;
     }
 

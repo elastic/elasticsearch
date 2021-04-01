@@ -6,7 +6,7 @@
 <titleabbrev>Histogram</titleabbrev>
 ++++
 
-A  field to store pre-aggregated numerical data representing a histogram.
+A field to store pre-aggregated numerical data representing a histogram.
 This data is defined using two paired arrays:
 
 * A `values` array of <<number, `double`>> numbers, representing the buckets for

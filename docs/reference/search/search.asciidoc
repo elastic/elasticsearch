@@ -334,7 +334,7 @@ pattern.
 (Optional, string)
 Format in which the doc values are returned.
 +
-For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+For <<date,date fields>>, you can specify a date <<mapping-date-format,date
 `format`>>. For <<number,numeric fields>> fields, you can specify a
 https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
 pattern].

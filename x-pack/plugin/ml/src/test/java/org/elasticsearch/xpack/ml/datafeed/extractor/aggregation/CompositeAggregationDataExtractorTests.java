@@ -267,6 +267,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71212")
     public void testExtractionGivenCancelHalfWay() throws IOException {
         int numBuckets = 10;
         List<CompositeAggregation.Bucket> buckets = new ArrayList<>(numBuckets);
@@ -277,7 +278,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
                     timestamp,
                     "time_bucket",
                     3,
-                    Arrays.asList(createMax("time", randomLongBetween(timestamp, timestamp + 1000)), createAvg("responsetime", 32.0)),
+                    Arrays.asList(createMax("time", randomLongBetween(timestamp, timestamp + 999)), createAvg("responsetime", 32.0)),
                     Collections.singletonList(Tuple.tuple("airline", "c"))
                 )
             );
@@ -304,7 +305,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
                     timestamp,
                     "time_bucket",
                     3,
-                    Arrays.asList(createMax("time", randomLongBetween(timestamp, timestamp + 1000)), createAvg("responsetime", 32.0)),
+                    Arrays.asList(createMax("time", randomLongBetween(timestamp, timestamp + 999)), createAvg("responsetime", 32.0)),
                     Collections.singletonList(Tuple.tuple("airline", "c"))
                 )
             );
@@ -316,7 +317,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
                     timestamp,
                     "time_bucket",
                     3,
-                    Arrays.asList(createMax("time", randomLongBetween(timestamp, timestamp + 1000)),
+                    Arrays.asList(createMax("time", randomLongBetween(timestamp, timestamp + 999)),
                         createAvg("responsetime", 32.0)),
                     Collections.singletonList(Tuple.tuple("airline", "c"))
                 )

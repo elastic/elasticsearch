@@ -1566,7 +1566,7 @@ public class OptimizerRulesTests extends ESTestCase {
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
-        assertTrue(and.semanticEquals(new PropagateNullable().rule(top)));
+        assertEquals(Predicates.splitAnd(and), Predicates.splitAnd(new PropagateNullable().rule(top)));
     }
 
     // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => a IS NULL AND b < 3

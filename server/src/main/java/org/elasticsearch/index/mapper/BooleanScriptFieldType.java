@@ -16,14 +16,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
-import org.elasticsearch.search.runtime.BooleanScriptFieldExistsQuery;
-import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.BooleanScriptFieldExistsQuery;
+import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
@@ -76,7 +76,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         Map<String, String> meta,
         ToXContent toXContent
     ) {
-        super(name, scriptFactory::newFactory, script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
     }
 
     @Override

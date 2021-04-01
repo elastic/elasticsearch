@@ -55,7 +55,7 @@ public class IndexFieldCapabilities implements Writeable {
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.name = in.readString();
             this.type = in.readString();
-            this.isMetadatafield = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
+            this.isMetadatafield = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
             this.isSearchable = in.readBoolean();
             this.isAggregatable = in.readBoolean();
             this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -78,7 +78,7 @@ public class IndexFieldCapabilities implements Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(name);
             out.writeString(type);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeBoolean(isMetadatafield);
             }
             out.writeBoolean(isSearchable);

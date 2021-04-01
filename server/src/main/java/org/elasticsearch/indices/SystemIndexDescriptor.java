@@ -206,7 +206,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         // the rules for prior system index descriptors
         // 1. No values with the same version
-        // 2. All prior system index descriptors must have a minimumNodeVersion after this one
+        // 2. All prior system index descriptors must have a minimumNodeVersion before this one
         // 3. Prior system index descriptors may not have other prior system index descriptors
         //    to avoid multiple branches that need followed
         Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
@@ -385,7 +385,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      * or the appropriate descriptor if the supplied version is acceptable.
      */
     public SystemIndexDescriptor getDescriptorCompatibleWith(Version version) {
-        if (minimumNodeVersion.before(version)) {
+        if (minimumNodeVersion.onOrBefore(version)) {
             return this;
         }
         for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {

@@ -14,8 +14,8 @@ You can also <<convert-index-alias-to-data-stream,convert an index alias to
 a data stream>>.
 
 IMPORTANT: If you use {fleet} or {agent}, skip this tutorial. {fleet} and
-{agent} set up data streams for you. See {fleet-guide}/data-streams.html[Data
-streams] in the {fleet} Guide.
+{agent} set up data streams for you. See {fleet}'s
+{fleet-guide}/data-streams.html[data streams] documentation.
 
 [discrete]
 [[create-index-lifecycle-policy]]
@@ -189,11 +189,13 @@ PUT _index_template/my-index-template
 [[create-data-stream]]
 === Step 4. Create the data stream
 
-To automatically create the data stream, submit an
-<<add-documents-to-a-data-stream,indexing request>> that targets the stream's
-name. This name must match one of your index template's index patterns. The
-request must use an `op_type` of `create`. Documents must include a `@timestamp`
-field.
+<<add-documents-to-a-data-stream,Indexing requests>> add documents to a data
+stream. These requests must use an `op_type` of `create`. Documents must include
+a `@timestamp` field.
+
+To automatically create your data stream, submit an indexing request that
+targets the stream's name. This name must match one of your index template's
+index patterns.
 
 [source,console]
 ----

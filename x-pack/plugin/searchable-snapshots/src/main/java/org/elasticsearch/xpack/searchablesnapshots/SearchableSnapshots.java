@@ -11,6 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -112,7 +113,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -330,7 +330,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
             final FrozenCacheService frozenCacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
@@ -379,8 +379,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
-        if (DiscoveryNode.isDataNode(settings)) {
-            return singletonList(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get));
+        if (DiscoveryNode.canContainData(settings)) {
+            return org.elasticsearch.common.collect.List.of(
+                new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get)
+            );
         }
         return emptyList();
     }
@@ -533,7 +535,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return org.elasticsearch.common.collect.List.of(executorBuilders());
+        return org.elasticsearch.common.collect.List.of(executorBuilders(settings));
     }
 
     @Override
@@ -541,12 +543,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return Collections.singletonMap(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, SearchableSnapshotRecoveryState::new);
     }
 
-    public static ScalingExecutorBuilder[] executorBuilders() {
+    public static ScalingExecutorBuilder[] executorBuilders(Settings settings) {
+        final int processors = EsExecutors.allocatedProcessors(settings);
         return new ScalingExecutorBuilder[] {
             new ScalingExecutorBuilder(
                 CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 0,
-                28,
+                Math.min(processors * 3, 50),
                 TimeValue.timeValueSeconds(30L),
                 CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
             ),

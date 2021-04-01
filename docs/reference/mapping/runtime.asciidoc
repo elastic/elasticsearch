@@ -189,7 +189,7 @@ Updating or removing a runtime field while a dependent query is running can retu
 inconsistent results. Each shard might have access to different versions of the
 script, depending on when the mapping change takes effect.
 
-Existing queries or visualizations in {kib} that rely on runtime fields can
+WARNING: Existing queries or visualizations in {kib} that rely on runtime fields can
 fail if you remove or update the field. For example, a bar chart visualization
 that uses a runtime field of type `ip` will fail if the type is changed
 to `boolean`, or if the runtime field is removed.

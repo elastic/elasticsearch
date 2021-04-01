@@ -2494,12 +2494,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "          }\n" +
             "        }\n" +
             "      }]}\n";
+        String pipelineId = "regression-stats-pipeline";
 
         highLevelClient().ingest().putPipeline(
-            new PutPipelineRequest("regression-stats-pipeline",
+            new PutPipelineRequest(pipelineId,
                 new BytesArray(regressionPipeline.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON),
             RequestOptions.DEFAULT);
+        highLevelClient().index(
+            new IndexRequest("trained-models-stats-test-index").source("{\"col1\": 1}", XContentType.JSON).setPipeline(pipelineId),
+            RequestOptions.DEFAULT
+        );
         {
             GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
                 GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
@@ -2529,7 +2534,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     .collect(Collectors.toList()),
                 containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
         }
-        highLevelClient().ingest().deletePipeline(new DeletePipelineRequest("regression-stats-pipeline"), RequestOptions.DEFAULT);
+        highLevelClient().ingest().deletePipeline(new DeletePipelineRequest(pipelineId), RequestOptions.DEFAULT);
         assertBusy(() -> {
             assertTrue(indexExists(".ml-stats-000001"));
             ensureGreen(".ml-stats-*");

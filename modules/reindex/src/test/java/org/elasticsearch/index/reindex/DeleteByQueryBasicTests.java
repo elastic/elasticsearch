@@ -241,16 +241,13 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
             if (diskAllocationDeciderEnabled) {
-
                 // Fire off the delete-by-query first
                 final ActionFuture<BulkByScrollResponse> deleteByQueryResponse
                     = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).execute();
-
                 // Then refresh the cluster info which checks the disk threshold and releases the block on the index
                 final InternalClusterInfoService clusterInfoService
                         = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
                 ClusterInfoServiceUtils.refresh(clusterInfoService);
-
                 // The delete by query request will be executed successfully because it retries after the block is released
                 assertThat(deleteByQueryResponse.actionGet(), matcher().deleted(docs));
             } else {

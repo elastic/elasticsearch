@@ -53,7 +53,7 @@ public class IntervalBuilder {
 
     /** Create term intervals for the provided term. */
     protected IntervalsSource termIntervals(BytesRef term) {
-        return termIntervals(term);
+        return Intervals.term(term);
     }
 
     protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered) throws IOException {

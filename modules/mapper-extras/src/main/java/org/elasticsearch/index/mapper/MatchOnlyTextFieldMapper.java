@@ -246,7 +246,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 protected IntervalsSource termIntervals(BytesRef term) {
                     // Approximate the intervals with a TermQuery so that we can avoid parsing the _source
                     // on documents that don't contain the expected term.
-                    return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
+                    return toIntervalsSource(super.termIntervals(term), new TermQuery(new Term(name(), term)), context);
                 }
             };
             return builder.analyzeText(text, maxGaps, ordered);

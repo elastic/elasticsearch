@@ -2,7 +2,7 @@
 == Metadata fields
 
 Each document has metadata associated with it, such as the `_index`
-and `_id` metadata fields.  The behavior of some of these metadata
+and `_id` metadata fields. The behavior of some of these metadata
 fields can be customized when a mapping is created.
 
 [discrete]
@@ -12,6 +12,11 @@ fields can be customized when a mapping is created.
 <<mapping-index-field,`_index`>>::
 
     The index to which the document belongs.
+
+<<mapping-tier-field,`_tier`>>::
+
+    The current data tier preference of the index to which the document belongs.
+
 
 <<mapping-id-field,`_id`>>::
 
@@ -71,6 +76,8 @@ include::fields/ignored-field.asciidoc[]
 include::fields/id-field.asciidoc[]
 
 include::fields/index-field.asciidoc[]
+
+include::fields/tier-field.asciidoc[]
 
 include::fields/meta-field.asciidoc[]
 

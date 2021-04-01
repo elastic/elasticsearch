@@ -93,7 +93,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.canContainData(settings) || DiscoveryNode.isMasterNode(settings)) {
             if (isDedicatedVotingOnlyNode(DiscoveryNode.getRolesFromSettings(settings)) == false) {
                 clusterService.addHighPriorityApplier(this);
             }
@@ -209,7 +209,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
                     // repository is created on both master and data nodes
-                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                    return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
 
                 @Override
@@ -336,7 +336,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
                     // repository was created on both master and data nodes
-                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                    return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
             });
     }

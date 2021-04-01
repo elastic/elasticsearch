@@ -128,7 +128,7 @@ By setting `include_global_state` to `false` it's possible to prevent the cluste
 the snapshot.
 
 IMPORTANT: The global cluster state includes the cluster's index
-templates, such as those <<create-a-data-stream-template,matching a data
+templates, such as those <<create-index-template,matching a data
 stream>>. If your snapshot includes data streams, we recommend storing the
 global state as part of the snapshot. This lets you later restored any
 templates required for a data stream.

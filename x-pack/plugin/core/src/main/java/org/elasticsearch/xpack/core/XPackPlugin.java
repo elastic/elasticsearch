@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,6 +39,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
@@ -49,6 +49,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -64,6 +65,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -93,20 +95,23 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin {
+public class XPackPlugin extends XPackClientPlugin
+    implements
+        ExtensiblePlugin,
+        RepositoryPlugin,
+        EnginePlugin,
+        ClusterPlugin,
+        MapperPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
@@ -241,6 +246,12 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             metadata.custom(WatcherMetadata.TYPE) != null ||
             clusterState.custom(TokenMetadata.TYPE) != null;
     }
+    
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
+    }
+    
 
     @Override
     public Settings additionalSettings() {
@@ -389,16 +400,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
         return settings;
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return new HashSet<>(Arrays.asList(
-            DataTier.DATA_CONTENT_NODE_ROLE,
-            DataTier.DATA_HOT_NODE_ROLE,
-            DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE,
-            DataTier.DATA_FROZEN_NODE_ROLE));
     }
 
     @Override

@@ -105,7 +105,7 @@ fields integrate with several {stack} features by default.
 
 If you're unsure how to map your fields, use <<runtime-search-request,runtime
 fields>> to extract fields from <<mapping-unstructured-content,unstructured
-content>> at a search time. For example, you can index a log message to a
+content>> at search time. For example, you can index a log message to a
 `wildcard` field and later extract IP addresses and other data from this field
 during a search.
 ====

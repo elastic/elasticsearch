@@ -92,7 +92,7 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("event.dataset", "elasticsearch.deprecation"),
+                    hasEntry("event.dataset", "deprecation.elasticsearch"),
                     hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                     hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -132,7 +132,7 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
@@ -148,7 +148,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
                             // event.dataset and data_stream.dataset have to be the same across the data stream
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
@@ -197,7 +197,7 @@ public class JsonLoggerTests extends ESTestCase {
                         // deprecation log for field deprecated_name
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
@@ -213,7 +213,7 @@ public class JsonLoggerTests extends ESTestCase {
                         // deprecation log for field deprecated_name2 (note it is not being throttled)
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
@@ -229,7 +229,7 @@ public class JsonLoggerTests extends ESTestCase {
                         // compatible log line
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
@@ -270,7 +270,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -479,7 +479,7 @@ public class JsonLoggerTests extends ESTestCase {
 
                 assertThat(jsonLogs, contains(
                     allOf(
-                        hasEntry("event.dataset", "elasticsearch.deprecation"),
+                        hasEntry("event.dataset", "deprecation.elasticsearch"),
                         hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                         hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -511,7 +511,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -521,7 +521,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("elasticsearch.event.category", "other")
                         ),
                         allOf(
-                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),

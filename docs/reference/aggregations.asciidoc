@@ -382,11 +382,12 @@ GET /my-index-000001/_search?size=0
 ----
 ////
 
-Scripts calculate field values dynamically, which adds overhead
-to the aggregation. Certain aggregations like
-<<search-aggregations-bucket-terms-aggregation,`terms`>> and
-<<search-aggregations-bucket-filters-aggregation,`filters`>> are
-less optimized when using scripts.
+Scripts calculate field values dynamically, which adds a little
+overhead to the aggregation. In addition to the time spent calculating,
+some aggregations like <<search-aggregations-bucket-terms-aggregation,`terms`>>
+and <<search-aggregations-bucket-filters-aggregation,`filters`>> can not use
+some of their optimizations with runtime fields. So the total performance cost
+for using a runtime field varies from aggregation to aggregation.
 
 // TODO when we have calculated fields we can link to them here.
 

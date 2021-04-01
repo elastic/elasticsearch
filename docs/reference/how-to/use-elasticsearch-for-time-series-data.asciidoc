@@ -98,7 +98,7 @@ include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-
 
 [discrete]
 [[search-visualize-your-data]]
-=== Step 7. Search and visualize your data
+=== Step 6. Search and visualize your data
 
 To explore and search your data in {kib}, open the main menu and select
 **Discover**. See {kib}'s {kibana-ref}/discover.html[Discover documentation].

@@ -340,7 +340,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases
-                    // for system indices, we nonetheless specify them here so that the values from `this.systemIndexDescriptor` are used.
+                    // for system indices, we nonetheless specify them here so that the values from `descriptorForVersion` are used.
                     CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
                         .origin(descriptorForVersion.getOrigin())
                         .mapping(descriptorForVersion.getMappings())
@@ -377,7 +377,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 final SystemIndexDescriptor descriptorForVersion =
                     systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
+                    final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("updating mapping");
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(

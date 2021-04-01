@@ -24,12 +24,10 @@ To get the most out of your time series data in {es}, follow these steps:
 tiers>> to automatically move older data to nodes with less expensive hardware
 as it ages. This helps improve performance and reduce storage costs.
 
-We recommend setting up at least a hot tier for your cluster. Add warm, cold,
-and frozen tiers based on your performance and storage needs.
-
-Use high performance nodes in the hot and warm tiers for faster indexing and
-faster searches on your most recent data. Use slower, less expensive nodes in
-the cold and frozen tiers to reduce costs.
+The hot tier is required. The warm, cold, and frozen tiers are optional. Use
+high performance nodes in the hot and warm tiers for faster indexing and faster
+searches on your most recent data. Use slower, less expensive nodes in the cold
+and frozen tiers to reduce costs.
 
 The steps for setting up data tiers vary based on your deployment type:
 
@@ -40,8 +38,8 @@ include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
 [[register-snapshot-repository]]
 === Step 2. Register a snapshot repository
 
-The cold and frozen tiers use <<searchable-snapshots,searchable snapshots>> to
-reduce local storage costs.
+The cold and frozen tiers can use <<searchable-snapshots,searchable snapshots>>
+to reduce local storage costs.
 
 To create snapshots, you must register a snapshot repository. The repository is
 typically a remote object store, such as Google Cloud Storage (GCS) or Azure
@@ -60,17 +58,13 @@ A <<data-streams,data stream>> stores your data across multiple backing
 indices. {ilm-init} uses an <<ilm-index-lifecycle,index lifecycle policy>> to
 automatically move these indices through your data tiers.
 
-A lifecycle policy contains phases that correspond to data tiers. You can
-specify automated actions to take on indices in each phase. A policy can also
-include a delete phase to safely delete indices you no longer need.
-
 If you use {fleet} or {agent}, edit one of {es}'s built-in lifecycle policies.
 If you use a custom application, create your own policy. In either case,
 ensure your policy:
 
 * Includes a phase for each data tier you've configured.
 * Calculates the threshold, or `min_age`, for phase transition from rollover.
-* Uses searchable snapshots in the cold and frozen phases, if included.
+* Uses searchable snapshots in the cold and frozen phases, if desired.
 * Includes a delete phase, if needed.
 
 include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]

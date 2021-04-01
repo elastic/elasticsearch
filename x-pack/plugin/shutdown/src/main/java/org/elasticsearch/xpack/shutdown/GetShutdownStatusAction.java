@@ -59,16 +59,16 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             return null;
         }
 
-        @Override public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if ((o instanceof Request) == false)
-                return false;
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Request) == false) return false;
             Request request = (Request) o;
             return Arrays.equals(nodeIds, request.nodeIds);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return Arrays.hashCode(nodeIds);
         }
     }
@@ -107,20 +107,21 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
             out.writeList(shutdownStatuses);
         }
 
-        @Override public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if ((o instanceof Response) == false)
-                return false;
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Response) == false) return false;
             Response response = (Response) o;
             return shutdownStatuses.equals(response.shutdownStatuses);
         }
 
-        @Override public int hashCode() {
+        @Override
+        public int hashCode() {
             return Objects.hash(shutdownStatuses);
         }
 
-        @Override public String toString() {
+        @Override
+        public String toString() {
             return Strings.toString(this);
         }
     }

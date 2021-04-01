@@ -83,8 +83,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -694,27 +696,43 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof ArbitraryConditionalFunction) {
-                ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
-
-                // exclude any nulls found
-                List<Expression> newChildren = new ArrayList<>();
-                for (Expression child : c.children()) {
-                    if (Expressions.isNull(child) == false) {
-                        newChildren.add(child);
-
-                        // For Coalesce find the first non-null foldable child (if any) and break early
-                        if (e instanceof Coalesce && child.foldable()) {
-                            break;
-                        }
+            if (e instanceof ConditionalFunction) {
+                List<Expression> children = e.children();
+                // optimize nullIf
+                if (e instanceof NullIf) {
+                    NullIf nullIf = (NullIf) e;
+                    if (Expressions.isNull(nullIf.left()) || Expressions.isNull(nullIf.right())) {
+                        return nullIf.left();
                     }
                 }
+                if (e instanceof ArbitraryConditionalFunction) {
+                    ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                if (newChildren.size() < c.children().size()) {
-                    return c.replaceChildren(newChildren);
+                    // there's no need for a conditional with only one child
+                    if (c instanceof Coalesce) {
+                        if (children.size() == 1) {
+                            return c.children().get(0);
+                        }
+                    }
+
+                    // exclude any nulls found
+                    List<Expression> newChildren = new ArrayList<>();
+                    for (Expression child : children) {
+                        if (Expressions.isNull(child) == false) {
+                            newChildren.add(child);
+
+                            // For Coalesce find the first non-null foldable child (if any) and break early
+                            if (e instanceof Coalesce && child.foldable()) {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (newChildren.size() < children.size()) {
+                        return c.replaceChildren(newChildren);
+                    }
                 }
             }
-
             return e;
         }
     }

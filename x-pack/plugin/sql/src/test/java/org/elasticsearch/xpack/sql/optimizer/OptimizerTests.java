@@ -128,6 +128,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
@@ -307,6 +308,16 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Math.E, foldFunction(new E(EMPTY)));
     }
 
+    public void testNullIfFolding() {
+        assertEquals(null, foldFunction(new NullIf(EMPTY, ONE, ONE)));
+        assertEquals(1, foldFunction(new NullIf(EMPTY, ONE, TWO)));
+        assertEquals(2, foldFunction(new NullIf(EMPTY, TWO, ONE)));
+
+        FieldAttribute fa = fieldAttribute();
+        // works even if the expressions are not foldable
+        assertEquals(null, foldFunction(new NullIf(EMPTY, fa, fa)));
+    }
+
     private static Object foldFunction(Function f) {
         return ((Literal) new ConstantFolding().rule(f)).value();
     }
@@ -439,9 +450,19 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyCoalesceRandomNulls() {
-        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, randomListOfNulls()));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
+        List<Expression> nulls = randomListOfNulls();
+        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, nulls));
+        if (nulls.size() == 1) {
+            assertEquals(NULL, e);
+        } else {
+            assertEquals(Coalesce.class, e.getClass());
+            assertEquals(0, e.children().size());
+        }
+    }
+
+    public void testSimplifyCoalesceWithOnlyOneChild() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, singletonList(fa))));
     }
 
     public void testSimplifyCoalesceRandomNullsWithValue() {
@@ -492,6 +513,12 @@ public class OptimizerTests extends ESTestCase {
         Expression orig = new NullIf(EMPTY, ONE, NULL);
         Expression f = new FoldNull().rule(orig);
         assertEquals(orig, f);
+    }
+
+    public void testSimplifyNullIf() {
+        assertEquals(ONE, new SimplifyConditional().rule(new NullIf(EMPTY, ONE, NULL)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, ONE)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, NULL)));
     }
 
     public void testSimplifyGreatestNulls() {

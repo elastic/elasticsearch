@@ -25,7 +25,7 @@ import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
-import org.elasticsearch.gradle.test.rest.transform.match.ReplaceTextual;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceTextual;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
@@ -94,7 +94,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a match assertion for all project REST tests. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
+     * Replaces all the values of a match assertion for all project REST tests.
+     * For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
      *
      * @param subKey the key name directly under match to replace. For example "_type"
      * @param value  the value used in the replacement. For example "bar"

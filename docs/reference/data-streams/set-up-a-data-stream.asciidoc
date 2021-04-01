@@ -98,6 +98,18 @@ with default options.
 
 * Your lifecycle policy in the `index.lifecycle.name` index setting.
 
+[TIP]
+====
+Use the {ecs-ref}[Elastic Common Schema (ECS)] when mapping your fields. ECS
+fields integrate with several {stack} features by default.
+
+If you're unsure how to map your fields, use <<runtime-search-request,runtime
+fields>> to extract fields from <<mapping-unstructured-content,unstructured
+content>> at search time. For example, you can index a log message to a
+`wildcard` field and later extract IP addresses and other data from this field
+during a search.
+====
+
 To create a component template in {kib}, open the main menu and go to *Stack
 Management > Index Management*. In the *Index Templates* view, click *Create a
 component template*.

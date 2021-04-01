@@ -125,7 +125,7 @@ to disable throttling.
 Throttling uses a wait time between batches so that the internal scroll requests
 can be given a timeout that takes the request padding into account. The padding
 time is the difference between the batch size divided by the
-`requests_per_second` and the time spent writing.  By default the batch size is
+`requests_per_second` and the time spent writing. By default the batch size is
 `1000`, so if `requests_per_second` is set to `500`:
 
 [source,txt]

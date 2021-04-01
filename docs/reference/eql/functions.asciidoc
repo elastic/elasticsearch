@@ -654,7 +654,7 @@ multiply(<factor, <factor>)
 +
 --
 (Required, integer or float or `null`)
-Factor to multiply.  If `null`, the function returns `null`.
+Factor to multiply. If `null`, the function returns `null`.
 
 Two factors are required. No more than two factors can be provided.
 

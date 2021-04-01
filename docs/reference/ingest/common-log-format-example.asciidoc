@@ -156,7 +156,7 @@ pipeline**.
 You’re now ready to index the logs data to a <<data-streams,data stream>>.
 
 . Create an <<index-templates,index template>> with
-<<create-a-data-stream-template,data stream enabled>>.
+<<create-index-template,data stream enabled>>.
 +
 [source,console]
 ----

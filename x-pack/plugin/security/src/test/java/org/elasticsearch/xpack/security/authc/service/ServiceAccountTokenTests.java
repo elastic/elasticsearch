@@ -33,7 +33,7 @@ public class ServiceAccountTokenTests extends ESTestCase {
     );
 
     private static final Set<Character> INVALID_TOKEN_NAME_CHARS = Set.of(
-        '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[',
+        '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '.', '/', ';', '<', '=', '>', '?', '@', '[',
         '\\', ']', '^', '`', '{', '|', '}', '~', ' ', '\t', '\n', '\r');
 
     public void testIsValidTokenName() {

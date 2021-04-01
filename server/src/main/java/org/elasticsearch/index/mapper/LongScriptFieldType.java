@@ -14,17 +14,17 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
 import java.util.Collection;
@@ -34,7 +34,7 @@ import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
-    private static final LongFieldScript.Factory PARSE_FROM_SOURCE
+    static final LongFieldScript.Factory PARSE_FROM_SOURCE
         = (field, params, lookup) -> (LongFieldScript.LeafFactory) ctx -> new LongFieldScript
         (
             field,
@@ -73,7 +73,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         Map<String, String> meta,
         ToXContent toXContent
     ) {
-        super(name, scriptFactory::newFactory, script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
     }
 
     @Override

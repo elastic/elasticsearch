@@ -273,7 +273,7 @@ teardown:
   - match: { responses.4.error.type: "security_exception" } # only_delete + tag-a
 
 ---
-"filters agg match_all doesn't count invisible docs":
+"filters agg match_all doesn't count invisible docs: match_all":
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
@@ -290,7 +290,7 @@ teardown:
   - match: { aggregations.f.buckets.0.doc_count: 6 }
 
 ---
-"filters agg exists doesn't count invisible docs":
+"filters agg exists doesn't count invisible docs: exists":
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:

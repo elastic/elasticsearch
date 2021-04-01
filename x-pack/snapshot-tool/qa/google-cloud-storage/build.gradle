@@ -31,7 +31,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   gcsServiceAccount = new File(project(':plugins:repository-gcs').buildDir,
     'generated-resources/service_account_test.json').path
   gcsBucket = 'bucket_test'
-  gcsBasePath = 'integration_test'
+  gcsBasePath = null
 
   useGCSFixture = true
 } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
@@ -48,7 +48,7 @@ task gcsThirdPartyTest(type: Test) {
   systemProperty 'tests.security.manager', false
 
   systemProperty 'test.google.bucket', gcsBucket
-  systemProperty 'test.google.base', gcsBasePath
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath ? gcsBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
   nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }
 

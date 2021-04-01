@@ -12,7 +12,6 @@ To get the most out of your time series data in {es}, follow these steps:
 * <<create-edit-index-lifecycle-policy>>
 * <<create-ts-component-templates>>
 * <<create-ts-index-template>>
-* <<create-ts-index-template>>
 * <<add-data-to-data-stream>>
 * <<search-visualize-your-data>>
 

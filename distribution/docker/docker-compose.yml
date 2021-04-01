@@ -30,6 +30,7 @@ services:
        - xpack.http.ssl.verification_mode=certificate
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
+       - action.destructive_requires_name=false
     volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
@@ -81,6 +82,7 @@ services:
        - xpack.http.ssl.verification_mode=certificate
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
+       - action.destructive_requires_name=false
     volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem

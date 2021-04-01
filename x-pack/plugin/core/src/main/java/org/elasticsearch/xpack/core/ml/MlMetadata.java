@@ -310,6 +310,7 @@ public class MlMetadata implements Metadata.Custom {
                 jobs = new TreeMap<>(previous.jobs);
                 datafeeds = new TreeMap<>(previous.datafeeds);
                 upgradeMode = previous.upgradeMode;
+                resetMode = previous.resetMode;
             }
         }
 

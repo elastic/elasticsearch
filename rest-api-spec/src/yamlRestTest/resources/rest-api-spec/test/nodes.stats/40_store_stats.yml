@@ -2,8 +2,7 @@
 "Store stats":
   - skip:
       features: [arbitrary_key]
-      # todo change after backport
-      version: " - 7.99.99"
+      version: " - 7.12.99"
       reason:  "total_data_set_size added in 7.13"
 
   - do:

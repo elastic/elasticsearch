@@ -89,7 +89,7 @@ potentially ignoring any firewall settings. If you don't want to expose port 920
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
 
-The  https://docs.docker.com/storage/volumes[Docker named volumes]
+The https://docs.docker.com/storage/volumes[Docker named volumes]
 `data01`, `data02`, and `data03` store the node data directories so the data persists across restarts.
 If they don't already exist, `docker-compose` creates them when you bring up the cluster.
 --
@@ -163,7 +163,7 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 --
 
-* macOS with  https://docs.docker.com/docker-for-mac[Docker for Mac]
+* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
 +
 --
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
@@ -308,7 +308,7 @@ example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
 
 You should use a volume bound on `/usr/share/elasticsearch/data` for the following reasons:
 
-.  The data of your {es} node won't be lost if the container is killed
+. The data of your {es} node won't be lost if the container is killed
 
 . {es} is I/O sensitive and the Docker storage driver is not ideal for fast I/O
 

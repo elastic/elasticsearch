@@ -271,11 +271,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }
-        if (repository.getMetadata().type().equals(BlobStoreRepository.URL_REPOSITORY_TYPE)) {
-            throw new IllegalArgumentException(
-                "Searchable snapshots are not supported on URL repositories [" + repository.getMetadata().name() + "]"
-            );
-        }
         return (BlobStoreRepository) repository;
     }
 
@@ -329,7 +324,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
             final FrozenCacheService frozenCacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
@@ -369,7 +364,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             return List.of(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get));
         }
         return List.of();

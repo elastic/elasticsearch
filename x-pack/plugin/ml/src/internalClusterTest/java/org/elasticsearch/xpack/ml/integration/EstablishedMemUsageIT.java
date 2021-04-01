@@ -39,7 +39,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
-    private long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
+    private final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
 
     private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;

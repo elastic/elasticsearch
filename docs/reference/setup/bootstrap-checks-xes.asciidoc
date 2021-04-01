@@ -57,7 +57,7 @@ If you enable {es} {security-features}, unless you have a trial license, you
 must configure SSL/TLS for internode-communication.
 
 NOTE: Single-node clusters that use a loopback interface do not have this
-requirement.  For more information, see
+requirement. For more information, see
 <<configuring-stack-security>>.
 
 To pass this bootstrap check, you must

@@ -20,9 +20,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

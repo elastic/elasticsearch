@@ -30,7 +30,7 @@ import java.util.Set;
 public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient;
-    private Map<String, Integer> baseMetrics = new HashMap<String, Integer>();
+    private Map<String, Integer> baseMetrics = new HashMap<>();
     private Integer baseAllTotalQueries = 0;
     private Integer baseAllFailedQueries = 0;
 
@@ -42,7 +42,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @Before
-    private void getBaseMetrics() throws UnsupportedOperationException, IOException {
+    public void getBaseMetrics() throws UnsupportedOperationException, IOException {
         Map<String, Object> baseStats = getStats();
         List<Map<String, Map<String, Map>>> nodesListStats = (List) baseStats.get("stats");
 
@@ -278,11 +278,11 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
     }
 
-    private void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) throws IOException {
+    private void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
 
-    private void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) throws IOException {
+    private void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allFailedQueries, responseAsMap, "failed");
     }
 
@@ -306,14 +306,14 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void assertFeaturesMetrics(int expected, Map<String, Object> responseAsMap, Set<String> metricsToCheck) throws IOException {
+    private void assertFeaturesMetrics(int expected, Map<String, Object> responseAsMap, Set<String> metricsToCheck) {
         for(String metricName : metricsToCheck) {
             assertFeatureMetric(expected, responseAsMap, metricName);
         }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertFeatureMetric(int expected, Map<String, Object> responseAsMap, String feature) throws IOException {
+    private void assertFeatureMetric(int expected, Map<String, Object> responseAsMap, String feature) {
         List<Map<String, ?>> nodesListStats = (List<Map<String, ?>>) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -329,7 +329,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) throws IOException {
+    private void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -340,7 +340,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
 
-    private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
+    private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) {
         assertQueryMetric(expected, responseAsMap, "_all", metric);
     }
 

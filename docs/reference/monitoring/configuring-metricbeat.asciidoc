@@ -43,7 +43,7 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 --
 
 . {metricbeat-ref}/metricbeat-installation-configuration.html[Install {metricbeat}] on each
-{es} node in the production cluster.  Failure to install on each node may result in incomplete or missing results.
+{es} node in the production cluster. Failure to install on each node may result in incomplete or missing results.
 
 . Enable the {es} module in {metricbeat} on each {es} node.
 +
@@ -190,7 +190,7 @@ PUT _cluster/settings
 ----------------------------------
 
 If {es} {security-features} are enabled, you must have `monitor` cluster
-privileges to  view the cluster settings and `manage` cluster privileges
+privileges to view the cluster settings and `manage` cluster privileges
 to change them.
 --
 

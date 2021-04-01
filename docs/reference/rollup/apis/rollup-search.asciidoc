@@ -1,20 +1,3 @@
-ifdef::permanently-unreleased-branch[]
-
-[role="xpack"]
-[testenv="basic"]
-[[rollup-search]]
-=== Legacy rollup search
-++++
-<titleabbrev>Legacy rollup search</titleabbrev>
-++++
-
-include::put-job.asciidoc[tag=legacy-rollup-admon]
-
-Searches legacy rollup data using <<query-dsl,Query DSL>>.
-
-endif::[]
-ifndef::permanently-unreleased-branch[]
-
 [role="xpack"]
 [testenv="basic"]
 [[rollup-search]]
@@ -26,8 +9,6 @@ ifndef::permanently-unreleased-branch[]
 Enables searching rolled-up data using the standard Query DSL.
 
 experimental[]
-
-endif::[]
 
 [[rollup-search-request]]
 ==== {api-request-title}

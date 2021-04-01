@@ -155,7 +155,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             // don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            return (DiscoveryNode.canContainData(settings));
+            return (DiscoveryNode.hasDataRole(settings) || DataTier.isExplicitDataTier(settings));
         }
 
     };

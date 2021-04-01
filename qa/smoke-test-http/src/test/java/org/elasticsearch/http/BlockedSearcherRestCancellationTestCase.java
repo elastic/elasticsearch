@@ -85,7 +85,6 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             }
         }
         assertThat(searcherBlocks, not(empty()));
-
         final List<Releasable> releasables = new ArrayList<>();
         try {
             for (final Semaphore searcherBlock : searcherBlocks) {

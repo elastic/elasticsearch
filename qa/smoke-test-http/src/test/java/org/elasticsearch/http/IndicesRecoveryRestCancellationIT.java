@@ -21,7 +21,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;

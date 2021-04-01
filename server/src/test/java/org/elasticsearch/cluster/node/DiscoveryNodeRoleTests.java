@@ -22,8 +22,8 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo", "f"),
-                        new DiscoveryNodeRole("foo", "f")
+                        new DiscoveryNodeRole("foo", "f_1"),
+                        new DiscoveryNodeRole("foo", "f_2")
                 )));
         assertThat(e, hasToString(containsString("Duplicate key")));
     }

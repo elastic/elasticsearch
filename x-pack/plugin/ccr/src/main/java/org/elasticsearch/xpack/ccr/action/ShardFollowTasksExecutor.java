@@ -128,7 +128,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
         final DiscoveryNode node = selectLeastLoadedNode(
             clusterState,
-            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+            ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );
         if (node == null) {
             return NO_ASSIGNMENT;

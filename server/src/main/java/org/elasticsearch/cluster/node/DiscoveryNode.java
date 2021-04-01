@@ -13,7 +13,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -62,21 +61,28 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Due to the way that plugins may not be available when settings are being initialized,
-     * not all roles may be available from a static/initializing context such as a {@link Setting}
-     * default value function. In that case, be warned that this may not include all plugin roles.
+     * Check if the given settings are indicative of having the top-level data role.
+     *
+     * Note that if you want to test for whether or not the given settings are indicative of any role that can contain data, you should use
+     * {@link #canContainData(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having the top-level data role, otherwise false
      */
-    public static boolean isDataNode(final Settings settings) {
-        return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
+    public static boolean hasDataRole(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
     }
 
     /**
-     * Allows determining the "data" property without the need to load plugins, but does this purely based on
-     * naming conventions. Prefer using {@link #isDataNode(Settings)} if possible.
+     * Check if the given settings are indicative of any role that can contain data.
+     *
+     * Note that if you want to test for exactly the data role, you should use {@link #hasDataRole(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having any role that can contain data, otherwise false
      */
-    public static boolean isDataNodeBasedOnNamingConvention(final Settings settings) {
-        return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) ||
-            settings.getAsList("node.roles").stream().anyMatch(DiscoveryNodeRole::isDataRoleBasedOnNamingConvention);
+    public static boolean canContainData(final Settings settings) {
+        return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     public static boolean isIngestNode(final Settings settings) {
@@ -206,7 +212,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
-        if (NODE_ROLES_SETTING.exists(settings)) {
+        // are any legacy settings in use?
+        boolean usesLegacySettings =
+            getPossibleRoles().stream().anyMatch(s -> s.legacySetting() != null && s.legacySetting().exists(settings));
+        if (NODE_ROLES_SETTING.exists(settings) || usesLegacySettings == false) {
             validateLegacySettings(settings, roleMap);
             return Set.copyOf(NODE_ROLES_SETTING.get(settings));
         } else {
@@ -331,7 +340,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean isDataNode() {
+    public boolean canContainData() {
         return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 

@@ -168,7 +168,7 @@ setting:
 {es} to size its thread pools as if it only has a fraction of the CPU, you
 should override the `node.processors` setting to the desired fraction, for
 example, if you're running two instances of {es} on a 16-core machine, set
-`node.processors` to 8.  Note that this is an expert-level use case and there's
+`node.processors` to 8. Note that this is an expert-level use case and there's
 a lot more involved than just setting the `node.processors` setting as there are
 other considerations like changing the number of garbage collector threads,
 pinning processes to cores, and so on.

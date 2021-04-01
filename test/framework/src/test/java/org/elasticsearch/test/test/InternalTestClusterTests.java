@@ -342,7 +342,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 List<String> paths = Arrays.stream(getNodePaths(cluster, name)).map(Path::toString).collect(Collectors.toList());
                 if (node.isMasterNode()) {
                     result.computeIfAbsent(DiscoveryNodeRole.MASTER_ROLE, k -> new HashSet<>()).addAll(paths);
-                } else if (node.isDataNode()) {
+                } else if (node.canContainData()) {
                     result.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE, k -> new HashSet<>()).addAll(paths);
                 } else {
                     result.computeIfAbsent(DiscoveryNodeRole.INGEST_ROLE, k -> new HashSet<>()).addAll(paths);

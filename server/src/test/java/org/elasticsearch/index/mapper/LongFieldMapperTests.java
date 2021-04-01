@@ -18,6 +18,7 @@ import java.math.BigInteger;
 import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -41,6 +42,41 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "long");
+    }
+
+    @Override
+    protected boolean allowsIndexTimeScript() {
+        return true;
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("coerce", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [coerce] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("null_value", 7);
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("ignore_malformed", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+        }
     }
 
     public void testLongIndexingOutOfRange() throws Exception {

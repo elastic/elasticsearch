@@ -14,8 +14,7 @@
         {
           "path":"/_ml/datafeeds/{datafeed_id}/_preview",
           "methods":[
-            "GET",
-            "POST"
+            "GET"
           ],
           "parts":{
             "datafeed_id":{
@@ -27,8 +26,7 @@
         {
           "path":"/_ml/datafeeds/_preview",
           "methods":[
-            "GET",
-            "POST"
+            "GET"
           ]
         }
       ]

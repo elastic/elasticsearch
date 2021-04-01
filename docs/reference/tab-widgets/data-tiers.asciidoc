@@ -43,7 +43,8 @@ for {ess}.
 
 // tag::self-managed[]
 To assign a node to a data tier, add the respective <<node-roles,node role>> to
-the node's `elasticsearch.yml` file.
+the node's `elasticsearch.yml` file. Changing an existing node's roles requires
+a <<restart-cluster-rolling,rolling restart>>.
 
 [source,yaml]
 ----

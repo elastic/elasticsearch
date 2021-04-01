@@ -36,7 +36,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
-            CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
+            CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.GENERIC);
     }
 
     @Override

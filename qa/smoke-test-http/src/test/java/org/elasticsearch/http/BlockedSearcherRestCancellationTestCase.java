@@ -107,11 +107,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
                 }
             });
 
-            logger.info("--> waiting for task to start");
-            assertBusy(() -> {
-                final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-                assertTrue(tasks.toString(), tasks.stream().anyMatch(t -> t.getAction().startsWith(actionPrefix)));
-            });
+            awaitTaskWithPrefix(actionPrefix);
 
             logger.info("--> waiting for at least one task to hit a block");
             assertBusy(() -> assertTrue(searcherBlocks.stream().anyMatch(Semaphore::hasQueuedThreads)));

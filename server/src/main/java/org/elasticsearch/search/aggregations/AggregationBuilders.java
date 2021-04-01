@@ -63,6 +63,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ProportionalSumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Stats;
@@ -130,6 +131,13 @@ public class AggregationBuilders {
      */
     public static SumAggregationBuilder sum(String name) {
         return new SumAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new {@link Sum} aggregation with the given name.
+     */
+    public static ProportionalSumAggregationBuilder proportionalSum(String name) {
+        return new ProportionalSumAggregationBuilder(name);
     }
 
     /**

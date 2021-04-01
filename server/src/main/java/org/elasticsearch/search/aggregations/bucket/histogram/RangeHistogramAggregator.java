@@ -27,8 +27,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class RangeHistogramAggregator extends AbstractHistogramAggregator {
+public class RangeHistogramAggregator extends AbstractHistogramAggregator implements RangeFieldBucketAggregator<Double> {
     private final ValuesSource.Range valuesSource;
+
+    private RangeFieldBucketAggregatorCollectContext<Double> collectContext;
 
     public RangeHistogramAggregator(
         String name,
@@ -107,6 +109,8 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
                                 if (key == previousKey) {
                                     continue;
                                 }
+                                double bucketFrom = key * interval + offset;
+                                collectContext = new RangeFieldBucketAggregatorCollectContext.Dbl(from, to, bucketFrom, bucketFrom + interval);
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
                                 long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                                 if (bucketOrd < 0) { // already seen
@@ -125,5 +129,10 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    public RangeFieldBucketAggregatorCollectContext<Double> getCollectContext() {
+        return collectContext;
     }
 }

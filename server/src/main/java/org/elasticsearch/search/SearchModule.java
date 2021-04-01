@@ -178,6 +178,7 @@ import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggr
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ProportionalSumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -329,6 +330,9 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER)
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators), builder);
+        registerAggregation(new AggregationSpec(ProportionalSumAggregationBuilder.NAME, ProportionalSumAggregationBuilder::new, ProportionalSumAggregationBuilder.PARSER)
+            .addResultReader(InternalSum::new)
+            .setAggregatorRegistrar(ProportionalSumAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder.PARSER)
             .addResultReader(InternalMin::new)
             .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators), builder);

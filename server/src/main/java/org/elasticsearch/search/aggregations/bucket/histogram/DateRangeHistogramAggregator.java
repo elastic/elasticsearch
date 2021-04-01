@@ -46,7 +46,7 @@ import static java.lang.Long.min;
  *
  * @see Rounding
  */
-class DateRangeHistogramAggregator extends BucketsAggregator {
+class DateRangeHistogramAggregator extends BucketsAggregator implements RangeFieldBucketAggregator<Long> {
 
     private final ValuesSource.Range valuesSource;
     private final DocValueFormat formatter;
@@ -63,6 +63,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final LongBounds hardBounds;
 
     private final LongKeyedBucketOrds bucketOrds;
+    private RangeFieldBucketAggregatorCollectContext<Long> collectContext;
 
     DateRangeHistogramAggregator(
         String name,
@@ -145,6 +146,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                                 if (key == previousKey) {
                                     continue;
                                 }
+                                collectContext = new RangeFieldBucketAggregatorCollectContext.Lng(from, to, key, preparedRounding.nextRoundingValue(key));
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
                                 long bucketOrd = bucketOrds.add(owningBucketOrd, key);
                                 if (bucketOrd < 0) { // already seen
@@ -204,4 +206,10 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
     }
+
+    @Override
+    public RangeFieldBucketAggregatorCollectContext<Long> getCollectContext() {
+        return collectContext;
+    }
+
 }

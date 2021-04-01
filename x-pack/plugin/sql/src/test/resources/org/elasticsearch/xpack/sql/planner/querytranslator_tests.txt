@@ -1,0 +1,146 @@
+//
+// Query translator tests. Format: 
+//
+// <name>[-Ignore]
+// <sql-query>;
+// <matcher-1> <expectation-1>EOL
+// <matcher-2> <expectation-2>EOL
+// ...
+// ;
+//
+// Note: the currently supported matchers: contains, containsRegex
+// To ignore a test, add the -Ignore to the end of the name
+
+TermEqualityAnalyzer
+SELECT some.string FROM test WHERE some.string = 'value';
+contains "term":{"some.string.typical":{"value":"value",
+;
+
+TermEqualityNotAnalyzed
+SELECT some.string FROM test WHERE int = 5;
+contains "term":{"int":{"value":5,
+;
+
+TermEqualityForDate
+SELECT some.string FROM test WHERE date = 5;
+contains "term":{"date":{"value":5,
+;
+
+TranslateDateAdd_WhereClause_Painless
+SELECT int FROM test WHERE DATE_ADD('quarter',int, date) > '2018-09-04'::date;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateAdd(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2),params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))
+contains "params":{"v0":"quarter","v1":"int","v2":"date","v3":"Z","v4":"2018-09-04T00:00:00.000Z"}
+;
+
+TranslateDateDiff_WhereClause_Painless
+SELECT int FROM test WHERE DATE_DIFF('week',date, date) > '2018-09-04'::date;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2),params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))
+contains "params":{"v0":"week","v1":"date","v2":"date","v3":"Z","v4":"2018-09-04T00:00:00.000Z"}
+;
+
+TranslateDateTrunc_WhereClause_Painless
+SELECT int FROM test WHERE DATE_TRUNC('month', date) > '2018-09-04'::date;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateTrunc(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))
+contains "params":{"v0":"month","v1":"date","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
+;
+
+TranslateDatePart_WhereClause_Painless
+SELECT int FROM test WHERE DATE_PART('month', date) > '2018-09-04'::date;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.datePart(params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))
+contains "params":{"v0":"month","v1":"date","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
+;
+
+TranslateDateTimeFormat_WhereClause_Painless
+SELECT int FROM test WHERE DATETIME_FORMAT(date, 'YYYY_MM_dd') = '2018_09_04';
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeFormat(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))
+contains "params":{"v0":"date","v1":"YYYY_MM_dd","v2":"Z","v3":"2018_09_04"}
+;
+
+TranslateDateTimeParse_WhereClause_Painless
+SELECT int FROM test WHERE DATETIME_PARSE(keyword, 'uuuu_MM_dd') = '2018-09-04'::date;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeParse(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))
+contains "params":{"v0":"keyword","v1":"uuuu_MM_dd","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
+;
+
+TranslateFormat_WhereClause_Painless
+SELECT int FROM test WHERE FORMAT(date, 'YYYY_MM_dd') = '2018_09_04';
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.format(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))
+contains "params":{"v0":"date","v1":"YYYY_MM_dd","v2":"Z","v3":"2018_09_04"}
+;
+
+LikeOnInexact
+SELECT * FROM test WHERE some.string LIKE '%a%';
+contains "query":{"wildcard":{"some.string.typical":{"wildcard":"*a*",
+;
+
+RLikeOnInexact
+SELECT * FROM test WHERE some.string RLIKE '.*a.*';
+contains "query":{"regexp":{"some.string.typical":{"value":".*a.*",
+;
+
+LikeWithScalars
+SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%';
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))
+contains "params":{"v0":"keyword","v1":"^.*a.*$"}
+;
+
+RLikeWithScalars
+SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*';
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))
+contains "params":{"v0":"keyword","v1":".*a.*"}
+;
+
+TranslateIsNullExpression_WhereClause
+SELECT * FROM test WHERE keyword IS NULL;
+contains "query":{"bool":{"must_not":[{"exists":{"field":"keyword",
+;
+
+TranslateIsNullExpression_WhereClause_Painless
+SELECT * FROM test WHERE POSITION('x', keyword) IS NULL;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))
+contains "params":{"v0":"x","v1":"keyword"}
+;
+
+TranslateIsNotNullExpression_WhereClause
+SELECT * FROM test WHERE keyword IS NOT NULL;
+contains "query":{"exists":{"field":"keyword","boost":1.0}
+;
+
+TranslateIsNotNullExpression_WhereClause_Painless
+SELECT * FROM test WHERE POSITION('x', keyword) IS NOT NULL;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))
+contains "params":{"v0":"x","v1":"keyword"}
+;
+
+TranslateInExpression_WhereClause
+SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'));
+contains {"terms":{"keyword":["foo","bar","lala"],"boost":1.0}}
+;
+
+TranslateInExpression_WhereClause_TextFieldWithKeyword
+SELECT * FROM test WHERE some.string IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'));
+contains {"terms":{"some.string.typical":["foo","bar","lala"],"boost":1.0}}
+;
+
+TranslateInExpression_WhereClauseAndNullHandling
+SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'));
+contains {"terms":{"keyword":["foo","lala"],"boost":1.0}}
+;
+
+TranslateInExpression_WhereClause_Painless
+SELECT int FROM test WHERE POWER(int, 2) IN (10, null, 20, 30 - 10);
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalSqlScriptUtils.power(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))
+contains "params":{"v0":"int","v1":2,"v2":[10.0,null,20.0]}
+;
+
+TranslateIsNullExpression_HavingClause_Painless
+SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NULL;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(params.a0))
+containsRegex "aggregations":\{"(?<id>.+?)":\{"max":\{"field":"int"}},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>"}
+;
+
+TranslateIsNotNullExpression_HavingClause_Painless
+SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NOT NULL;
+contains InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(params.a0))
+containsRegex "aggregations":\{"(?<id>.+?)":\{"max":\{"field":"int"}},"having.+?":\{"bucket_selector":\{"buckets_path":\{"a0":"\k<id>"}
+;

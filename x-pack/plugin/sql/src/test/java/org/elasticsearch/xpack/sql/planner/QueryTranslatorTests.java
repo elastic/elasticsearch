@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
@@ -48,7 +47,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -81,6 +79,9 @@ import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeDiagnosingMatcher;
 import org.junit.BeforeClass;
 
 import java.time.ZoneId;
@@ -92,6 +93,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -119,6 +121,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 
 public class QueryTranslatorTests extends ESTestCase {
 
@@ -196,22 +199,24 @@ public class QueryTranslatorTests extends ESTestCase {
     private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
         return defaultTestContext.parameterizedSql(sql, params);
     }
-
-    public void testTermEqualityAnalyzer() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE some.string = 'value'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = translate(condition);
-        Query query = translation.query;
-        assertTrue(query instanceof TermQuery);
-        TermQuery tq = (TermQuery) query;
-        assertEquals("some.string.typical", tq.term());
-        assertEquals("value", tq.value());
+    
+    @SafeVarargs
+    private void assertESQuery(LogicalPlan plan, Matcher<String>... matchers) {
+        PhysicalPlan physicalPlan = optimizeAndPlan(plan);
+        assertEquals(EsQueryExec.class, physicalPlan.getClass());
+        EsQueryExec eqe = (EsQueryExec) physicalPlan;
+        final String esQuery = eqe.queryContainer().toString().replaceAll("\\s+", "");
+        for (Matcher<String> matcher : matchers) {
+            assertThat(esQuery, matcher);
+        }
+    }
+    
+    @SafeVarargs
+    private void assertESQuery(String query, Matcher<String>... matchers) {
+        assertESQuery(plan(query), matchers);
     }
 
-    public void testAliasAndGroupByResolution(){
+    public void testAliasAndGroupByResolution(){  //p: NO (LogicalPlan)
         LogicalPlan p = plan("SELECT COUNT(*) AS c FROM test WHERE ABS(int) > 0 GROUP BY int");
         assertTrue(p instanceof Aggregate);
         var pc = ((Aggregate) p).child();
@@ -224,7 +229,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("c", (agg.get(0)).name());
         assertEquals("COUNT", ((Count) ((Alias) agg.get(0)).child()).functionName());
     }
-    public void testLiteralWithGroupBy(){
+    public void testLiteralWithGroupBy(){  //p: NO (LogicalPlan)
         LogicalPlan p = plan("SELECT 1 as t, 2 FROM test GROUP BY int");
         assertTrue(p instanceof Aggregate);
         List<Expression> groupings = ((Aggregate) p).groupings();
@@ -237,34 +242,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(((Alias) aggs.get(0)).child() instanceof Literal);
         assertEquals("1", ((Alias) aggs.get(0)).child().toString());
         assertEquals("2", ((Alias) aggs.get(1)).child().toString());
-    }
-
-    public void testTermEqualityNotAnalyzed() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE int = 5");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = translate(condition);
-        Query query = translation.query;
-        assertTrue(query instanceof TermQuery);
-        TermQuery tq = (TermQuery) query;
-        assertEquals("int", tq.term());
-        assertEquals(5, tq.value());
-    }
-
-    public void testTermEqualityForDate() {
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date = 5");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = translate(condition);
-        Query query = translation.query;
-        assertTrue(query instanceof TermQuery);
-        TermQuery tq = (TermQuery) query;
-        assertEquals("date", tq.term());
-        assertEquals(5, tq.value());
     }
 
     public void testTermEqualityForDateWithLiteralDate() {
@@ -564,179 +541,6 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
-    public void testTranslateDateAdd_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_ADD('quarter',int, date) > '2018-09-04'::date");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateAdd(" +
-                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2)," +
-                "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
-            sc.script().toString());
-        assertEquals("[{v=quarter}, {v=int}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
-    }
-
-    public void testTranslateDateDiff_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_DIFF('week',date, date) > '2018-09-04'::date");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(" +
-                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2)," +
-                "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
-            sc.script().toString());
-        assertEquals("[{v=week}, {v=date}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
-    }
-
-    public void testTranslateDateTrunc_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_TRUNC('month', date) > '2018-09-04'::date");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateTrunc(" +
-                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
-            sc.script().toString());
-        assertEquals("[{v=month}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
-    }
-
-    public void testTranslateDatePart_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_PART('month', date) > '2018-09-04'::date");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.datePart(" +
-                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
-            sc.script().toString());
-        assertEquals("[{v=month}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
-    }
-
-    public void testTranslateDateTimeFormat_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE DATETIME_FORMAT(date, 'YYYY_MM_dd') = '2018_09_04'");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeFormat(" +
-                        "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-                sc.script().toString());
-        assertEquals("[{v=date}, {v=YYYY_MM_dd}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
-    }
-
-    public void testTranslateDateTimeParse_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE DATETIME_PARSE(keyword, 'uuuu_MM_dd') = '2018-09-04'::date");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeParse(" +
-                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
-            sc.script().toString()
-        );
-        assertEquals("[{v=keyword}, {v=uuuu_MM_dd}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
-    }
-
-    public void testTranslateFormat_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE FORMAT(date, 'YYYY_MM_dd') = '2018_09_04'");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.format(" +
-                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-            sc.script().toString());
-        assertEquals("[{v=date}, {v=YYYY_MM_dd}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
-    }
-
-    public void testLikeOnInexact() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = translate(condition);
-        assertEquals(WildcardQuery.class, qt.query.getClass());
-        WildcardQuery qsq = ((WildcardQuery) qt.query);
-        assertEquals("some.string.typical", qsq.field());
-    }
-
-    public void testRLikeOnInexact() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE some.string RLIKE '.*a.*'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = translate(condition);
-        assertEquals(RegexQuery.class, qt.query.getClass());
-        RegexQuery qsq = ((RegexQuery) qt.query);
-        assertEquals("some.string.typical", qsq.field());
-    }
-
-    public void testLikeWithScalars() {
-        LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = translate(condition);
-        assertTrue(qt.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals(
-            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex("
-                +
-                "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
-            sc.script().toString());
-        assertEquals("[{v=keyword}, {v=^.*a.*$}]", sc.script().params().toString());
-    }
-
-    public void testRLikeWithScalars() {
-        LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*'");
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = translate(condition);
-        assertTrue(qt.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals(
-            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex("
-                +
-                "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
-            sc.script().toString());
-        assertEquals("[{v=keyword}, {v=.*a.*}]", sc.script().params().toString());
-    }
-
     public void testDifferentLikeAndNotLikePatterns() {
         LogicalPlan p = plan("SELECT keyword k FROM test WHERE k LIKE 'X%' AND k NOT LIKE 'Y%'");
         assertTrue(p instanceof Project);
@@ -880,17 +684,11 @@ public class QueryTranslatorTests extends ESTestCase {
         String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
         LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed FROM test WHERE " + trimFunctionName + "(keyword) = 'foo'");
 
-        assertTrue(p instanceof Project);
-        p = ((Project) p).child();
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        QueryTranslation qt = translate(condition);
-        assertTrue(qt.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils." +
-                trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
-            sc.script().toString());
-        assertEquals("[{v=keyword}, {v=foo}]", sc.script().params().toString());
+        assertESQuery(p,
+            containsString("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils." +
+                trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))"),
+            containsString("\"params\":{\"v0\":\"keyword\",\"v1\":\"foo\"}")
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -936,94 +734,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=x}, {v=keyword}, {v=0}]", sc.script().params().toString());
     }
 
-    public void testTranslateIsNullExpression_WhereClause() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IS NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertTrue(translation.query instanceof NotQuery);
-        NotQuery tq = (NotQuery) translation.query;
-        assertTrue(tq.child() instanceof ExistsQuery);
-        ExistsQuery eq = (ExistsQuery) tq.child();
-        assertEquals("{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}",
-            eq.asBuilder().toString().replaceAll("\\s+", ""));
-    }
-
-    public void testTranslateIsNullExpression_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE POSITION('x', keyword) IS NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(" +
-                "InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))",
-            sc.script().toString());
-        assertEquals("[{v=x}, {v=keyword}]", sc.script().params().toString());
-    }
-
-    public void testTranslateIsNotNullExpression_WhereClause() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IS NOT NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertTrue(translation.query instanceof ExistsQuery);
-        ExistsQuery eq = (ExistsQuery) translation.query;
-        assertEquals("{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}",
-            eq.asBuilder().toString().replaceAll("\\s+", ""));
-    }
-
-    public void testTranslateIsNotNullExpression_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE POSITION('x', keyword) IS NOT NULL");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(" +
-                "InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))",
-            sc.script().toString());
-        assertEquals("[{v=x}, {v=keyword}]", sc.script().params().toString());
-    }
-
-    public void testTranslateIsNullExpression_HavingClause_Painless() {
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NULL");
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translateWithAggs(condition);
-        assertNull(translation.query);
-        AggFilter aggFilter = translation.aggFilter;
-        assertEquals(
-                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(params.a0))",
-            aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
-    }
-
-    public void testTranslateIsNotNullExpression_HavingClause_Painless() {
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IS NOT NULL");
-        assertTrue(p instanceof Filter);
-        Expression condition = ((Filter) p).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translateWithAggs(condition);
-        assertNull(translation.query);
-        AggFilter aggFilter = translation.aggFilter;
-        assertEquals(
-                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(params.a0))",
-            aggFilter.scriptTemplate().toString());
-        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
-    }
-
-
-
     public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
         PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
                                          "WHERE c > 10 GROUP BY c HAVING m > '2020-01-01'::date");
@@ -1049,48 +759,6 @@ public class QueryTranslatorTests extends ESTestCase {
                 "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)]),params.v1))",
                 sq.script().toString());
         assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
-    }
-
-    public void testTranslateInExpression_WhereClause() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        Query query = translation.query;
-        assertTrue(query instanceof TermsQuery);
-        TermsQuery tq = (TermsQuery) query;
-        assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
-            tq.asBuilder().toString().replaceAll("\\s", ""));
-    }
-
-    public void testTranslateInExpression_WhereClause_TextFieldWithKeyword() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE some.string IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        Query query = translation.query;
-        assertTrue(query instanceof TermsQuery);
-        TermsQuery tq = (TermsQuery) query;
-        assertEquals("{\"terms\":{\"some.string.typical\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
-            tq.asBuilder().toString().replaceAll("\\s", ""));
-    }
-
-    public void testTranslateInExpression_WhereClauseAndNullHandling() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        Query query = translation.query;
-        assertTrue(query instanceof TermsQuery);
-        TermsQuery tq = (TermsQuery) query;
-        assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
-            tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
     public void testTranslateInExpression_WhereClause_Datetime() {
@@ -1124,22 +792,6 @@ public class QueryTranslatorTests extends ESTestCase {
             assertTrue(rq.includeUpper());
             assertEquals(DATE_FORMAT, rq.format());
         }
-    }
-
-    public void testTranslateInExpression_WhereClause_Painless() {
-        LogicalPlan p = plan("SELECT int FROM test WHERE POWER(int, 2) IN (10, null, 20, 30 - 10)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = translate(condition);
-        assertNull(translation.aggFilter);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(" +
-                "InternalSqlScriptUtils.power(InternalQlScriptUtils.docValue(doc,params.v0),params.v1), params.v2))",
-            sc.script().toString());
-        assertEquals("[{v=int}, {v=2}, {v=[10.0, null, 20.0]}]", sc.script().params().toString());
     }
 
     public void testTranslateInExpression_HavingClause_Painless() {

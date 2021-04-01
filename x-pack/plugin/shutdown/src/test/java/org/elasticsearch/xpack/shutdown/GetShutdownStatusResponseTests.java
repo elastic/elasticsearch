@@ -20,25 +20,32 @@ import java.util.List;
 import java.util.Set;
 
 public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestCase<GetShutdownStatusAction.Response> {
-    @Override protected Writeable.Reader<GetShutdownStatusAction.Response> instanceReader() {
+    @Override
+    protected Writeable.Reader<GetShutdownStatusAction.Response> instanceReader() {
         return GetShutdownStatusAction.Response::new;
     }
 
-    @Override protected GetShutdownStatusAction.Response createTestInstance() {
+    @Override
+    protected GetShutdownStatusAction.Response createTestInstance() {
         List<SingleNodeShutdownMetadata> nodeMetadatas = randomList(0, 20, GetShutdownStatusResponseTests::randomNodeShutdownInfo);
         return new GetShutdownStatusAction.Response(nodeMetadatas);
     }
 
-    @Override protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) throws IOException {
+    @Override
+    protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) throws IOException {
         Set<SingleNodeShutdownMetadata> oldNodes = new HashSet<>(instance.getShutdownStatuses());
-        List<SingleNodeShutdownMetadata> newNodes = randomList(1, 20, () -> randomValueOtherThanMany(oldNodes::contains,
-            GetShutdownStatusResponseTests::randomNodeShutdownInfo));
+        List<SingleNodeShutdownMetadata> newNodes = randomList(
+            1,
+            20,
+            () -> randomValueOtherThanMany(oldNodes::contains, GetShutdownStatusResponseTests::randomNodeShutdownInfo)
+        );
 
         return new GetShutdownStatusAction.Response(newNodes);
     }
 
     public static SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
+        return SingleNodeShutdownMetadata.builder()
+            .setNodeId(randomAlphaOfLength(5))
             .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
             .setReason(randomAlphaOfLength(5))
             .setStatus(randomStatus())

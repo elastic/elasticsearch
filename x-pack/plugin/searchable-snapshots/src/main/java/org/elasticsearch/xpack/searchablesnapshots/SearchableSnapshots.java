@@ -533,7 +533,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             new ScalingExecutorBuilder(
                 CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 0,
-                Math.min(processors * 2, 50),
+                Math.min(processors * 3, 50),
                 TimeValue.timeValueSeconds(30L),
                 CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
             ),

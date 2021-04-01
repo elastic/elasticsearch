@@ -169,6 +169,7 @@ RUN set -e ; \\
     mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
     chmod +x /rootfs/bin/tini ; \\
     curl --retry 10 -L -O \\
+      # Here we're fetching the same binaries used for the official busybox docker image from their GtiHub repository
       "https://github.com/docker-library/busybox/raw/\${BUSYBOX_COMMIT}/stable/musl/busybox.tar.xz" ; \\
     tar -xf busybox.tar.xz -C /rootfs/bin --strip=2 ./bin ; \\
     rm busybox.tar.xz ;

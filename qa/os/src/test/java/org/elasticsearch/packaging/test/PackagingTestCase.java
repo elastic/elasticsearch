@@ -231,7 +231,7 @@ public abstract class PackagingTestCase extends Assert {
 
     protected static void cleanup() throws Exception {
         installation = null;
-        cleanEverything();
+        //cleanEverything();
     }
 
     /**

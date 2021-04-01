@@ -33,6 +33,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final String NAME = "trained_model_config";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
+    public static final ParseField MODEL_TYPE = new ParseField("model_type");
     public static final ParseField CREATED_BY = new ParseField("created_by");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField DESCRIPTION = new ParseField("description");
@@ -53,6 +54,7 @@ public class TrainedModelConfig implements ToXContentObject {
             TrainedModelConfig.Builder::new);
     static {
         PARSER.declareString(TrainedModelConfig.Builder::setModelId, MODEL_ID);
+        PARSER.declareString(TrainedModelConfig.Builder::setModelType, MODEL_TYPE);
         PARSER.declareString(TrainedModelConfig.Builder::setCreatedBy, CREATED_BY);
         PARSER.declareString(TrainedModelConfig.Builder::setVersion, VERSION);
         PARSER.declareString(TrainedModelConfig.Builder::setDescription, DESCRIPTION);
@@ -81,6 +83,7 @@ public class TrainedModelConfig implements ToXContentObject {
     }
 
     private final String modelId;
+    private final TrainedModelType modelType;
     private final String createdBy;
     private final Version version;
     private final String description;
@@ -97,6 +100,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final InferenceConfig inferenceConfig;
 
     TrainedModelConfig(String modelId,
+                       TrainedModelType modelType,
                        String createdBy,
                        Version version,
                        String description,
@@ -112,6 +116,7 @@ public class TrainedModelConfig implements ToXContentObject {
                        Map<String, String> defaultFieldMap,
                        InferenceConfig inferenceConfig) {
         this.modelId = modelId;
+        this.modelType = modelType;
         this.createdBy = createdBy;
         this.version = version;
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
@@ -130,6 +135,10 @@ public class TrainedModelConfig implements ToXContentObject {
 
     public String getModelId() {
         return modelId;
+    }
+
+    public TrainedModelType getModelType() {
+        return modelType;
     }
 
     public String getCreatedBy() {
@@ -202,6 +211,9 @@ public class TrainedModelConfig implements ToXContentObject {
         if (modelId != null) {
             builder.field(MODEL_ID.getPreferredName(), modelId);
         }
+        if (modelType != null) {
+            builder.field(MODEL_TYPE.getPreferredName(), modelType.toString());
+        }
         if (createdBy != null) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
         }
@@ -259,6 +271,7 @@ public class TrainedModelConfig implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelConfig that = (TrainedModelConfig) o;
         return Objects.equals(modelId, that.modelId) &&
+            Objects.equals(modelType, that.modelType) &&
             Objects.equals(createdBy, that.createdBy) &&
             Objects.equals(version, that.version) &&
             Objects.equals(description, that.description) &&
@@ -278,6 +291,7 @@ public class TrainedModelConfig implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(modelId,
+            modelType,
             createdBy,
             version,
             createTime,
@@ -298,6 +312,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static class Builder {
 
         private String modelId;
+        private TrainedModelType modelType;
         private String createdBy;
         private Version version;
         private String description;
@@ -315,6 +330,16 @@ public class TrainedModelConfig implements ToXContentObject {
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
+            return this;
+        }
+
+        public Builder setModelType(String modelType) {
+            this.modelType = TrainedModelType.fromString(modelType);
+            return this;
+        }
+
+        public Builder setModelType(TrainedModelType modelType) {
+            this.modelType = modelType;
             return this;
         }
 
@@ -404,6 +429,7 @@ public class TrainedModelConfig implements ToXContentObject {
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
+                modelType,
                 createdBy,
                 version,
                 description,

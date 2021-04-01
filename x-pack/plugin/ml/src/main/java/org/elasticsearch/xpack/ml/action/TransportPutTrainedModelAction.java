@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -73,61 +74,78 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                    PutTrainedModelAction.Request request,
                                    ClusterState state,
                                    ActionListener<Response> listener) {
+        TrainedModelConfig config = request.getTrainedModelConfig();
         try {
-            request.getTrainedModelConfig().ensureParsedDefinition(xContentRegistry);
-            request.getTrainedModelConfig().getModelDefinition().getTrainedModel().validate();
+            config.ensureParsedDefinition(xContentRegistry);
+            config.getModelDefinition().getTrainedModel().validate();
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
                 ex,
-                request.getTrainedModelConfig().getModelId()));
+                config.getModelId()));
             return;
         } catch (ElasticsearchException ex) {
             listener.onFailure(ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.",
                 ex,
-                request.getTrainedModelConfig().getModelId()));
+                config.getModelId()));
             return;
         }
-        if (request.getTrainedModelConfig()
-            .getInferenceConfig()
-            .isTargetTypeSupported(request.getTrainedModelConfig()
+
+        TrainedModelType trainedModelType =
+            TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
+        if (trainedModelType == null) {
+            listener.onFailure(ExceptionsHelper.badRequestException("Unknown trained model definition class [{}]",
+                config.getModelDefinition().getTrainedModel().getName()));
+            return;
+        }
+
+        if (config.getModelType() == null) {
+            // Set the model type from the definition
+            config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
+        } else if (trainedModelType != config.getModelType()) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                 "{} [{}] does not match the model definition type [{}]",
+                TrainedModelConfig.MODEL_TYPE.getPreferredName(), config.getModelType(),
+                trainedModelType));
+            return;
+        }
+
+        if (config.getInferenceConfig()
+            .isTargetTypeSupported(config
                 .getModelDefinition()
                 .getTrainedModel()
                 .targetType()) == false) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "Model [{}] inference config type [{}] does not support definition target type [{}]",
-                request.getTrainedModelConfig().getModelId(),
-                request.getTrainedModelConfig().getInferenceConfig().getName(),
-                request.getTrainedModelConfig()
-                    .getModelDefinition()
-                    .getTrainedModel()
-                    .targetType()));
+                config.getModelId(),
+                config.getInferenceConfig().getName(),
+                config.getModelDefinition().getTrainedModel().targetType()));
             return;
         }
 
-        Version minCompatibilityVersion = request.getTrainedModelConfig()
+        Version minCompatibilityVersion = config
             .getModelDefinition()
             .getTrainedModel()
             .getMinimalCompatibilityVersion();
         if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "Definition for [{}] requires that all nodes are at least version [{}]",
-                request.getTrainedModelConfig().getModelId(),
+                config.getModelId(),
                 minCompatibilityVersion.toString()));
             return;
         }
 
-        TrainedModelConfig trainedModelConfig = new TrainedModelConfig.Builder(request.getTrainedModelConfig())
+        TrainedModelConfig trainedModelConfig = new TrainedModelConfig.Builder(config)
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
-            .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())
+            .setEstimatedHeapMemory(config.getModelDefinition().ramBytesUsed())
+            .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations())
             .build();
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
-                request.getTrainedModelConfig().getModelId()
+                config.getModelId()
             ));
             return;
         }
@@ -148,7 +166,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             listener::onFailure
         );
 
-        checkModelIdAgainstTags(request.getTrainedModelConfig().getModelId(), modelIdTagCheckListener);
+        checkModelIdAgainstTags(config.getModelId(), modelIdTagCheckListener);
     }
 
     private void checkModelIdAgainstTags(String modelId, ActionListener<Void> listener) {

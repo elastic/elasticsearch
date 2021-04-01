@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.Ensemble
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.TreeInferenceModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 
 import java.util.ArrayList;
@@ -92,6 +93,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class,
             LangIdentNeuralNetwork.NAME,
             LangIdentNeuralNetwork::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class,
+            PyTorchModel.NAME,
+            PyTorchModel::fromXContentLenient));
 
         // Output Aggregator Lenient
         namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedOutputAggregator.class,
@@ -113,6 +117,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedTrainedModel.class,
             LangIdentNeuralNetwork.NAME,
             LangIdentNeuralNetwork::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedTrainedModel.class,
+            PyTorchModel.NAME,
+            PyTorchModel::fromXContentStrict));
 
         // Output Aggregator Strict
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedOutputAggregator.class,
@@ -173,9 +180,12 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         // Model
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Ensemble.NAME.getPreferredName(), Ensemble::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(LangIdentNeuralNetwork.class,
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class,
             LangIdentNeuralNetwork.NAME.getPreferredName(),
             LangIdentNeuralNetwork::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class,
+            PyTorchModel.NAME.getPreferredName(),
+            PyTorchModel::new));
 
         // Output Aggregator
         namedWriteables.add(new NamedWriteableRegistry.Entry(OutputAggregator.class,

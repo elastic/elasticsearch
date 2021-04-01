@@ -34,6 +34,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
         TargetType targetType = randomFrom(TargetType.values());
         return new TrainedModelConfig(
             randomAlphaOfLength(10),
+            randomBoolean() ? null : randomFrom(TrainedModelType.values()),
             randomAlphaOfLength(10),
             Version.CURRENT,
             randomBoolean() ? null : randomAlphaOfLength(100),

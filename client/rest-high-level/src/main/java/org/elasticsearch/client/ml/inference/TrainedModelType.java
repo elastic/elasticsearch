@@ -5,19 +5,15 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.ParseField;
+package org.elasticsearch.client.ml.inference;
 
 import java.util.Locale;
 
-public enum TargetType {
+public enum TrainedModelType {
+    TREE_ENSEMBLE, LANG_IDENT, PYTORCH;
 
-    REGRESSION, CLASSIFICATION;
-
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
-
-    public static TargetType fromString(String name) {
+    public static TrainedModelType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 

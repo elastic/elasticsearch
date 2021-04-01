@@ -171,6 +171,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.TrainedModelType;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
@@ -3825,6 +3826,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setDefinition(definition) // <1>
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition)) // <2>
             .setModelId("my-new-trained-model") // <3>
+            .setModelType(TrainedModelType.TREE_ENSEMBLE) // <4>
             .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <4>
             .setDescription("test model") // <5>
             .setMetadata(new HashMap<>()) // <6>

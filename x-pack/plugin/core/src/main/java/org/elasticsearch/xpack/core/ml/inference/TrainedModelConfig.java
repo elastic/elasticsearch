@@ -64,6 +64,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
+    public static final ParseField MODEL_TYPE = new ParseField("model_type");
     public static final ParseField CREATED_BY = new ParseField("created_by");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField DESCRIPTION = new ParseField("description");
@@ -79,6 +80,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
+    public static final Version VERSION_MODEL_TYPE_ADDED = Version.V_8_0_0; // TODO adjust after backport
+
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ObjectParser<TrainedModelConfig.Builder, Void> STRICT_PARSER = createParser(false);
@@ -88,6 +91,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             ignoreUnknownFields,
             TrainedModelConfig.Builder::new);
         parser.declareString(TrainedModelConfig.Builder::setModelId, MODEL_ID);
+        parser.declareString(TrainedModelConfig.Builder::setModelType, MODEL_TYPE);
         parser.declareString(TrainedModelConfig.Builder::setCreatedBy, CREATED_BY);
         parser.declareString(TrainedModelConfig.Builder::setVersion, VERSION);
         parser.declareString(TrainedModelConfig.Builder::setDescription, DESCRIPTION);
@@ -125,6 +129,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final Version version;
     private final String description;
     private final Instant createTime;
+    private final TrainedModelType modelType;
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
@@ -137,6 +142,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final LazyModelDefinition definition;
 
     TrainedModelConfig(String modelId,
+                       TrainedModelType modelType,
                        String createdBy,
                        Version version,
                        String description,
@@ -151,6 +157,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        Map<String, String> defaultFieldMap,
                        InferenceConfig inferenceConfig) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+        this.modelType = modelType;
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
         this.createTime = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(createTime, CREATE_TIME).toEpochMilli());
@@ -191,10 +198,20 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
+        if (in.getVersion().onOrAfter(VERSION_MODEL_TYPE_ADDED)) {
+            this.modelType = in.readOptionalEnum(TrainedModelType.class);
+        } else {
+            this.modelType = null;
+        }
     }
 
     public String getModelId() {
         return modelId;
+    }
+
+    @Nullable
+    public TrainedModelType getModelType() {
+        return this.modelType;
     }
 
     public String getCreatedBy() {
@@ -299,12 +316,18 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalNamedWriteable(inferenceConfig);
+        if (out.getVersion().onOrAfter(VERSION_MODEL_TYPE_ADDED)) {
+            out.writeOptionalEnum(modelType);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MODEL_ID.getPreferredName(), modelId);
+        if (modelType != null) {
+            builder.field(MODEL_TYPE.getPreferredName(), modelType.toString());
+        }
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
@@ -357,6 +380,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelConfig that = (TrainedModelConfig) o;
         return Objects.equals(modelId, that.modelId) &&
+            Objects.equals(modelType, that.modelType) &&
             Objects.equals(createdBy, that.createdBy) &&
             Objects.equals(version, that.version) &&
             Objects.equals(description, that.description) &&
@@ -375,6 +399,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(modelId,
+            modelType,
             createdBy,
             version,
             createTime,
@@ -393,6 +418,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static class Builder {
 
         private String modelId;
+        private TrainedModelType modelType;
         private String createdBy;
         private Version version;
         private String description;
@@ -411,6 +437,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public Builder(TrainedModelConfig config) {
             this.modelId = config.getModelId();
+            this.modelType = config.getModelType();
             this.createdBy = config.getCreatedBy();
             this.version = config.getVersion();
             this.createTime = config.getCreateTime();
@@ -431,6 +458,20 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public TrainedModelType getModelType() {
+            return modelType;
+        }
+
+        private Builder setModelType(String modelType) {
+            this.modelType = TrainedModelType.fromString(modelType);
+            return this;
+        }
+
+        public Builder setModelType(TrainedModelType modelType) {
+            this.modelType = modelType;
+            return this;
+        }
+
         public String getModelId() {
             return this.modelId;
         }
@@ -438,6 +479,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         public Builder setCreatedBy(String createdBy) {
             this.createdBy = createdBy;
             return this;
+        }
+
+        public Version getVersion() {
+            return version;
         }
 
         public Builder setVersion(Version version) {
@@ -698,6 +743,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
+                modelType,
                 createdBy == null ? "user" : createdBy,
                 version == null ? Version.CURRENT : version,
                 description,

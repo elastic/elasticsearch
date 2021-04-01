@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
@@ -18,9 +20,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
@@ -1373,7 +1377,7 @@ public final class OptimizerRules {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
+            Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
 
             if (condition instanceof Literal) {
                 if (TRUE.equals(condition)) {
@@ -1392,13 +1396,13 @@ public final class OptimizerRules {
 
         protected abstract LogicalPlan skipPlan(Filter filter);
 
-        private static Expression foldBinaryLogic(Expression expression) {
-            if (expression instanceof Or) {
-                Or or = (Or) expression;
+        private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
+            if (binaryLogic instanceof Or) {
+                Or or = (Or) binaryLogic;
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return new Literal(expression.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -1407,13 +1411,13 @@ public final class OptimizerRules {
                     return or.left();
                 }
             }
-            if (expression instanceof And) {
-                And and = (And) expression;
+            if (binaryLogic instanceof And) {
+                And and = (And) binaryLogic;
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(expression.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
                 }
             }
-            return expression;
+            return binaryLogic;
         }
     }
 
@@ -1506,6 +1510,104 @@ public final class OptimizerRules {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    // a IS NULL AND a IS NOT NULL -> FALSE
+    // a IS NULL AND a > 10 -> a IS NULL
+    // can be extended to handle null conditions where available
+    public static class PropagateNullable extends OptimizerExpressionRule {
+
+        public PropagateNullable() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof And) {
+                List<Expression> splits = Predicates.splitAnd(e);
+
+                Set<Expression> nullExpressions = new LinkedHashSet<>();
+                Set<Expression> notNullExpressions = new LinkedHashSet<>();
+                List<Expression> others = new LinkedList<>();
+
+                // first find isNull/isNotNull
+                for (Expression ex : splits) {
+                    if (ex instanceof IsNull) {
+                        nullExpressions.add(((IsNull) ex).field());
+                    } else if (ex instanceof IsNotNull) {
+                        notNullExpressions.add(((IsNotNull) ex).field());
+                    }
+                    // the rest
+                    else {
+                        others.add(ex);
+                    }
+                }
+
+                // check for is isNull and isNotNull --> FALSE
+                if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
+                    return Literal.of(e, Boolean.FALSE);
+                }
+
+                // apply nullability across relevant/matching expressions
+
+                // first against all nullable expressions
+                // followed by all not-nullable expressions
+                boolean modified = replace(nullExpressions, others, splits, this::nullify);
+                modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+                if (modified) {
+                    // reconstruct the expression
+                    return Predicates.combineAnd(splits);
+                }
+            }
+            return e;
+        }
+
+        /**
+         * Replace the given 'pattern' expressions against the target expression.
+         * If a match is found, the matching expression will be replaced by the replacer result
+         * or removed if null is returned.
+         */
+        private static boolean replace(
+            Iterable<Expression> pattern,
+            List<Expression> target,
+            List<Expression> originalExpressions,
+            BiFunction<Expression, Expression, Expression> replacer
+        ) {
+            boolean modified = false;
+            for (Expression s : pattern) {
+                for (int i = 0; i < target.size(); i++) {
+                    Expression t = target.get(i);
+                    // identify matching expressions
+                    if (t.anyMatch(s::semanticEquals)) {
+                        Expression replacement = replacer.apply(t, s);
+                        // if the expression has changed, replace it or remove it
+                        if (replacement != t) {
+                            modified = true;
+                            // remove the element from the target list and the original expression list
+                            if (replacement == null) {
+                                target.remove(i--);
+                                originalExpressions.removeIf(e -> t.semanticEquals(e));
+                            } else {
+                                // otherwise replace it
+                                target.set(i, replacement);
+                                originalExpressions.replaceAll(e -> t.semanticEquals(e) ? replacement : e);
+                            }
+                        }
+                    }
+                }
+            }
+            return modified;
+        }
+
+        // default implementation nullifies all nullable expressions
+        protected Expression nullify(Expression exp, Expression nullExp) {
+            return exp.nullable() == Nullability.TRUE ? null : exp;
+        }
+
+        // placeholder for non-null
+        protected Expression nonNullify(Expression exp, Expression nonNullExp) {
+            return exp;
         }
     }
 

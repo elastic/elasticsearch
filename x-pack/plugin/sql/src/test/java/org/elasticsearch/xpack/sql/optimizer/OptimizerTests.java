@@ -128,6 +128,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
@@ -536,6 +537,67 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
         assertEquals(INTEGER, e.dataType());
+    }
+
+    public void testPropagateIsNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO)), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(2, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+        assertEquals(TWO, a.left().children().get(1));
+    }
+
+    public void testPropagateIsNotNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNotNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO, THREE)), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
     }
 
     public void testConcatFoldingIsNotNull() {

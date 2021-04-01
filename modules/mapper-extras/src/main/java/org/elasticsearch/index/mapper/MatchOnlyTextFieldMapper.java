@@ -14,10 +14,13 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
@@ -174,7 +177,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(SearchExecutionContext searchExecutionContext) {
+        private Function<LeafReaderContext,CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
+                SearchExecutionContext searchExecutionContext) {
             if (searchExecutionContext.isSourceEnabled() == false) {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
@@ -196,11 +200,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
+            return new ConstantScoreQuery(
+                new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
         }
 
-        private IntervalsSource toIntervalsSource(IntervalsSource source, SearchExecutionContext searchExecutionContext) {
-            return new SourceIntervalsSource(source, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
+        private IntervalsSource toIntervalsSource(
+                IntervalsSource source,
+                Query approximation,
+                SearchExecutionContext searchExecutionContext) {
+            return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
         }
 
         @Override
@@ -230,12 +238,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (prefix) {
                 BytesRef normalizedTerm = analyzer.normalize(name(), text);
-                return toIntervalsSource(Intervals.prefix(normalizedTerm), context);
+                // Using a MatchAllDocsQuery as an approximation means that prefix intervals will be slow.
+                return toIntervalsSource(Intervals.prefix(normalizedTerm), new MatchAllDocsQuery(), context);
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer) {
                 @Override
                 protected IntervalsSource termIntervals(BytesRef term) {
-                    return toIntervalsSource(super.termIntervals(term), context);
+                    // Approximate the intervals with a TermQuery so that we can avoid parsing the _source
+                    // on documents that don't contain the expected term.
+                    return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
                 }
             };
             return builder.analyzeText(text, maxGaps, ordered);

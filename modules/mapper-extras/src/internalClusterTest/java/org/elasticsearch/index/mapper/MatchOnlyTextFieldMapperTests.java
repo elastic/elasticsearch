@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.matchonlytext.mapper;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.StopFilter;
@@ -30,17 +32,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.matchonlytext.MatchOnlyTextMapperPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -57,7 +50,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return List.of(new MatchOnlyTextMapperPlugin());
+        return List.of(new MapperExtrasPlugin());
     }
 
     @Override
@@ -164,7 +157,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        createDocumentMapper(fieldMapping(this::minimalMapping)).toXContent(
+        createDocumentMapper(fieldMapping(this::minimalMapping)).mapping().toXContent(
             builder,
             new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
         );
@@ -259,5 +252,16 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
         // Term queries are ok
         ft.termQuery("a", context); // no exception
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have a way to assert things here", true);
+        return null;
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        assumeFalse("We don't have a way to assert things here", true);
     }
 }

@@ -9,14 +9,18 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.CheckedIntFunction;
 
 import java.io.IOException;
@@ -33,13 +37,16 @@ import java.util.function.Function;
 public final class SourceIntervalsSource extends IntervalsSource {
 
     private final IntervalsSource in;
+    private final Query approximation;
     private final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
     public SourceIntervalsSource(IntervalsSource in,
+            Query approximation,
             Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
             Analyzer indexAnalyzer) {
         this.in = Objects.requireNonNull(in);
+        this.approximation = Objects.requireNonNull(approximation);
         this.valueFetcherProvider = Objects.requireNonNull(valueFetcherProvider);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
     }
@@ -58,8 +65,14 @@ public final class SourceIntervalsSource extends IntervalsSource {
 
     @Override
     public IntervalIterator intervals(String field, LeafReaderContext ctx) throws IOException {
-        // TODO: How can we extract a better approximation from this IntervalsSource?
-        final DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
+        final IndexSearcher searcher = new IndexSearcher(ctx.reader());
+        final Weight weight = searcher.createWeight(searcher.rewrite(approximation), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final Scorer scorer = weight.scorer(ctx.reader().getContext());
+        if (scorer == null) {
+            return null;
+        }
+        final DocIdSetIterator approximation = scorer.iterator();
+
         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(ctx);
         return new IntervalIterator() {
 
@@ -97,7 +110,9 @@ public final class SourceIntervalsSource extends IntervalsSource {
                     final List<Object> values = valueFetcher.apply(doc);
                     final LeafReaderContext singleDocContext = createSingleDocLeafReaderContext(field, values);
                     in = SourceIntervalsSource.this.in.intervals(field, singleDocContext);
-                    return in.nextDoc() != NO_MORE_DOCS;
+                    final boolean isSet = in != null && in.nextDoc() != NO_MORE_DOCS;
+                    assert isSet == false || in.docID() == 0;
+                    return isSet;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -157,7 +172,8 @@ public final class SourceIntervalsSource extends IntervalsSource {
 
     @Override
     public int hashCode() {
-        // Not using matchesProvider and valueFetcherProvider, which don't identify this source but are only used to avoid scanning linearly through all documents
+        // Not using matchesProvider and valueFetcherProvider, which don't identify this source but are only used to avoid scanning linearly
+        // through all documents
         return Objects.hash(in, indexAnalyzer);
     }
 
@@ -167,7 +183,8 @@ public final class SourceIntervalsSource extends IntervalsSource {
             return false;
         }
         SourceIntervalsSource that = (SourceIntervalsSource) other;
-        // Not using matchesProvider and valueFetcherProvider, which don't identify this source but are only used to avoid scanning linearly through all documents
+        // Not using matchesProvider and valueFetcherProvider, which don't identify this source but are only used to avoid scanning linearly
+        // through all documents
         return in.equals(that.in) && indexAnalyzer.equals(that.indexAnalyzer);
     }
 

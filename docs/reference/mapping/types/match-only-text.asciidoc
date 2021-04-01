@@ -1,6 +1,3 @@
-[role="xpack"]
-[testenv="basic"]
-
 [discrete]
 [[match-only-text-field-type]]
 === Match-only text field type
@@ -14,9 +11,12 @@ as on `text` fields, however queries that need positions such as the
 need to look at the `_source` document to verify whether a phrase matches. All
 queries return constant scores that are equal to 1.0.
 
-<<query-dsl-intervals-query,Interval queries>> and <<span-queries,span queries>>
-are not supported by this field. Use the <<text-field-type,`text`>> field type
-if you need them.
+<<span-queries,span queries>>, as well as `wildcard` and `fuzzy` rules of
+<<query-dsl-intervals-query,interval queries>> are not supported by this field.
+Use the <<text-field-type,`text`>> field type if you need them.
+
+Other than that, `match_only_text` supports the same queries as `text`. And
+like `text`, it doesn't support sorting or aggregating.
 
 [source,console]
 --------------------------------
@@ -35,9 +35,6 @@ PUT logs
 }
 --------------------------------
 
-`match_only_text` supports the same queries as `text`. And like `text`, it
-doesn't support sorting or aggregating.
-
 [discrete]
 [[match-only-text-params]]
 ==== Parameters for match-only text fields
@@ -49,7 +46,7 @@ The following mapping parameters are accepted:
 <<analyzer,`analyzer`>>::
 
     The <<analysis,analyzer>> which should be used for
-    the `text` field, both at index-time and at
+    the `match_only_text` field, both at index-time and at
     search-time (unless overridden by the  <<search-analyzer,`search_analyzer`>>).
     Defaults to the default index analyzer, or the
     <<analysis-standard-analyzer,`standard` analyzer>>.
@@ -68,7 +65,7 @@ The following mapping parameters are accepted:
 <<search-analyzer,`search_analyzer`>>::
 
     The <<analyzer,`analyzer`>> that should be used at search time on
-    the `text` field. Defaults to the `analyzer` setting.
+    the `match_only_text` field. Defaults to the `analyzer` setting.
 
 <<search-quote-analyzer,`search_quote_analyzer`>>::
 

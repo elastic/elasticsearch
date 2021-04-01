@@ -138,10 +138,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.getFieldType(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
+                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false, context));
             }
             else {
-                source = fieldType.intervals(query, maxGaps, ordered, analyzer, false);
+                source = fieldType.intervals(query, maxGaps, ordered, analyzer, false, context);
             }
             if (filter != null) {
                 return filter.filter(source, context, fieldType);
@@ -521,10 +521,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.getFieldType(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
+                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true, context));
             }
             else {
-                source = fieldType.intervals(prefix, 0, false, analyzer, true);
+                source = fieldType.intervals(prefix, 0, false, analyzer, true, context);
             }
             return source;
         }

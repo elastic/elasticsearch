@@ -322,9 +322,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private HttpStats.ClientStats addClientStats(final HttpChannel httpChannel) {
-        HttpStats.ClientStats clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
-        httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
+        final HttpStats.ClientStats clientStats;
         if (httpChannel != null) {
+            clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
+            httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
             httpChannel.addCloseListener(ActionListener.wrap(() -> {
                 try {
                     httpChannels.remove(httpChannel);
@@ -337,6 +338,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     logger.trace("error removing HTTP channel listener", e);
                 }
             }));
+        } else {
+            clientStats = null;
         }
         pruneClientStats(true);
         return clientStats;
@@ -367,6 +370,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         if (httpChannel != null) {
             HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
             if (clientStats == null) {
+                // will always return a non-null value when httpChannel is non-null
                 clientStats = addClientStats(httpChannel);
             }
 

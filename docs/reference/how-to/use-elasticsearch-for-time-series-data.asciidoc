@@ -147,8 +147,18 @@ GET my-data-stream/_search
       ]
     }
   },
-  "fields" : ["*"],
-  "_source": false
+  "fields": [
+    "*"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    },
+    {
+      "source.ip": "desc"
+    }
+  ]
 }
 ----
 // TEST[setup:my_data_stream]
@@ -194,8 +204,18 @@ POST my-data-stream/_async_search
       ]
     }
   },
-  "fields" : ["*"],
-  "_source": false
+  "fields": [
+    "*"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    },
+    {
+      "source.ip": "desc"
+    }
+  ]
 }
 ----
 // TEST[setup:my_data_stream]

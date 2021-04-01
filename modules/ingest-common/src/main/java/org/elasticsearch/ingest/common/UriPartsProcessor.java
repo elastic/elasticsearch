@@ -59,7 +59,7 @@ public class UriPartsProcessor extends AbstractProcessor {
 
         URI uri;
         URL url;
-        Strign scheme = null;
+        String scheme = null;
         String domain = null;
         String fragment = null;
         String path = null;

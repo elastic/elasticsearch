@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -46,7 +47,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,7 +90,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = transportService.getThreadPool();
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             // this is only useful on the nodes that can hold data
             clusterService.addListener(this);
         }

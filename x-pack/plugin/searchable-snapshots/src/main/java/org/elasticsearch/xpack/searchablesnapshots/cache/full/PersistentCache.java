@@ -49,11 +49,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -444,7 +444,7 @@ public class PersistentCache implements Closeable {
      * @param nodeEnvironment the {@link NodeEnvironment} to cleanup
      */
     public static void cleanUp(Settings settings, NodeEnvironment nodeEnvironment) {
-        final boolean isDataNode = DiscoveryNode.isDataNode(settings);
+        final boolean isDataNode = DiscoveryNode.canContainData(settings);
         if (isDataNode) {
             assert false : "should not be called on data nodes";
             throw new IllegalStateException("Cannot clean searchable snapshot caches: node is a data node");

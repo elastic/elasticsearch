@@ -160,6 +160,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -190,11 +191,11 @@ public final class InternalTestCluster extends TestCluster {
     private final Logger logger = LogManager.getLogger(getClass());
 
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE =
-        nodeAndClient -> DiscoveryNode.isDataNode(nodeAndClient.node.settings());
+        nodeAndClient -> DiscoveryNode.canContainData(nodeAndClient.node.settings());
 
     private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = nodeAndClient ->
         DiscoveryNode.isMasterNode(nodeAndClient.node.settings()) == false
-            && DiscoveryNode.isDataNode(nodeAndClient.node.settings()) == false;
+            && DiscoveryNode.canContainData(nodeAndClient.node.settings()) == false;
 
     private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE =
         nodeAndClient -> DiscoveryNode.isMasterNode(nodeAndClient.node.settings());
@@ -759,11 +760,11 @@ public final class InternalTestCluster extends TestCluster {
             if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE)) {
                 suffix = suffix + DiscoveryNodeRole.MASTER_ROLE.roleNameAbbreviation();
             }
-            if (DiscoveryNode.isDataNode(settings)) {
+            if (DiscoveryNode.canContainData(settings)) {
                 suffix = suffix + DiscoveryNodeRole.DATA_ROLE.roleNameAbbreviation();
             }
             if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) == false
-                && DiscoveryNode.isDataNode(settings) == false) {
+                && DiscoveryNode.canContainData(settings) == false) {
                 suffix = suffix + "c";
             }
         }
@@ -1212,7 +1213,7 @@ public final class InternalTestCluster extends TestCluster {
 
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
             final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinMasterNodes);
-            settings.add(removeRoles(nodeSettings, Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
+            settings.add(nonDataNode(nodeSettings));
         }
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
             final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY, defaultMinMasterNodes);

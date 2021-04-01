@@ -107,7 +107,9 @@ public class NodeRoles {
     }
 
     public static Settings nonDataNode(final Settings settings) {
-        return removeRoles(settings, Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
+        final Set<DiscoveryNodeRole> dataRoles =
+            DiscoveryNodeRole.BUILT_IN_ROLES.stream().filter(DiscoveryNodeRole::canContainData).collect(Collectors.toSet());
+        return removeRoles(settings, dataRoles);
     }
 
     public static Settings ingestNode() {

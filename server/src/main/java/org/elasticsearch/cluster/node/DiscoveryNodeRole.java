@@ -9,9 +9,11 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Arrays;
@@ -78,8 +80,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
         this(true, roleName, roleNameAbbreviation, canContainData);
-        assert canContainData == isDataRoleBasedOnNamingConvention(roleName) :
-            "Role '" + roleName + "' not compliant to data role naming convention";
     }
 
     private DiscoveryNodeRole(
@@ -150,13 +150,126 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     };
 
-    /**
-     * Allows determining the "data" property without the need to load plugins, but does this purely based on
-     * naming conventions.
-     */
-    static boolean isDataRoleBasedOnNamingConvention(String role) {
-        return role.equals("data") || role.startsWith("data_");
-    }
+    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_content",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
+        }
+    };
+
+    public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_hot",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
+        }
+    };
+
+    public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_warm",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
+        }
+    };
+
+    public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_cold",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
+        }
+
+        @Override
+        public DiscoveryNodeRole getCompatibilityRole(Version nodeVersion) {
+            return nodeVersion.before(Version.V_7_10_0) ? DiscoveryNodeRole.DATA_ROLE : this;
+        }
+    };
+
+    public static DiscoveryNodeRole DATA_FROZEN_NODE_ROLE = new DiscoveryNodeRole("data_frozen", "f", true) {
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+        @Override
+        public Setting<Boolean> legacySetting() {
+            // we do not register these settings, they're not intended to be used externally, only for proper defaults
+            return Setting.boolSetting(
+                "node.data_frozen",
+                settings ->
+                    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE)),
+                Setting.Property.Deprecated,
+                Setting.Property.NodeScope
+            );
+        }
+
+    };
 
     /**
      * Represents the role for an ingest node.
@@ -202,8 +315,18 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * The built-in node roles.
      */
-    public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
-        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE)));
+    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
+        Set.of(
+            DATA_ROLE,
+            INGEST_ROLE,
+            MASTER_ROLE,
+            REMOTE_CLUSTER_CLIENT_ROLE,
+            DATA_CONTENT_NODE_ROLE,
+            DATA_HOT_NODE_ROLE,
+            DATA_WARM_NODE_ROLE,
+            DATA_COLD_NODE_ROLE,
+            DATA_FROZEN_NODE_ROLE
+        ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * The version that {@link #REMOTE_CLUSTER_CLIENT_ROLE} is introduced. Nodes before this version do not have that role even

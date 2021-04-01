@@ -14,8 +14,8 @@ You can also <<convert-index-alias-to-data-stream,convert an index alias to
 a data stream>>.
 
 IMPORTANT: If you use {fleet} or {agent}, skip this tutorial. {fleet} and
-{agent} set up data streams for you. See {fleet-guide}/data-streams.html[Data
-streams] in the {fleet} Guide.
+{agent} set up data streams for you. See {fleet}'s
+{fleet-guide}/data-streams.html[data streams] documentation.
 
 [discrete]
 [[create-index-lifecycle-policy]]
@@ -102,7 +102,6 @@ with default options.
 ====
 Use the {ecs-ref}[Elastic Common Schema (ECS)] when mapping your fields. ECS
 fields integrate with several {stack} features by default.
-
 If you're unsure how to map your fields, use <<runtime-search-request,runtime
 fields>> to extract fields from <<mapping-unstructured-content,unstructured
 content>> at a search time. For example, you can index a log message to a
@@ -202,10 +201,12 @@ PUT _index_template/my-index-template
 === Step 4. Create the data stream
 
 <<add-documents-to-a-data-stream,Indexing requests>> add documents to a data
-stream. To automatically create the data stream, submit an indexing request that
+stream. These requests must use an `op_type` of `create`. Documents must include
+a `@timestamp` field.
+
+To automatically create your data stream, submit an indexing request that
 targets the stream's name. This name must match one of your index template's
-index patterns. The request must use an `op_type` of `create`. Documents must
-include a `@timestamp` field.
+index patterns.
 
 [source,console]
 ----

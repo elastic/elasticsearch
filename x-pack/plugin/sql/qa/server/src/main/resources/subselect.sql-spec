@@ -52,10 +52,6 @@ WHERE s > 50000
 ORDER BY s DESC NULLS last
 ;
 
-// TODO add a case with the following in the inner select
-//        ORDER BY i ASC NULLS LAST
-//        LIMIT 4
-
 multiLevelFilterOnGroupingAfterGroupBy
 SELECT k as l
 FROM (
@@ -143,8 +139,7 @@ SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM (SELECT * FROM test_emp) ORDE
 inAndIsNotNull
 SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM (SELECT * FROM test_emp WHERE emp_no IN (10019, 10020, 10021)) WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 
-// TODO we need a Verifier for this one, we cannot have order by X limit ... order by Y limit ...
-// we cannot have multiple limits, with the order by changing between the limits
+// https://github.com/elastic/elasticsearch/issues/71158
 orderByAndLimitInSubselect-Ignore
 SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC NULLS LAST LIMIT 10) ORDER BY emp_no ASC NULLS LAST LIMIT 3;
 

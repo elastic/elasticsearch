@@ -8,10 +8,9 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -24,15 +23,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
@@ -245,20 +241,18 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
             if (diskAllocationDeciderEnabled) {
-                InternalTestCluster internalTestCluster = internalCluster();
-                InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
-                    .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
-                ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
-                // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
-                final PlainActionFuture<ClusterInfo> clusterInfoFuture = new PlainActionFuture<>();
-                threadPool.schedule(
-                        () -> ClusterInfoServiceUtils.refreshAsync(infoService, clusterInfoFuture),
-                        TimeValue.timeValueMillis(randomIntBetween(1, 100)),
-                        ThreadPool.Names.MANAGEMENT);
-                clusterInfoFuture.actionGet(10, TimeUnit.SECONDS);
-                // The delete by query request will be executed successfully because the block will be released
-                assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
-                    matcher().deleted(docs));
+
+                // Fire off the delete-by-query first
+                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse
+                    = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).execute();
+
+                // Then refresh the cluster info which checks the disk threshold and releases the block on the index
+                final InternalClusterInfoService clusterInfoService
+                        = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+
+                // The delete by query request will be executed successfully because it retries after the block is released
+                assertThat(deleteByQueryResponse.actionGet(), matcher().deleted(docs));
             } else {
                 // The delete by query request will not be executed successfully because the block cannot be released
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true)

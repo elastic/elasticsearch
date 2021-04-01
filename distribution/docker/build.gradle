@@ -47,11 +47,6 @@ dependencies {
   tini 'krallin:tini:0.19.0@tini-amd64'
 }
 
-
-testClusters.all {
-  setting 'xpack.security.enabled', 'false'
-}
-
 ext.expansions = { Architecture architecture, DockerBase base ->
   String buildArgs = ''
   if (base == DockerBase.IRON_BANK) {

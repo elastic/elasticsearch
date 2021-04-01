@@ -212,20 +212,10 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testCacheSizeReturnsZeroOnNonFrozenNodes() {
-        DiscoveryNode.setAdditionalRoles(
-            new HashSet<>(
-                Arrays.asList(
-                    DataTier.DATA_HOT_NODE_ROLE,
-                    DataTier.DATA_WARM_NODE_ROLE,
-                    DataTier.DATA_COLD_NODE_ROLE,
-                    DataTier.DATA_FROZEN_NODE_ROLE
-                )
-            )
-        );
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
             .build();
         final ByteSizeValue value = FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         assertThat(value, equalTo(ByteSizeValue.ZERO));

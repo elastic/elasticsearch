@@ -12,6 +12,8 @@ To get the most out of your time series data in {es}, follow these steps:
 * <<create-edit-index-lifecycle-policy>>
 * <<create-ts-component-templates>>
 * <<create-ts-index-template>>
+* <<create-ts-index-template>>
+* <<add-data-to-data-stream>>
 * <<search-visualize-your-data>>
 
 
@@ -91,14 +93,14 @@ include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-index-template]
 
 [discrete]
-[[index-to-data-stream]]
+[[add-data-to-data-stream]]
 === Step 6. Add data to a data stream
 
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=ds-create-data-stream]
 
 [discrete]
 [[search-visualize-your-data]]
-=== Step 6. Search and visualize your data
+=== Step 7. Search and visualize your data
 
 To explore and search your data in {kib}, open the main menu and select
 **Discover**. See {kib}'s {kibana-ref}/discover.html[Discover documentation].

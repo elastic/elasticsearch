@@ -89,7 +89,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
     @Override
     void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
         final GetRequest getRequest = client
-            .prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token))
+            .prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
             .request();
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
@@ -115,7 +115,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
         try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(docIdForToken(token))
+                    .setId(docIdForToken(token.getQualifiedName()))
                     .setSource(builder)
                     .setOpType(OpType.CREATE)
                     .setRefreshPolicy(request.getRefreshPolicy())
@@ -175,21 +175,21 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
                 listener.onResponse(false);
                 return;
             }
-            final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
+            final String qualifiedTokenName = ServiceAccountToken.buildQualifiedName(accountId, request.getTokenName());
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final DeleteRequest deleteRequest = client.prepareDelete(SECURITY_MAIN_ALIAS, docIdForToken(token)).request();
+                final DeleteRequest deleteRequest = client.prepareDelete(SECURITY_MAIN_ALIAS, docIdForToken(qualifiedTokenName)).request();
                 deleteRequest.setRefreshPolicy(request.getRefreshPolicy());
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteAction.INSTANCE, deleteRequest,
                     ActionListener.wrap(deleteResponse -> {
                         final ClearSecurityCacheRequest clearSecurityCacheRequest =
-                            new ClearSecurityCacheRequest().cacheName("index_service_account_token").keys(token.getQualifiedName());
+                            new ClearSecurityCacheRequest().cacheName("index_service_account_token").keys(qualifiedTokenName);
                         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest,
                             ActionListener.wrap(clearSecurityCacheResponse -> {
                                 listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                             }, e -> {
                                 final ParameterizedMessage message = new ParameterizedMessage(
                                     "clearing the cache for service token [{}] failed. please clear the cache manually",
-                                    token.getQualifiedName());
+                                    qualifiedTokenName);
                                 logger.error(message, e);
                                 listener.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
                             }));
@@ -198,8 +198,8 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
         }
     }
 
-    private String docIdForToken(ServiceAccountToken token) {
-        return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + token.getQualifiedName();
+    private String docIdForToken(String qualifiedTokenName) {
+        return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
     }
 
     private XContentBuilder newDocument(Authentication authentication, ServiceAccountToken serviceAccountToken) throws IOException {

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -234,7 +235,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
     public void testFindTokensFor() {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final int nhits = randomIntBetween(0, 10);
-        final String[] tokenNames = randomArray(nhits, nhits, String[]::new, ServiceAccountTokenTests::randomTokenName);
+        final String[] tokenNames = randomArray(nhits, nhits, String[]::new, ValidationTests::randomTokenName);
 
         responseProviderHolder.set((r, l) -> {
             if (r instanceof SearchRequest) {

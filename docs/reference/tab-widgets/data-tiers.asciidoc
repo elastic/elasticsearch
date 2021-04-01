@@ -11,7 +11,7 @@ page.
 experimental:[] **Frozen tier** 
 
 The frozen tier is not yet available on {ess}. However, you can follow these
-steps to effectively recreate a frozen tier in your {ess} deployment:
+steps to effectively recreate a frozen tier in your deployment:
 
 . Choose an existing tier to use. You'll typically use the cold tier, but the
 hot and warm tiers are also supported. You can use this tier as a shared tier,

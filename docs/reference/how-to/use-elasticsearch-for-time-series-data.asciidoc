@@ -105,7 +105,7 @@ To explore and search your data in {kib}, open the main menu and select
 **Discover**. See {kib}'s {kibana-ref}/discover.html[Discover documentation].
 
 Use {kib}'s **Dashboard** feature to visualize your data in a chart, table, map,
-and more. See the {kib}'s {kibana-ref}/dashboard.html[Dashboard documentation].
+and more. See {kib}'s {kibana-ref}/dashboard.html[Dashboard documentation].
 
 You can also search and aggregate your data using the <<search-search,search
 API>>. Use <<runtime-search-request,runtime fields>> and <<grok-basics,grok

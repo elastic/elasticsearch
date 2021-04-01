@@ -1,5 +1,9 @@
 {
   "fleet.global_checkpoints":{
+    "documentation":{
+      "url": null,
+      "description": "Returns the current global checkpoints for an index."
+    },
     "stability":"experimental",
     "visibility":"public",
     "headers":{

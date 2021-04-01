@@ -2468,6 +2468,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71139")
     public void testGetTrainedModelsStats() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String modelIdPrefix = "a-get-trained-model-stats-";

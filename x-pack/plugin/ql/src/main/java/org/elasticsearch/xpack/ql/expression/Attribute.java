@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import joptsimple.internal.Strings;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -114,6 +115,11 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public boolean semanticEquals(Expression other) {
         return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        return clone(Source.EMPTY, Strings.EMPTY, dataType(), Strings.EMPTY, nullability, id(), synthetic());
     }
 
     @Override

@@ -33,13 +33,13 @@ public abstract class NodeConfigurationSource {
      * {@code otherSettings} are the override settings that the test framework will unconditionally apply to the settings returned by this
      * method. These settings are provided so that implementors can make informed decisions about the values of settings they might wish to
      * return, that would be invalid with certain combinations of the override settings that the test framework will apply.
-     *
+     * <p>
      * For example, imagine that some setting values are invalid if the node is a master-only node. The implementor can inspect the
      * {@code otherSettings} to determine that the test framework is going to override the role settings for the node being constructed to
      * be a master-only node, and therefore the implementor can ensure that it only returns valid values for the master-only node being
      * constructed.
      *
-     * @param nodeOrdinal the ordinal of the node being constructed
+     * @param nodeOrdinal   the ordinal of the node being constructed
      * @param otherSettings the override settings
      * @return the settings for this node
      */

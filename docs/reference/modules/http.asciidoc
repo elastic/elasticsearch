@@ -186,3 +186,7 @@ Defaults to `network.tcp.send_buffer_size`.
 (<<static-cluster-setting,Static>>)
 The size of the TCP receive buffer (specified with <<size-units,size units>>).
 Defaults to `network.tcp.receive_buffer_size`.
+
+`http.client_stats.enabled`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Enable or disable collection of HTTP client stats. Defaults to `true`.

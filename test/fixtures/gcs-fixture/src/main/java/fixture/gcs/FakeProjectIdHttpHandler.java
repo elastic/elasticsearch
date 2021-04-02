@@ -5,6 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
 package fixture.gcs;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -16,8 +17,8 @@ import java.io.IOException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-@SuppressForbidden(reason = "Uses a HttpServer to emulate a fake OAuth2 authentication service")
-public class FakeOAuth2HttpHandler implements HttpHandler {
+@SuppressForbidden(reason = "Uses a HttpServer to emulate a fake metadata service")
+public class FakeProjectIdHttpHandler implements HttpHandler {
 
     private static final byte[] BUFFER = new byte[1024];
 
@@ -25,7 +26,7 @@ public class FakeOAuth2HttpHandler implements HttpHandler {
     public void handle(final HttpExchange exchange) throws IOException {
         try {
             while (exchange.getRequestBody().read(BUFFER) >= 0) ;
-            byte[] response = ("{\"access_token\":\"foo\",\"token_type\":\"Bearer\",\"expires_in\":3600}").getBytes(UTF_8);
+            byte[] response = ("some-project-id").getBytes(UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);

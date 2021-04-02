@@ -12,6 +12,7 @@ import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
@@ -25,10 +26,16 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Maps;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
 import java.util.Map;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
 
 public class GoogleCloudStorageService {
@@ -162,10 +169,47 @@ public class GoogleCloudStorageService {
         }
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
+        } else {
+            String defaultProjectId = null;
+            try {
+                defaultProjectId = ServiceOptions.getDefaultProjectId();
+                if (defaultProjectId != null) {
+                    storageOptionsBuilder.setProjectId(defaultProjectId);
+                }
+            } catch (Exception e) {
+                logger.warn("failed to load default project id", e);
+            }
+            if (defaultProjectId == null) {
+                try {
+                    SocketAccess.doPrivilegedVoidIOException(() -> {
+                        String metaHost = System.getenv("GCE_METADATA_HOST");
+                        if (metaHost == null) {
+                            metaHost = "metadata.google.internal";
+                        }
+                        URL url = new URL("http://" + metaHost + "/computeMetadata/v1/project/project-id");
+                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                        connection.setConnectTimeout(5000);
+                        connection.setReadTimeout(5000);
+                        connection.setRequestProperty("Metadata-Flavor", "Google");
+                        try (InputStream input = connection.getInputStream()) {
+                            if (connection.getResponseCode() == 200) {
+                                try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, UTF_8))) {
+                                    storageOptionsBuilder.setProjectId(reader.readLine());
+                                }
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("failed to load default project id fallback", e);
+                }
+            }
         }
         if (clientSettings.getCredential() == null) {
-            logger.warn("\"Application Default Credentials\" are not supported out of the box."
-                    + " Additional file system permissions have to be granted to the plugin.");
+            try {
+                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
+            } catch (Exception e) {
+                logger.warn("failed to load Application Default Credentials", e);
+            }
         } else {
             ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
             // override token server URI

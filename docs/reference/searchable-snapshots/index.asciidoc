@@ -72,7 +72,8 @@ For more complex or time-consuming searches, you can use <<async-search>> with
 ====
 
 [[searchable-snapshots-repository-types]]
-You can use any of the following repository types with searchable snapshots:
+// tag::searchable-snapshot-repo-types[]
+Use any of the following repository types with searchable snapshots:
 
 * {plugins}/repository-s3.html[AWS S3]
 * {plugins}/repository-gcs.html[Google Cloud Storage]
@@ -85,6 +86,7 @@ instance
 {plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
 as long as they are fully compatible. You can use the <<repo-analysis-api>> API
 to analyze your repository's suitability for use with searchable snapshots.
+// end::searchable-snapshot-repo-types[]
 
 [discrete]
 [[how-searchable-snapshots-work]]

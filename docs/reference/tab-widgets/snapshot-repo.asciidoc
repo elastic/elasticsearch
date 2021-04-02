@@ -1,5 +1,14 @@
 // tag::cloud[]
-{ess} supports repositories for the following providers:
+The default `found-snapshots` repository supports {search-snaps}. You can use
+`found-snapshots` when you need to specify a snapshot repository with no
+additional registration.
+
+The `found-snapshots` repository is specific to your cluster. To use another
+cluster's default repository, see
+{cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
+clusters].
+
+You can also use any of the following custom repository types with {search-snaps}:
 
 * {cloud}/ec-gcs-snapshotting.html[Google Cloud Storage (GCS)]
 * {cloud}/ec-azure-snapshotting.html[Azure Blob Storage]
@@ -7,9 +16,5 @@
 // end::cloud[]
 
 // tag::self-managed[]
-Use one of our official snapshot repository plugins:
-
-* {plugins}/repository-gcs.html[Google Cloud Storage (GCS)]
-* {plugins}/repository-azure.html[Azure Blob Storage]
-* {plugins}/repository-s3.html[Amazon Web Services (AWS)]
+include::{es-repo-dir}/searchable-snapshots/index.asciidoc[tag=searchable-snapshot-repo-types]
 // end::self-managed[]

@@ -38,15 +38,12 @@ include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
 [[register-snapshot-repository]]
 === Step 2. Register a snapshot repository
 
-The cold and frozen tiers can use <<searchable-snapshots,searchable snapshots>>
-to reduce local storage costs.
+The cold and frozen tiers can use <<searchable-snapshots,{search-snaps}>> to
+reduce local storage costs.
 
-To create snapshots, you must register a snapshot repository. The repository is
-typically a remote object store, such as Google Cloud Storage (GCS) or Azure
-Blob Storage.
-
-The steps for registering a snapshot repository vary based on your deployment
-type and storage provider:
+To use {search-snaps}, you must register a supported snapshot repository. The
+steps for registering this repository vary based on your deployment type and
+storage provider:
 
 include::{es-repo-dir}/tab-widgets/snapshot-repo-widget.asciidoc[]
 
@@ -64,7 +61,7 @@ ensure your policy:
 
 * Includes a phase for each data tier you've configured.
 * Calculates the threshold, or `min_age`, for phase transition from rollover.
-* Uses searchable snapshots in the cold and frozen phases, if wanted.
+* Uses {search-snaps} in the cold and frozen phases, if wanted.
 * Includes a delete phase, if needed.
 
 include::{es-repo-dir}/tab-widgets/ilm-widget.asciidoc[]

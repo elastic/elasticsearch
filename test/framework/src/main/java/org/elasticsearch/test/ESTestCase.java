@@ -495,7 +495,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         try {
 
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning").stream()
-                .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
                 .collect(Collectors.toList());
             if ((expectedWarnings == null || expectedWarnings.length == 0)) {
                 assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);

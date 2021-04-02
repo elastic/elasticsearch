@@ -107,8 +107,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name());
         if (anonymousEnabled) {
             builder.put(AnonymousUser.ROLES_SETTING.getKey(), "native_anonymous");

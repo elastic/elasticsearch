@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
 import org.elasticsearch.gradle.test.InternalClusterTestPlugin
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 

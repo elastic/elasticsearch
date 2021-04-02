@@ -8,10 +8,15 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
@@ -113,5 +118,186 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
         assertThat(findDynamicMapping(mappings), equalTo(false));
+    }
+
+    public void testPriorSystemIndexDescriptorValidation() {
+        final String mappings = "{ \"_meta\": { \"version\": \"7.4.0\" } }";
+        SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0)
+            .build();
+
+        // same minimum node version
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0)
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build());
+        assertThat(iae.getMessage(), containsString("same minimum node version"));
+
+        // different min version but prior is after latest!
+        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.fromString("6.8.0"))
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build());
+        assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
+
+        // prior has another prior!
+        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_5_0)
+            .setPriorSystemIndexDescriptors(List.of(
+                SystemIndexDescriptor.builder()
+                    .setIndexPattern(".system*")
+                    .setDescription("system stuff")
+                    .setPrimaryIndex(".system-1")
+                    .setAliasName(".system")
+                    .setType(Type.INTERNAL)
+                    .setSettings(Settings.EMPTY)
+                    .setMappings(mappings)
+                    .setVersionMetaKey("version")
+                    .setOrigin("system")
+                    .setMinimumNodeVersion(Version.V_7_4_1)
+                    .setPriorSystemIndexDescriptors(List.of(prior))
+                    .build()
+            ))
+            .build());
+        assertThat(iae.getMessage(), containsString("has its own prior descriptors"));
+
+        // different index patterns
+        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+            .setIndexPattern(".system1*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build());
+        assertThat(iae.getMessage(), containsString("index pattern must be the same"));
+
+        // different index patterns
+        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-2")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build());
+        assertThat(iae.getMessage(), containsString("primary index must be the same"));
+
+        // different index patterns
+        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system1")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build());
+        assertThat(iae.getMessage(), containsString("alias name must be the same"));
+
+        // success!
+        assertNotNull(SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build());
+    }
+
+    public void testGetDescriptorCompatibleWith() {
+        final String mappings = "{ \"_meta\": { \"version\": \"7.4.0\" } }";
+        final SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0)
+            .build();
+        final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(mappings)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build();
+
+        SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT);
+        assertSame(descriptor, compat);
+
+        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0")));
+
+        compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT.minimumCompatibilityVersion());
+        assertSame(descriptor, compat);
+
+        Version priorToMin = VersionUtils.getPreviousVersion(descriptor.getMinimumNodeVersion());
+        compat = descriptor.getDescriptorCompatibleWith(priorToMin);
+        assertSame(prior, compat);
+
+        compat = descriptor.getDescriptorCompatibleWith(
+            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin));
+        assertSame(prior, compat);
     }
 }

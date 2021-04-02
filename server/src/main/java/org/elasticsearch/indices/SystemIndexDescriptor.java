@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
@@ -75,6 +76,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
     /** The minimum cluster node version required for this descriptor */
     private final Version minimumNodeVersion;
+
+    /** Mapping version from the descriptor */
+    private final Version mappingVersion;
 
     /** Whether there are dynamic fields in this descriptor's mappings */
     private final boolean hasDynamicMappings;
@@ -194,7 +198,15 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex if mappings or settings are defined");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey if mappings or settings are defined");
             Strings.requireNonEmpty(origin, "Must supply origin if mappings or settings are defined");
+            Version mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
+            if (mappingVersion == null) {
+                throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
+            }
+            this.mappingVersion = mappingVersion;
+        } else {
+            this.mappingVersion = null;
         }
+
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
         if (type.isInternal() && allowedElasticProductOrigins.isEmpty() == false) {
@@ -204,23 +216,35 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         }
         Objects.requireNonNull(minimumNodeVersion, "minimumNodeVersion must be provided!");
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
-        // the rules for prior system index descriptors
-        // 1. No values with the same version
-        // 2. All prior system index descriptors must have a minimumNodeVersion before this one
-        // 3. Prior system index descriptors may not have other prior system index descriptors
-        //    to avoid multiple branches that need followed
-        Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
-        versions.add(minimumNodeVersion);
-        for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
-            if (versions.add(prior.minimumNodeVersion) == false) {
-                throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
-            }
-            if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
-                throw new IllegalArgumentException(prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after ["
-                    + minimumNodeVersion + "]");
-            }
-            if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
-                throw new IllegalArgumentException(prior + " has its own prior descriptors but only a depth of 1 is allowed");
+        if (priorSystemIndexDescriptors.isEmpty() == false) {
+            // the rules for prior system index descriptors
+            // 1. No values with the same minimum node version
+            // 2. All prior system index descriptors must have a minimumNodeVersion before this one
+            // 3. Prior system index descriptors may not have other prior system index descriptors
+            //    to avoid multiple branches that need followed
+            // 4. Must have same indexPattern, primaryIndex, and alias
+            Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
+            versions.add(minimumNodeVersion);
+            for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
+                if (versions.add(prior.minimumNodeVersion) == false) {
+                    throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
+                }
+                if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
+                    throw new IllegalArgumentException(prior + " has minimum node version [" + prior.minimumNodeVersion +
+                        "] which is after [" + minimumNodeVersion + "]");
+                }
+                if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
+                    throw new IllegalArgumentException(prior + " has its own prior descriptors but only a depth of 1 is allowed");
+                }
+                if (prior.indexPattern.equals(indexPattern) == false) {
+                    throw new IllegalArgumentException("index pattern must be the same");
+                }
+                if (prior.primaryIndex.equals(primaryIndex) == false) {
+                    throw new IllegalArgumentException("primary index must be the same");
+                }
+                if (prior.aliasName.equals(aliasName) == false) {
+                    throw new IllegalArgumentException("alias name must be the same");
+                }
             }
         }
 
@@ -331,6 +355,10 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return this.versionMetaKey;
     }
 
+    public Version getMinimumNodeVersion() {
+        return minimumNodeVersion;
+    }
+
     public boolean isAutomaticallyManaged() {
         // TODO remove mappings/settings check after all internal indices have been migrated
         return type.isManaged() && (this.mappings != null || this.settings != null);
@@ -354,6 +382,13 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
+    }
+
+    public Version getMappingVersion() {
+        if (type.isManaged() == false) {
+            throw new IllegalStateException(toString() + " is not managed so there are no mappings or version");
+        }
+        return mappingVersion;
     }
 
     /**
@@ -619,5 +654,18 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         }
 
         return false;
+    }
+
+    private static Version extractVersionFromMappings(String mappings, String versionMetaKey) {
+        final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
+        final Map<String, Object> meta = (Map<String, Object>) mappingsMap.get("_meta");
+        if (meta == null) {
+            throw new IllegalStateException("mappings do not have _meta field");
+        }
+        final String value = (String) meta.get(versionMetaKey);
+        if (value == null) {
+            return null;
+        }
+        return Version.fromString(value);
     }
 }

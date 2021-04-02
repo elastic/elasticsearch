@@ -191,7 +191,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final String indexUUID = indexMetadata != null ? indexMetadata.getIndexUUID() : null;
         final State newState = new State(creationTime, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion,
-                concreteIndexName, indexHealth, indexState, event.state().nodes().getMinNodeVersion(), indexUUID);
+                concreteIndexName, indexHealth, indexState, event.state().nodes().getSmallestNonClientNodeVersion(), indexUUID);
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {
@@ -222,6 +222,12 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
+        final Version minimumNonClientNodeVersion = clusterState.nodes().getSmallestNonClientNodeVersion();
+        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(minimumNonClientNodeVersion);
+        if (descriptor == null) {
+            return false;
+        }
+
         /*
          * The method reference looks wrong here, but it's just counter-intuitive. It expands to:
          *
@@ -229,7 +235,7 @@ public class SecurityIndexManager implements ClusterStateListener {
          *
          * ...which is true if the mappings have been updated.
          */
-        return checkIndexMappingVersionMatches(clusterState, Version.CURRENT::onOrBefore);
+        return checkIndexMappingVersionMatches(clusterState, descriptor.getMappingVersion()::onOrBefore);
     }
 
     private boolean checkIndexMappingVersionMatches(ClusterState clusterState, Predicate<Version> predicate) {
@@ -327,18 +333,18 @@ public class SecurityIndexManager implements ClusterStateListener {
                         + "Security features relying on the index will not be available until the upgrade API is run on the index");
             } else if (indexState.indexExists() == false) {
                 assert indexState.concreteIndexName != null;
-                logger.info(
-                    "security index does not exist, creating [{}] with alias [{}]",
-                    indexState.concreteIndexName,
-                    systemIndexDescriptor.getAliasName()
-                );
-
                 final SystemIndexDescriptor descriptorForVersion =
                     systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumNodeVersionMessage("create index");
                     consumer.accept(new IllegalStateException(error));
                 } else {
+                    logger.info(
+                        "security index does not exist, creating [{}] with alias [{}]",
+                        indexState.concreteIndexName,
+                        descriptorForVersion.getAliasName()
+                    );
                     // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases
                     // for system indices, we nonetheless specify them here so that the values from `descriptorForVersion` are used.
                     CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)

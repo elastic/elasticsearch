@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
@@ -30,11 +28,9 @@ import java.util.function.Consumer;
 
 public class NativePyTorchProcess extends AbstractNativeProcess implements PyTorchProcess {
 
-    private static final Logger logger = LogManager.getLogger(NativePyTorchProcess.class);
-
     private static final String NAME = "pytorch_inference";
 
-    private static AtomicLong ms_RequestId = new AtomicLong(1);
+    private static AtomicLong requestId = new AtomicLong(1);
 
     private final ProcessResultsParser<PyTorchResult> resultsParser;
 
@@ -76,7 +72,7 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
 
     @Override
     public String writeInferenceRequest(double[] inputs) throws IOException {
-        long requestId = ms_RequestId.getAndIncrement();
+        long requestId = NativePyTorchProcess.requestId.getAndIncrement();
         String json = new StringBuilder("{")
             .append("\"request_id\":\"")
             .append(requestId)

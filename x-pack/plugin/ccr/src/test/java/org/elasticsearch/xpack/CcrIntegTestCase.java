@@ -311,7 +311,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     @Override
     public List<String> filteredWarnings() {
-        return Stream.concat(super.filteredWarnings().stream(), List.of("Configuring multiple path.data paths is deprecated. Use RAID or other system level features for utilizing" +
+        return Stream.concat(super.filteredWarnings().stream(),
+            List.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
             "multiple disks. This feature will be removed in 8.0.").stream()).collect(Collectors.toList());
     }
 

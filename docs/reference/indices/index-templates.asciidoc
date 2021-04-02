@@ -32,13 +32,13 @@ following index patterns:
 - `synthetics-*-*`
 // end::built-in-index-template-patterns[]
 
-The {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
 data streams. If you use the {agent}, assign your index templates a priority
 lower than `100` to avoid overriding the built-in templates.Otherwise, to avoid
 accidentally applying the built-in templates, do one or more of the following:
 
 - To disable all built-in index and component templates, set
-<<stack-templates-enabled,`stack.templates.enabled`>> to `false` in the
+<<stack-templates-enabled,`stack.templates.enabled`>> to `false` in
 <<config-files-location,`elasticsearch.yml`>>.
 
 - Use a non-overlapping index pattern.

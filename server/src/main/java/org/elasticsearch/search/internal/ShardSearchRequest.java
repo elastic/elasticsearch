@@ -80,6 +80,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
+    private final Version channelVersion;
+
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
                               ShardId shardId,
@@ -162,6 +164,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        this.channelVersion = Version.CURRENT;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -201,8 +204,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId = null;
             keepAlive = null;
         }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            channelVersion = Version.min(Version.readVersion(in), in.getVersion());
+        } else {
+            channelVersion = in.getVersion();
+        }
+        assert channelVersion.onOrAfter(Version.V_7_13_0) : "Channel version is not serialized/deserialized correctly";
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -223,6 +232,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.channelVersion = clone.channelVersion;
     }
 
     @Override
@@ -264,6 +274,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(bottomSortValues);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            Version.writeVersion(channelVersion, out);
         }
     }
 
@@ -519,5 +532,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public final Map<String, Object> getRuntimeMappings() {
         return source == null ? emptyMap() : source.runtimeMappings();
+    }
+
+    /**
+     * Returns the minimum version of the channel that the request has been passed. If the request never passes around, then the channel
+     * version is {@link Version#CURRENT}; otherwise, it's the minimum version of the coordinating node and data node (and the proxy node
+     * in case the request is sent to the proxy node of the remote cluster before reaching the data node).
+     */
+    public Version getChannelVersion() {
+        return channelVersion;
     }
 }

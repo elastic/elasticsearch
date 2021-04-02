@@ -121,7 +121,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     }
 
     public void testPriorSystemIndexDescriptorValidation() {
-        final String mappings = "{ \"_meta\": { \"version\": \"7.4.0\" } }";
+        final String mappings = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
         SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
@@ -258,7 +258,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     }
 
     public void testGetDescriptorCompatibleWith() {
-        final String mappings = "{ \"_meta\": { \"version\": \"7.4.0\" } }";
+        final String mappings = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
         final SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")

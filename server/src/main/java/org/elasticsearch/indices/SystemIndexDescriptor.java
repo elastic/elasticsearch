@@ -658,7 +658,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
     private static Version extractVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
-        final Map<String, Object> meta = (Map<String, Object>) mappingsMap.get("_meta");
+        final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get("_doc");
+        if (doc == null) {
+            throw new IllegalStateException("expected single mapping name [_doc]");
+        }
+        final Map<String, Object> meta = (Map<String, Object>) doc.get("_meta");
         if (meta == null) {
             throw new IllegalStateException("mappings do not have _meta field");
         }

@@ -92,7 +92,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     private void clearCache(Realm realm, String[] usernames) {
-        if (!(realm instanceof CachingRealm)) {
+        if ((realm instanceof CachingRealm) == false) {
             return;
         }
         CachingRealm cachingRealm = (CachingRealm) realm;

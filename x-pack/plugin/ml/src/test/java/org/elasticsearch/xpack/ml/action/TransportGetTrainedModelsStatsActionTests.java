@@ -36,6 +36,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.junit.Before;
 
@@ -132,7 +133,6 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             null, Collections.singletonList(SKINNY_INGEST_PLUGIN), client);
     }
 
-
     public void testInferenceIngestStatsByModelId() {
         List<NodeStats> nodeStatsList = Arrays.asList(
             buildNodeStats(
@@ -201,6 +201,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             put("trained_model_2", new HashSet<>(Arrays.asList("pipeline1", "pipeline2")));
         }};
         Map<String, IngestStats> ingestStatsMap = TransportGetTrainedModelsStatsAction.inferenceIngestStatsByModelId(response,
+            ModelAliasMetadata.EMPTY,
             pipelineIdsByModelIds);
 
         assertThat(ingestStatsMap.keySet(), equalTo(new HashSet<>(Arrays.asList("trained_model_1", "trained_model_2"))));
@@ -241,7 +242,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         ClusterState clusterState = buildClusterStateWithModelReferences(modelId1, modelId2, modelId3);
 
         Map<String, Set<String>> pipelineIdsByModelIds =
-            TransportGetTrainedModelsStatsAction.pipelineIdsByModelIds(clusterState, ingestService, modelIds);
+            TransportGetTrainedModelsStatsAction.pipelineIdsByModelIdsOrAliases(clusterState, ingestService, modelIds);
 
         assertThat(pipelineIdsByModelIds.keySet(), equalTo(modelIds));
         assertThat(pipelineIdsByModelIds,

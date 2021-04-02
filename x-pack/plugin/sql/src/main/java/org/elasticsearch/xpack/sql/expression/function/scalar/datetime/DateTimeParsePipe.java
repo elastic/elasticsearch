@@ -53,7 +53,7 @@ public class DateTimeParsePipe extends BinaryDateTimePipe {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         DateTimeParsePipe that = (DateTimeParsePipe) o;

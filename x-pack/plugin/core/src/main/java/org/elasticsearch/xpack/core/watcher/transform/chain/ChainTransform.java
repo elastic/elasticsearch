@@ -124,7 +124,7 @@ public class ChainTransform implements Transform {
 
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!results.isEmpty()) {
+            if (results.isEmpty() == false) {
                 builder.startObject(type);
                 builder.startArray(Field.RESULTS.getPreferredName());
                 for (Transform.Result result : results) {
@@ -150,8 +150,8 @@ public class ChainTransform implements Transform {
             return this;
         }
 
-        public Builder add(Transform.Builder... transforms) {
-            for (Transform.Builder transform: transforms) {
+        public Builder add(Transform.Builder<?>... transforms) {
+            for (Transform.Builder<?> transform: transforms) {
                 this.transforms.add(transform.build());
             }
             return this;

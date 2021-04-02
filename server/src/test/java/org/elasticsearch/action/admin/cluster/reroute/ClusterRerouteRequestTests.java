@@ -92,18 +92,18 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             assertEquals(request.hashCode(), copy.hashCode());
 
             // Changing dryRun makes requests not equal
-            copy.dryRun(!copy.dryRun());
+            copy.dryRun(copy.dryRun() == false);
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
-            copy.dryRun(!copy.dryRun());
+            copy.dryRun(copy.dryRun() == false);
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
             // Changing explain makes requests not equal
-            copy.explain(!copy.explain());
+            copy.explain(copy.explain() == false);
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
-            copy.explain(!copy.explain());
+            copy.explain(copy.explain() == false);
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 

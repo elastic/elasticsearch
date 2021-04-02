@@ -183,7 +183,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener) {
+    public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Long> listener) {
         DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
         deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
@@ -209,7 +209,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     );
                     return;
                 }
-                listener.onResponse(true);
+                listener.onResponse(response.getDeleted());
             }, listener::onFailure)
         );
     }

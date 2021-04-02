@@ -86,7 +86,7 @@ public enum ValueType implements Writeable {
     }
 
     public boolean isNotA(ValueType valueType) {
-        return !isA(valueType);
+        return isA(valueType) == false;
     }
 
     public DocValueFormat defaultFormat() {

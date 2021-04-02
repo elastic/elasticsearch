@@ -8,6 +8,9 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -23,7 +26,11 @@ public class RestDeleteActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> {
+            DeleteResponse response = new DeleteResponse(new ShardId("index", "uuid", 0), "_doc", "id", 0, 1, 1, true);
+            response.setShardInfo(new ShardInfo(1, 1));
+            return response;
+        });
 
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.DELETE)

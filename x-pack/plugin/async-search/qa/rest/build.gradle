@@ -11,8 +11,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
-    includeXpack 'async_search'
+    include '_common', 'indices', 'index', 'async_search'
   }
 }
 

@@ -10,7 +10,7 @@ archivesBaseName = 'x-pack-async'
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
 }
 
 tasks.named("dependencyLicenses").configure {

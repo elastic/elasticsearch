@@ -54,7 +54,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

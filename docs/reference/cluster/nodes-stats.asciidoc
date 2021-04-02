@@ -141,6 +141,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -253,6 +255,16 @@ Total size of all shards assigned to the node.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to the node.
+
+`total_data_set_size`::
+(<<byte-units,byte value>>)
+Total data set size of all shards assigned to the node.
+This includes the size of shards not stored fully on the node (shared cache searchable snapshots).
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to the node.
+This includes the size of shards not stored fully on the node (shared cache searchable snapshots).
 
 `reserved`::
 (<<byte-units,byte value>>)
@@ -1187,7 +1199,7 @@ since the {wikipedia}/Unix_time[Unix Epoch].
 
 `open_file_descriptors`::
 (integer)
-Number of opened file descriptors associated with the current  or
+Number of opened file descriptors associated with the current or
 `-1` if not supported.
 
 `max_file_descriptors`::

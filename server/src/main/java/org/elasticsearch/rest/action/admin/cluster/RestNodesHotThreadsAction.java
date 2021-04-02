@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -61,28 +62,23 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     );
 
     @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return unmodifiableList(asList(
-            new DeprecatedRoute(GET, "/_cluster/nodes/hot_threads",
-                    DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS),
-            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hot_threads",
-                    DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS),
-            new DeprecatedRoute(GET, "/_cluster/nodes/hotthreads",
-                    DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS),
-            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hotthreads",
-                    DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS),
-            new DeprecatedRoute(GET, "/_nodes/hotthreads",
-                    DEPRECATED_MESSAGE_NODES_HOTTHREADS),
-            new DeprecatedRoute(GET, "/_nodes/{nodeId}/hotthreads",
-                    DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS)
-        ));
-    }
-
-    @Override
     public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, "/_nodes/hot_threads"),
-            new Route(GET, "/_nodes/{nodeId}/hot_threads")
+            new Route(GET, "/_nodes/{nodeId}/hot_threads"),
+
+            Route.builder(GET, "/_cluster/nodes/hot_threads")
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_cluster/nodes/{nodeId}/hot_threads")
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_cluster/nodes/hotthreads")
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_cluster/nodes/{nodeId}/hotthreads")
+                .deprecated(DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_nodes/hotthreads")
+                .deprecated(DEPRECATED_MESSAGE_NODES_HOTTHREADS, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_nodes/{nodeId}/hotthreads")
+                .deprecated(DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS, RestApiVersion.V_7).build()
         ));
     }
 

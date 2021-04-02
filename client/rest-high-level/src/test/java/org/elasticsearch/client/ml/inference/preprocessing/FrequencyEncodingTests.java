@@ -30,7 +30,7 @@ public class FrequencyEncodingTests extends AbstractXContentTestCase<FrequencyEn
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

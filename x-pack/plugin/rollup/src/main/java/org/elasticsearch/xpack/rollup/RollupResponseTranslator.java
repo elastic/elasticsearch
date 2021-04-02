@@ -345,7 +345,7 @@ public class RollupResponseTranslator {
     private static List<InternalAggregation> unrollAgg(InternalAggregations rolled, InternalAggregations original,
                                                        InternalAggregations currentTree) {
         return rolled.asList().stream()
-                .filter(subAgg -> !subAgg.getName().endsWith("." + RollupField.COUNT_FIELD))
+                .filter(subAgg -> subAgg.getName().endsWith("." + RollupField.COUNT_FIELD) == false)
                 .map(agg -> {
                     // During the translation process, some aggregations' doc_counts are stored in accessory
                     // `sum` metric aggs, so we may need to extract that.  Unfortunately, structure of multibucket vs
@@ -505,7 +505,7 @@ public class RollupResponseTranslator {
                 .asList().stream()
                 // Avoid any rollup count metrics, as that's not a true "sub-agg" but rather agg
                 // added by the rollup for accounting purposes (e.g. doc_count)
-                .filter(subAgg -> !subAgg.getName().endsWith("." + RollupField.COUNT_FIELD))
+                .filter(subAgg -> subAgg.getName().endsWith("." + RollupField.COUNT_FIELD) == false)
                 .map(subAgg -> {
 
                     long count = getAggCount(subAgg, bucket.getAggregations().asMap());

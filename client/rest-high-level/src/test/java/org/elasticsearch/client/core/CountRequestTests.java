@@ -66,7 +66,7 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
         assertNotNull(countRequest.indicesOptions());
         assertNotNull(countRequest.types());
 
-        NullPointerException e = expectThrows(NullPointerException.class, () -> countRequest.indices((String[]) null));
+        Exception e = expectThrows(NullPointerException.class, () -> countRequest.indices((String[]) null));
         assertEquals("indices must not be null", e.getMessage());
         e = expectThrows(NullPointerException.class, () -> countRequest.indices((String) null));
         assertEquals("index must not be null", e.getMessage());
@@ -84,6 +84,9 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
 
         e = expectThrows(NullPointerException.class, () -> countRequest.query(null));
         assertEquals("query must not be null", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> countRequest.terminateAfter(-(randomIntBetween(1, 100))));
+        assertEquals("terminateAfter must be > 0", e.getMessage());
     }
 
     public void testEqualsAndHashcode() {

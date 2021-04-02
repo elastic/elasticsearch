@@ -147,9 +147,7 @@ public class Archives {
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
-        }
+        verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
@@ -385,7 +383,7 @@ public class Archives {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
-        assertThat(pid, is(not(emptyOrNullString())));
+        assertThat("No PID found in " + pidFile, pid, is(not(emptyOrNullString())));
 
         final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + " && tail --pid=" + pid + " -f /dev/null"));

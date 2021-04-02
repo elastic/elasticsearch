@@ -146,7 +146,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     private SecurityIndexManager.State indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN);
+            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null, "my_uuid"
+        );
     }
 
     public void testCacheClearOnIndexHealthChange() {

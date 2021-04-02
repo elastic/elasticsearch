@@ -162,7 +162,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
                 sort = true;
             } else {
                 SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.Type.SCORE && !sortField.getReverse()) {
+                if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
                     sort = false;
                 } else {
                     sort = true;
@@ -215,7 +215,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         if (nestedObjectMapper == null) {
             throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
         }
-        if (!nestedObjectMapper.nested().isNested()) {
+        if (nestedObjectMapper.nested().isNested() == false) {
             throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
         }
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();

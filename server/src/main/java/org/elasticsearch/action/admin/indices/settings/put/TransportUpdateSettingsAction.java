@@ -8,13 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -29,7 +22,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -37,9 +33,18 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
     private final SystemIndices systemIndices;
@@ -78,17 +83,15 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         final Settings requestSettings = request.settings();
 
-
-        final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, requestSettings);
+        final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, request);
         if (systemIndexViolations.isEmpty() == false) {
-            final String message = "Cannot override settings on system indices: "
+            final String message = "Overriding settings on system indices: "
                 + systemIndexViolations.entrySet()
                     .stream()
                     .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
-                    .collect(Collectors.joining(", "));
-            logger.warn(message);
-            listener.onFailure(new IllegalArgumentException(message));
-            return;
+                    .collect(Collectors.joining(", "))
+                + ". This will not work in the next major version";
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
         }
 
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
@@ -98,18 +101,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), t);
-                listener.onFailure(t);
-            }
-        });
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), e);
+            l.onFailure(e);
+        }));
     }
 
     /**
@@ -117,11 +112,18 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
      * that the system index's descriptor expects.
      *
      * @param concreteIndices the indices being updated
-     * @param requestSettings the settings to be applied
+     * @param request the update request
      * @return a mapping from system index pattern to the settings whose values would be overridden. Empty if there are no violations.
      */
-    private Map<String, List<String>> checkForSystemIndexViolations(Index[] concreteIndices, Settings requestSettings) {
-        final Map<String, List<String>> violations = new HashMap<>();
+    private Map<String, List<String>> checkForSystemIndexViolations(Index[] concreteIndices, UpdateSettingsRequest request) {
+        // Requests that a cluster generates itself are permitted to have a difference in settings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return Collections.emptyMap();
+        }
+
+        final Map<String, List<String>> violationsByIndex = new HashMap<>();
+        final Settings requestSettings = request.settings();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
@@ -138,10 +140,11 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 }
 
                 if (failedKeys.isEmpty() == false) {
-                    violations.put(descriptor.getIndexPattern(), failedKeys);
+                    violationsByIndex.put(descriptor.getIndexPattern(), failedKeys);
                 }
             }
         }
-        return violations;
+
+        return violationsByIndex;
     }
 }

@@ -56,10 +56,12 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.NUM_PAGES.getPreferredName(),
         TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(),
         TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(),
+        TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName(),
         TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(),
         TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(),
         TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName(),
         TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(),
+        TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(),
         TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
         TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
         TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(),
@@ -174,18 +176,20 @@ public class TransformFeatureSet implements XPackFeatureSet {
             statisticsList.get(0).longValue(),  // numPages
             statisticsList.get(1).longValue(),  // numInputDocuments
             statisticsList.get(2).longValue(),  // numOutputDocuments
-            statisticsList.get(3).longValue(),  // numInvocations
-            statisticsList.get(4).longValue(),  // indexTime
-            statisticsList.get(5).longValue(),  // searchTime
-            statisticsList.get(6).longValue(),  // processingTime
-            statisticsList.get(7).longValue(),  // indexTotal
-            statisticsList.get(8).longValue(),  // searchTotal
-            statisticsList.get(9).longValue(),  // processingTotal
-            statisticsList.get(10).longValue(),  // indexFailures
-            statisticsList.get(11).longValue(), // searchFailures
-            statisticsList.get(12), // exponential_avg_checkpoint_duration_ms
-            statisticsList.get(13), // exponential_avg_documents_indexed
-            statisticsList.get(14)  // exponential_avg_documents_processed
+            statisticsList.get(3).longValue(),  // numDeletedDocuments
+            statisticsList.get(4).longValue(),  // numInvocations
+            statisticsList.get(5).longValue(),  // indexTime
+            statisticsList.get(6).longValue(),  // searchTime
+            statisticsList.get(7).longValue(),  // processingTime
+            statisticsList.get(8).longValue(),  // deleteTime
+            statisticsList.get(9).longValue(),  // indexTotal
+            statisticsList.get(10).longValue(),  // searchTotal
+            statisticsList.get(11).longValue(),  // processingTotal
+            statisticsList.get(12).longValue(),  // indexFailures
+            statisticsList.get(13).longValue(), // searchFailures
+            statisticsList.get(14), // exponential_avg_checkpoint_duration_ms
+            statisticsList.get(15), // exponential_avg_documents_indexed
+            statisticsList.get(16)  // exponential_avg_documents_processed
         );
     }
 

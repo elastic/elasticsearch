@@ -71,12 +71,9 @@ public class WeekTimes implements Times {
 
         WeekTimes that = (WeekTimes) o;
 
-        if (!days.equals(that.days)) return false;
-
-        // we don't care about order
-        if (!newHashSet(times).equals(newHashSet(that.times))) return false;
-
-        return true;
+        return days.equals(that.days)
+            // we don't care about order
+            && newHashSet(times).equals(newHashSet(that.times));
     }
 
     @Override

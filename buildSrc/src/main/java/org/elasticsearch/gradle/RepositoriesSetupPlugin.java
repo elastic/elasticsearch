@@ -58,7 +58,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal();
         }
-        repos.jcenter();
+        repos.mavenCentral();
 
         String luceneVersion = VersionProperties.getLucene();
         if (luceneVersion.contains("-snapshot")) {

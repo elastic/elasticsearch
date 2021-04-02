@@ -93,7 +93,7 @@ public final class UserToken implements Writeable, ToXContentObject {
     }
 
     /**
-     * Get the authentication
+     * Get the authentication (will not be null)
      */
     Authentication getAuthentication() {
         return authentication;

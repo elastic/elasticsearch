@@ -61,7 +61,7 @@ public class TextTemplateEngine {
 
     private String trimContentType(TextTemplate textTemplate) {
         String template = textTemplate.getTemplate();
-        if (!template.startsWith("__")){
+        if (template.startsWith("__") == false){
             return template; //Doesn't even start with __ so can't have a content type
         }
         // There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3

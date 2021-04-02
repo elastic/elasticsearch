@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -21,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -32,14 +32,12 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/_migration/deprecations", GET, "/_xpack/migration/deprecations"),
-            new ReplacedRoute(GET, "/{index}/_migration/deprecations", GET, "/{index}/_xpack/migration/deprecations")));
+            Route.builder(GET, "/_migration/deprecations")
+                .replaces(GET, "/_xpack/migration/deprecations", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_migration/deprecations")
+                .replaces(GET, "/{index}/_xpack/migration/deprecations", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override

@@ -60,7 +60,7 @@ public class EvaluateDataFrameRequestTests extends AbstractXContentTestCase<Eval
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow unknown fields in root only
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

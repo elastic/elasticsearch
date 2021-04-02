@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -29,6 +30,8 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
+import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.SUM_OF_OTHER_DOC_COUNTS;
 
 /**
  * Base class for terms and multi_terms aggregation that handles common reduce logic
@@ -85,7 +88,7 @@ public abstract class AbstractInternalTerms<
 
     protected abstract int getRequiredSize();
 
-    abstract B createBucket(long docCount, InternalAggregations aggs, long docCountError, B prototype);
+    protected abstract B createBucket(long docCount, InternalAggregations aggs, long docCountError, B prototype);
 
     @Override
     public B reduceBucket(List<B> buckets, ReduceContext context) {
@@ -182,7 +185,12 @@ public abstract class AbstractInternalTerms<
             currentBuckets.add(top.current());
             if (top.hasNext()) {
                 top.next();
-                assert cmp.compare(top.current(), lastBucket) > 0 : "shards must return data sorted by key";
+                /*
+                 * Typically the bucket keys are strictly increasing, but when we merge aggs from two different indices
+                 * we can promote long and unsigned long keys to double, which can cause 2 long keys to be promoted into
+                 * the same double key.
+                 */
+                assert cmp.compare(top.current(), lastBucket) >= 0 : "shards must return data sorted by key";
                 pq.updateTop();
             } else {
                 pq.pop();
@@ -320,6 +328,21 @@ public abstract class AbstractInternalTerms<
         }
         return create(name, Arrays.asList(list), reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError,
             otherDocCount);
+    }
+
+    protected static XContentBuilder doXContentCommon(XContentBuilder builder,
+                                                      Params params,
+                                                      long docCountError,
+                                                      long otherDocCount,
+                                                      List<? extends AbstractTermsBucket> buckets) throws IOException {
+        builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
+        builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
+        for (AbstractTermsBucket bucket : buckets) {
+            bucket.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
     }
 
 }

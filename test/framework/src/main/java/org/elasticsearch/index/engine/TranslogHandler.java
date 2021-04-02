@@ -20,6 +20,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.RootObjectMapper;
@@ -29,7 +30,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -63,8 +63,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     private DocumentMapperForType docMapper(String type) {
         RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, Version.CURRENT);
-        DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(), mappingUpdate);
+        return new DocumentMapperForType(new DocumentMapper(rootBuilder, mapperService), mappingUpdate);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {

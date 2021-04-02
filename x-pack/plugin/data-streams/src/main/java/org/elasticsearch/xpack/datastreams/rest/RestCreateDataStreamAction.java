@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
@@ -25,7 +27,7 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(RestRequest.Method.PUT, "/_data_stream/{name}"));
+        return Collections.singletonList(new Route(PUT, "/_data_stream/{name}"));
     }
 
     @Override

@@ -11,6 +11,12 @@ You can choose either of the following methods to transform your data:
 IMPORTANT: All {transforms} leave your source index intact. They create a new
 index that is dedicated to the transformed data.
 
+{transforms-cap} are persistent tasks; they are stored in cluster state which 
+makes them resilient for node failures. Refer to <<transform-checkpoints>> and 
+<<ml-transform-checkpoint-errors>> to learn more about the machinery behind 
+{transforms}.
+
+
 [[pivot-transform-overview]]
 == Pivot {transforms}
 
@@ -68,8 +74,6 @@ image::images/pivot-preview.png["Example of a pivot {transform} preview in {kib}
 
 [[latest-transform-overview]]
 == Latest {transforms}
-
-beta::[]
 
 You can use the `latest` type of {transform} to copy the most recent documents
 into a new index. You must identify one or more fields as the unique key for

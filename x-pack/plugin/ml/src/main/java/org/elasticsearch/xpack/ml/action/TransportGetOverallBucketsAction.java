@@ -127,7 +127,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     }
 
     private static boolean requiresAggregation(GetOverallBucketsAction.Request request, TimeValue maxBucketSpan) {
-        return request.getBucketSpan() != null && !request.getBucketSpan().equals(maxBucketSpan);
+        return request.getBucketSpan() != null && request.getBucketSpan().equals(maxBucketSpan) == false;
     }
 
     private static void checkValidBucketSpan(TimeValue bucketSpan, TimeValue maxBucketSpan) {

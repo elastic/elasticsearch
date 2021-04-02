@@ -7,19 +7,19 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestPostDataAction extends BaseRestHandler {
 
@@ -28,16 +28,14 @@ public class RestPostDataAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    public List<DeprecatedRoute> deprecatedRoutes() {
         final String msg = "Posting data directly to anomaly detection jobs is deprecated, " +
             "in a future major version it will be compulsory to use a datafeed";
-        return Arrays.asList(
-            new DeprecatedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data", msg),
-            new DeprecatedRoute(POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data",
-                msg));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data")
+                .deprecated(msg, RestApiVersion.V_7).build(),
+            Route.builder(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data")
+                .deprecated(msg, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

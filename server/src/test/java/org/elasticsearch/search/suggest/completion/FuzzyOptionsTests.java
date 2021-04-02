@@ -51,8 +51,8 @@ public class FuzzyOptionsTests extends ESTestCase {
         mutators.add(() -> builder.setFuzzyMinLength(randomValueOtherThan(original.getFuzzyMinLength(), () -> randomIntBetween(1, 3))));
         mutators.add(() -> builder
                 .setMaxDeterminizedStates(randomValueOtherThan(original.getMaxDeterminizedStates(), () -> randomIntBetween(1, 10))));
-        mutators.add(() -> builder.setTranspositions(!original.isTranspositions()));
-        mutators.add(() -> builder.setUnicodeAware(!original.isUnicodeAware()));
+        mutators.add(() -> builder.setTranspositions(original.isTranspositions() == false));
+        mutators.add(() -> builder.setUnicodeAware(original.isUnicodeAware() == false));
         randomFrom(mutators).run();
         return builder.build();
     }

@@ -8,36 +8,30 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestDeleteForecastAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(
-            new Route(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_forecast/"));
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
-        return singletonList(
-            new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
-                DELETE, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() +
-                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}")
+        return org.elasticsearch.common.collect.List.of(
+            new Route(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/"),
+            Route.builder(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}")
+                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}",
+                    RestApiVersion.V_7).build()
         );
     }
 

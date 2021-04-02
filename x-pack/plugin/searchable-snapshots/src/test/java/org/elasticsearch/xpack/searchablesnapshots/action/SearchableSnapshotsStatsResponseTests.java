@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
@@ -99,6 +100,9 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
         return new SearchableSnapshotShardStats.CacheIndexInputStats(
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
+            new ByteSizeValue(randomNonNegativeLong()),
+            new ByteSizeValue(randomNonNegativeLong()),
+            new ByteSizeValue(randomNonNegativeLong()),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomCounter(),
@@ -112,6 +116,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
             randomTimedCounter(),
             randomTimedCounter(),
             randomTimedCounter(),
+            randomCounter(),
             randomCounter(),
             randomNonNegativeLong()
         );

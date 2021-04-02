@@ -143,7 +143,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
-        if (node.isDataNode() == false) {
+        if (node.canContainData() == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a data node");
             }
@@ -176,10 +176,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return false;
         }
 
-        final Map<String, String> nodeAttributes = node.getAttributes();
-
         // transform enabled?
-        if (Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_ENABLED_NODE_ATTR)) == false) {
+        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a transform node");
             }
@@ -369,7 +367,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the index templates are installed
-        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, buildTask.getParentTaskClient(),
+        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, buildTask.getParentTaskClient(),
                 templateCheckListener);
     }
 

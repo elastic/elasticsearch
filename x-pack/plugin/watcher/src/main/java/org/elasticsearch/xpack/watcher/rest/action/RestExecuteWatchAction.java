@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -51,16 +51,16 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(POST, "/_watcher/watch/{id}/_execute", POST, URI_BASE + "/watcher/watch/{id}/_execute"),
-            new ReplacedRoute(PUT, "/_watcher/watch/{id}/_execute", PUT, URI_BASE + "/watcher/watch/{id}/_execute"),
-            new ReplacedRoute(POST, "/_watcher/watch/_execute", POST, URI_BASE + "/watcher/watch/_execute"),
-            new ReplacedRoute(PUT, "/_watcher/watch/_execute", PUT, URI_BASE + "/watcher/watch/_execute")));
+            Route.builder(POST, "/_watcher/watch/{id}/_execute")
+                .replaces(POST, URI_BASE + "/watcher/watch/{id}/_execute", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_execute")
+                .replaces(PUT, URI_BASE + "/watcher/watch/{id}/_execute", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_watcher/watch/_execute")
+                .replaces(POST, URI_BASE + "/watcher/watch/_execute", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/_execute")
+                .replaces(PUT, URI_BASE + "/watcher/watch/_execute", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override

@@ -463,4 +463,59 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(new DiskThresholdDecider.DiskUsageWithRelocations(
             new DiskUsage("n", "n", "/dev/null", Long.MAX_VALUE, Long.MAX_VALUE), -10).getFreeBytes(), equalTo(Long.MAX_VALUE));
     }
+
+    public void testDecidesYesIfWatermarksIgnored() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
+
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test")
+                        .settings(settings(Version.CURRENT).put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
+                        .numberOfShards(1)
+                        .numberOfReplicas(1))
+                .build();
+
+        final Index index = metadata.index("test").getIndex();
+
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+        DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metadata.index("test"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata).routingTable(routingTable).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                .add(node_0)
+                .add(node_1)
+        ).build();
+
+        // actual test -- after all that bloat :)
+        ImmutableOpenMap.Builder<String, DiskUsage> allFullUsages = ImmutableOpenMap.builder();
+        allFullUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
+        allFullUsages.put("node_1", new DiskUsage("node_1", "node_1", "_na_", 100, 0)); // all full
+
+        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        shardSizes.put("[test][0][p]", 10L); // 10 bytes
+        final ImmutableOpenMap<String, DiskUsage> usages = allFullUsages.build();
+        final ClusterInfo clusterInfo = new ClusterInfo(usages, usages, shardSizes.build(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
+                clusterState.getRoutingNodes(), clusterState, clusterInfo, null, System.nanoTime());
+        allocation.debugDecision(true);
+        final RoutingNode routingNode = new RoutingNode("node_0", node_0);
+        Decision decision = decider.canAllocate(test_0, routingNode, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
+
+        decision = decider.canRemain(test_0.initialize(node_0.getId(), null, 0L).moveToStarted(), routingNode, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
+    }
+
 }

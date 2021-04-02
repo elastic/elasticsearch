@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
@@ -57,7 +55,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             for (String username : requestedUsers) {
                 if (ClientReservedRealm.isReserved(username, settings)) {
                     realmLookup.add(username);
-                } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
+                } else if (User.isInternalUsername(username)) {
                     listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
                     return;
                 } else {

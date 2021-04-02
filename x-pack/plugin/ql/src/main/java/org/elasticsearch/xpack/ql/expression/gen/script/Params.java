@@ -98,7 +98,7 @@ public class Params {
     private static List<Param<?>> flatten(List<Param<?>> params) {
         List<Param<?>> flatten = emptyList();
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             flatten = new ArrayList<>();
             for (Param<?> p : params) {
                 if (p instanceof Script) {

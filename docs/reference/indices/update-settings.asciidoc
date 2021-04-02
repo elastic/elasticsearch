@@ -156,7 +156,7 @@ and reopen the index.
 You cannot close the write index of a data stream.
 
 To update the analyzer for a data stream's write index and future backing
-indices, update the analyzer in the <<create-a-data-stream-template,index
+indices, update the analyzer in the <<create-index-template,index
 template used by the stream>>. Then <<manually-roll-over-a-data-stream,roll over
 the data stream>> to apply the new analyzer to the stream’s write index and
 future backing indices. This affects searches and any new data added to the

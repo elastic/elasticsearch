@@ -67,7 +67,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         BinaryDateTimeFunction that = (BinaryDateTimeFunction) o;

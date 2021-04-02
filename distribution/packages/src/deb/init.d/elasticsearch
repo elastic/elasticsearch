@@ -72,6 +72,7 @@ DAEMON=$ES_HOME/bin/elasticsearch
 DAEMON_OPTS="-d -p $PID_FILE"
 
 export ES_JAVA_OPTS
+export ES_JAVA_HOME
 export JAVA_HOME
 export ES_PATH_CONF
 

@@ -1,5 +1,5 @@
-[[breaking-changes-7.12]]
-== Breaking changes in 7.12
+[[migrating-7.12]]
+== Migrating to 7.12
 ++++
 <titleabbrev>7.12</titleabbrev>
 ++++
@@ -17,8 +17,24 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //tag::notable-breaking-changes[]
 
 [discrete]
+[[breaking-changes-7.12]]
+=== Breaking changes
+
+The following changes in {es} 7.12 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.12, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
 [[breaking_712_engine_changes]]
-=== Engine changes
+==== Engine changes
 
 [[breaking_712_engine_forcemerge_change]]
 .Force-merges on frozen and searchable snapshot indices will fail if merging is required.
@@ -31,3 +47,36 @@ requested merge. This bug is fixed in version 7.12: from this version onwards a
 force-merge on these immutable indices will fail if the requested merge is not
 a no-op.
 ====
+
+[discrete]
+[[breaking_712_search_changes]]
+==== Search changes
+
+[[fields-api-nested-fields]]
+.The search APIs `fields` parameter returns fields inside `nested` fields grouped together.
+[%collapsible]
+====
+*Details* +
+In earlier versions, fields retrieved via `fields` in the search API were
+returned as a flat list. From 7.12 on, fields inside an object that is mapped
+using the `nested` field type are grouped together to maintain the independence of
+each object inside the original nested array.
+====
+
+////
+[discrete]
+[[deprecated-7.11]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.10
+and will be removed in 8.0
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.10.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+////

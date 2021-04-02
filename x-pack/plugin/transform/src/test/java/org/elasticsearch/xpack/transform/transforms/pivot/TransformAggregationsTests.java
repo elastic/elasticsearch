@@ -70,6 +70,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", "geo_shape"));
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", null));
 
+        // geo_line
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", "geo_shape"));
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", null));
+
         // scripted_metric
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", null));
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", "int"));

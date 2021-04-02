@@ -98,7 +98,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
     }
 
     public void testEnforceLimitsWhenPublishingToNonLocalAddress() {
@@ -116,7 +116,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final String discoveryType = randomFrom(ZEN_DISCOVERY_TYPE, ZEN2_DISCOVERY_TYPE, "single-node");
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
     }
 
     public void testExceptionAggregation() {

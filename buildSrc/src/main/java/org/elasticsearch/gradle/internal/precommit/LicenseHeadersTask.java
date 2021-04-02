@@ -153,7 +153,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         // we keep this here, in case someone adds BSD code for some reason, it should never be allowed.
         matchers.add(subStringMatcher("BSD4 ", "Original BSD License (with advertising clause)", "All advertising materials"));
         // Apache
-        matchers.add(subStringMatcher("AL   ", "Apache", "Licensed to Elasticsearch under one or more contributor"));
+        matchers.add(subStringMatcher("AL   ", "Apache", "Licensed to Elasticsearch B.V. under one or more contributor"));
         // Generated resources
         matchers.add(subStringMatcher("GEN  ", "Generated", "ANTLR GENERATED CODE"));
         // Vendored Code

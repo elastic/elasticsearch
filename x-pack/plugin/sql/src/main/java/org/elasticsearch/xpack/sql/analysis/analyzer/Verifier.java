@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -73,6 +74,7 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
@@ -110,7 +112,7 @@ public final class Verifier {
             }
 
             // if the children are unresolved, so will this node; counting it will only add noise
-            if (!p.childrenResolved()) {
+            if (p.childrenResolved() == false) {
                 return;
             }
 
@@ -134,7 +136,7 @@ public final class Verifier {
 
                     e.forEachUp(ae -> {
                         // we're only interested in the children
-                        if (!ae.childrenResolved()) {
+                        if (ae.childrenResolved() == false) {
                             return;
                         }
                         // again the usual suspects
@@ -143,7 +145,7 @@ public final class Verifier {
                             if (ae instanceof UnresolvedAttribute) {
                                 UnresolvedAttribute ua = (UnresolvedAttribute) ae;
                                 // only work out the synonyms for raw unresolved attributes
-                                if (!ua.customMessage()) {
+                                if (ua.customMessage() == false) {
                                     boolean useQualifier = ua.qualifier() != null;
                                     List<String> potentialMatches = new ArrayList<>();
                                     for (Attribute a : p.inputSet()) {
@@ -155,7 +157,7 @@ public final class Verifier {
                                     }
 
                                     List<String> matches = StringUtils.findSimilar(ua.qualifiedName(), potentialMatches);
-                                    if (!matches.isEmpty()) {
+                                    if (matches.isEmpty() == false) {
                                         ae = ua.withUnresolvedMessage(UnresolvedAttribute.errorMessage(ua.qualifiedName(), matches));
                                     }
                                 }
@@ -202,7 +204,7 @@ public final class Verifier {
                 }
 
                 // if the children are unresolved, so will this node; counting it will only add noise
-                if (!p.childrenResolved()) {
+                if (p.childrenResolved() == false) {
                     return;
                 }
 
@@ -221,6 +223,7 @@ public final class Verifier {
                 checkPivot(p, localFailures, attributeRefs);
                 checkMatrixStats(p, localFailures);
                 checkCastOnInexact(p, localFailures);
+                checkBinaryHasDocValues(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -313,10 +316,11 @@ public final class Verifier {
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
                 o.order().forEach(oe -> {
-                    Expression e = oe.child();
+                    final Expression e = oe.child();
+                    final Expression resolvedE = attributeRefs.resolve(e, e);
 
                     // aggregates are allowed
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
+                    if (Functions.isAggregate(resolvedE)) {
                         return;
                     }
 
@@ -337,8 +341,12 @@ public final class Verifier {
                     // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
                     //
                     // Also, make sure to compare attributes directly
-                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
-                        g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)))) {
+                    if (resolvedE.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> {
+                            Expression resolvedG = attributeRefs.resolve(g, g);
+                            resolvedG = expression instanceof Attribute ? Expressions.attribute(resolvedG) : resolvedG;
+                            return expression.semanticEquals(resolvedG);
+                        }))) {
                         return;
                     }
 
@@ -346,7 +354,7 @@ public final class Verifier {
                     missing.put(e, oe);
                 });
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     // get the location of the first missing expression as the order by might be on a different line
                     localFailures.add(
@@ -375,7 +383,7 @@ public final class Verifier {
                 // variation of checkGroupMatch customized for HAVING, which requires just aggregations
                 condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, attributeRefs));
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                             fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " {}; use WHERE instead",
@@ -384,15 +392,15 @@ public final class Verifier {
                     return false;
                 }
 
-                if (!unsupported.isEmpty()) {
+                if (unsupported.isEmpty() == false) {
                     String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                         fail(condition, "HAVING filter is unsupported for function" + plural + " {}",
                             Expressions.names(unsupported)));
                     groupingFailures.add(a);
                     return false;
+                }
             }
-        }
         }
         return true;
     }
@@ -403,7 +411,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.get(e);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -481,7 +489,7 @@ public final class Verifier {
 
         expressions.forEach(e -> e.forEachDown(c -> {
             if (c instanceof ReferenceAttribute) {
-                c = attributeRefs.getOrDefault(c, c);
+                c = attributeRefs.resolve(c, c);
             }
             if (c instanceof Function) {
                 localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
@@ -537,7 +545,7 @@ public final class Verifier {
                 }
             });
 
-            if (!localFailures.isEmpty()) {
+            if (localFailures.isEmpty() == false) {
                 return false;
             }
 
@@ -554,7 +562,7 @@ public final class Verifier {
             a.aggregates().forEach(ne ->
                 ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, attributeRefs)));
 
-            if (!missing.isEmpty()) {
+            if (missing.isEmpty() == false) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                 localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " {}, expected {}",
                         Expressions.names(missing.keySet()),
@@ -576,7 +584,7 @@ public final class Verifier {
 
         // resolve FunctionAttribute to backing functions
         if (e instanceof ReferenceAttribute) {
-            e = attributeRefs.get(e);
+            e = attributeRefs.resolve(e);
         }
 
         // scalar functions can be a binary tree
@@ -662,11 +670,20 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            if ((filter.child() instanceof Aggregate) == false) {
+            LogicalPlan filterChild = filter.child();
+            if (filterChild instanceof Aggregate == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
-                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
-                        localFailures.add(
-                            fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
+                    if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
+                        if (filterChild instanceof Project) {
+                            filter.condition().forEachDown(FieldAttribute.class,
+                                f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
+                                        Expressions.name(f)))
+                            );
+                        } else {
+                            localFailures.add(fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
+                                Expressions.name(e)));
+
+                        }
                     }
                 });
             }
@@ -678,7 +695,7 @@ public final class Verifier {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
             filter.condition().forEachDown(Expression.class, e -> {
-                if (Functions.isGrouping(attributeRefs.getOrDefault(e, e))) {
+                if (Functions.isGrouping(attributeRefs.resolve(e, e))) {
                     localFailures
                         .add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));
                 }
@@ -688,11 +705,12 @@ public final class Verifier {
 
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
-        // Make sure that SCORE is only used in "top level" functions
+        // Make sure that SCORE is only used as a "top level" function
         p.forEachExpression(Function.class, f ->
             f.arguments().stream()
                 .filter(exp -> exp.anyMatch(Score.class::isInstance))
-                .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function")))
+                .forEach(exp -> localFailures.add(fail(exp,
+                    "[SCORE()] cannot be used in expressions, does not support further processing")))
         );
     }
 
@@ -705,13 +723,13 @@ public final class Verifier {
             }
         };
         Consumer<Expression> checkForNested = e ->
-            attributeRefs.getOrDefault(e, e).forEachUp(FieldAttribute.class, matchNested);
+            attributeRefs.resolve(e, e).forEachUp(FieldAttribute.class, matchNested);
         Consumer<ScalarFunction> checkForNestedInFunction = f -> f.arguments().forEach(
             arg -> arg.forEachUp(FieldAttribute.class, matchNested));
 
         // nested fields shouldn't be used in aggregates or having (yet)
         p.forEachDown(Aggregate.class, a -> a.groupings().forEach(agg -> agg.forEachUp(checkForNested)));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
@@ -719,7 +737,7 @@ public final class Verifier {
 
         // check in having
         p.forEachDown(Filter.class, f -> f.forEachDown(Aggregate.class, a -> f.condition().forEachUp(checkForNested)));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                 fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
@@ -727,7 +745,7 @@ public final class Verifier {
 
         // check in where (scalars not allowed)
         p.forEachDown(Filter.class, f -> f.condition().forEachUp(e ->
-            attributeRefs.getOrDefault(e, e).forEachUp(ScalarFunction.class, sf -> {
+            attributeRefs.resolve(e, e).forEachUp(ScalarFunction.class, sf -> {
                 if (sf instanceof BinaryComparison == false &&
                     sf instanceof IsNull == false &&
                     sf instanceof IsNotNull == false &&
@@ -737,7 +755,7 @@ public final class Verifier {
                 }
             })
         ));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                 fail(nested.get(0), "WHERE isn't (yet) compatible with scalar functions on nested fields " +
                     new AttributeSet(nested).names()));
@@ -746,9 +764,9 @@ public final class Verifier {
 
         // check in order by (scalars not allowed)
         p.forEachDown(OrderBy.class, ob -> ob.order().forEach(o -> o.forEachUp(e ->
-            attributeRefs.getOrDefault(e, e).forEachUp(ScalarFunction.class, checkForNestedInFunction)
+            attributeRefs.resolve(e, e).forEachUp(ScalarFunction.class, checkForNestedInFunction)
         )));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                 fail(nested.get(0), "ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
                     new AttributeSet(nested).names()));
@@ -873,5 +891,22 @@ public final class Verifier {
                 }
             }
         }));
+    }
+
+    // check that any binary field used in WHERE, GROUP BY, HAVING or ORDER BY has doc_values, for ES to allow querying it
+    private static void checkBinaryHasDocValues(LogicalPlan plan, Set<Failure> localFailures) {
+        List<Tuple<FieldAttribute, String>> fields = new ArrayList<>();
+
+        plan.forEachDown(Filter.class, e -> e.condition().forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "for filtering"))));
+        plan.forEachDown(Aggregate.class, e -> e.groupings().forEach(g -> g.forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "in aggregations")))));
+        plan.forEachDown(OrderBy.class, e -> e.order().forEach(o -> o.child().forEachDown(FieldAttribute.class,
+            f -> fields.add(Tuple.tuple(f, "for ordering")))));
+
+        fields.stream().filter(t -> t.v1().dataType() == BINARY && t.v1().field().isAggregatable() == false).forEach(t -> {
+            localFailures.add(fail(t.v1(), "Binary field [" + t.v1().name() + "] cannot be used " + t.v2() + " unless it has the "
+                + "doc_values setting enabled"));
+        });
     }
 }

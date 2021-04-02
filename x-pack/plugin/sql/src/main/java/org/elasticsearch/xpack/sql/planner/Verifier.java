@@ -26,7 +26,7 @@ abstract class Verifier {
                 failures.add(fail(p, "Unplanned item"));
             }
             p.forEachExpressionUp(e -> {
-                if (e.childrenResolved() && !e.resolved()) {
+                if (e.childrenResolved() && e.resolved() == false) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });
@@ -43,7 +43,7 @@ abstract class Verifier {
                 failures.add(fail(p, "Unexecutable item"));
             }
             p.forEachExpressionUp(e -> {
-                if (e.childrenResolved() && !e.resolved()) {
+                if (e.childrenResolved() && e.resolved() == false) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });

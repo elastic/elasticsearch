@@ -43,11 +43,11 @@ public class SlackMessageDefaults {
 
         SlackMessageDefaults defaults = (SlackMessageDefaults) o;
 
-        if (from != null ? !from.equals(defaults.from) : defaults.from != null) return false;
-        if (!Arrays.equals(to, defaults.to)) return false;
-        if (icon != null ? !icon.equals(defaults.icon) : defaults.icon != null) return false;
-        if (text != null ? !text.equals(defaults.text) : defaults.text != null) return false;
-        return !(attachment != null ? !attachment.equals(defaults.attachment) : defaults.attachment != null);
+        return Objects.equals(from, defaults.from)
+            && Arrays.equals(to, defaults.to)
+            && Objects.equals(icon, defaults.icon)
+            && Objects.equals(text, defaults.text)
+            && Objects.equals(attachment, defaults.attachment);
     }
 
     @Override

@@ -55,10 +55,10 @@ public class ConcatFunctionProcessor extends BinaryProcessor {
         if (source2 == null) {
             return source1;
         }
-        if (!(source1 instanceof String || source1 instanceof Character)) {
+        if ((source1 instanceof String || source1 instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source1);
         }
-        if (!(source2 instanceof String || source2 instanceof Character)) {
+        if ((source2 instanceof String || source2 instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source2);
         }
 

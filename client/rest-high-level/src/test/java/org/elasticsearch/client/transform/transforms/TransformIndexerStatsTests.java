@@ -40,6 +40,8 @@ public class TransformIndexerStatsTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomDouble(),
             randomDouble(),
             randomDouble()
@@ -52,6 +54,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             builder.field(TransformIndexerStats.PAGES_PROCESSED.getPreferredName(), stats.getPagesProcessed());
             builder.field(TransformIndexerStats.DOCUMENTS_PROCESSED.getPreferredName(), stats.getDocumentsProcessed());
             builder.field(TransformIndexerStats.DOCUMENTS_INDEXED.getPreferredName(), stats.getDocumentsIndexed());
+            builder.field(TransformIndexerStats.DOCUMENTS_DELETED.getPreferredName(), stats.getDocumentsDeleted());
             builder.field(TransformIndexerStats.TRIGGER_COUNT.getPreferredName(), stats.getTriggerCount());
             builder.field(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
             builder.field(TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -60,6 +63,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             builder.field(TransformIndexerStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
             builder.field(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
             builder.field(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
+            builder.field(TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
             builder.field(TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
             builder.field(
                 TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
@@ -75,6 +79,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             xContentFieldIfNotZero(builder, TransformIndexerStats.PAGES_PROCESSED.getPreferredName(), stats.getPagesProcessed());
             xContentFieldIfNotZero(builder, TransformIndexerStats.DOCUMENTS_PROCESSED.getPreferredName(), stats.getDocumentsProcessed());
             xContentFieldIfNotZero(builder, TransformIndexerStats.DOCUMENTS_INDEXED.getPreferredName(), stats.getDocumentsIndexed());
+            xContentFieldIfNotZero(builder, TransformIndexerStats.DOCUMENTS_DELETED.getPreferredName(), stats.getDocumentsDeleted());
             xContentFieldIfNotZero(builder, TransformIndexerStats.TRIGGER_COUNT.getPreferredName(), stats.getTriggerCount());
             xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
             xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -83,6 +88,7 @@ public class TransformIndexerStatsTests extends ESTestCase {
             xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
             xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
             xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
+            xContentFieldIfNotZero(builder, TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
             xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
             xContentFieldIfNotZero(
                 builder,

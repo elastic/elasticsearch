@@ -342,7 +342,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         service.onMaster();
         service.setUseAuto(true);
         boolean waitingAnalytics = randomBoolean();
-        boolean waitingAnomalyJobs = !waitingAnalytics || randomBoolean();
+        boolean waitingAnomalyJobs = waitingAnalytics == false || randomBoolean();
         int maxWaitingAnalytics = randomIntBetween(1, 2);
         int maxWaitingAnomaly = randomIntBetween(1, 2);
         List<String> assignedAnomalyJobs = randomList(0, 2, () -> randomAlphaOfLength(10));
@@ -378,7 +378,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         service.onMaster();
         service.setUseAuto(true);
         boolean waitingAnalytics = randomBoolean();
-        boolean waitingAnomalyJobs = !waitingAnalytics || randomBoolean();
+        boolean waitingAnomalyJobs = waitingAnalytics == false || randomBoolean();
         int maxWaitingAnalytics = randomIntBetween(1, 2);
         int maxWaitingAnomaly = randomIntBetween(1, 2);
         ClusterState clusterState = clusterState(
@@ -401,8 +401,10 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         DeciderContext deciderContext = new DeciderContext(clusterState, autoscalingCapacity);
 
         AutoscalingDeciderResult result = service.scale(settings, deciderContext);
-        assertThat(result.reason().summary(),
-            containsString("Passing currently perceived capacity as there are analytics and anomaly jobs in the queue"));
+        assertThat(
+            result.reason().summary(),
+            containsString("but the number in the queue is less than the configured maximum allowed")
+        );
         assertThat(result.requiredCapacity(), equalTo(autoscalingCapacity));
     }
 

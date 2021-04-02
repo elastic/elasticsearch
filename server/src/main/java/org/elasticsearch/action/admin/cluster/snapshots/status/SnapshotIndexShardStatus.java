@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -199,15 +200,17 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SnapshotIndexShardStatus that = (SnapshotIndexShardStatus) o;
-
-        if (stage != that.stage) return false;
-        if (stats != null ? !stats.equals(that.stats) : that.stats != null) return false;
-        if (nodeId != null ? !nodeId.equals(that.nodeId) : that.nodeId != null) return false;
-        return failure != null ? failure.equals(that.failure) : that.failure == null;
+        return stage == that.stage
+            && Objects.equals(stats, that.stats)
+            && Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(failure, that.failure);
     }
 
     @Override

@@ -308,7 +308,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
         );
-        MappedFieldType ft = mapperService.documentMapper().mappers().fieldTypes().get("field");
+        MappedFieldType ft = mapperService.documentMapper().mappers().fieldTypesLookup().get("field");
         assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -469,5 +469,23 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello world" }
         );
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomAlphaOfLengthBetween(1, 100);
+            case 1:
+                return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
+            case 2:
+                return randomLong();
+            case 3:
+                return randomDouble();
+            case 4:
+                return randomBoolean();
+            default:
+                throw new IllegalStateException();
+        }
     }
 }

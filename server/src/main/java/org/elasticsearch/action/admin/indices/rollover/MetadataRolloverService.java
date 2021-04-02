@@ -159,7 +159,7 @@ public class MetadataRolloverService {
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        final DataStream rolledDataStream = ds.rollover(currentState.getMetadata(), "uuid", minNodeVersion);
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, rolledDataStream.getWriteIndex().getName());
     }
 
@@ -217,7 +217,7 @@ public class MetadataRolloverService {
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        DataStream rolledDataStream = ds.rollover(currentState.metadata(), "uuid", minNodeVersion);
         createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
@@ -226,7 +226,7 @@ public class MetadataRolloverService {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareDataStreamCreateIndexRequest(dataStreamName, rolledDataStream.getWriteIndex().getName(), createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndexUUID(), minNodeVersion)));
+            (builder, indexMetadata) -> builder.put(ds.rollover(currentState.metadata(), indexMetadata.getIndexUUID(), minNodeVersion)));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -308,15 +308,6 @@ public class MetadataRolloverService {
      */
     static void checkNoDuplicatedAliasInIndexTemplate(Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
                                                       @Nullable Boolean isHidden) {
-        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
-        for (IndexTemplateMetadata template : matchedTemplates) {
-            if (template.aliases().containsKey(rolloverRequestAlias)) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
-                    rolloverRequestAlias, template.aliases().keys(), template.name()));
-            }
-        }
-
         final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
             List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template, false);
@@ -326,6 +317,16 @@ public class MetadataRolloverService {
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias, aliasConfig.keySet(), matchedV2Template));
                 }
+            }
+            return;
+        }
+
+        final List<IndexTemplateMetadata> matchedTemplates = findV1Templates(metadata, rolloverIndexName, isHidden);
+        for (IndexTemplateMetadata template : matchedTemplates) {
+            if (template.aliases().containsKey(rolloverRequestAlias)) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
+                    rolloverRequestAlias, template.aliases().keys(), template.name()));
             }
         }
     }

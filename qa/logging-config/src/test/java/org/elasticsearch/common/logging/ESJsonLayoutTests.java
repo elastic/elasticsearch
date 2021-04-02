@@ -24,6 +24,7 @@ public class ESJsonLayoutTests extends ESTestCase {
     }
 
     public void testLayout() {
+
         ESJsonLayout server = ESJsonLayout.newBuilder()
                                           .setType("server")
                                           .build();

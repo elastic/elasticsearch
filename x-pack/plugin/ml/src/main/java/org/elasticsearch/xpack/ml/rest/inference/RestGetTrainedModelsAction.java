@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -23,7 +24,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,10 +34,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
@@ -45,22 +45,17 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return unmodifiableList(asList(
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}",
-                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}"),
-            new ReplacedRoute(
-                GET, MachineLearning.BASE_PATH + "trained_models",
-                GET, MachineLearning.BASE_PATH + "inference")));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_7).build(),
+            Route.builder(GET, BASE_PATH + "trained_models")
+                .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_7).build()
+        );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
         Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+
     @Override
     public String getName() {
         return "ml_get_trained_models_action";

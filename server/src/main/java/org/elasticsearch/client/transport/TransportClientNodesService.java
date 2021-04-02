@@ -172,7 +172,7 @@ final class TransportClientNodesService implements Closeable {
                         break;
                     }
                 }
-                if (!found) {
+                if (found == false) {
                     filtered.add(transportAddress);
                 }
             }
@@ -199,7 +199,7 @@ final class TransportClientNodesService implements Closeable {
             }
             List<DiscoveryNode> listNodesBuilder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
-                if (!otherNode.getAddress().equals(transportAddress)) {
+                if (otherNode.getAddress().equals(transportAddress) == false) {
                     listNodesBuilder.add(otherNode);
                 } else {
                     logger.debug("removing address [{}] from listed nodes", otherNode);
@@ -208,7 +208,7 @@ final class TransportClientNodesService implements Closeable {
             listedNodes = Collections.unmodifiableList(listNodesBuilder);
             List<DiscoveryNode> nodesBuilder = new ArrayList<>();
             for (DiscoveryNode otherNode : nodes) {
-                if (!otherNode.getAddress().equals(transportAddress)) {
+                if (otherNode.getAddress().equals(transportAddress) == false) {
                     nodesBuilder.add(otherNode);
                 } else {
                     logger.debug("disconnecting from node with address [{}]", otherNode);
@@ -359,7 +359,7 @@ final class TransportClientNodesService implements Closeable {
         List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes) {
             for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
-                if (!transportService.nodeConnected(node)) {
+                if (transportService.nodeConnected(node) == false) {
                     try {
                         logger.trace("connecting to node [{}]", node);
                         transportService.connectToNode(node);
@@ -379,7 +379,7 @@ final class TransportClientNodesService implements Closeable {
         public void run() {
             try {
                 nodesSampler.sample();
-                if (!closed) {
+                if (closed == false) {
                     nodesSamplerCancellable = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.Names.GENERIC);
                 }
             } catch (Exception e) {
@@ -407,7 +407,7 @@ final class TransportClientNodesService implements Closeable {
                         TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
                         handler);
                     final LivenessResponse livenessResponse = handler.txGet();
-                    if (!ignoreClusterName && !clusterName.equals(livenessResponse.getClusterName())) {
+                    if (ignoreClusterName == false && clusterName.equals(livenessResponse.getClusterName()) == false) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
                         newFilteredNodes.add(listedNode);
                     } else {
@@ -536,7 +536,7 @@ final class TransportClientNodesService implements Closeable {
             HashSet<DiscoveryNode> newNodes = new HashSet<>();
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
-                if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
+                if (ignoreClusterName == false && clusterName.equals(entry.getValue().getClusterName()) == false) {
                     logger.warn("node {} not part of the cluster {}, ignoring...",
                             entry.getValue().getState().nodes().getLocalNode(), clusterName);
                     newFilteredNodes.add(entry.getKey());

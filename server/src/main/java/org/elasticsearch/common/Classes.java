@@ -32,13 +32,13 @@ public class Classes {
     }
 
     public static boolean isInnerClass(Class<?> clazz) {
-        return !Modifier.isStatic(clazz.getModifiers())
+        return Modifier.isStatic(clazz.getModifiers()) == false
                 && clazz.getEnclosingClass() != null;
     }
 
     public static boolean isConcrete(Class<?> clazz) {
         int modifiers = clazz.getModifiers();
-        return !clazz.isInterface() && !Modifier.isAbstract(modifiers);
+        return clazz.isInterface() == false && Modifier.isAbstract(modifiers) == false;
     }
 
     private Classes() {}

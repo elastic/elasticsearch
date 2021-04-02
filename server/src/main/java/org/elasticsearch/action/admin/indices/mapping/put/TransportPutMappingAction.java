@@ -22,7 +22,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -42,6 +45,7 @@ import java.util.Optional;
 public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
@@ -80,7 +84,6 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
-            final String mappingSource = request.source();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
@@ -88,15 +91,9 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            final List<String> violations = checkForSystemIndexViolations(concreteIndices, mappingSource);
-            if (violations.isEmpty() == false) {
-                final String message = "Cannot update mappings in "
-                    + violations
-                    + ": system indices can only use mappings from their descriptors, "
-                    + "but the mappings in the request did not match those in the descriptors(s)";
-                logger.warn(message);
-                listener.onFailure(new IllegalArgumentException(message));
-                return;
+            final String message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+            if (message != null) {
+                deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
             }
 
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
@@ -133,30 +130,28 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                     .indices(concreteIndices).type(request.type())
                     .source(request.source());
 
-        metadataMappingService.putMapping(updateRequest, new ActionListener<AcknowledgedResponse>() {
-
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
-                    Arrays.asList(concreteIndices)), t);
-                listener.onFailure(t);
-            }
-        });
+        metadataMappingService.putMapping(updateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                    Arrays.asList(concreteIndices)), e);
+            l.onFailure(e);
+        }));
     }
 
-    private List<String> checkForSystemIndexViolations(Index[] concreteIndices, String requestMappings) {
+    static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {
+        // Requests that a cluster generates itself are permitted to have a difference in mappings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return null;
+        }
+
         List<String> violations = new ArrayList<>();
+
+        final String requestMappings = request.source();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
-            if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+            if (descriptor != null && descriptor.isAutomaticallyManaged() && descriptor.hasDynamicMappings() == false) {
                 final String descriptorMappings = descriptor.getMappings();
-
                 // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually
                 // update a descriptor's mappings.
                 if (descriptorMappings.equals(requestMappings) == false) {
@@ -164,6 +159,19 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 }
             }
         }
-        return violations;
+
+        if (violations.isEmpty() == false) {
+            logger.debug(() -> new ParameterizedMessage("Updating mappings in {}"
+                + ": system indices can only use mappings from their descriptors,"
+                + " but the mappings in the request [{}] did not match those in the descriptor(s)."
+                + " This will not work in the next major version", violations, requestMappings));
+            return "Updating mappings in "
+                + violations
+                + ": system indices can only use mappings from their descriptors,"
+                + " but the mappings in the request did not match those in the descriptor(s)."
+                + " This will not work in the next major version";
+        }
+
+        return null;
     }
 }

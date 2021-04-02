@@ -1309,7 +1309,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
         @Override
         public boolean next() {
-            if (!ObjectUtils.isEmpty(data) && row < data.length - 1) {
+            if (ObjectUtils.isEmpty(data) == false && row < data.length - 1) {
                 row++;
                 return true;
             }

@@ -600,10 +600,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 else {
                     GroupByKey matchingGroup = null;
                     if (groupingContext != null) {
+                        target = queryC.aliases().resolve(target, target);
+                        id = Expressions.id(target);
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
+                        queryC = queryC.addColumn(
+                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
                     }
                     // fallback
                     else {
@@ -707,7 +710,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // if it's a reference, get the target expression
                     if (orderExpression instanceof ReferenceAttribute) {
-                        orderExpression = qContainer.aliases().get(orderExpression);
+                        orderExpression = qContainer.aliases().resolve(orderExpression);
                     }
                     String lookup = Expressions.id(orderExpression);
                     GroupByKey group = qContainer.findGroupForAgg(lookup);

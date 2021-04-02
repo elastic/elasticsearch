@@ -65,6 +65,9 @@
 
 ---
 "Test watcher stats output":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/69918"
   - do:
       watcher.stats: {}
   - match: { "manually_stopped": false }

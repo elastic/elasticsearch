@@ -164,7 +164,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         SqlQueryRequest that = (SqlQueryRequest) o;

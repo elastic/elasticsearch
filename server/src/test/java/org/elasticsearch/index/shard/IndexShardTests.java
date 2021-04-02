@@ -293,9 +293,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(meta.hashCode(),
             new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId).hashCode());
 
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", randomAllocationId())));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID, meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", randomAllocationId())));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
@@ -391,7 +391,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             randomReplicaOperationPermitAcquisition(indexShard, indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
-                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), null, ""));
+                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), PlainActionFuture.newFuture(), ""));
         closeShards(indexShard);
     }
 
@@ -2913,7 +2913,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(searcher.getIndexReader().numDocs() <= docsStats.getCount());
                 }
                 assertThat(docsStats.getDeleted(), equalTo(0L));
-                assertThat(docsStats.getAverageSizeInBytes(), greaterThan(0L));
+                assertThat(docsStats.getTotalSizeInBytes(), greaterThan(0L));
             }
 
             final List<Integer> ids = randomSubsetOf(
@@ -2975,7 +2975,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
                 assertThat(docStats.getDeleted(), equalTo(0L));
-                assertThat(docStats.getAverageSizeInBytes(), greaterThan(0L));
+                assertThat(docStats.getTotalSizeInBytes(), greaterThan(0L));
             }
         } finally {
             closeShards(indexShard);
@@ -3324,7 +3324,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexShard.sync(); // advance local checkpoint
         assert localCheckpoint == indexShard.getLocalCheckpoint();
-        assert !gap || (localCheckpoint != max);
+        assert gap == false || (localCheckpoint != max);
         return new Result(localCheckpoint, max);
     }
 
@@ -4136,7 +4136,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting readonlyShardRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true,
             ShardRoutingState.INITIALIZING, RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final IndexShard readonlyShard = reinitShard(shard, readonlyShardRouting, shard.indexSettings.getIndexMetadata(),
-            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true) {
+            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, true, Function.identity(), true, randomBoolean()) {
                 @Override
                 protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
                     // just like a following shard, we need to skip this check for now.

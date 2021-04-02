@@ -70,11 +70,11 @@ public class SlackMessage implements MessageElement {
 
         SlackMessage that = (SlackMessage) o;
 
-        if (from != null ? !from.equals(that.from) : that.from != null) return false;
-        if (!Arrays.equals(to, that.to)) return false;
-        if (icon != null ? !icon.equals(that.icon) : that.icon != null) return false;
-        if (text != null ? !text.equals(that.text) : that.text != null) return false;
-        return Arrays.equals(attachments, that.attachments);
+        return Objects.equals(from, that.from)
+            && Arrays.equals(to, that.to)
+            && Objects.equals(icon, that.icon)
+            && Objects.equals(text, that.text)
+            && Arrays.equals(attachments, that.attachments);
     }
 
     @Override

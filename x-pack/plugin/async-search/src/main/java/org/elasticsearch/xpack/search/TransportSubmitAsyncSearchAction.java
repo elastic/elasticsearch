@@ -146,7 +146,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
-                    originHeaders, taskHeaders, searchId, store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
+                    originHeaders, taskHeaders, searchId, store.getClientWithOrigin(), nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
         searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), submitTask.getId()));

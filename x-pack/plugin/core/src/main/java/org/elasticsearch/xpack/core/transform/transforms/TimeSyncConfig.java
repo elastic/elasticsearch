@@ -131,7 +131,7 @@ public class TimeSyncConfig implements SyncConfig {
 
     @Override
     public String getWriteableName() {
-        return TransformField.TIME_BASED_SYNC.getPreferredName();
+        return TransformField.TIME.getPreferredName();
     }
 
     @Override

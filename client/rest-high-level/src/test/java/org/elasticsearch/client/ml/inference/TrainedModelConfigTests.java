@@ -68,7 +68,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

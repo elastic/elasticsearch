@@ -10,18 +10,14 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -36,15 +32,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             return null;
         }
 
-        SearchLookup searchLookup = fetchContext.searchLookup();
         if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
             throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
                 "in the mappings for index [" + fetchContext.getIndexName() + "]");
         }
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(),
-            searchLookup,
-            fetchFieldsContext.fields());
+        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
 
         return new FetchSubPhaseProcessor() {
             @Override
@@ -57,25 +50,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 SearchHit hit = hitContext.hit();
                 SourceLookup sourceLookup = hitContext.sourceLookup();
 
-                Set<String> ignoredFields = getIgnoredFields(hit);
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(sourceLookup, ignoredFields);
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(sourceLookup);
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }
             }
         };
-    }
-
-    private Set<String> getIgnoredFields(SearchHit hit) {
-        DocumentField field = hit.field(IgnoredFieldMapper.NAME);
-        if (field == null) {
-            return org.elasticsearch.common.collect.Set.of();
-        }
-
-        Set<String> ignoredFields = new HashSet<>();
-        for (Object value : field.getValues()) {
-            ignoredFields.add((String) value);
-        }
-        return ignoredFields;
     }
 }

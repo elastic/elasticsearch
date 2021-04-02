@@ -68,18 +68,6 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
-    public EqlSpec withSensitivity(boolean caseSensitive) {
-        EqlSpec spec = new EqlSpec();
-        spec.name = name;
-        spec.description = description;
-        spec.note = note;
-        spec.tags = tags;
-        spec.query = query;
-        spec.expectedEventIds = expectedEventIds;
-
-        return spec;
-    }
-
     @Override
     public String toString() {
         String str = "";
@@ -119,8 +107,8 @@ public class EqlSpec {
     }
 
     private static String appendWithComma(String str, String name, String append) {
-        if (!Strings.isNullOrEmpty(append)) {
-            if (!Strings.isNullOrEmpty(str)) {
+        if (Strings.isNullOrEmpty(append) == false) {
+            if (Strings.isNullOrEmpty(str) == false) {
                 str += ", ";
             }
             str += name + ": " + append;

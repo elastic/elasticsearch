@@ -117,7 +117,7 @@ public final class DissectParser {
         }
         this.maxMatches = matchPairs.size();
         this.maxResults = Long.valueOf(matchPairs.stream()
-            .filter(dissectPair -> !dissectPair.getKey().skip()).map(KEY_NAME).distinct().count()).intValue();
+            .filter(dissectPair -> dissectPair.getKey().skip() == false).map(KEY_NAME).distinct().count()).intValue();
         if (this.maxMatches == 0 || maxResults == 0) {
             throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
         }
@@ -201,7 +201,7 @@ public final class DissectParser {
             int lookAheadMatches;
             //start walking the input string byte by byte, look ahead for matches where needed
             //if a match is found jump forward to the end of the match
-            for (; i < input.length; i++) {
+            while (i < input.length) {
                 lookAheadMatches = 0;
                 //potential match between delimiter and input string
                 if (delimiter.length > 0 && input[i] == delimiter[0]) {
@@ -253,7 +253,11 @@ public final class DissectParser {
                         delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
                         //i is always one byte after the last found delimiter, aka the start of the next value
                         valueStart = i;
+                    } else {
+                        i++;
                     }
+                } else {
+                    i++;
                 }
             }
             //the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)

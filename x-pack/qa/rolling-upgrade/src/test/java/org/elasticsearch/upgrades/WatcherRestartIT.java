@@ -39,7 +39,9 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
         client().performRequest(new Request("POST", "/_watcher/_start"));
         ensureWatcherStarted();
 
-        validateHistoryTemplate();
+        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+            validateHistoryTemplate();
+        }
     }
 
     private void validateHistoryTemplate() throws Exception {

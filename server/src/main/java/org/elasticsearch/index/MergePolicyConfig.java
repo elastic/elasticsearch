@@ -115,7 +115,6 @@ public final class MergePolicyConfig {
     public static final int             DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT  = 30;
     public static final ByteSizeValue   DEFAULT_MAX_MERGED_SEGMENT          = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final double          DEFAULT_SEGMENTS_PER_TIER           = 10.0d;
-    public static final double          DEFAULT_RECLAIM_DELETES_WEIGHT      = 2.0d;
     public static final double          DEFAULT_DELETES_PCT_ALLOWED         = 33.0d;
     public static final Setting<Double> INDEX_COMPOUND_FORMAT_SETTING       =
         new Setting<>("index.compound_format", Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO),
@@ -139,9 +138,6 @@ public final class MergePolicyConfig {
     public static final Setting<Double> INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING =
         Setting.doubleSetting("index.merge.policy.segments_per_tier", DEFAULT_SEGMENTS_PER_TIER, 2.0d,
             Property.Dynamic, Property.IndexScope);
-    public static final Setting<Double> INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING =
-        Setting.doubleSetting("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT, 0.0d,
-            Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING =
         Setting.doubleSetting("index.merge.policy.deletes_pct_allowed", DEFAULT_DELETES_PCT_ALLOWED, 20.0d, 50.0d,
             Property.Dynamic, Property.IndexScope);
@@ -158,7 +154,6 @@ public final class MergePolicyConfig {
         // won't they end up with many segments?
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
-        double reclaimDeletesWeight = indexSettings.getValue(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
         double deletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
         this.mergesEnabled = indexSettings.getSettings().getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {

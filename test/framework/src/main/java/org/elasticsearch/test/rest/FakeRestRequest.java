@@ -9,7 +9,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -129,7 +129,7 @@ public class FakeRestRequest extends RestRequest {
     private static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
-        private final PlainListenableActionFuture<Void> closeFuture = PlainListenableActionFuture.newListenableFuture();
+        private final ListenableActionFuture<Void> closeFuture = new ListenableActionFuture<>();
 
         private FakeHttpChannel(InetSocketAddress remoteAddress) {
             this.remoteAddress = remoteAddress;

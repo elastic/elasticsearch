@@ -7,6 +7,7 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -22,8 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -34,12 +33,10 @@ public class RestGetLicenseAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(GET, "/_license", GET,  URI_BASE + "/license"));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, "/_license")
+                .replaces(GET, URI_BASE + "/license", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -63,8 +63,8 @@ public class InvalidateTokenResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        List invalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
-        List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
+        List<String> invalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
+        List<String> previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
         TokensInvalidationResult result = new TokensInvalidationResult(invalidatedTokens, previouslyInvalidatedTokens,
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
                 new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))), RestStatus.OK);

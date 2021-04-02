@@ -124,7 +124,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, StringTerms.Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, StringTerms.Bucket prototype) {
         return new Bucket(prototype.termBytes, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 

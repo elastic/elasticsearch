@@ -110,7 +110,7 @@ buckets requested.
 
 ==== Time Zone
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
 that bucketing should use a different time zone.
 

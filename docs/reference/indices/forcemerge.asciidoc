@@ -38,6 +38,7 @@ shard by merging some of them together, and also frees up the space used by
 deleted documents. Merging normally happens automatically, but sometimes it is
 useful to trigger a merge manually.
 
+// tag::force-merge-read-only-warn[]
 WARNING: **Force merge should only be called against an index after you have
 finished writing to it.** Force merge can cause very large (>5GB) segments to
 be produced, and if you continue to write to such an index then the automatic
@@ -45,6 +46,7 @@ merge policy will never consider these segments for future merges until they
 mostly consist of deleted documents. This can cause very large segments to
 remain in the index which can result in increased disk usage and worse search
 performance.
+// end::force-merge-read-only-warn[]
 
 
 [[forcemerge-blocks]]
@@ -66,11 +68,15 @@ You can force merge multiple indices with a single request by targeting:
 * One or more index aliases that point to multiple indices
 * All data streams and indices in a cluster
 
-Multi-index operations are executed one shard at a
-time per node. Force merge makes the storage for the shard being merged
-temporarily increase, up to double its size in case `max_num_segments` parameter
-is set to `1`, as all segments need to be rewritten into a new one.
+Each targeted shard is force-merged separately using <<modules-threadpool,the
+`force_merge` threadpool>>. By default each node only has a single
+`force_merge` thread which means that the shards on that node are force-merged
+one at a time. If you expand the `force_merge` threadpool on a node then it
+will force merge its shards in parallel.
 
+Force merge makes the storage for the shard being merged temporarily
+increase, up to double its size in case `max_num_segments` parameter is set to
+`1`, as all segments need to be rewritten into a new one.
 
 [[forcemerge-api-path-params]]
 ==== {api-path-parms-title}

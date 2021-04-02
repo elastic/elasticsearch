@@ -146,6 +146,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
+    @SuppressWarnings("Convert2Diamond") // since some IntelliJs mysteriously report an error if an <Integer> is replaced with <> here:
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
         "index.number_of_routing_shards",
         INDEX_NUMBER_OF_SHARDS_SETTING,
@@ -590,6 +591,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return INDEX_RESIZE_SOURCE_UUID.exists(settings) ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings),
             INDEX_RESIZE_SOURCE_UUID.get(settings)) : null;
     }
+
+    public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
+    public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
+    public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(INDEX_ROLLUP_SOURCE_UUID_KEY,
+        Property.IndexScope, Property.PrivateIndex);
+    public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(INDEX_ROLLUP_SOURCE_NAME_KEY,
+        Property.IndexScope, Property.PrivateIndex);
 
     /**
      * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),

@@ -21,6 +21,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.MockDeprecatedQueryBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,7 +40,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = queryBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             source = (LinkedHashMap<String, Object>) XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON)
-                    .v2();
+                .v2();
         } catch (IOException e) {
             // should not happen
             fail("failed to create random query config");

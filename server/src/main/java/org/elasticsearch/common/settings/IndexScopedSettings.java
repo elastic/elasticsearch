@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -71,6 +72,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetadata.INDEX_DATA_PATH_SETTING,
         IndexMetadata.INDEX_FORMAT_SETTING,
         IndexMetadata.INDEX_HIDDEN_SETTING,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -95,7 +98,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-        MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING,
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
         IndexSortConfig.INDEX_SORT_ORDER_SETTING,
         IndexSortConfig.INDEX_SORT_MISSING_SETTING,
@@ -162,6 +164,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.FINAL_PIPELINE,
         MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
+        DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

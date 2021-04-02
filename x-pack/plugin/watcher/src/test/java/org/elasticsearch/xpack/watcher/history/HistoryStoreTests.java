@@ -85,7 +85,8 @@ public class HistoryStoreTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(randomFrom(Arrays.asList(Version.V_7_0_0, Version.V_7_7_0)));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor
+                = BulkProcessor.builder(client::bulk, listener, "HistoryStoreTests").setConcurrentRequests(0).setBulkActions(1).build();
         historyStore = new HistoryStore(bulkProcessor, () -> clusterState);
     }
 

@@ -81,11 +81,10 @@ public final class GeoQueryContext implements ToXContentObject {
 
         GeoQueryContext that = (GeoQueryContext) o;
 
-        if (boost != that.boost) return false;
-        if (precision != that.precision) return false;
-        if (geoPoint != null ? !geoPoint.equals(that.geoPoint) : that.geoPoint != null) return false;
-        return neighbours != null ? neighbours.equals(that.neighbours) : that.neighbours == null;
-
+        return Objects.equals(boost, that.boost)
+            && Objects.equals(precision, that.precision)
+            && Objects.equals(geoPoint, that.geoPoint)
+            && Objects.equals(neighbours, that.neighbours);
     }
 
     @Override

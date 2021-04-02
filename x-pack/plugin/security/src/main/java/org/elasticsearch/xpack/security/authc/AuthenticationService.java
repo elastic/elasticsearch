@@ -206,7 +206,9 @@ public class AuthenticationService {
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (lastSuccessfulAuthCache != null) {
-            if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)) {
+            if (isMoveFromRedToNonRed(previousState, currentState)
+                || isIndexDeleted(previousState, currentState)
+                || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false) {
                 expireAll();
             }
         }

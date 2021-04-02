@@ -20,11 +20,11 @@ public final class Arithmetics {
 
     public interface NumericArithmetic extends BiFunction<Number, Number, Number> {
         default Object wrap(Object l, Object r) {
-            if (!(l instanceof Number)) {
+            if ((l instanceof Number) == false) {
                 throw new QlIllegalArgumentException("A number is required; received {}", l);
             }
 
-            if (!(r instanceof Number)) {
+            if ((r instanceof Number) == false) {
                 throw new QlIllegalArgumentException("A number is required; received {}", r);
             }
 

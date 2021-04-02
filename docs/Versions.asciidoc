@@ -15,7 +15,8 @@ include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 ///////
 Javadoc roots used to generate links from Painless's API reference
 ///////
-:java11-javadoc: https://docs.oracle.com/en/java/javase/11/docs/api
+:javadoc:             https://docs.oracle.com/en/java/javase/{jdk_major}/docs/api
+:java11-javadoc:      https://docs.oracle.com/en/java/javase/11/docs/api
 :lucene-core-javadoc: https://lucene.apache.org/core/{lucene_version_path}/core
 
 ifeval::["{release-state}"=="unreleased"]

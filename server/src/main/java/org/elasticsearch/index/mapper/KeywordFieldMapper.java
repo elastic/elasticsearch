@@ -170,6 +170,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final int ignoreAbove;
         private final String nullValue;
         private final NamedAnalyzer normalizer;
+        private final boolean eagerGlobalOrdinals;
 
         public KeywordFieldType(String name, FieldType fieldType,
                                 NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, NamedAnalyzer quoteAnalyzer,
@@ -180,8 +181,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 builder.hasDocValues.getValue(),
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
                 builder.meta.getValue());
-            setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
-            setBoost(builder.boost.getValue());
+            this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
+            setBoost(builder.boost.get());
             this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
@@ -192,6 +193,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.eagerGlobalOrdinals = false;
         }
 
         public KeywordFieldType(String name) {
@@ -206,6 +208,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.eagerGlobalOrdinals = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -213,11 +216,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.eagerGlobalOrdinals = false;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return eagerGlobalOrdinals;
         }
 
         NamedAnalyzer normalizer() {

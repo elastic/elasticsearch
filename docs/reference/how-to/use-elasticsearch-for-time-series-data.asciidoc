@@ -25,7 +25,7 @@ tiers>> to automatically move older data to nodes with less expensive hardware
 as it ages. This helps improve performance and reduce storage costs.
 
 The hot tier is required. The warm, cold, and frozen tiers are optional. Use
-high performance nodes in the hot and warm tiers for faster indexing and faster
+high-performance nodes in the hot and warm tiers for faster indexing and faster
 searches on your most recent data. Use slower, less expensive nodes in the cold
 and frozen tiers to reduce costs.
 

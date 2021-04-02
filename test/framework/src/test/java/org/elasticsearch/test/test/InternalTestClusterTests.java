@@ -138,7 +138,7 @@ public class InternalTestClusterTests extends ESTestCase {
         String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 final Settings.Builder settings = Settings.builder()
                     .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
@@ -210,7 +210,7 @@ public class InternalTestClusterTests extends ESTestCase {
         String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
@@ -303,7 +303,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 false, 0, 0, "test", new NodeConfigurationSource() {
 
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
@@ -383,7 +383,7 @@ public class InternalTestClusterTests extends ESTestCase {
         String transportClient = getTestTransportType();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")

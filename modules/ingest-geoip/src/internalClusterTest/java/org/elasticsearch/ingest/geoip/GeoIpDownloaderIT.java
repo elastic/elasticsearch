@@ -17,8 +17,8 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -61,8 +61,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     private static final String ENDPOINT = System.getProperty("geoip_endpoint");
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (ENDPOINT != null) {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
         }

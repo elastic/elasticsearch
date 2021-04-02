@@ -43,10 +43,10 @@ import static org.hamcrest.Matchers.not;
 public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings
                 .builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("discovery.type", "single-node")
                 .put("transport.port", getPortRange())
                 .build();
@@ -57,7 +57,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         final int port = service.boundAddress().publishAddress().getPort();
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings
                         .builder()
                         .put("discovery.type", "single-node")
@@ -127,7 +127,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         final int port = service.boundAddress().publishAddress().getPort();
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings
                     .builder()
                     .put("discovery.type", "zen")

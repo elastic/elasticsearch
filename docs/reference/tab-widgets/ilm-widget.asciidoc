@@ -11,7 +11,7 @@
             aria-selected="false"
             aria-controls="custom-policy-tab"
             id="custom"
-            tabindex="5">
+            tabindex="-1">
       Custom application
     </button>
   </div>
@@ -25,7 +25,7 @@ include::ilm.asciidoc[tag=fleet]
 
 ++++
   </div>
-  <div tabindex="6"
+  <div tabindex="0"
        role="tabpanel"
        id="custom-policy-tab"
        aria-labelledby="custom"

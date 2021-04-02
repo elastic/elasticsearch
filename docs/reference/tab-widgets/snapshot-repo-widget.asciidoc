@@ -11,7 +11,7 @@
             aria-selected="false"
             aria-controls="self-managed-tab-repo"
             id="self-managed-repo"
-            tabindex="3">
+            tabindex="-1">
       Self-managed
     </button>
   </div>
@@ -25,7 +25,7 @@ include::snapshot-repo.asciidoc[tag=cloud]
 
 ++++
   </div>
-  <div tabindex="4"
+  <div tabindex="0"
        role="tabpanel"
        id="self-managed-tab-repo"
        aria-labelledby="self-managed-repo"

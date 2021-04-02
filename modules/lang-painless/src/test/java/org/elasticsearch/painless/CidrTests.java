@@ -23,6 +23,9 @@ public class CidrTests extends ScriptTestCase {
         bool = exec("new CIDR('192.168.3.5').contains('192.168.3.5')");
         assertEquals(Boolean.TRUE, bool);
 
+        bool = exec("new CIDR('192.168.3.5').contains('')");
+        assertEquals(Boolean.FALSE, bool);
+
         bool = exec("new CIDR('2001:0db8:85a3::/64').contains('2001:0db8:85a3:0000:0000:8a2e:0370:7334')");
         assertEquals(Boolean.TRUE, bool);
 

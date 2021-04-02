@@ -37,3 +37,13 @@ setup:
         index: "test-2"
 
   - match: { global_checkpoints.0: 0 }
+
+---
+"Advance timeout":
+  - do:
+      catch: gateway_timeout
+      fleet.global_checkpoints:
+        index: "test-2"
+        wait_for_advance: true
+        current_checkpoints: [100]
+        poll_timeout: "50ms"

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -18,7 +20,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,9 +33,11 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -122,22 +128,27 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         private final ClusterService clusterService;
         private final NodeClient client;
+        private final IndexNameExpressionResolver resolver;
 
         @Inject
         public TransportGetGlobalCheckpointsAction(
             final ActionFilters actionFilters,
             final TransportService transportService,
             final ClusterService clusterService,
-            final NodeClient client
+            final NodeClient client,
+            final IndexNameExpressionResolver resolver
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.client = client;
+            this.resolver = resolver;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            final IndexMetadata indexMetadata = clusterService.state().getMetadata().index(request.index);
+            final ClusterState state = clusterService.state();
+            final Index index = resolver.concreteSingleIndex(state, request);
+            final IndexMetadata indexMetadata = state.getMetadata().index(index);
 
             if (indexMetadata == null) {
                 // Index not found
@@ -151,13 +162,14 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             if (currentCheckpointCount != 0) {
                 if (currentCheckpointCount != numberOfShards) {
                     listener.onFailure(
-                        new ElasticsearchException(
+                        new ElasticsearchStatusException(
                             "current_checkpoints must equal number of shards. "
                                 + "[shard count: "
                                 + numberOfShards
                                 + ", current_checkpoints: "
                                 + currentCheckpointCount
-                                + "]"
+                                + "]",
+                            RestStatus.BAD_REQUEST
                         )
                     );
                     return;
@@ -198,7 +210,12 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     @Override
                     public void onFailure(Exception e) {
                         if (countDown.fastForward()) {
-                            listener.onFailure(e);
+                            Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof ElasticsearchTimeoutException) {
+                                listener.onFailure(new ElasticsearchStatusException(cause.getMessage(), RestStatus.GATEWAY_TIMEOUT, cause));
+                            } else {
+                                listener.onFailure(e);
+                            }
                         }
                     }
                 });

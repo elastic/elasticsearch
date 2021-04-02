@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.fleet.Fleet;
 
@@ -152,7 +153,11 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
             new long[] { 29 },
             TimeValue.timeValueMillis(100)
         );
-        expectThrows(ElasticsearchTimeoutException.class, () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet());
+        ElasticsearchStatusException statusException = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+        );
+        assertThat(statusException.status(), equalTo(RestStatus.GATEWAY_TIMEOUT));
     }
 
     public void testMustProvideCorrectNumberOfShards() throws Exception {
@@ -175,10 +180,11 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
             incorrectArrayLength,
             TEN_SECONDS
         );
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
             () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
         );
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
             equalTo("current_checkpoints must equal number of shards. [shard count: 3, current_checkpoints: 2]")

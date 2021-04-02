@@ -176,7 +176,7 @@ public final class TransformNodes {
     public static void throwIfNoTransformNodes(ClusterState clusterState) {
         long transformNodes = getNumberOfTransformNodes(clusterState);
         if (transformNodes == 0) {
-            throw ExceptionsHelper.badRequestException("At least one transform node is required but no transform nodes were found");
+            throw ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
         }
     }
 

@@ -19,7 +19,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -129,11 +128,10 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
-        final DiscoveryNodes nodes = clusterState.nodes();
 
-        boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
         // Redirection can only be performed between nodes that are at least 7.13.
-        if (nodes.getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
+        if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
+            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
             if (TransformNodes.redirectToAnotherNodeIfNeeded(
                     clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, listener)) {
                 return;

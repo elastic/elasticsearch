@@ -147,6 +147,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
+                TransformNodes.throwIfNoTransformNodes(clusterState);
                 boolean requiresRemote = hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster());
                 if (TransformNodes.redirectToAnotherNodeIfNeeded(
                         clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, finalListener)) {

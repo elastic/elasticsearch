@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
-import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.time.Clock;
@@ -167,7 +166,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             }
             return;
         }
-        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         // set headers to run transform as calling user
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());

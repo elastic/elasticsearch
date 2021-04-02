@@ -96,7 +96,6 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         final ClusterState clusterState = clusterService.state();
         if (request.isDeferValidation() == false) {
             TransformNodes.throwIfNoTransformNodes(clusterState);
-
             boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
             if (TransformNodes.redirectToAnotherNodeIfNeeded(
                     clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, listener)) {

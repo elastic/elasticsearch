@@ -1,9 +1,11 @@
 ---
-"Test put watch api":
+setup:
   - do:
       cluster.health:
           wait_for_status: yellow
 
+---
+"Test put watch api":
   - do:
       watcher.put_watch:
         id: "my_watch"
@@ -38,10 +40,6 @@
 
 ---
 "Test empty body is rejected by put watch":
-  - do:
-      cluster.health:
-          wait_for_status: yellow
-
   - do:
       catch: bad_request
       watcher.put_watch:

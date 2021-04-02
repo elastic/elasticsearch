@@ -171,9 +171,7 @@ You can configure the setting in `elasticsearch.yml`:
 xpack.searchable.snapshot.shared_cache.size: 4TB
 ----
 
-IMPORTANT: Currently, you can configure
-`xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
-you will only be able to configure this setting on nodes with the
+IMPORTANT: You can only configure this setting on nodes with the
 <<data-frozen-node,`data_frozen`>> role.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a

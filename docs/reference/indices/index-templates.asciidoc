@@ -32,8 +32,8 @@ following index patterns:
 - `synthetics-*-*`
 // end::built-in-index-template-patterns[]
 
-The {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
-data streams. If you use the {agent}, assign your index templates a priority
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
+data streams. If you use {agent}, assign your index templates a priority
 lower than `100` to avoid overriding the built-in templates. Otherwise, to avoid
 accidentally applying the built-in templates, do one or more of the following:
 
@@ -44,7 +44,7 @@ accidentally applying the built-in templates, do one or more of the following:
 - Use a non-overlapping index pattern.
 
 - Assign templates with an overlapping pattern a `priority` higher than `100`.
-For example, if you don't use the {agent} and want to create a template for the
+For example, if you don't use {agent} and want to create a template for the
 `logs-*` index pattern, assign your template a priority of `200`. This ensures
 your template is applied instead of the built-in template for `logs-*-*`.
 ====

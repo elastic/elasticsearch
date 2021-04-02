@@ -56,8 +56,9 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     public TransportStopTrainedModelDeploymentAction(ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, Client client, ThreadPool threadPool,
                                                      PersistentTasksService persistentTasksService) {
-        super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters, StopTrainedModelDeploymentAction.Request::new,
-            StopTrainedModelDeploymentAction.Response::new, StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
+        super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
+            StopTrainedModelDeploymentAction.Request::new, StopTrainedModelDeploymentAction.Response::new,
+            StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;

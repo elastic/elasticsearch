@@ -225,7 +225,12 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                      * If we can manage it we try to use a wrapped singleton.
                      * Lots of other code tries to unwrap the singleton with
                      * DocValues.unwrapSingleton. It'll take a fast path if
-                     * it gets a singleton. This 
+                     * it gets a singleton.
+                     *
+                     * We can manage a singleton if the total value count
+                     * fits in an `int` *and* the segment ords are a singleton.
+                     * We need the first one just because SortedDocValues
+                     * returns `int` instead of `long`
                      */
                     if (ordinalMap.getValueCount() < Integer.MAX_VALUE) {
                         SortedDocValues singleton = DocValues.unwrapSingleton(values);

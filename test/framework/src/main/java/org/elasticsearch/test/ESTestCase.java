@@ -493,7 +493,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-
             final List<String> rawWarnings = threadContext.getResponseHeaders().get("Warning");
             final List<String> actualWarnings;
             if (rawWarnings == null) {

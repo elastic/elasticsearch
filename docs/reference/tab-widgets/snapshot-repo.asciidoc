@@ -1,6 +1,5 @@
 // tag::cloud[]
-The default `found-snapshots` repository supports {search-snaps}. You can use
-`found-snapshots` when you need to specify a snapshot repository with no
+The default `found-snapshots` repository supports {search-snaps} and requires no
 additional registration.
 
 The `found-snapshots` repository is specific to your cluster. To use another

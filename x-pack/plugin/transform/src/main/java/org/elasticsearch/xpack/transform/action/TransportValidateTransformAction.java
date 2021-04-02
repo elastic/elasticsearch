@@ -124,7 +124,11 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         // <4> Deduce destination index mappings
         ActionListener<Boolean> validateQueryListener = ActionListener.wrap(
             validateQueryResponse -> {
-                function.deduceMappings(client, config.getSource(), deduceMappingsListener);
+                if (request.isDeferValidation()) {
+                    deduceMappingsListener.onResponse(null);
+                } else {
+                    function.deduceMappings(client, config.getSource(), deduceMappingsListener);
+                }
             },
             listener::onFailure
         );

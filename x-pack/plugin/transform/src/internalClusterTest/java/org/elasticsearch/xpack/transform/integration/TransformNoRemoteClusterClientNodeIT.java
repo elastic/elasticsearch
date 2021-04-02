@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
+import org.junit.After;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -29,6 +30,14 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
+    }
+
+    @After
+    public void preCleanup() throws Exception {
+        // Updating a transform will leave indexing an audit message in-flight, so
+        // we need to wait for that to complete or it could interfere with deleting
+        // all the indices
+        waitForPendingTasks();
     }
 
     public void testPreviewTransformWithRemoteIndex() {
@@ -52,7 +61,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
                 containsString("transform requires a remote connection but remote is disabled")));
     }
 
-    public void testPutTransformWithRemoteIndex() {
+    public void testPutTransformWithRemoteIndex_DeferValidation() {
         String transformId = "transform-with-remote-index";
         TransformConfig config =
             new TransformConfig.Builder()
@@ -62,6 +71,19 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
                 .setPivotConfig(PivotConfigTests.randomPivotConfig())
                 .build();
         PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+        client().execute(PutTransformAction.INSTANCE, request).actionGet();
+    }
+
+    public void testPutTransformWithRemoteIndex_NoDeferValidation() {
+        String transformId = "transform-with-remote-index";
+        TransformConfig config =
+            new TransformConfig.Builder()
+                .setId(transformId)
+                .setSource(new SourceConfig("remote_cluster:my-index"))
+                .setDest(new DestConfig("my-dest-index", null))
+                .setPivotConfig(PivotConfigTests.randomPivotConfig())
+                .build();
+        PutTransformAction.Request request = new PutTransformAction.Request(config, false);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
@@ -73,7 +95,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
                 containsString("transform requires a remote connection but remote is disabled")));
     }
 
-    public void testUpdateTransformWithRemoteIndex() {
+    public void testUpdateTransformWithRemoteIndex_DeferValidation() {
         String transformId = "transform-with-local-index";
         {
             TransformConfig config =
@@ -91,6 +113,27 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         TransformConfigUpdate update =
             new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, true);
+        client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
+    }
+
+    public void testUpdateTransformWithRemoteIndex_NoDeferValidation() {
+        String transformId = "transform-with-local-index";
+        {
+            TransformConfig config =
+                new TransformConfig.Builder()
+                    .setId(transformId)
+                    .setSource(new SourceConfig("my-index"))
+                    .setDest(new DestConfig("my-dest-index", null))
+                    .setPivotConfig(PivotConfigTests.randomPivotConfig())
+                    .build();
+            PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+            AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
+            assertThat(response.isAcknowledged(), is(true));
+        }
+
+        TransformConfigUpdate update =
+            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
+        UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, false);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,

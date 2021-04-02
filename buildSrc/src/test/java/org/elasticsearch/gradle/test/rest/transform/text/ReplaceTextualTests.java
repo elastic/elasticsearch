@@ -133,6 +133,6 @@ public class ReplaceTextualTests extends TransformTests {
 
     @Override
     protected boolean getHumanDebug() {
-        return true;
+        return false;
     }
 }

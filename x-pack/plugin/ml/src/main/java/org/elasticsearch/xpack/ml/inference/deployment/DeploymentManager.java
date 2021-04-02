@@ -17,6 +17,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
@@ -99,14 +100,23 @@ public class DeploymentManager {
 
     public void infer(TrainedModelDeploymentTask task, double[] inputs, ActionListener<PyTorchResult> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
-        try {
-            String requestId = processContext.process.get().writeInferenceRequest(inputs);
-            waitForResult(processContext, requestId, listener);
-        } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
-            listener.onFailure(ExceptionsHelper.serverError("error writing to process", e));
-            return;
-        }
+        executorServiceForProcess.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                try {
+                    String requestId = processContext.process.get().writeInferenceRequest(inputs);
+                    waitForResult(processContext, requestId, listener);
+                } catch (IOException e) {
+                    logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
+                    onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                }
+            }
+        });
     }
 
     private void waitForResult(ProcessContext processContext, String requestId, ActionListener<PyTorchResult> listener) {

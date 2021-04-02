@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.spatial.vectortile;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -23,14 +23,17 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGridBucke
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestAggregatedVectorTileAction extends AbstractVectorTileSearchAction {
+public class RestAggregatedVectorTileAction extends AbstractVectorTileSearchAction<RestAggregatedVectorTileAction.AggregatedRequest> {
 
     private static final String TYPE_PARAM = "type";
     private static final String GRID_TYPE = "grid";
@@ -38,25 +41,80 @@ public class RestAggregatedVectorTileAction extends AbstractVectorTileSearchActi
     private static final String GRID_FIELD = "grid";
     private static final String BOUNDS_FIELD = "bounds";
 
+    private static final ParseField SCALING = new ParseField("scaling");
+
+    public RestAggregatedVectorTileAction() {
+        super(AggregatedRequest::new);
+        parser.declareField(
+            AggregatedRequest::setRuntimeMappings,
+            XContentParser::map,
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        parser.declareField(
+            AggregatedRequest::setAggBuilder,
+            AggregatorFactories::parseAggregators,
+            SearchSourceBuilder.AGGS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        parser.declareInt(AggregatedRequest::setScaling, SCALING);
+    }
+
+    protected static class AggregatedRequest extends AbstractVectorTileSearchAction.Request {
+        private Map<String, Object> runtimeMappings = emptyMap();
+        private int scaling = 8;
+        private AggregatorFactories.Builder aggBuilder;
+
+        public AggregatedRequest() {}
+
+        public Map<String, Object> getRuntimeMappings() {
+            return runtimeMappings;
+        }
+
+        public void setRuntimeMappings(Map<String, Object> runtimeMappings) {
+            this.runtimeMappings = runtimeMappings;
+        }
+
+        public int getScaling() {
+            return scaling;
+        }
+
+        public void setScaling(int scaling) {
+            this.scaling = scaling;
+        }
+
+        public AggregatorFactories.Builder getAggBuilder() {
+            return aggBuilder;
+        }
+
+        public void setAggBuilder(AggregatorFactories.Builder aggBuilder) {
+            this.aggBuilder = aggBuilder;
+        }
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "{index}/_agg_mvt/{field}/{z}/{x}/{y}"));
     }
 
     @Override
-    protected ResponseBuilder doParseRequest(
-        RestRequest restRequest, String field, int z, int x, int y, SearchRequestBuilder searchRequestBuilder) throws IOException {
+    protected ResponseBuilder doParseRequest(RestRequest restRequest, AggregatedRequest request, SearchRequestBuilder searchRequestBuilder)
+        throws IOException {
         final boolean isGrid = restRequest.hasParam(TYPE_PARAM) && GRID_TYPE.equals(restRequest.param(TYPE_PARAM));
 
-        final VectorTileAggConfig config = resolveConfig(restRequest);
-        searchBuilder(searchRequestBuilder, field, z, x, y,  config);
-        final int extent = 1 << config.getScaling();
+        searchBuilder(searchRequestBuilder, request);
+        final int extent = 1 << request.getScaling();
 
         return (s, b) -> {
             // TODO: of there is no hits, should we return an empty tile with no layers or
             // a tile with empty layers?
             final VectorTile.Tile.Builder tileBuilder = VectorTile.Tile.newBuilder();
-            final VectorTileGeometryBuilder geomBuilder = new VectorTileGeometryBuilder(z, x, y, extent);
+            final VectorTileGeometryBuilder geomBuilder = new VectorTileGeometryBuilder(
+                request.getZ(),
+                request.getX(),
+                request.getY(),
+                extent
+            );
             final InternalGeoTileGrid grid = s.getAggregations().get(GRID_FIELD);
             tileBuilder.addLayers(getPointLayer(extent, isGrid, grid, geomBuilder));
             final InternalGeoBounds bounds = s.getAggregations().get(BOUNDS_FIELD);
@@ -120,53 +178,28 @@ public class RestAggregatedVectorTileAction extends AbstractVectorTileSearchActi
         return metaLayerBuilder;
     }
 
-    private static SearchRequestBuilder searchBuilder(
-        SearchRequestBuilder searchRequestBuilder,
-        String field,
-        int z,
-        int x,
-        int y,
-        VectorTileAggConfig config
-    ) throws IOException {
-        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
-        if (config.getQueryBuilder() != null) {
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            boolQueryBuilder.filter(config.getQueryBuilder());
-            boolQueryBuilder.filter(qBuilder);
-            qBuilder = boolQueryBuilder;
-        }
-        int extent = 1 << config.getScaling();
+    private static SearchRequestBuilder searchBuilder(SearchRequestBuilder searchRequestBuilder, AggregatedRequest request)
+        throws IOException {
+        Rectangle rectangle = request.getBoundingBox();
+        int extent = 1 << request.getScaling();
         GeoBoundingBox boundingBox = new GeoBoundingBox(
             new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
             new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
         );
-        GeoGridAggregationBuilder aBuilder = new GeoTileGridAggregationBuilder(GRID_FIELD).field(field)
-            .precision(Math.min(GeoTileUtils.MAX_ZOOM, z + config.getScaling()))
+        GeoGridAggregationBuilder aBuilder = new GeoTileGridAggregationBuilder(GRID_FIELD).field(request.getField())
+            .precision(Math.min(GeoTileUtils.MAX_ZOOM, request.getZ() + request.getScaling()))
             .setGeoBoundingBox(boundingBox)
             .size(extent * extent);
-        if (config.getAggBuilder() != null) {
-            aBuilder.subAggregations(config.getAggBuilder());
+        if (request.getAggBuilder() != null) {
+            aBuilder.subAggregations(request.getAggBuilder());
         }
-        GeoBoundsAggregationBuilder boundsBuilder = new GeoBoundsAggregationBuilder(BOUNDS_FIELD).field(field).wrapLongitude(false);
-        SearchRequestBuilder requestBuilder = searchRequestBuilder.setQuery(qBuilder)
-            .addAggregation(aBuilder)
-            .addAggregation(boundsBuilder)
-            .setSize(0);
-        if (config.getRuntimeMappings() != null) {
-            requestBuilder.setRuntimeMappings(config.getRuntimeMappings());
+        GeoBoundsAggregationBuilder boundsBuilder = new GeoBoundsAggregationBuilder(BOUNDS_FIELD).field(request.getField())
+            .wrapLongitude(false);
+        SearchRequestBuilder requestBuilder = searchRequestBuilder.addAggregation(aBuilder).addAggregation(boundsBuilder).setSize(0);
+        if (request.getRuntimeMappings() != null) {
+            requestBuilder.setRuntimeMappings(request.getRuntimeMappings());
         }
         return requestBuilder;
-    }
-
-    private VectorTileAggConfig resolveConfig(RestRequest restRequest) throws IOException {
-        if (restRequest.hasContent()) {
-            try (XContentParser parser = restRequest.contentParser()) {
-                return VectorTileAggConfig.PARSER.apply(parser, null);
-            }
-        } else {
-            return VectorTileAggConfig.getInstance();
-        }
     }
 
     @Override

@@ -7,23 +7,20 @@
 package org.elasticsearch.xpack.spatial.vectortile;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalVectorTile;
 import org.elasticsearch.xpack.spatial.search.aggregations.VectorTileAggregationBuilder;
+import org.elasticsearch.xpack.spatial.vectortile.AbstractVectorTileSearchAction.Request;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestVectorTileAction extends AbstractVectorTileSearchAction {
+public class RestVectorTileAction extends AbstractVectorTileSearchAction<Request> {
+
+    public RestVectorTileAction() {
+        super(Request::new);
+    }
 
     @Override
     public List<Route> routes() {
@@ -31,57 +28,18 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction {
     }
 
     @Override
-    protected ResponseBuilder doParseRequest(
-        RestRequest restRequest, String field, int z, int x, int y, SearchRequestBuilder searchRequestBuilder) throws IOException {
-        QueryBuilder queryBuilder = null;
-        if (restRequest.hasContent()) {
-            try (XContentParser parser = restRequest.contentParser()) {
-                XContentParser.Token token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalArgumentException("Invalid content format");
-                }
-                String currentFieldName;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                        if (currentFieldName.equals("query")) {
-                            queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                        } else {
-                            throw new IllegalArgumentException("Unsupported field " + currentFieldName);
-                        }
-                    } else {
-                        throw new IllegalArgumentException("Invalid content format");
-                    }
-                }
-            }
-        }
-
-        searchBuilder(searchRequestBuilder, field, z, x, y, queryBuilder);
+    protected ResponseBuilder doParseRequest(RestRequest restRequest, Request request, SearchRequestBuilder searchRequestBuilder) {
+        final VectorTileAggregationBuilder aBuilder = new VectorTileAggregationBuilder(request.getField())
+            .field(request.getField())
+            .z(request.getZ())
+            .x(request.getX())
+            .y(request.getY());
+        searchRequestBuilder.addAggregation(aBuilder).setSize(0);
         return (s, b) -> {
-            InternalVectorTile t = s.getAggregations().get(field);
+            InternalVectorTile t = s.getAggregations().get(request.getField());
             // TODO: Error processing
             t.writeTileToStream(b);
         };
-    }
-
-    private static void searchBuilder(
-        SearchRequestBuilder searchRequestBuilder,
-        String field,
-        int z,
-        int x,
-        int y,
-        QueryBuilder queryBuilder
-    ) throws IOException {
-        final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        QueryBuilder qBuilder = QueryBuilders.geoShapeQuery(field, rectangle);
-        if (queryBuilder != null) {
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            boolQueryBuilder.filter(queryBuilder);
-            boolQueryBuilder.filter(qBuilder);
-            qBuilder = boolQueryBuilder;
-        }
-        final VectorTileAggregationBuilder aBuilder = new VectorTileAggregationBuilder(field).field(field).z(z).x(x).y(y);
-        searchRequestBuilder.setQuery(qBuilder).addAggregation(aBuilder).setSize(0);
     }
 
     @Override

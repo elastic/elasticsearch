@@ -122,6 +122,15 @@ List of <<data-streams,data streams>> included in the snapshot.
 (Boolean)
 Indicates whether the current cluster state is included in the snapshot.
 
+[[get-snapshot-api-feature-states]]
+`feature_states`::
+(array)
+List of feature states which were included when the snapshot was taken,
+including the list of system indices included as part of the feature state. The
+`feature_name` field of each can be used in the `feature_states` parameter when
+restoring the snapshot to restore a subset of feature states. Only present if
+the snapshot includes one or more feature states.
+
 `start_time`::
 (string)
 Date timestamp of when the snapshot creation process started.
@@ -218,6 +227,7 @@ The API returns the following response:
           "version": <version>,
           "indices": [],
           "data_streams": [],
+          "feature_states": [],
           "include_global_state": true,
           "state": "SUCCESS",
           "start_time": "2020-07-06T21:55:18.129Z",

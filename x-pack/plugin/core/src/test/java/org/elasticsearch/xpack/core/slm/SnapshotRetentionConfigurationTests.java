@@ -288,13 +288,8 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
             Collections.singletonList("foo"),
             Collections.singletonList("bar"),
-            startTime,
-            null,
-            startTime + between(1, 10000),
-            totalShards,
-            new ArrayList<>(),
-            false,
-            meta);
+            Collections.emptyList(), null, startTime + between(1, 10000), totalShards, new ArrayList<>(), false, meta, startTime
+        );
         assertThat(snapInfo.state(), equalTo(SnapshotState.SUCCESS));
         return snapInfo;
     }
@@ -320,13 +315,9 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
-            startTime,
-            "forced-failure",
-            startTime + between(1, 10000),
-            totalShards,
-            failures,
-            randomBoolean(),
-            meta);
+            Collections.emptyList(),
+            "forced-failure", startTime + between(1, 10000), totalShards, failures, randomBoolean(), meta, startTime
+        );
         assertThat(snapInfo.state(), equalTo(SnapshotState.FAILED));
         return snapInfo;
     }
@@ -344,13 +335,8 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
             Collections.singletonList("bar-fail"),
-            startTime,
-            null,
-            startTime + between(1, 10000),
-            totalShards,
-            failures,
-            randomBoolean(),
-            meta);
+            Collections.emptyList(), null, startTime + between(1, 10000), totalShards, failures, randomBoolean(), meta, startTime
+        );
         assertThat(snapInfo.state(), equalTo(SnapshotState.PARTIAL));
         return snapInfo;
     }

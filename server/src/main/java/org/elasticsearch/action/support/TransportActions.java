@@ -32,7 +32,7 @@ public class TransportActions {
      * If a failure is already present, should this failure override it or not for read operations.
      */
     public static boolean isReadOverrideException(Exception e) {
-        return !isShardNotAvailableException(e);
+        return isShardNotAvailableException(e) == false;
     }
 
 }

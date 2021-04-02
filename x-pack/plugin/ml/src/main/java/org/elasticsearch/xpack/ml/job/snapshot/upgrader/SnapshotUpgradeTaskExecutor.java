@@ -78,7 +78,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(SnapshotUpgradeTaskParams params, ClusterState clusterState) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+            getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }

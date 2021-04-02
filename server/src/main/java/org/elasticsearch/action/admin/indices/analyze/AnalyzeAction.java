@@ -474,7 +474,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (positionLength > 1) {
                 builder.field(POSITION_LENGTH, positionLength);
             }
-            if (attributes != null && !attributes.isEmpty()) {
+            if (attributes != null && attributes.isEmpty() == false) {
                 Map<String, Object> sortedAttributes = new TreeMap<>(attributes);
                 for (Map.Entry<String, Object> entity : sortedAttributes.entrySet()) {
                     builder.field(entity.getKey(), entity.getValue());

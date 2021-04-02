@@ -32,7 +32,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCur
      */
     public FieldMemoryStats(ObjectLongHashMap<String> stats) {
         this.stats = Objects.requireNonNull(stats, "status must be non-null");
-        assert !stats.containsKey(null);
+        assert stats.containsKey(null) == false;
     }
 
     /**

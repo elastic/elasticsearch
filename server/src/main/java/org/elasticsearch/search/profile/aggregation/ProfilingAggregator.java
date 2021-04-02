@@ -108,6 +108,17 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
+    public void postCollection() throws IOException {
+        Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
+        timer.start();
+        try {
+            delegate.postCollection();
+        } finally {
+            timer.stop();
+        }
+    }
+
+    @Override
     public String toString() {
         return delegate.toString();
     }

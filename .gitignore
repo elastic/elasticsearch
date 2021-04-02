@@ -5,6 +5,7 @@
 *.ipr
 *.iws
 build-idea/
+# Eclipse and Intellij put there build files in "out"
 out/
 
 # include shared intellij config
@@ -19,6 +20,7 @@ benchmarks/src/main/generated/*
 .project
 .classpath
 .settings
+# We don't use this any more, but we'll keep it around in gitignore for a while so we don't accidentally commit it
 build-eclipse/
 
 # netbeans files

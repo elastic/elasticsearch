@@ -40,7 +40,7 @@ public class Iterators {
         @Override
         public boolean hasNext() {
             boolean hasNext = false;
-            while (index < iterators.length && !(hasNext = iterators[index].hasNext())) {
+            while (index < iterators.length && (hasNext = iterators[index].hasNext()) == false) {
                 index++;
             }
 

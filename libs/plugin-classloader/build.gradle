@@ -6,6 +6,10 @@
  * Side Public License, v 1.
  */
 
+// This is only required because :server needs this at runtime.
+// We'll be removing this in 8.0 so for now just publish the JAR to make dependency resolution work.
+apply plugin: 'elasticsearch.publish'
+
 tasks.named("test").configure { enabled = false }
 
 // test depend on ES core...

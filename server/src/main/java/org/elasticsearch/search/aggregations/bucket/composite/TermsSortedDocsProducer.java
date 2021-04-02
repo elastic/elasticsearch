@@ -56,7 +56,7 @@ class TermsSortedDocsProducer extends SortedDocsProducer {
                 break;
             }
             reuse = te.postings(reuse, PostingsEnum.NONE);
-            if (processBucket(queue, context, reuse, te.term(), builder) && !first) {
+            if (processBucket(queue, context, reuse, te.term(), builder) && first == false) {
                 // this bucket does not have any competitive composite buckets,
                 // we can early terminate the collection because the remaining buckets are guaranteed
                 // to be greater than this bucket.

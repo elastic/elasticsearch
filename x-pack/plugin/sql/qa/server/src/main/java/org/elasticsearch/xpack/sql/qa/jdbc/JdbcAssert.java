@@ -250,7 +250,7 @@ public class JdbcAssert {
                         String columnClassName = metaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
-                        if (columnClassName != null && !columnClassName.contains(".")) {
+                        if (columnClassName != null && columnClassName.contains(".") == false) {
                             switch (columnClassName) {
                                 case "Date":
                                     columnClassName = "java.sql.Date";

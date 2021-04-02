@@ -25,6 +25,13 @@ import java.util.Collections;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
+    @Override
+    public void testThreadContext() {
+        // This empty method is here just for the purpose of muting the
+        // test defined in the base class
+    }
+
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());

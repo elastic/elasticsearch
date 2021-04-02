@@ -64,7 +64,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         // special case like /_nodes/os (in this case os are metrics and not the nodeId)
         // still, /_nodes/_local (or any other node id) should work and be treated as usual
         // this means one must differentiate between allowed metrics and arbitrary node ids in the same place
-        if (request.hasParam("nodeId") && !request.hasParam("metrics")) {
+        if (request.hasParam("nodeId") && request.hasParam("metrics") == false) {
             String nodeId = request.param("nodeId", "_all");
             Set<String> metricsOrNodeIds = Strings.tokenizeByCommaToSet(nodeId);
             boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);

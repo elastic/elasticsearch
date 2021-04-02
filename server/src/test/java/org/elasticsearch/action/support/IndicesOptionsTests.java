@@ -182,39 +182,39 @@ public class IndicesOptionsTests extends ESTestCase {
             boolean ignoreThrottled = opts.ignoreThrottled();
             while (mutated == false) {
                 if (randomBoolean()) {
-                    ignoreUnavailable = !ignoreUnavailable;
+                    ignoreUnavailable = ignoreUnavailable == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    allowNoIndices = !allowNoIndices;
+                    allowNoIndices = allowNoIndices == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    expandOpen = !expandOpen;
+                    expandOpen = expandOpen == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    expandClosed = !expandClosed;
+                    expandClosed = expandClosed == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    expandHidden = !expandHidden;
+                    expandHidden = expandHidden == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    allowAliasesToMulti = !allowAliasesToMulti;
+                    allowAliasesToMulti = allowAliasesToMulti == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    forbidClosed = !forbidClosed;
+                    forbidClosed = forbidClosed == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    ignoreAliases = !ignoreAliases;
+                    ignoreAliases = ignoreAliases == false;
                     mutated = true;
                 }
                 if (randomBoolean()) {
-                    ignoreThrottled = !ignoreThrottled;
+                    ignoreThrottled = ignoreThrottled == false;
                     mutated = true;
                 }
             }

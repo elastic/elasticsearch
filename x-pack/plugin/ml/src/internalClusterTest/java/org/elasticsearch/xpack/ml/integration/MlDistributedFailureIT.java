@@ -84,7 +84,9 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
@@ -397,10 +399,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     public void testJobRelocationIsMemoryAware() throws Exception {
-
-        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
 
@@ -430,6 +428,16 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster();
 
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The tests would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the suite run very slowly.
+        // The 200ms refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing anything
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
+
         // If memory requirements are used to reallocate the 4 small jobs (as we expect) then they should
         // all reallocate to the same node, that being the one that doesn't have the big job on.  If job counts
         // are used to reallocate the small jobs then this implies the fallback allocation mechanism has been
@@ -456,7 +464,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67756")
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -502,18 +509,24 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
-        startDatafeedRequest.getParams().setEndTime("now");
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
 
         waitForJobToHaveProcessedAtLeast(jobId, 1000);
 
         internalCluster().stopNode(nodeRunningJob.getName());
 
-        waitForJobClosed(jobId);
+        // Wait for job and datafeed to get reassigned
+        assertBusy(() -> {
+            assertThat(getJobStats(jobId).getNode(), is(not(nullValue())));
+            assertThat(getDatafeedStats(datafeedId).getNode(), is(not(nullValue())));
+        }, 30, TimeUnit.SECONDS);
 
-        DataCounts dataCounts = getJobStats(jobId).getDataCounts();
-        assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
-        assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        assertBusy(() -> {
+            DataCounts dataCounts = getJobStats(jobId).getDataCounts();
+            assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        });
+
     }
 
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {

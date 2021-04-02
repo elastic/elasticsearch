@@ -1,0 +1,95 @@
+[[java-rest-high-snapshot-clone-snapshot]]
+=== Clone Snapshot API
+
+The Clone Snapshot API clones part or all of a snapshot into a new snapshot.
+
+[[java-rest-high-snapshot-clone-snapshot-request]]
+==== Request
+
+A `CloneSnapshotRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request]
+--------------------------------------------------
+
+==== Indices to Clone
+
+Use `indices` to specify a list of indices from the source snapshot to include
+in the snapshot clone:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-indices]
+--------------------------------------------------
+<1> Include only `test_index` from the source snapshot.
+
+==== Index Settings and Options
+
+You can also customize index settings and options when cloning a snapshot:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-index-settings]
+--------------------------------------------------
+<1> Set `IndicesOptions.Option.IGNORE_UNAVAILABLE` in `#indicesOptions()` to
+    have the clone succeed even if indices are missing in the source snapshot.
+
+==== Further Arguments
+
+You can also provide the following optional arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-snapshot-clone-snapshot-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-execute]
+--------------------------------------------------
+
+[[java-rest-high-snapshot-clone-snapshot-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a clone snapshot request requires both the
+`CloneSnapshotRequest` instance and an `ActionListener` instance to be
+passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-execute-async]
+--------------------------------------------------
+<1> The `CloneSnapshotRequest` to execute and the `ActionListener`
+to use when the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `AcknowledgedResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+    provided as an argument.
+<2> Called in case of a failure. The raised exception is provided as an argument.
+
+[[java-rest-high-cluster-clone-snapshot-response]]
+==== Response
+
+`AcknowledgedResponse` indicates whether the request was received:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[clone-snapshot-response]
+--------------------------------------------------
+<1> A boolean value of `true` if the clone successfully completed. Otherwise, the value is `false`.

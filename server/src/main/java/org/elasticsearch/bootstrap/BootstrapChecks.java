@@ -172,9 +172,9 @@ final class BootstrapChecks {
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound =
-                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
-                isLoopbackAddress.test(boundTransportAddress.publishAddress()));
-        return bound && !"single-node".equals(discoveryType);
+                (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
+                isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
+        return bound && "single-node".equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -578,7 +578,7 @@ final class BootstrapChecks {
         @Override
         boolean mightFork() {
             final String onError = onError();
-            return onError != null && !onError.equals("");
+            return onError != null && onError.isEmpty() == false;
         }
 
         // visible for testing
@@ -603,7 +603,7 @@ final class BootstrapChecks {
         @Override
         boolean mightFork() {
             final String onOutOfMemoryError = onOutOfMemoryError();
-            return onOutOfMemoryError != null && !onOutOfMemoryError.equals("");
+            return onOutOfMemoryError != null && onOutOfMemoryError.isEmpty() == false;
         }
 
         // visible for testing

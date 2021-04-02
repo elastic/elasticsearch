@@ -1,5 +1,8 @@
 [[search-template]]
-=== Search Template
+=== Search template API
+++++
+<titleabbrev>Search template</titleabbrev>
+++++
 
 Allows you to use the mustache language to pre render search requests.
 
@@ -532,7 +535,7 @@ for `end`:
 ===== Conditional clauses
 
 Conditional clauses cannot be expressed using the JSON form of the template.
-Instead, the template *must* be passed as a string.  For instance, let's say
+Instead, the template *must* be passed as a string. For instance, let's say
 we wanted to run a `match` query on the `line` field, and optionally wanted
 to filter by line numbers, where `start` and `end` are optional.
 
@@ -650,7 +653,10 @@ The previous query will be rendered as:
 
 
 [[multi-search-template]]
-=== Multi Search Template
+=== Multi search template API
+++++
+<titleabbrev>Multi search template</titleabbrev>
+++++
 
 Allows to execute several search template requests.
 

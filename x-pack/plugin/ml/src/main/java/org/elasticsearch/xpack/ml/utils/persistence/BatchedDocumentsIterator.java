@@ -59,7 +59,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      */
     @Override
     public boolean hasNext() {
-        return !isScrollInitialised || count != totalHits;
+        return isScrollInitialised == false || count != totalHits;
     }
 
     /**

@@ -112,13 +112,15 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             builder.endObject();
 
             Request request = new Request("PUT", "/_template/template");
+            // The warnings only need to be checked in FIPS mode because we run default distribution for FIPS,
+            // while the integ-test distribution is used otherwise.
             if (inFipsJvm()) {
                 request.setOptions(expectWarnings(
                     "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
-                    "[.deprecation-indexing-template,.slm-history,.triggered_watches,.watch-history-14,.watches,ilm-history,logs," +
+                    "[.deprecation-indexing-template,.slm-history,.watch-history-14,ilm-history,logs," +
                     "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
-                    ".slm-history => [.slm-history-5*],.triggered_watches => [.triggered_watches*]," +
-                    ".watch-history-14 => [.watcher-history-14*],.watches => [.watches*],ilm-history => [ilm-history-5*]," +
+                    ".slm-history => [.slm-history-5*]," +
+                    ".watch-history-14 => [.watcher-history-14*],ilm-history => [ilm-history-5*]," +
                     "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]" +
                     "); this template [template] may be ignored in favor of a composable template at index creation time"));
             }

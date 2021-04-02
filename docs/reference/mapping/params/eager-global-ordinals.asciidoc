@@ -43,7 +43,7 @@ circuit breaker>>.
 
 The global ordinal mapping must be built before ordinals can be used during a
 search. By default, the mapping is loaded during search on the first time that
-global ordinals are needed. This is is the right approach if you are optimizing
+global ordinals are needed. This is the right approach if you are optimizing
 for indexing speed, but if search performance is a priority, it's recommended
 to eagerly load global ordinals eagerly on fields that will be used in
 aggregations:

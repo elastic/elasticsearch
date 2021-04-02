@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -440,8 +441,7 @@ public class DiffableTests extends ESTestCase {
 
             TestDiffable that = (TestDiffable) o;
 
-            return !(value != null ? !value.equals(that.value) : that.value != null);
-
+            return Objects.equals(value, that.value);
         }
 
         @Override

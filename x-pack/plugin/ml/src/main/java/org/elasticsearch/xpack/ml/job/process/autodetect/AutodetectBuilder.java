@@ -175,7 +175,7 @@ public class AutodetectBuilder {
     }
 
     private void buildQuantiles(List<String> command) throws IOException {
-        if (quantiles != null && !quantiles.getQuantileState().isEmpty()) {
+        if (quantiles != null && quantiles.getQuantileState().isEmpty() == false) {
             logger.info("Restoring quantiles for job '" + job.getId() + "'");
 
             Path normalizersStateFilePath = writeNormalizerInitState(job.getId(), quantiles.getQuantileState(), env);

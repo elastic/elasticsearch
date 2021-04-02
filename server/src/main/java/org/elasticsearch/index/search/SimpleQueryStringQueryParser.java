@@ -47,7 +47,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     private final Settings settings;
     private SearchExecutionContext context;
-    private final MultiMatchQuery queryBuilder;
+    private final MultiMatchQueryParser queryBuilder;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags,
@@ -61,10 +61,10 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
-        this.queryBuilder = new MultiMatchQuery(context);
+        this.queryBuilder = new MultiMatchQueryParser(context);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
-        this.queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
+        this.queryBuilder.setZeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
         }

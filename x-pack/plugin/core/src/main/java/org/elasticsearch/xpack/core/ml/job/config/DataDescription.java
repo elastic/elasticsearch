@@ -265,7 +265,7 @@ public class DataDescription implements ToXContentObject, Writeable {
      * @return True if the time field needs to be transformed.
      */
     public boolean isTransformTime() {
-        return timeFormat != null && !EPOCH.equals(timeFormat);
+        return timeFormat != null && EPOCH.equals(timeFormat) == false;
     }
 
     /**

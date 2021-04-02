@@ -739,7 +739,7 @@ public class CacheTests extends ESTestCase {
         }
 
         AtomicBoolean deadlock = new AtomicBoolean();
-        assert !deadlock.get();
+        assert deadlock.get() == false;
 
         // start a watchdog service
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);

@@ -58,4 +58,9 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     public void writeTo(StreamOutput out) throws IOException {
         parentTaskId.writeTo(out);
     }
+
+    @Override
+    public String toString() {
+        return getClass().getName() + "/" + getParentTask();
+    }
 }

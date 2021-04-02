@@ -29,6 +29,7 @@ public class FoldValues implements Writeable, ToXContentObject {
         return createParser(ignoreUnknownFields).apply(parser, null);
     }
 
+    @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<FoldValues, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<FoldValues, Void> parser = new ConstructingObjectParser<>("fold_values", ignoreUnknownFields,
             a -> new FoldValues((int) a[0], (List<Double>) a[1]));

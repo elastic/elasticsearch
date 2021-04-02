@@ -1,8 +1,8 @@
 grant {
   permission java.lang.RuntimePermission "setFactory";
 
-  // needed because of problems in unbound LDAP library
-  permission java.util.PropertyPermission "*", "read,write";
+  // needed for SAML
+  permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";
 
   // needed during initialization of OpenSAML library where xml security algorithms are registered
   // see https://github.com/apache/santuario-java/blob/e79f1fe4192de73a975bc7246aee58ed0703343d/src/main/java/org/apache/xml/security/utils/JavaUtils.java#L205-L220

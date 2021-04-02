@@ -248,10 +248,10 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     public boolean match(String path, String name, XContentFieldType xcontentFieldType) {
-        if (pathMatch != null && !matchType.matches(pathMatch, path)) {
+        if (pathMatch != null && matchType.matches(pathMatch, path) == false) {
             return false;
         }
-        if (match != null && !matchType.matches(match, name)) {
+        if (match != null && matchType.matches(match, name) == false) {
             return false;
         }
         if (pathUnmatch != null && matchType.matches(pathUnmatch, path)) {

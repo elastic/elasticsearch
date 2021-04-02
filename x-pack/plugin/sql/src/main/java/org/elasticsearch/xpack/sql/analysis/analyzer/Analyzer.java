@@ -638,12 +638,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     AttributeMap.Builder<Expression> builder = AttributeMap.builder();
                     // collect aliases
                     child.forEachUp(p -> p.forEachExpressionUp(Alias.class, a -> builder.put(a.toAttribute(), a.child())));
-                    final Map<Attribute, Expression> collectRefs = builder.build();
+                    final AttributeMap<Expression> collectRefs = builder.build();
 
                     referencesStream = referencesStream.filter(r -> {
                         for (Attribute attr : child.outputSet()) {
                             if (attr instanceof ReferenceAttribute) {
-                                Expression source = collectRefs.getOrDefault(attr, attr);
+                                Expression source = collectRefs.resolve(attr, attr);
                                 // found a match, no need to resolve it further
                                 // so filter it out
                                 if (source.equals(r.child())) {
@@ -739,7 +739,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             E resolved = resolveExpression(exp, plan);
             if (resolved.resolved() == false) {
                 // look at unary trees but ignore subqueries
-                if (plan.children().size() == 1 && !(plan instanceof SubQueryAlias)) {
+                if (plan.children().size() == 1 && (plan instanceof SubQueryAlias) == false) {
                     return tryResolveExpression(resolved, plan.children().get(0));
                 }
             }

@@ -16,16 +16,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Utility class to help build join queries and aggregations, based on a join_field
@@ -36,32 +36,22 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context::isFieldMapped, context::getFieldType);
+        return getJoiner(context.getFieldTypes());
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context::isFieldMapped, context::getFieldType);
+        return getJoiner(context.getFieldTypes());
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    static Joiner getJoiner(Predicate<String> isMapped, Function<String, MappedFieldType> getFieldType) {
-        if (isMapped.test(MetaJoinFieldMapper.NAME) == false) {
-            return null;
-        }
-        MetaJoinFieldMapper.MetaJoinFieldType ft
-            = (MetaJoinFieldMapper.MetaJoinFieldType) getFieldType.apply(MetaJoinFieldMapper.NAME);
-        String joinField = ft.getJoinField();
-        if (isMapped.test(joinField) == false) {
-            return null;
-        }
-        ParentJoinFieldMapper.JoinFieldType jft =
-            (ParentJoinFieldMapper.JoinFieldType) getFieldType.apply(joinField);
-        return jft.getJoiner();
+    static Joiner getJoiner(Collection<MappedFieldType> fieldTypes) {
+        JoinFieldType ft = ParentJoinFieldMapper.getJoinFieldType(fieldTypes);
+        return ft != null ? ft.getJoiner() : null;
     }
 
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();

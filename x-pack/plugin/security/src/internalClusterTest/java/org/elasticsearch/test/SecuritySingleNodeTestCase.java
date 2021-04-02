@@ -214,6 +214,10 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
     }
 
+    protected String configServiceTokens() {
+        return SECURITY_DEFAULT_SETTINGS.configServiceTokens();
+    }
+
     /**
      * Allows to override the node client username
      */
@@ -259,6 +263,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         @Override
         protected String configOperatorUsers() {
             return SecuritySingleNodeTestCase.this.configOperatorUsers();
+        }
+
+        @Override
+        protected String configServiceTokens() {
+            return SecuritySingleNodeTestCase.this.configServiceTokens();
         }
 
         @Override

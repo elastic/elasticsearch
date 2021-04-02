@@ -48,7 +48,7 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
                 @Override
                 void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) {
                     init.set(true);
-                    initConsumer.accept(!daemonize, pidFile, quiet, initialEnv);
+                    initConsumer.accept(daemonize == false, pidFile, quiet, initialEnv);
                 }
 
                 @Override

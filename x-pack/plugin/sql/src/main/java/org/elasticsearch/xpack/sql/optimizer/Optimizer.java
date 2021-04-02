@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -222,8 +223,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             AttributeMap.Builder<Expression> builder = AttributeMap.builder();
             // collect aliases
             plan.forEachExpressionUp(Alias.class, a -> builder.put(a.toAttribute(), a.child()));
-            final Map<Attribute, Expression> collectRefs = builder.build();
-            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.getOrDefault(r, r);
+            final AttributeMap<Expression> collectRefs = builder.build();
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
 
             plan = plan.transformUp(p -> {
                 // non attribute defining plans get their references removed
@@ -300,7 +301,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private void findNested(Expression exp, AttributeMap<Function> functions, Consumer<FieldAttribute> onFind) {
             exp.forEachUp(e -> {
                 if (e instanceof ReferenceAttribute) {
-                    Function f = functions.get(e);
+                    Function f = functions.resolve(e);
                     if (f != null) {
                         findNested(f, functions, onFind);
                     }
@@ -494,23 +495,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    // NB: it is important to start replacing casts from the bottom to properly replace aliases
-    static class PruneCast extends Rule<LogicalPlan, LogicalPlan> {
+    static class PruneCast extends OptimizerRules.PruneCast<Cast> {
 
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return rule(plan);
+        PruneCast() {
+            super(Cast.class);
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            // eliminate redundant casts
-            return plan.transformExpressionsUp(Cast.class, c -> {
-                if (c.from() == c.to()) {
-                    return c.field();
-                }
-                return c;
-            });
+        protected Expression maybePruneCast(Cast cast) {
+            return cast.from() == cast.to() ? cast.field() : cast;
         }
     }
 
@@ -578,7 +571,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
-                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.getOrDefault(a, a));
+                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
                 replaced.add((NamedExpression) CleanAliases.trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
@@ -1146,7 +1139,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Holder<LocalRelation> optimizedPlan = new Holder<>();
             plan.forEachDown(Project.class, p -> {
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
+                if (values.size() == p.projections().size() && (p.child() instanceof EsRelation) == false &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
                     optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }
@@ -1198,8 +1191,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
          * that its filter (WHERE clause) is folded to FALSE.
          */
         private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
-            return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
-                !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
+            return ((plan.child() instanceof LocalRelation) == false || (plan.child() instanceof LocalRelation &&
+                (((LocalRelation) plan.child()).executable() instanceof EmptyExecutable) == false));
         }
     }
 

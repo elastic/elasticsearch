@@ -88,6 +88,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     private final Queue<ScrollableHitSource.AsyncResponse> responseQueue = new LinkedBlockingQueue<>();
 
+    private final Queue<Throwable> failureQueue = new LinkedBlockingQueue<>();
+
     @Before
     @Override
     public void setUp() throws Exception {
@@ -121,7 +123,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
 
     @After
     public void validateAllConsumed() {
-        assertTrue(responseQueue.isEmpty());
+        assertThat(failureQueue, empty());
+        assertThat(responseQueue, empty());
     }
 
     public void testLookupRemoteVersion() throws Exception {
@@ -331,8 +334,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         for (int i = 0; i < retriesAllowed + 2; i++) {
             paths[i] = "fail:rejection.json";
         }
-        RuntimeException e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall(paths).start());
-        assertEquals("failed", e.getMessage());
+        sourceWithMockedRemoteCall(paths).start();
+        assertNotNull(failureQueue.poll());
         assertTrue(responseQueue.isEmpty());
         assertEquals(retriesAllowed, retries);
         retries = 0;
@@ -343,8 +346,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertThat(response.response().getFailures(), empty());
         assertTrue(responseQueue.isEmpty());
 
-        e = expectThrows(RuntimeException.class, () -> response.done(timeValueMillis(0)));
-        assertEquals("failed", e.getMessage());
+        response.done(timeValueMillis(0));
+        assertNotNull(failureQueue.poll());
         assertTrue(responseQueue.isEmpty());
         assertEquals(retriesAllowed, retries);
     }
@@ -426,11 +429,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         });
         RemoteScrollableHitSource source = sourceWithMockedClient(true, httpClient);
 
-        Throwable e = expectThrows(RuntimeException.class, source::start);
-        // Unwrap the some artifacts from the test
-        while (e.getMessage().equals("failed")) {
-            e = e.getCause();
-        }
+        source.start();
+        Throwable e = failureQueue.poll();
         // This next exception is what the user sees
         assertEquals("Remote responded with a chunk that was too large. Use a smaller batch size.", e.getMessage());
         // And that exception is reported as being caused by the underlying exception returned by the client
@@ -444,17 +444,17 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
     }
 
-    public void testInvalidJsonThinksRemoteIsNotES() throws IOException {
-        Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
-                e.getCause().getCause().getCause().getMessage());
+    public void testInvalidJsonThinksRemoteIsNotES() throws Exception {
+        sourceWithMockedRemoteCall("some_text.txt").start();
+        Throwable e = failureQueue.poll();
+        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getMessage());
     }
 
-    public void testUnexpectedJsonThinksRemoteIsNotES() throws IOException {
+    public void testUnexpectedJsonThinksRemoteIsNotES() throws Exception {
         // Use the response from a main action instead of a proper start response to generate a parse error
-        Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
-                e.getCause().getCause().getCause().getMessage());
+        sourceWithMockedRemoteCall("main/2_3_3.json").start();
+        Throwable e = failureQueue.poll();
+        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getMessage());
     }
 
     public void testCleanupSuccessful() throws Exception {
@@ -562,15 +562,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         retries += 1;
     }
 
-    private void failRequest(Throwable t) {
-        throw new RuntimeException("failed", t);
-    }
-
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
         TestRemoteScrollableHitSource(RestClient client) {
             super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
                 RemoteScrollableHitSourceTests.this::countRetry,
-                responseQueue::add, RemoteScrollableHitSourceTests.this::failRequest,
+                responseQueue::add, failureQueue::add,
                 client, new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
         }
     }

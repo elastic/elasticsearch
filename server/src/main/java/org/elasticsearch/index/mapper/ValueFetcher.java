@@ -9,13 +9,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link MappedFieldType}
@@ -33,10 +31,9 @@ public interface ValueFetcher {
     * should not be relied on.
     *
     * @param lookup a lookup structure over the document's source.
-    * @param ignoredFields the fields in _ignored that have been ignored for this document because they were malformed
     * @return a list a standardized field values.
     */
-    List<Object> fetchValues(SourceLookup lookup, @Nullable Set<String> ignoredFields) throws IOException;
+    List<Object> fetchValues(SourceLookup lookup) throws IOException;
 
     /**
      * Update the leaf reader used to fetch values.

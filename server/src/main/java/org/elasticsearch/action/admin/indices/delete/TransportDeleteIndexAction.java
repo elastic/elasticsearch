@@ -76,18 +76,9 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
 
-        deleteIndexService.deleteIndices(deleteRequest, new ActionListener<>() {
-
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), t);
-                listener.onFailure(t);
-            }
-        });
+        deleteIndexService.deleteIndices(deleteRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), e);
+            listener.onFailure(e);
+        }));
     }
 }

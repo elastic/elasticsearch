@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.common.validation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -31,10 +32,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static java.util.Map.Entry.comparingByKey;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
 
@@ -61,6 +67,8 @@ public final class SourceDestValidator {
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
+    public static final String REMOTE_CLUSTERS_TOO_OLD =
+        "remote clusters are expected to run at least version [{0}] (reason: [{1}]), but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -208,6 +216,11 @@ public final class SourceDestValidator {
         // convenience method to make testing easier
         public Set<String> getRegisteredRemoteClusterNames() {
             return remoteClusterService.getRegisteredRemoteClusterNames();
+        }
+
+        // convenience method to make testing easier
+        public Version getRemoteClusterVersion(String cluster) {
+            return remoteClusterService.getConnection(cluster).getVersion();
         }
 
         private void resolveLocalAndRemoteSource() {
@@ -416,6 +429,59 @@ public final class SourceDestValidator {
                 context.addValidationError(UNKNOWN_REMOTE_CLUSTER_LICENSE, context.getLicense(), remoteAliases, e.getMessage());
                 listener.onResponse(context);
             }));
+        }
+    }
+
+    public static class RemoteClusterMinimumVersionValidation implements SourceDestValidation {
+
+        private final Version minExpectedVersion;
+        private final String reason;
+
+        public RemoteClusterMinimumVersionValidation(Version minExpectedVersion, String reason) {
+            this.minExpectedVersion = minExpectedVersion;
+            this.reason = reason;
+        }
+
+        public Version getMinExpectedVersion() {
+            return minExpectedVersion;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        @Override
+        public void validate(Context context, ActionListener<Context> listener) {
+            List<String> remoteIndices = new ArrayList<>(context.resolveRemoteSource());
+            Map<String, Version> remoteClusterVersions;
+            try {
+                List<String> remoteAliases =
+                    RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
+                remoteClusterVersions = remoteAliases.stream().collect(toMap(identity(), context::getRemoteClusterVersion));
+            } catch (NoSuchRemoteClusterException e) {
+                context.addValidationError(e.getMessage());
+                listener.onResponse(context);
+                return;
+            } catch (Exception e) {
+                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, e.getMessage());
+                listener.onResponse(context);
+                return;
+            }
+            Map<String, Version> oldRemoteClusterVersions =
+                remoteClusterVersions.entrySet().stream()
+                    .filter(entry -> entry.getValue().before(minExpectedVersion))
+                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (oldRemoteClusterVersions.isEmpty() == false) {
+                context.addValidationError(
+                    REMOTE_CLUSTERS_TOO_OLD,
+                    minExpectedVersion,
+                    reason,
+                    oldRemoteClusterVersions.entrySet().stream()
+                        .sorted(comparingByKey())  // sort to have a deterministic order among clusters in the resulting string
+                        .map(e -> e.getKey() + " (" + e.getValue() + ")")
+                        .collect(joining(", ")));
+            }
+            listener.onResponse(context);
         }
     }
 

@@ -88,6 +88,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
             new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
             new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),
+            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
@@ -106,6 +107,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             new RestEqlSearchAction(),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
+            new RestEqlGetAsyncStatusAction(),
             new RestEqlDeleteAsyncResultAction()
         );
     }

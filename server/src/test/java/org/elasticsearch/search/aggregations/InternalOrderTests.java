@@ -77,7 +77,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         boolean asc = randomBoolean();
         BucketOrder o1 = BucketOrder.aggregation(path, asc);
         BucketOrder o2 = BucketOrder.aggregation(path + "test", asc);
-        BucketOrder o3 = BucketOrder.aggregation(path, !asc);
+        BucketOrder o3 = BucketOrder.aggregation(path, asc == false);
         BucketOrder o4 = BucketOrder.aggregation(path, asc);
         assertNotEquals(o1, o2);
         assertNotEquals(o1.hashCode(), o2.hashCode());

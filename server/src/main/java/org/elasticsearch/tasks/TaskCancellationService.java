@@ -98,7 +98,7 @@ public class TaskCancellationService {
             });
             StepListener<Void> setBanListener = new StepListener<>();
             setBanOnChildConnections(reason, waitForCompletion, task, childConnections, setBanListener);
-            setBanListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
+            setBanListener.addListener(groupedListener);
             // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
             // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
             final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
@@ -108,9 +108,9 @@ public class TaskCancellationService {
             // if wait_for_completion is true, then only return when (1) bans are placed on child connections, (2) child tasks are
             // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child connections.
             if (waitForCompletion) {
-                completedListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                completedListener.addListener(listener);
             } else {
-                setBanListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                setBanListener.addListener(listener);
             }
         } else {
             logger.trace("task [{}] doesn't have any children that should be cancelled", taskId);

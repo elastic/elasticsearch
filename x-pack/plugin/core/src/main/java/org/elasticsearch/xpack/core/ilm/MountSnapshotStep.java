@@ -34,10 +34,13 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     private static final Logger logger = LogManager.getLogger(MountSnapshotStep.class);
 
     private final String restoredIndexPrefix;
+    private final MountSearchableSnapshotRequest.Storage storageType;
 
-    public MountSnapshotStep(StepKey key, StepKey nextStepKey, Client client, String restoredIndexPrefix) {
+    public MountSnapshotStep(StepKey key, StepKey nextStepKey, Client client, String restoredIndexPrefix,
+                             MountSearchableSnapshotRequest.Storage storageType) {
         super(key, nextStepKey, client);
         this.restoredIndexPrefix = restoredIndexPrefix;
+        this.storageType = Objects.requireNonNull(storageType, "a storage type must be specified");
     }
 
     @Override
@@ -49,9 +52,13 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         return restoredIndexPrefix;
     }
 
+    public MountSearchableSnapshotRequest.Storage getStorage() {
+        return storageType;
+    }
+
     @Override
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
-        final String indexName = indexMetadata.getIndex().getName();
+        String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
@@ -71,11 +78,27 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         String mountedIndexName = restoredIndexPrefix + indexName;
-        if(currentClusterState.metadata().index(mountedIndexName) != null) {
+        if (currentClusterState.metadata().index(mountedIndexName) != null) {
             logger.debug("mounted index [{}] for policy [{}] and index [{}] already exists. will not attempt to mount the index again",
                 mountedIndexName, policyName, indexName);
             listener.onResponse(true);
             return;
+        }
+
+        final String snapshotIndexName = lifecycleState.getSnapshotIndexName();
+        if (snapshotIndexName == null) {
+            // This index had its searchable snapshot created prior to a version where we captured
+            // the original index name, so make our best guess at the name
+            indexName = bestEffortIndexNameResolution(indexName);
+            logger.debug("index [{}] using policy [{}] does not have a stored snapshot index name, " +
+                "using our best effort guess of [{}] for the original snapshotted index name",
+                indexMetadata.getIndex().getName(), policyName, indexName);
+        } else {
+            // Use the name of the snapshot as specified in the metadata, because the current index
+            // name not might not reflect the name of the index actually in the snapshot
+            logger.debug("index [{}] using policy [{}] has a different name [{}] within the snapshot to be restored, " +
+                "using the snapshot index name from generated metadata for mounting", indexName, policyName, snapshotIndexName);
+            indexName = snapshotIndexName;
         }
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
@@ -91,8 +114,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
             // perform expensive operations (ie. clusterStateProcessed)
             false,
-            // restoring into the cold tier, so use a full local copy
-            MountSearchableSnapshotRequest.Storage.FULL_COPY);
+            storageType);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
                 if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {
@@ -103,9 +125,21 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             }, listener::onFailure));
     }
 
+    /**
+     * Tries to guess the original index name given the current index name, tries to drop the
+     * "partial-" and "restored-" prefixes, since those are what ILM uses. Does not handle
+     * unorthodox cases like "restored-partial-[indexname]" since this is not intended to be
+     * exhaustive.
+     */
+    static String bestEffortIndexNameResolution(String indexName) {
+        String originalName = indexName.replaceFirst("^" + SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX, "");
+        originalName = originalName.replaceFirst("^" + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX, "");
+        return originalName;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), restoredIndexPrefix);
+        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType);
     }
 
     @Override
@@ -117,6 +151,8 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return false;
         }
         MountSnapshotStep other = (MountSnapshotStep) obj;
-        return super.equals(obj) && Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix);
+        return super.equals(obj) &&
+            Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix) &&
+            Objects.equals(storageType, other.storageType);
     }
 }

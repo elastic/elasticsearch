@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.ElasticsearchDistribution
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.BuildResult
@@ -43,7 +44,7 @@ class DistributionDownloadFixture {
     private static String urlPath(String version,ElasticsearchDistribution.Platform platform) {
         String fileType = ((platform == ElasticsearchDistribution.Platform.LINUX ||
                 platform == ElasticsearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
-        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-x86_64.$fileType"
+        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-${Architecture.current().classifier}.$fileType"
     }
 
     private static byte[] filebytes(String urlPath) throws IOException {

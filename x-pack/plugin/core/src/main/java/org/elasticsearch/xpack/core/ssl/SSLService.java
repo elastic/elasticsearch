@@ -421,7 +421,7 @@ public class SSLService {
                     + " are supported by this JVM");
         }
 
-        if (log && !unsupportedCiphers.isEmpty()) {
+        if (log && unsupportedCiphers.isEmpty() == false) {
             logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers " +
                     "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, " +
                     "you will need to install the unlimited strength JCE policy files.", unsupportedCiphers, supportedCiphersList);

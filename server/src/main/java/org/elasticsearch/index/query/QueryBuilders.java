@@ -613,7 +613,9 @@ public final class QueryBuilders {
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
      * @param name The location field name.
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
      */
+    @Deprecated
     public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
         return new GeoPolygonQueryBuilder(name, points);
     }

@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -89,7 +90,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                         field,
                         Collections.singletonMap(
                             type,
-                            new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap())
+                            new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap())
                         )
                     );
                 }
@@ -125,7 +126,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         // scripted metric produces no output because its dynamic
         aggs.addAggregator(AggregationBuilders.scriptedMetric("collapsed_ratings"));
 
-        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
+        AggregationConfig aggregationConfig = new AggregationConfig(emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
         long numGroupsWithoutScripts = groupConfig.getGroups()
@@ -135,7 +136,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
+            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 10, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
@@ -192,7 +193,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 )
         );
 
-        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
+        AggregationConfig aggregationConfig = new AggregationConfig(emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
         long numGroupsWithoutScripts = groupConfig.getGroups()
@@ -202,7 +203,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
+            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));

@@ -140,8 +140,7 @@ public class StubbableTransport implements Transport {
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
         ActionListener<Connection> wrappedListener =
-            ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
+            listener.delegateFailure((delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
 
         if (behavior == null) {
             delegate.openConnection(node, profile, wrappedListener);

@@ -952,7 +952,7 @@ public class HttpExporter extends Exporter {
         final boolean canUseClusterAlerts = config.licenseState().checkFeature(Feature.MONITORING_CLUSTER_ALERTS);
 
         // if this changes between updates, then we need to add OR remove the watches
-        if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {
+        if (clusterAlertsAllowed.compareAndSet(canUseClusterAlerts == false, canUseClusterAlerts)) {
             resource.markDirty();
         }
 

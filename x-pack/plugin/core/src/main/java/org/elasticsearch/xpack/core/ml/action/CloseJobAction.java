@@ -104,44 +104,50 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             return jobId;
         }
 
-        public void setJobId(String jobId) {
+        public Request setJobId(String jobId) {
             this.jobId = jobId;
+            return this;
         }
 
         public TimeValue getCloseTimeout() {
             return timeout;
         }
 
-        public void setCloseTimeout(TimeValue timeout) {
+        public Request setCloseTimeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
         public boolean allowNoMatch() {
             return allowNoMatch;
         }
 
-        public void setAllowNoMatch(boolean allowNoMatch) {
+        public Request setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         public boolean isLocal() { return local; }
 
-        public void setLocal(boolean local) {
+        public Request setLocal(boolean local) {
             this.local = local;
+            return this;
         }
 
         public String[] getOpenJobIds() { return openJobIds; }
 
-        public void setOpenJobIds(String [] openJobIds) {
+        public Request setOpenJobIds(String[] openJobIds) {
             this.openJobIds = openJobIds;
+            return this;
         }
 
         @Override

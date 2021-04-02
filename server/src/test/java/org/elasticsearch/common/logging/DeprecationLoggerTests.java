@@ -29,6 +29,6 @@ public class DeprecationLoggerTests extends ESTestCase {
         context = (LoggerContext) LogManager.getContext(false);
         int numberOfLoggersAfter = context.getLoggers().size();
 
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore+1));
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore + 1));
     }
 }

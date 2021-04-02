@@ -408,14 +408,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     private static String valueOrDefault(String value, String globalDefault) {
-        if (Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(globalDefault) == false) {
             return globalDefault;
         }
         return value;
     }
 
     private static Boolean valueOrDefault(Boolean value, Boolean globalDefault) {
-        if (Objects.isNull(value) && !Objects.isNull(globalDefault)) {
+        if (Objects.isNull(value) && Objects.isNull(globalDefault) == false) {
             return globalDefault;
         }
         return value;

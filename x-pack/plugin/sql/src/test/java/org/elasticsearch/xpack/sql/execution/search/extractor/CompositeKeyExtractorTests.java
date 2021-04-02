@@ -55,7 +55,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
             instance.key() + "mutated",
             randomValueOtherThan(instance.property(), () -> randomFrom(Property.values())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
-            !instance.isDateTimeBased());
+            instance.isDateTimeBased() == false);
     }
 
     public void testExtractBucketCount() {

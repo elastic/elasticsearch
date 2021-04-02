@@ -125,7 +125,7 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
             long nowInMillis = System.currentTimeMillis();
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index)
                 .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
-            indexService.getClient()
+            indexService.getClientWithOrigin()
                 .execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
         }
     }

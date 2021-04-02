@@ -34,9 +34,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 
     public void testCurrentCapacity() throws Exception {
-        // see: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
         assertThat(capacity().results().keySet(), Matchers.empty());
         long memory = OsProbe.getInstance().getTotalPhysicalMemorySize();
         long storage = internalCluster().getInstance(NodeEnvironment.class).nodePaths()[0].fileStore.getTotalSpace();

@@ -494,11 +494,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
 
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning").stream()
-                .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
-                .collect(Collectors.toList());
+            final List<String> rawWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarnings;
+            if (rawWarnings == null) {
+                actualWarnings = Collections.emptyList();
+            } else {
+                actualWarnings = rawWarnings.stream()
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
+            }
             if ((expectedWarnings == null || expectedWarnings.length == 0)) {
-                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+                assertThat("expected 0 warnings, actual: " + actualWarnings, actualWarnings, empty());
             } else {
                 assertWarnings(stripXContentPosition, actualWarnings, expectedWarnings);
             }

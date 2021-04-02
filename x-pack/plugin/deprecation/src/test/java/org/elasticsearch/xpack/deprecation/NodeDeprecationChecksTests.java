@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -401,7 +402,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testDeprecatedBasicLicenseSettings() {
-        Collection<Setting<Boolean>> deprecatedXpackSettings = Set.of(
+        Collection<Setting<Boolean>> deprecatedXpackSettings = org.elasticsearch.common.collect.Set.of(
             XPackSettings.ENRICH_ENABLED_SETTING,
             XPackSettings.FLATTENED_ENABLED,
             XPackSettings.INDEX_LIFECYCLE_ENABLED,
@@ -427,6 +428,32 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{deprecatedSetting});
+        }
+    }
+
+    public void testLegacyRoleSettings() {
+        final Collection<Setting<Boolean>> legacyRoleSettings = DiscoveryNode.getPossibleRoles()
+            .stream()
+            .filter(s -> s.legacySetting() != null)
+            .map(DiscoveryNodeRole::legacySetting).collect(Collectors.toList());
+        for (final Setting<Boolean> legacyRoleSetting : legacyRoleSettings) {
+            final boolean value = randomBoolean();
+            final Settings settings = Settings.builder().put(legacyRoleSetting.getKey(), value).build();
+            final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+            final String roles = DiscoveryNode.getRolesFromSettings(settings)
+                .stream()
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.joining(","));
+            final DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "setting [" + legacyRoleSetting.getKey() + "] is deprecated in favor of setting [node.roles]",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes",
+                "the setting [" + legacyRoleSetting.getKey() + "] is currently set to ["
+                    + value + "], instead set [node.roles] to [" + roles + "]"
+            );
+            assertThat(issues, hasItem(expected));
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{legacyRoleSetting});
         }
     }
 

@@ -194,7 +194,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         return new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return builder.build();
             }
 

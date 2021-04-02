@@ -705,11 +705,12 @@ public final class Verifier {
 
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
-        // Make sure that SCORE is only used in "top level" functions
+        // Make sure that SCORE is only used as a "top level" function
         p.forEachExpression(Function.class, f ->
             f.arguments().stream()
                 .filter(exp -> exp.anyMatch(Score.class::isInstance))
-                .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function")))
+                .forEach(exp -> localFailures.add(fail(exp,
+                    "[SCORE()] cannot be used in expressions, does not support further processing")))
         );
     }
 

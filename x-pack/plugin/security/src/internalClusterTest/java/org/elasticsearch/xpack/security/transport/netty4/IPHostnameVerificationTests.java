@@ -32,8 +32,8 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = super.nodeSettings(nodeOrdinal);
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
                 .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false), false);
         settings = builder.build();

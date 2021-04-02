@@ -8,7 +8,7 @@ https://github.com/elastic/stack-docs/tree/master/docs/en/glossary
 
 [glossary]
 [[glossary]]
-= Glossary of terms
+= Glossary
 
 [glossary]
 [[glossary-analysis]] analysis::

@@ -61,6 +61,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         return "POINT (14.0 15.0)";
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");

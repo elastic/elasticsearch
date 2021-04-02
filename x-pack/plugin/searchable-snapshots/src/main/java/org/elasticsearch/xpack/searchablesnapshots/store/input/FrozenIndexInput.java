@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -292,8 +293,15 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     /**
      * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
      */
+    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
+            "es.searchable.snapshot.shared_cache.write_buffer.size"
+        ).getBytes()
+    );
+
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(COPY_BUFFER_SIZE * 8)
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
     private void writeCacheFile(

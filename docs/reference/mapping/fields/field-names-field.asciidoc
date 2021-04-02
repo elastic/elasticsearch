@@ -2,7 +2,7 @@
 === `_field_names` field
 
 The `_field_names` field used to index the names of every field in a document that
-contains any value other than `null`.  This field was used by the
+contains any value other than `null`. This field was used by the
 <<query-dsl-exists-query,`exists`>> query to find documents that
 either have or don't have any non-+null+ value for a particular field.
 

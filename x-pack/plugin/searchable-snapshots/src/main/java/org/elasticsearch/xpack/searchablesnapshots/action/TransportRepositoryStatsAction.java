@@ -84,7 +84,7 @@ public class TransportRepositoryStatsAction extends TransportNodesAction<
     @Override
     protected RepositoryStatsNodeResponse nodeOperation(RepositoryStatsNodeRequest request) {
         SearchableSnapshots.ensureValidLicense(licenseState);
-        if (clusterService.localNode().isMasterNode() == false && clusterService.localNode().isDataNode() == false) {
+        if (clusterService.localNode().isMasterNode() == false && clusterService.localNode().canContainData() == false) {
             return new RepositoryStatsNodeResponse(clusterService.localNode(), RepositoryStats.EMPTY_STATS);
         }
         final Repository repository = repositoriesService.repository(request.getRepository());

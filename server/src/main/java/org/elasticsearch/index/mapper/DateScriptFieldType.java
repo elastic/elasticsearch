@@ -127,7 +127,8 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         Map<String, String> meta,
         ToXContent toXContent
     ) {
-        super(name, (n, params, ctx) -> scriptFactory.newFactory(n, params, ctx, dateTimeFormatter), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
+            script, meta, toXContent);
         this.dateTimeFormatter = dateTimeFormatter;
     }
 

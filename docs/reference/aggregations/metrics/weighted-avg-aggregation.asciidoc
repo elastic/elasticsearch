@@ -7,8 +7,8 @@
 A `single-value` metrics aggregation that computes the weighted average of numeric values that are extracted from the aggregated documents.
 These values can be extracted either from specific numeric fields in the documents.
 
-When calculating a regular average, each datapoint has an equal "weight" ... it contributes equally to the final value.  Weighted averages,
-on the other hand, weight each datapoint differently.  The amount that each datapoint contributes to the final value is extracted from the
+When calculating a regular average, each datapoint has an equal "weight" ... it contributes equally to the final value. Weighted averages,
+on the other hand, weight each datapoint differently. The amount that each datapoint contributes to the final value is extracted from the
 document, or provided by a script.
 
 As a formula, a weighted average is the `∑(value * weight) / ∑(weight)`
@@ -35,7 +35,7 @@ The `value` and `weight` objects have per-field specific configuration:
 |Parameter Name |Description |Required |Default Value
 |`field` | The field that values should be extracted from |Required |
 |`missing` | A value to use if the field is missing entirely |Optional |
-|`script` | A script which provides the values for the document.  This is mutually exclusive with `field` |Optional
+|`script` | A script which provides the values for the document. This is mutually exclusive with `field` |Optional
 |===
 
 [[weight-params]]
@@ -45,7 +45,7 @@ The `value` and `weight` objects have per-field specific configuration:
 |Parameter Name |Description |Required |Default Value
 |`field` | The field that weights should be extracted from |Required |
 |`missing` | A weight to use if the field is missing entirely |Optional |
-|`script` | A script which provides the weights for the document.  This is mutually exclusive with `field` |Optional
+|`script` | A script which provides the weights for the document. This is mutually exclusive with `field` |Optional
 |===
 
 
@@ -91,7 +91,7 @@ Which yields a response like:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
-While multiple values-per-field are allowed, only one weight is allowed.  If the aggregation encounters
+While multiple values-per-field are allowed, only one weight is allowed. If the aggregation encounters
 a document that has more than one weight (e.g. the weight field is a multi-valued field) it will throw an exception.
 If you have this situation, you will need to specify a `script` for the weight field, and use the script
 to combine the multiple values into a single value to be used.
@@ -147,7 +147,7 @@ The aggregation returns `2.0` as the result, which matches what we would expect 
 
 ==== Script
 
-Both the value and the weight can be derived from a script, instead of a field.  As a simple example, the following
+Both the value and the weight can be derived from a script, instead of a field. As a simple example, the following
 will add one to the grade and weight in the document using a script:
 
 [source,console]

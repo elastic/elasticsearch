@@ -98,6 +98,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testLegacySwitches() throws IOException {
         // if one of the legacy parameters is added to a 'type':'geo_shape' config then
         // that will select the legacy field mapper

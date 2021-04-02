@@ -38,11 +38,11 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -350,11 +350,36 @@ public class Node implements Closeable {
             this.environment = new Environment(settings, initialEnvironment.configFile(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-            logger.info("node name [{}], node ID [{}], cluster name [{}], roles {}",
-                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
-                DiscoveryNode.getRolesFromSettings(settings).stream()
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toCollection(LinkedHashSet::new)));
+            final Set<String> roleNames = DiscoveryNode.getRolesFromSettings(settings).stream()
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            logger.info(
+                "node name [{}], node ID [{}], cluster name [{}], roles {}",
+                NODE_NAME_SETTING.get(tmpSettings),
+                nodeEnvironment.nodeId(),
+                ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
+                roleNames
+            );
+            {
+                // are there any legacy settings in use?
+                final List<Setting<Boolean>> maybeLegacyRoleSettings = Collections.unmodifiableList(DiscoveryNode.getPossibleRoles()
+                    .stream()
+                    .filter(s -> s.legacySetting() != null)
+                    .map(DiscoveryNodeRole::legacySetting)
+                    .filter(s -> s.exists(settings))
+                    .collect(Collectors.toList()));
+                if (maybeLegacyRoleSettings.isEmpty() == false) {
+                    final String legacyRoleSettingNames =
+                        maybeLegacyRoleSettings.stream().map(Setting::getKey).collect(Collectors.joining(", "));
+                    deprecationLogger.deprecate(
+                        DeprecationCategory.SETTINGS,
+                        "legacy role settings",
+                        "legacy role settings [{}] are deprecated, use [node.roles={}]",
+                        legacyRoleSettingNames,
+                        roleNames
+                    );
+                }
+            }
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 

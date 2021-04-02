@@ -42,7 +42,7 @@ public class TransportClientIT extends ESIntegTestCase {
         String nodeName = internalCluster().startNode(nonDataNode());
 
         TransportClient client = (TransportClient) internalCluster().client(nodeName);
-        assertThat(client.connectedNodes().get(0).isDataNode(), equalTo(false));
+        assertThat(client.connectedNodes().get(0).canContainData(), equalTo(false));
 
     }
 

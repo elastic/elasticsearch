@@ -59,7 +59,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * </ul>
      */
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort+100);
 
@@ -71,7 +71,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         addSSLSettingsForNodePEMFiles(builder, "transport.profiles.client.xpack.security.", true);
         builder.put("transport.profiles.client.port", randomClientPortRange)
             .put("transport.profiles.client.bind_host", NetworkAddress.format(localAddress))

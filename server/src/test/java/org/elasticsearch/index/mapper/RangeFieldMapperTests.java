@@ -76,6 +76,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         return 6;
     }
 
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

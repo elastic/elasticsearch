@@ -23,8 +23,8 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(final int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(final int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }

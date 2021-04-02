@@ -116,7 +116,7 @@ The `pattern` tokenizer accepts the following parameters:
 
 `group`::
 
-    Which capture group to extract as tokens.  Defaults to `-1` (split).
+    Which capture group to extract as tokens. Defaults to `-1` (split).
 
 [discrete]
 === Example configuration
@@ -194,7 +194,7 @@ The above example produces the following terms:
 ---------------------------
 
 In the next example, we configure the `pattern` tokenizer to capture values
-enclosed in double quotes (ignoring embedded escaped quotes `\"`).  The regex
+enclosed in double quotes (ignoring embedded escaped quotes `\"`). The regex
 itself looks like this:
 
     "((?:\\"|[^"]|\\")*)"

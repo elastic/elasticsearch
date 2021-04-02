@@ -99,14 +99,14 @@ Name of the component template to create.
 - `synthetics-settings`
 // end::built-in-component-templates[]
 
-The {fleet-guide}/fleet-overview.html[{agent}] uses these templates to configure
-backing indices for its data streams. If you use the {agent} and want to
-overwrite one of these templates, set the `version` for your replacement
-template higher than the current version.
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to configure
+backing indices for its data streams. If you use {agent} and want to overwrite
+one of these templates, set the `version` for your replacement template higher
+than the current version.
 
-If you don't use the {agent} and want to disable all built-in component and
-index templates, set <<stack-templates-enabled,`stack.templates.enabled`>> to
-`false` using the <<cluster-update-settings,cluster update settings API>>.
+If you don't use {agent} and want to disable all built-in component and index
+templates, set <<stack-templates-enabled,`stack.templates.enabled`>> to `false`
+using the <<cluster-update-settings,cluster update settings API>>.
 ====
 
 [[put-component-template-api-query-params]]

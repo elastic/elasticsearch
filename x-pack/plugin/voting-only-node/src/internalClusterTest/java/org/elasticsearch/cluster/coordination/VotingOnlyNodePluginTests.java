@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -219,7 +219,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             protected BlobStore createBlobStore() throws Exception {
                 final DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
                 if (localNode.getRoles().contains(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)) {
-                    assertTrue(localNode.isDataNode());
+                    assertTrue(localNode.canContainData());
                 }
                 return super.createBlobStore();
             }

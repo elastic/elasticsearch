@@ -20,16 +20,16 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.IpScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.IpScriptFieldTermsQuery;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.net.InetAddress;
 import java.time.ZoneId;
@@ -79,7 +79,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         Map<String, String> meta,
         ToXContent toXContent
     ) {
-        super(name, scriptFactory::newFactory, script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
     }
 
     @Override

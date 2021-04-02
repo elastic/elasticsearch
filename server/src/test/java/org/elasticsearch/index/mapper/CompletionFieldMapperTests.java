@@ -106,6 +106,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         return new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
 
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));

@@ -4,6 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.gradle.info.BuildParams
 import java.nio.file.Files
 
 apply plugin: 'elasticsearch.build'
@@ -31,7 +32,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   gcsServiceAccount = new File(project(':plugins:repository-gcs').buildDir,
     'generated-resources/service_account_test.json').path
   gcsBucket = 'bucket_test'
-  gcsBasePath = 'integration_test'
+  gcsBasePath = null
 
   useGCSFixture = true
 } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
@@ -48,7 +49,7 @@ task gcsThirdPartyTest(type: Test) {
   systemProperty 'tests.security.manager', false
 
   systemProperty 'test.google.bucket', gcsBucket
-  systemProperty 'test.google.base', gcsBasePath
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath ? gcsBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
   nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }
 

@@ -116,7 +116,7 @@ update your cluster to use these files.
 NOTE: Complete the following steps for each node in your cluster. To join the
 same cluster, all nodes must share the same `cluster.name` value.
 
-.  Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
+. Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
 changes:
 
    a. Add the `cluster-name` setting and enter a name for your cluster:
@@ -147,7 +147,7 @@ xpack.security.transport.ssl.keystore.path: <node-name>.p12
 xpack.security.transport.ssl.truststore.path: <node-name>.p12
 ----
 
-.  If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
+. If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
 +
 --
 [source,shell]
@@ -161,9 +161,9 @@ xpack.security.transport.ssl.truststore.path: <node-name>.p12
 ----
 --
 
-.  Complete the previous steps for each node in your cluster.
+. Complete the previous steps for each node in your cluster.
 
-.  Restart {es}. The method for <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es} varies depending on how you installed it.
+. Restart {es}. The method for <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es} varies depending on how you installed it.
 +
 For example, if you installed {es} with an archive distribution
 (`tar.gz` or `.zip`), you can enter `Ctrl+C` on the command line to stop

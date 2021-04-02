@@ -7,7 +7,7 @@
   - do:
       watcher.put_watch:
         id: "my_watch"
-        body:  > 
+        body:  >
           {
             "trigger": {
               "schedule": {

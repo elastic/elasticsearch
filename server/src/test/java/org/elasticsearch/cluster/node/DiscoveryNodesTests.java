@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
@@ -271,14 +270,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
             if (frequently()) {
-                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
-
-                    @Override
-                    public Setting<Boolean> legacySetting() {
-                        return null;
-                    }
-
-                });
+                roles.add(new DiscoveryNodeRole("custom_role", "cr"));
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);

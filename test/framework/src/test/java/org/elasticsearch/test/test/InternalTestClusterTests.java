@@ -42,6 +42,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
@@ -58,6 +59,12 @@ public class InternalTestClusterTests extends ESTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
         return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(super.filteredWarnings().stream(), List.of("Configuring multiple path.data paths is deprecated. Use RAID or other system level features for utilizing" +
+            "multiple disks. This feature will be removed in 8.0.").stream()).collect(Collectors.toList());
     }
 
     public void testInitializiationIsConsistent() {

@@ -20,20 +20,20 @@ import org.gradle.api.tasks.Optional;
 /**
  * A transformation to replace the flat textual fields.
  */
-public class ReplaceTextual implements RestTestTransformByParentObject {
+class ReplaceTextual implements RestTestTransformByParentObject {
     private final String keyToReplaceName;
     private final String valueToBeReplaced;
     private final TextNode replacementNode;
     private final String testName;
 
-    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode) {
+    ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode) {
         this.keyToReplaceName = keyToReplaceName;
         this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
         this.testName = null;
     }
 
-    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode, String testName) {
+    ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode, String testName) {
         this.keyToReplaceName = keyToReplaceName;
         this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;

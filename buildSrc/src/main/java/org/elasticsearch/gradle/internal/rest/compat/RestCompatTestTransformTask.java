@@ -25,7 +25,8 @@ import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
-import org.elasticsearch.gradle.test.rest.transform.text.ReplaceTextual;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsFalse;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
@@ -112,7 +113,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue  the value used in the replacement
      */
     public void replaceIsTrue(String oldValue, Object newValue) {
-        transformations.add(new ReplaceTextual("is_true", oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        transformations.add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
     /**
@@ -123,7 +124,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param newValue  the value used in the replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue) {
-        transformations.add(new ReplaceTextual("is_false", oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
     /**

@@ -211,7 +211,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             this.keepAlive = null;
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_1)) {
             channelVersion = Version.min(Version.readVersion(in), in.getVersion());
         } else {
             channelVersion = in.getVersion();
@@ -284,7 +284,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_1)) {
             Version.writeVersion(channelVersion, out);
         }
     }

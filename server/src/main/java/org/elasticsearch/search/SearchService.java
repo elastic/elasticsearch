@@ -670,8 +670,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // Note that it's ok to keep the search states in ReaderContext even when the coordinating node also sends
             // them back in the fetch phase and it only happens in a mixed cluster.
             if (request.scroll() != null ||
-                request.getChannelVersion().before(Version.V_7_13_0) ||
-                clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_13_0)) {
+                request.getChannelVersion().before(Version.V_7_12_1) ||
+                clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_12_1)) {
                 readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAliveInMillis);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);

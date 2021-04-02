@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents an alias, to be associated with an index
@@ -84,6 +85,14 @@ public class Alias implements Writeable, ToXContentFragment {
      */
     public String name() {
         return name;
+    }
+
+    /**
+      Modify the alias name only
+     */
+    public Alias name(String name){
+        this.name = name;
+        return this;
     }
 
     /**
@@ -302,9 +311,7 @@ public class Alias implements Writeable, ToXContentFragment {
 
         Alias alias = (Alias) o;
 
-        if (name != null ? !name.equals(alias.name) : alias.name != null) return false;
-
-        return true;
+        return Objects.equals(name, alias.name);
     }
 
     @Override

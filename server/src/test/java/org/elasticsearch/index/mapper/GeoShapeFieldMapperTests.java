@@ -61,6 +61,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         return "POINT (14.0 15.0)";
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
@@ -225,5 +230,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

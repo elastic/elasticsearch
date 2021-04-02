@@ -42,7 +42,13 @@ of syncing a replica shard from a primary shard.
 Upon completion,
 the replica shard is available for search.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=recovery-triggers]
+Recovery automatically occurs during the following processes:
+
+* Node startup or failure. This type of recovery is called a local store
+  recovery.
+* <<glossary-replica-shard,Primary shard replication>>.
+* Relocation of a shard to a different node in the same cluster.
+* <<snapshots-restore-snapshot,Snapshot restoration>>.
 
 // end::shard-recovery-desc[]
 

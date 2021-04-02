@@ -42,7 +42,7 @@ public abstract class StartsWith extends CaseInsensitiveScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

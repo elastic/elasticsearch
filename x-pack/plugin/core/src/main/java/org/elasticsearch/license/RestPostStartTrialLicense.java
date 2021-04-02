@@ -7,6 +7,7 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +20,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends XPackRestHandler {
@@ -29,12 +28,10 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(POST, "/_license/start_trial", POST, URI_BASE + "/license/start_trial"));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(POST, "/_license/start_trial")
+                .replaces(POST, URI_BASE + "/license/start_trial", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

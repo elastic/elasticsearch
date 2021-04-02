@@ -38,7 +38,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -47,7 +46,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -63,6 +62,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -303,6 +303,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
+    public List<ObjectMapper> nestedMappings() {
+        return mappingLookup.getNestedMappers();
+    }
+
     /**
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
@@ -338,6 +342,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> getFieldTypes() {
+        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
+        fields.addAll(runtimeMappings.values());
+        return fields;
+    }
+
+    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public boolean isFieldMapped(String name) {
@@ -363,14 +376,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
-    }
-
-    /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
-     */
-    public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
     }
 
     /**
@@ -442,8 +447,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public Collection<String> queryTypes() {
         String[] types = getTypes();
         if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = mapperService.documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
+            return mappingLookup == MappingLookup.EMPTY ? Collections.emptyList() : Collections.singleton(mappingLookup.getType());
         }
         return Arrays.asList(types);
     }
@@ -644,10 +648,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+        if (runtimeMappings.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false);
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        if (runtimeMappings.isEmpty() == false) {
-            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
-                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
+        for (RuntimeField runtimeField : runtimeFields.values()) {
+            MappedFieldType fieldType = runtimeField.asMappedFieldType();
+            runtimeFieldTypes.put(fieldType.name(), fieldType);
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);
     }
@@ -657,6 +666,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
+    }
+
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String nestedPath) {
+        return mappingLookup.getNestedParent(nestedPath);
     }
 
     public NestedDocuments getNestedDocuments() {

@@ -588,7 +588,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             final AtomicBoolean abort = new AtomicBoolean();
             // Large histories can be problematic and have the linearizability checker run OOM
             // Bound the time how long the checker can run on such histories (Values empirically determined)
-            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
             try {
                 if (history.size() > 300) {
                     scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);

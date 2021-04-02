@@ -136,7 +136,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                          unassignedShard.index(), unassignedShard.id(), unassignedShard, decidedNode.nodeShardState.getNode());
             node = decidedNode.nodeShardState.getNode();
             allocationId = decidedNode.nodeShardState.allocationId();
-        } else if (nodesToAllocate.throttleNodeShards.isEmpty() && !nodesToAllocate.noNodeShards.isEmpty()) {
+        } else if (nodesToAllocate.throttleNodeShards.isEmpty() && nodesToAllocate.noNodeShards.isEmpty() == false) {
             // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
             // can be force-allocated to one of the nodes.
             nodesToAllocate = buildNodesToAllocate(allocation, nodeShardsResult.orderedAllocationCandidates, unassignedShard, true);

@@ -163,7 +163,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     private void assertConnectionAccepted(String profile, String host) throws UnknownHostException {
         // HTTP is not applied if disabled
-        if (!httpEnabled && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
+        if (httpEnabled == false && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
             return;
         }
 
@@ -174,7 +174,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     private void assertConnectionRejected(String profile, String host) throws UnknownHostException {
         // HTTP is not applied if disabled
-        if (!httpEnabled && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
+        if (httpEnabled == false && IPFilter.HTTP_PROFILE_NAME.equals(profile)) {
             return;
         }
 

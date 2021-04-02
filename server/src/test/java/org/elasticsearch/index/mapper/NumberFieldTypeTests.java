@@ -122,7 +122,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap());
+        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap(), null);
     }
 
     public void testTermQuery() {
@@ -277,7 +277,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Value [2147483648] is out of range for an integer", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(10000000000000000000d, true));
         assertEquals("Value [1.0E19] is out of range for a long", e.getMessage());
-        assertEquals(1.1f, NumberType.HALF_FLOAT.parse(1.1, true));
+        assertEquals(1.0996094f, NumberType.HALF_FLOAT.parse(1.1, true));  // Half float loses a bit of precision even on 1.1....
         assertEquals(1.1f, NumberType.FLOAT.parse(1.1, true));
         assertEquals(1.1d, NumberType.DOUBLE.parse(1.1, true));
     }
@@ -634,17 +634,36 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true)
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, null, false, true)
             .build(new ContentPath())
             .fieldType();
         assertEquals(Collections.singletonList(3), fetchSourceValue(mapper, 3.14));
         assertEquals(Collections.singletonList(42), fetchSourceValue(mapper, "42.9"));
+        assertEquals(org.elasticsearch.common.collect.List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
 
-        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
+        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, null, false, true)
             .nullValue(2.71f)
             .build(new ContentPath())
             .fieldType();
         assertEquals(Collections.singletonList(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(Collections.singletonList(2.71f), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testFetchHalfFloatFromSource() throws IOException {
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, null, false, true)
+            .build(new ContentPath())
+            .fieldType();
+        /*
+         * Half float loses a fair bit of precision compared to float but
+         * we still do floating point comparisons. The "funny" trailing
+         * {@code .000625} is, for example, the precision loss of using
+         * a half float reflected back into a float.
+         */
+        assertEquals(org.elasticsearch.common.collect.List.of(3.140625F), fetchSourceValue(mapper, 3.14));
+        assertEquals(org.elasticsearch.common.collect.List.of(3.140625F), fetchSourceValue(mapper, 3.14F));
+        assertEquals(org.elasticsearch.common.collect.List.of(3.0F), fetchSourceValue(mapper, 3));
+        assertEquals(org.elasticsearch.common.collect.List.of(42.90625F), fetchSourceValue(mapper, "42.9"));
+        assertEquals(org.elasticsearch.common.collect.List.of(47.125F), fetchSourceValue(mapper, 47.1231234));
+        assertEquals(org.elasticsearch.common.collect.List.of(3.140625F, 42.90625F), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
     }
 }

@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="enterprise"]
 [[autoscaling-put-autoscaling-policy]]
-=== Put autoscaling policy API
+=== Create or update autoscaling policy API
 ++++
-<titleabbrev>Put autoscaling policy</titleabbrev>
+<titleabbrev>Create or update autoscaling policy</titleabbrev>
 ++++
 
-include::../autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
-Put autoscaling policy.
+Creates or updates an autoscaling policy.
 
 [[autoscaling-put-autoscaling-policy-request]]
 ==== {api-request-title}
@@ -39,9 +39,12 @@ DELETE /_autoscaling/policy/name
 [[autoscaling-put-autoscaling-policy-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_autoscaling` cluster privileges. For more information, see
-<<security-privileges>>.
+* If the {es} {security-features} are enabled, you must have the
+`manage_autoscaling` <<privileges-list-cluster,cluster privilege>> to use this
+API.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
 
 [[autoscaling-put-autoscaling-policy-desc]]
 ==== {api-description-title}

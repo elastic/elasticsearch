@@ -22,24 +22,23 @@ final class MethodHandlers {
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path) {
         this.path = path;
-        this.methodHandlers = new HashMap<>(methods.length);
-        for (RestRequest.Method method : methods) {
-            methodHandlers.put(method, handler);
-        }
+        // by setting the loadFactor to 1, these maps are resized only when they *must* be, and the vast majority of these
+        // maps contain only 1 or 2 entries anyway, so most of these maps are never resized at all and waste only 1 or 0
+        // array references, while those few that contain 3 or 4 elements will have been resized just once and will still
+        // waste only 1 or 0 array references
+        this.methodHandlers = new HashMap<>(2, 1);
     }
 
     /**
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
-        for (RestRequest.Method method : methods) {
-            RestHandler existing = methodHandlers.putIfAbsent(method, handler);
-            if (existing != null) {
-                throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
-            }
+    MethodHandlers addMethod(RestRequest.Method method, RestHandler handler) {
+        RestHandler existing = methodHandlers.putIfAbsent(method, handler);
+        if (existing != null) {
+            throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
         }
         return this;
     }

@@ -44,7 +44,7 @@ public class PivotConfigTests extends AbstractXContentTestCase<PivotConfig> {
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

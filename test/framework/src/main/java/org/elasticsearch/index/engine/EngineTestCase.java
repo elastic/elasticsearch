@@ -17,16 +17,19 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -1207,8 +1210,9 @@ public abstract class EngineTestCase extends ESTestCase {
      * @param seqNo the sequence number that the checkpoint must advance to before this method returns
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
-    public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
-        engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(seqNo);
+    public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws Exception {
+        assertBusy(() ->
+                assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(seqNo)));
     }
 
     public static boolean hasSnapshottedCommits(Engine engine) {
@@ -1340,5 +1344,38 @@ public abstract class EngineTestCase extends ESTestCase {
             final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper = randomReaderWrapper();
             return searcher -> SearcherHelper.wrapSearcher(searcher, readerWrapper);
         }
+    }
+
+    public static void checkNoSoftDeletesLoaded(ReadOnlyEngine readOnlyEngine) {
+        if (readOnlyEngine.lazilyLoadSoftDeletes == false) {
+            throw new IllegalStateException("method should only be called when lazily loading soft-deletes is enabled");
+        }
+        try (Engine.Searcher searcher = readOnlyEngine.acquireSearcher("soft-deletes-check", Engine.SearcherScope.INTERNAL)) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
+                LazySoftDeletesDirectoryReaderWrapper.LazyBits lazyBits = lazyBits(ctx.reader());
+                if (lazyBits != null && lazyBits.initialized()) {
+                    throw new IllegalStateException("soft-deletes loaded");
+                }
+            }
+        }
+    }
+
+    @Nullable
+    private static LazySoftDeletesDirectoryReaderWrapper.LazyBits lazyBits(LeafReader reader) {
+        if (reader instanceof LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterLeafReader) {
+            return ((LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterLeafReader) reader).getLiveDocs();
+        } else if (reader instanceof LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader) {
+            return ((LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader) reader).getLiveDocs();
+        } else if (reader instanceof FilterLeafReader) {
+            final FilterLeafReader fReader = (FilterLeafReader) reader;
+            return lazyBits(FilterLeafReader.unwrap(fReader));
+        } else if (reader instanceof FilterCodecReader) {
+            final FilterCodecReader fReader = (FilterCodecReader) reader;
+            return lazyBits(FilterCodecReader.unwrap(fReader));
+        } else if (reader instanceof SegmentReader) {
+            return null;
+        }
+        // hard fail - we can't get the lazybits
+        throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
     }
 }

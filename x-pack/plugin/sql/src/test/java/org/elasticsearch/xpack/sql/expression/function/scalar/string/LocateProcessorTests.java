@@ -42,20 +42,24 @@ public class LocateProcessorTests extends AbstractWireSerializingTestCase<Locate
     }
 
     public void testLocateFunctionWithValidInput() {
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(1)).makePipe().asProcessor().process(null));
         assertEquals(7, new Locate(EMPTY, l("bar"), l("foobarbar"), l(5)).makePipe().asProcessor().process(null));
     }
 
     public void testLocateFunctionWithEdgeCasesInputs() {
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
         assertNull(new Locate(EMPTY, l("bar"), l(null), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(0, new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
-        assertEquals(0, new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new Locate(EMPTY, l(null), l("foobarbar"), l(3)).makePipe().asProcessor().process(null));
+        assertNull(new Locate(EMPTY, l(null), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
 
-        assertEquals(1, new Locate(EMPTY, l("foo"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), null).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(null)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(1)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(0)).makePipe().asProcessor().process(null));
+        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(-3)).makePipe().asProcessor().process(null));
+        assertEquals(0, new Locate(EMPTY, l("bar"), l("foobarbar"), l(100)).makePipe().asProcessor().process(null));
+        assertEquals(1, new Locate(EMPTY, l('o'), l('o'), l(1)).makePipe().asProcessor().process(null));
         assertEquals(1, new Locate(EMPTY, l('o'), l('o'), l(null)).makePipe().asProcessor().process(null));
         assertEquals(9, new Locate(EMPTY, l('r'), l("foobarbar"), l(9)).makePipe().asProcessor().process(null));
-        assertEquals(4, new Locate(EMPTY, l("bar"), l("foobarbar"), l(-3)).makePipe().asProcessor().process(null));
     }
 
     public void testLocateFunctionValidatingInputs() {

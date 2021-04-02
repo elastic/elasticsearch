@@ -163,11 +163,11 @@ public class JobSnapshotUpgraderResultProcessor {
             logUnexpectedResult(Bucket.RESULT_TYPE_VALUE);
         }
         List<AnomalyRecord> records = result.getRecords();
-        if (records != null && !records.isEmpty()) {
+        if (records != null && records.isEmpty() == false) {
             logUnexpectedResult(AnomalyRecord.RESULT_TYPE_VALUE);
         }
         List<Influencer> influencers = result.getInfluencers();
-        if (influencers != null && !influencers.isEmpty()) {
+        if (influencers != null && influencers.isEmpty() == false) {
             logUnexpectedResult(Influencer.RESULT_TYPE_VALUE);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();

@@ -61,7 +61,7 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
         builder.startObject("values");
         for (Entry<Double, Double> percent : percentiles.entrySet()) {
             double value = percent.getValue();
-            boolean hasValue = !(Double.isNaN(value));
+            boolean hasValue = Double.isNaN(value) == false;
             Double key = percent.getKey();
             builder.field(Double.toString(key), hasValue ? value : null);
             String valueAsString = percentilesAsString.get(key);

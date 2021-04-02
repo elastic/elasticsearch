@@ -74,6 +74,7 @@ public class InferenceProcessorTests extends ESTestCase {
                 ClassificationConfig.EMPTY_PARAMS,
                 1.0,
                 1.0)),
+            null,
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -110,6 +111,7 @@ public class InferenceProcessorTests extends ESTestCase {
                 classificationConfig,
                 0.6,
                 0.6)),
+            null,
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -152,6 +154,7 @@ public class InferenceProcessorTests extends ESTestCase {
                 classificationConfig,
                 0.6,
                 0.6)),
+            null,
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -193,6 +196,7 @@ public class InferenceProcessorTests extends ESTestCase {
                 classificationConfig,
                 0.6,
                 0.6)),
+            null,
             true);
         inferenceProcessor.mutateDocument(response, document);
 
@@ -218,14 +222,16 @@ public class InferenceProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig)), true);
+            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig)),
+            null,
+            true);
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("regression_model"));
     }
 
-    public void testMutateDocumentRegressionWithTopFetures() {
+    public void testMutateDocumentRegressionWithTopFeatures() {
         RegressionConfig regressionConfig = new RegressionConfig("foo", 2);
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", 2);
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
@@ -245,7 +251,9 @@ public class InferenceProcessorTests extends ESTestCase {
         featureInfluence.add(new RegressionFeatureImportance("feature_2", -42.0));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)), true);
+            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)),
+            null,
+            true);
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
@@ -383,7 +391,9 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)), true);
+            Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
+            null,
+            true);
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));
             assertThat(ex, is(nullValue()));
@@ -392,7 +402,9 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
 
         response = new InternalInferModelAction.Response(
-            Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)), false);
+            Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
+            null,
+            false);
 
         inferenceProcessor.handleResponse(response, document, (doc, ex) -> {
             assertThat(doc, is(not(nullValue())));
@@ -424,11 +436,37 @@ public class InferenceProcessorTests extends ESTestCase {
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
-            Collections.singletonList(new WarningInferenceResults("something broke")), true);
+            Collections.singletonList(new WarningInferenceResults("something broke")), null, true);
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat(document.hasField(targetField), is(false));
         assertThat(document.hasField("ml.warning"), is(true));
         assertThat(document.hasField("ml.my_processor"), is(false));
+    }
+
+    public void testMutateDocumentWithModelIdResult() {
+        String modelAlias = "special_model";
+        String modelId = "regression-123";
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            null,
+            "ml.my_processor",
+            modelAlias,
+            new RegressionConfigUpdate("foo", null),
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new RegressionInferenceResults(0.7, new RegressionConfig("foo"))),
+            modelId,
+            true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo(modelId));
     }
 }

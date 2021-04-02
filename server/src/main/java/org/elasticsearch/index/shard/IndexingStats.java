@@ -201,7 +201,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return;
         }
         addTotals(indexingStats);
-        if (includeTypes && indexingStats.typeStats != null && !indexingStats.typeStats.isEmpty()) {
+        if (includeTypes && indexingStats.typeStats != null && indexingStats.typeStats.isEmpty() == false) {
             if (typeStats == null) {
                 typeStats = new HashMap<>(indexingStats.typeStats.size());
             }
@@ -236,7 +236,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEXING);
         totalStats.toXContent(builder, params);
-        if (typeStats != null && !typeStats.isEmpty()) {
+        if (typeStats != null && typeStats.isEmpty() == false) {
             builder.startObject(Fields.TYPES);
             for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
                 builder.startObject(entry.getKey());

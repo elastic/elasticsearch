@@ -170,8 +170,11 @@ public class Augmentation {
      */
     public static <T> String join(Iterable<T> receiver, String separator) {
         StringBuilder sb = new StringBuilder();
+        boolean firstToken = true;
         for (T t : receiver) {
-            if (sb.length() > 0) {
+            if (firstToken) {
+                firstToken=false;
+            } else {
                 sb.append(separator);
             }
             sb.append(t);

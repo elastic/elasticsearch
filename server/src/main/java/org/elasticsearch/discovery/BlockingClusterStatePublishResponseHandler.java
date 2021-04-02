@@ -68,7 +68,7 @@ public class BlockingClusterStatePublishResponseHandler {
      */
     public boolean awaitAllNodes(TimeValue timeout) throws InterruptedException {
         boolean success = latch.await(timeout.millis(), TimeUnit.MILLISECONDS);
-        assert !success || pendingNodes.isEmpty() : "response count reached 0 but still waiting for some nodes";
+        assert success == false || pendingNodes.isEmpty() : "response count reached 0 but still waiting for some nodes";
         return success;
     }
 

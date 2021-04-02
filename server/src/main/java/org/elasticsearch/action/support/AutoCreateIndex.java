@@ -46,7 +46,7 @@ public final class AutoCreateIndex {
                            IndexNameExpressionResolver resolver,
                            SystemIndices systemIndices) {
         this.resolver = resolver;
-        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        dynamicMappingDisabled = MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings) == false;
         this.systemIndices = systemIndices;
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);

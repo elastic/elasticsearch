@@ -25,7 +25,7 @@ abstract class DateTimeArithmeticOperation extends SqlArithmeticOperation {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

@@ -162,7 +162,7 @@ public class BucketHelpers {
                 }
                 // doc count never has missing values so gap policy doesn't apply here
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
-                if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
+                if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && isDocCountProperty == false)) {
                     switch (gapPolicy) {
                     case INSERT_ZEROS:
                         return 0.0;

@@ -39,7 +39,7 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
                     null;
                 break;
             case 1:
-                ordered = !ordered;
+                ordered = ordered == false;
                 break;
             case 2:
                 maxGaps++;

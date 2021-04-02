@@ -42,7 +42,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
         return isStringAndExact(field(), sourceText(), ParamOrdinal.DEFAULT);

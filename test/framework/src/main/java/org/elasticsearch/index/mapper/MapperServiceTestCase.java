@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,14 +48,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -105,6 +102,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return createIndexAnalyzers();
+    }
+
+    protected static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             emptyMap(),
@@ -177,9 +178,34 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
+    }
+
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
+        IndexSettings indexSettings = createIndexSettings(version, settings);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
+        return new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            idFieldDataEnabled,
+            this::compileScript
+        );
+    }
+
+    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
         settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
@@ -189,26 +215,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(settings)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
-        MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
-        ).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
-        );
-        ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
-        return new MapperService(
-            indexSettings,
-            createIndexAnalyzers(indexSettings),
-            xContentRegistry(),
-            similarityService,
-            mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
-            idFieldDataEnabled,
-            scriptService
-        );
+        return new IndexSettings(meta, settings);
     }
 
     protected final void withLuceneIndex(
@@ -219,7 +226,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (
             Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir,iwc)
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)
         ) {
             builder.accept(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -369,6 +376,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String path) {
                 return mapperService.fieldType(path);
+            }
+
+            @Override
+            public Collection<MappedFieldType> getFieldTypes() {
+                throw new UnsupportedOperationException();
             }
 
             @Override

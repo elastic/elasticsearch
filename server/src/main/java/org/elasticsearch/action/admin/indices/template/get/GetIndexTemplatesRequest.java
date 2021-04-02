@@ -49,7 +49,7 @@ public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemp
             validationException = addValidationError("names is null or empty", validationException);
         } else {
             for (String name : names) {
-                if (name == null || !Strings.hasText(name)) {
+                if (name == null || Strings.hasText(name) == false) {
                     validationException = addValidationError("name is missing", validationException);
                 }
             }

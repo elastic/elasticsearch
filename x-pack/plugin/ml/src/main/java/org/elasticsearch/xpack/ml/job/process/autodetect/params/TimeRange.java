@@ -85,7 +85,7 @@ public class TimeRange {
         private TimeRange createTimeRange(String start, String end) {
             Long epochStart = null;
             Long epochEnd = null;
-            if (!start.isEmpty()) {
+            if (start.isEmpty() == false) {
                 epochStart = paramToEpochIfValidOrThrow(START_PARAM, start) / MILLISECONDS_IN_SECOND;
                 epochEnd = paramToEpochIfValidOrThrow(END_PARAM, end) / MILLISECONDS_IN_SECOND;
                 if (end.isEmpty() || epochEnd.equals(epochStart)) {
@@ -96,7 +96,7 @@ public class TimeRange {
                     throw new IllegalArgumentException(msg);
                 }
             } else {
-                if (!end.isEmpty()) {
+                if (end.isEmpty() == false) {
                     epochEnd = paramToEpochIfValidOrThrow(END_PARAM, end) / MILLISECONDS_IN_SECOND;
                 }
             }

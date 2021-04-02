@@ -57,9 +57,7 @@ public class ClusterName implements Writeable {
 
         ClusterName that = (ClusterName) o;
 
-        if (value != null ? !value.equals(that.value) : that.value != null) return false;
-
-        return true;
+        return Objects.equals(value, that.value);
     }
 
     @Override

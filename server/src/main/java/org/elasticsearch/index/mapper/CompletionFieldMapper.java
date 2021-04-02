@@ -470,7 +470,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                     contextMapping = contextMappings.get(fieldName);
                                 } else {
                                     assert fieldName != null;
-                                    assert !contextsMap.containsKey(fieldName);
+                                    assert contextsMap.containsKey(fieldName) == false;
                                     contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
                                 }
                             }
@@ -522,7 +522,7 @@ public class CompletionFieldMapper extends FieldMapper {
     public void doValidate(MappingLookup mappers) {
         if (fieldType().hasContextMappings()) {
             for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
-                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypes().get(s));
+                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypesLookup().get(s));
             }
         }
     }

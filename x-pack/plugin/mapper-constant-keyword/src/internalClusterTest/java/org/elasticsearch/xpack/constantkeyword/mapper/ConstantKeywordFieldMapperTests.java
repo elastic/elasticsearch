@@ -58,6 +58,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return singleton(new ConstantKeywordMapperPlugin());
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo"));
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -161,5 +166,15 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                 b.field("type", "constant_keyword");
                 b.field("value", "bar");
             }));
+    }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return ((ConstantKeywordFieldType) ft).value();
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "constant_keyword").field("value", randomAlphaOfLengthBetween(1, 10));
     }
 }

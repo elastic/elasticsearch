@@ -283,8 +283,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     public Map<String, Object> usageStats() {
         final ByteSizeValue ram = new ByteSizeValue(ramBytesUsed(), ByteSizeUnit.BYTES);
-        return new MapBuilder()
-            .put("count", entryCount())
+        return new MapBuilder<String, Object>().put("count", entryCount())
             .put("memory", ram.toString())
             .put("memory_in_bytes", ram.getBytes())
             .immutableMap();

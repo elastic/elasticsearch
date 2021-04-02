@@ -73,7 +73,7 @@ setup:
               }
             ]
           }
-  - is_true: created
+  - is_true: acknowledged
 
   - do:
       indices.forcemerge:

@@ -75,7 +75,6 @@ import org.elasticsearch.painless.ir.StoreBraceNode;
 import org.elasticsearch.painless.ir.StoreDotDefNode;
 import org.elasticsearch.painless.ir.StoreDotNode;
 import org.elasticsearch.painless.ir.StoreDotShortcutNode;
-import org.elasticsearch.painless.ir.StoreFieldMemberNode;
 import org.elasticsearch.painless.ir.StoreListShortcutNode;
 import org.elasticsearch.painless.ir.StoreMapShortcutNode;
 import org.elasticsearch.painless.ir.StoreVariableNode;
@@ -206,8 +205,8 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstructor;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDeclarationType;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDefReferenceEncoding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDField;
@@ -1321,77 +1320,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
     @Override
     public void visitRegex(ERegex userRegexNode, ScriptScope scriptScope) {
-        String memberFieldName = scriptScope.getNextSyntheticName("regex");
-
-        FieldNode irFieldNode = new FieldNode(userRegexNode.getLocation());
-        irFieldNode.attachDecoration(new IRDModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE));
-        irFieldNode.attachDecoration(new IRDFieldType(Pattern.class));
-        irFieldNode.attachDecoration(new IRDName(memberFieldName));
-
-        irClassNode.addFieldNode(irFieldNode);
-
-        try {
-            StatementExpressionNode irStatementExpressionNode = new StatementExpressionNode(userRegexNode.getLocation());
-
-            BlockNode blockNode = irClassNode.getClinitBlockNode();
-            blockNode.addStatementNode(irStatementExpressionNode);
-
-            StoreFieldMemberNode irStoreFieldMemberNode = new StoreFieldMemberNode(userRegexNode.getLocation());
-            irStoreFieldMemberNode.attachDecoration(new IRDExpressionType(void.class));
-            irStoreFieldMemberNode.attachDecoration(new IRDStoreType(Pattern.class));
-            irStoreFieldMemberNode.attachDecoration(new IRDName(memberFieldName));
-            irStoreFieldMemberNode.attachCondition(IRCStatic.class);
-
-            irStatementExpressionNode.setExpressionNode(irStoreFieldMemberNode);
-
-            BinaryImplNode irBinaryImplNode = new BinaryImplNode(userRegexNode.getLocation());
-            irBinaryImplNode.attachDecoration(new IRDExpressionType(Pattern.class));
-
-            irStoreFieldMemberNode.setChildNode(irBinaryImplNode);
-
-            StaticNode irStaticNode = new StaticNode(userRegexNode.getLocation());
-            irStaticNode.attachDecoration(new IRDExpressionType(Pattern.class));
-
-            irBinaryImplNode.setLeftNode(irStaticNode);
-
-            InvokeCallNode invokeCallNode = new InvokeCallNode(userRegexNode.getLocation());
-            invokeCallNode.attachDecoration(new IRDExpressionType(Pattern.class));
-            invokeCallNode.setBox(Pattern.class);
-            invokeCallNode.setMethod(new PainlessMethod(
-                            Pattern.class.getMethod("compile", String.class, int.class),
-                            Pattern.class,
-                            Pattern.class,
-                            Arrays.asList(String.class, int.class),
-                            null,
-                            null,
-                            null
-                    )
-            );
-
-            irBinaryImplNode.setRightNode(invokeCallNode);
-
-            ConstantNode irConstantNode = new ConstantNode(userRegexNode.getLocation());
-            irConstantNode.attachDecoration(new IRDExpressionType(String.class));
-            irConstantNode.attachDecoration(new IRDConstant(userRegexNode.getPattern()));
-
-            invokeCallNode.addArgumentNode(irConstantNode);
-
-            irConstantNode = new ConstantNode(userRegexNode.getLocation());
-            irConstantNode.attachDecoration(new IRDExpressionType(int.class));
-            irConstantNode.attachDecoration(
-                    new IRDConstant(scriptScope.getDecoration(userRegexNode, StandardConstant.class).getStandardConstant()));
-
-            invokeCallNode.addArgumentNode(irConstantNode);
-        } catch (Exception exception) {
-            throw userRegexNode.createError(new IllegalStateException("illegal tree structure"));
-        }
-
-        LoadFieldMemberNode irLoadFieldMemberNode = new LoadFieldMemberNode(userRegexNode.getLocation());
-        irLoadFieldMemberNode.attachDecoration(new IRDExpressionType(Pattern.class));
-        irLoadFieldMemberNode.attachDecoration(new IRDName(memberFieldName));
-        irLoadFieldMemberNode.attachCondition(IRCStatic.class);
-
-        scriptScope.putDecoration(userRegexNode, new IRNodeDecoration(irLoadFieldMemberNode));
+        ConstantNode constant = new ConstantNode(userRegexNode.getLocation());
+        constant.attachDecoration(new IRDExpressionType(Pattern.class));
+        constant.attachDecoration(new IRDConstant(scriptScope.getDecoration(userRegexNode, StandardConstant.class).getStandardConstant()));
+        scriptScope.putDecoration(userRegexNode, new IRNodeDecoration(constant));
     }
 
     @Override

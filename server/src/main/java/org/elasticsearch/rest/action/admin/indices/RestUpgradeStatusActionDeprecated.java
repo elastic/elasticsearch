@@ -12,12 +12,12 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -26,15 +26,13 @@ import static org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDepre
 public class RestUpgradeStatusActionDeprecated extends BaseRestHandler {
 
     @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return org.elasticsearch.common.collect.List.of(
-            new DeprecatedRoute(GET, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE),
-            new DeprecatedRoute(GET, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE));
-    }
-
-    @Override
     public List<Route> routes() {
-        return Collections.emptyList();
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, "/_upgrade")
+                .deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_upgrade")
+                .deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

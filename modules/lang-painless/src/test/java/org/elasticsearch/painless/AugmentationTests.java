@@ -114,6 +114,8 @@ public class AugmentationTests extends ScriptTestCase {
     public void testIterable_Join() {
         assertEquals("test,ing",
                 exec("List l = new ArrayList(); l.add('test'); l.add('ing'); l.join(',')"));
+        assertEquals(";empty;start;;test",
+                exec("List l = new ArrayList(); l.add(''); l.add('empty'); l.add('start'); l.add(''); l.add('test'); l.join(';')"));
     }
 
     public void testIterable_Sum() {

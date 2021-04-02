@@ -9,23 +9,33 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 class NodeDeprecationChecks {
@@ -52,6 +62,7 @@ class NodeDeprecationChecks {
         final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
                 .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
+                .filter(e -> e.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true))
                 .map(e -> RealmSettings.realmSettingPrefix(e.getKey()) + RealmSettings.ORDER_SETTING_KEY)
                 .collect(Collectors.toSet());
 
@@ -102,6 +113,57 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-duplicated-realm-orders",
             details
         );
+    }
+
+    static DeprecationIssue checkImplicitlyDisabledBasicRealms(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
+        if (realmSettings.isEmpty()) {
+            return null;
+        }
+
+        boolean anyRealmEnabled = false;
+        final Set<String> unconfiguredBasicRealms =
+            new HashSet<>(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
+        for (Map.Entry<RealmConfig.RealmIdentifier, Settings> realmSetting: realmSettings.entrySet()) {
+            anyRealmEnabled = anyRealmEnabled || realmSetting.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true);
+            unconfiguredBasicRealms.remove(realmSetting.getKey().getType());
+        }
+
+        final String details;
+        if (false == anyRealmEnabled) {
+            final List<String> explicitlyDisabledBasicRealms =
+                Sets.difference(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                    unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
+            if (explicitlyDisabledBasicRealms.isEmpty()) {
+                return null;
+            }
+            details = String.format(
+                Locale.ROOT,
+                "Found explicitly disabled basic %s: [%s]. But %s will be enabled because no other realms are configured or enabled. " +
+                    "In next major release, explicitly disabled basic realms will remain disabled.",
+                explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),
+                explicitlyDisabledBasicRealms.size() == 1 ? "it" : "they"
+                );
+        } else {
+            if (unconfiguredBasicRealms.isEmpty()) {
+                return null;
+            }
+            details = String.format(
+                Locale.ROOT,
+                "Found implicitly disabled basic %s: [%s]. %s disabled because there are other explicitly configured realms." +
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.",
+                unconfiguredBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(unconfiguredBasicRealms, ","),
+                unconfiguredBasicRealms.size() == 1 ? "It is" : "They are");
+        }
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "File and/or native realms are enabled by default in next major release.",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/deprecated-7.13.html#implicitly-disabled-basic-realms",
+            details
+        );
+
     }
 
     static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {
@@ -186,12 +248,45 @@ class NodeDeprecationChecks {
         );
     }
 
+    public static DeprecationIssue checkLegacyRoleSettings(
+        final Setting<Boolean> legacyRoleSetting,
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules
+    ) {
+
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            legacyRoleSetting,
+            NodeRoleSettings.NODE_ROLES_SETTING,
+            (v, s) -> {
+                return DiscoveryNode.getRolesFromSettings(s)
+                    .stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.joining(","));
+            },
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes"
+        );
+    }
+
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
         final Setting<?> deprecatedSetting,
         final Setting<?> replacementSetting,
-        final String url) {
+        final String url
+    ) {
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, (v, s) -> v, url);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting<?> replacementSetting,
+        final BiFunction<String, Settings, String> replacementValue,
+        final String url
+    ) {
         assert deprecatedSetting.isDeprecated() : deprecatedSetting;
         if (deprecatedSetting.exists(settings) == false) {
             return null;
@@ -210,7 +305,7 @@ class NodeDeprecationChecks {
             deprecatedSettingKey,
             value,
             replacementSettingKey,
-            value);
+            replacementValue.apply(value, settings));
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 
@@ -220,7 +315,20 @@ class NodeDeprecationChecks {
         final Setting<?> deprecatedSetting,
         final Setting.AffixSetting<?> replacementSetting,
         final String star,
-        final String url) {
+        final String url
+    ) {
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, (v, s) -> v, star, url);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting.AffixSetting<?> replacementSetting,
+        final BiFunction<String, Settings, String> replacementValue,
+        final String star,
+        final String url
+    ) {
         assert deprecatedSetting.isDeprecated() : deprecatedSetting;
         if (deprecatedSetting.exists(settings) == false) {
             return null;
@@ -239,7 +347,7 @@ class NodeDeprecationChecks {
             deprecatedSettingKey,
             value,
             replacementSettingKey,
-            value,
+            replacementValue.apply(value, settings),
             star);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }

@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 
@@ -192,5 +193,10 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
+    }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return NetworkAddress.format(randomIp(randomBoolean()));
     }
 }

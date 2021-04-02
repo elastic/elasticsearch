@@ -133,5 +133,3 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
-
-

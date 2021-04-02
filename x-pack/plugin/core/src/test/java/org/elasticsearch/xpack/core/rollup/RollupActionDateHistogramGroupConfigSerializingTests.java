@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,11 +45,10 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1d"), null, null);
+        RollupActionDateHistogramGroupConfig config = new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1d"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field] in " +
-            "any of the indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field]."));
     }
 
     public void testValidateNomatchingField() {
@@ -61,11 +59,10 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         responseMap.put("some_other_field", Collections.singletonMap("date", fieldCaps));
 
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1d"), null, null);
+        RollupActionDateHistogramGroupConfig config = new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1d"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field] in " +
-            "any of the indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field]."));
     }
 
     public void testValidateFieldWrongType() {
@@ -76,11 +73,11 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
         responseMap.put("my_field", Collections.singletonMap("keyword", fieldCaps));
 
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1d"), null, null);
+        RollupActionDateHistogramGroupConfig config = new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1d"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be one of type " +
-            "[date,date_nanos] across all indices in the index pattern.  Found: [keyword] for field [my_field]"));
+            "[date,date_nanos]. Found: [keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMixtureTypes() {
@@ -94,11 +91,11 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         types.put("keyword", fieldCaps);
         responseMap.put("my_field", types);
 
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1d"), null, null);
+        RollupActionDateHistogramGroupConfig config = new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1d"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be one of type " +
-            "[date,date_nanos] across all indices in the index pattern.  Found: [date, keyword] for field [my_field]"));
+            "[date,date_nanos]. Found: [date, keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMatchingNotAggregatable() {
@@ -110,10 +107,10 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         when(fieldCaps.isAggregatable()).thenReturn(false);
         responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
 
-        DateHistogramGroupConfig config =new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1d"), null, null);
+        RollupActionDateHistogramGroupConfig config =new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1d"));
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field [my_field] must be aggregatable across all indices, but is not."));
+        assertThat(e.validationErrors().get(0), equalTo("The field [my_field] must be aggregatable, but is not."));
     }
 
     public void testValidateMatchingField() {
@@ -125,8 +122,8 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
 
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1d"), null, null);
+        RollupActionDateHistogramGroupConfig config = new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1d"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
     }
@@ -140,8 +137,8 @@ public class RollupActionDateHistogramGroupConfigSerializingTests
         when(fieldCaps.isAggregatable()).thenReturn(true);
         responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
 
-        DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
-            new DateHistogramInterval("1w"), null, null);
+        RollupActionDateHistogramGroupConfig config = new RollupActionDateHistogramGroupConfig.CalendarInterval("my_field",
+            new DateHistogramInterval("1w"));
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
     }

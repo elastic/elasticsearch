@@ -16,6 +16,9 @@ import org.elasticsearch.index.Index;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * This step replaces a data stream backing index with the target index, as part of the data stream's backing indices.
@@ -36,11 +39,12 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
     public static final String NAME = "replace-datastream-backing-index";
     private static final Logger logger = LogManager.getLogger(ReplaceDataStreamBackingIndexStep.class);
 
-    private final String targetIndexPrefix;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
 
-    public ReplaceDataStreamBackingIndexStep(StepKey key, StepKey nextStepKey, String targetIndexPrefix) {
+    public ReplaceDataStreamBackingIndexStep(StepKey key, StepKey nextStepKey,
+                                             BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier) {
         super(key, nextStepKey);
-        this.targetIndexPrefix = targetIndexPrefix;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
     }
 
     @Override
@@ -48,15 +52,12 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         return true;
     }
 
-    public String getTargetIndexPrefix() {
-        return targetIndexPrefix;
+    public BiFunction<String, LifecycleExecutionState, String> getTargetIndexNameSupplier() {
+        return targetIndexNameSupplier;
     }
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        String originalIndex = index.getName();
-        final String targetIndexName = targetIndexPrefix + originalIndex;
-
         IndexMetadata originalIndexMetadata = clusterState.metadata().index(index);
         if (originalIndexMetadata == null) {
             // Index must have been since deleted, skip the shrink action
@@ -64,6 +65,8 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             return clusterState;
         }
 
+        String originalIndex = index.getName();
+        String targetIndexName = targetIndexNameSupplier.apply(originalIndex, fromIndexMetadata(originalIndexMetadata));
         String policyName = originalIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
@@ -99,7 +102,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), targetIndexPrefix);
+        return Objects.hash(super.hashCode(), targetIndexNameSupplier);
     }
 
     @Override
@@ -112,6 +115,6 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         }
         ReplaceDataStreamBackingIndexStep other = (ReplaceDataStreamBackingIndexStep) obj;
         return super.equals(obj) &&
-            Objects.equals(targetIndexPrefix, other.targetIndexPrefix);
+            Objects.equals(targetIndexNameSupplier, other.targetIndexNameSupplier);
     }
 }

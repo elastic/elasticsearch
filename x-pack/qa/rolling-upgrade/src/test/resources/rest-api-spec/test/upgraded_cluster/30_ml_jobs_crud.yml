@@ -111,6 +111,8 @@ setup:
 
 ---
 "Test get old cluster job's timing stats":
+  - skip:
+      features: allowed_warnings
   - do:
       ml.get_job_stats:
         job_id: old-cluster-job-with-ts
@@ -120,6 +122,8 @@ setup:
   - gte:   { jobs.0.timing_stats.bucket_count: 0 }
 
   - do:
+      allowed_warnings:
+         - 'Updating mappings in [.ml-config]: system indices can only use mappings from their descriptors, but the mappings in the request did not match those in the descriptor(s). This will not work in the next major version'
       ml.delete_job:
         job_id: old-cluster-job-with-ts
   - match: { acknowledged: true }

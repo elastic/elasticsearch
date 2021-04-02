@@ -45,10 +45,8 @@ public class SubstringProcessorTests extends AbstractWireSerializingTestCase<Sub
     }
 
     public void testSubstringFunctionWithEdgeCases() {
-        assertEquals("foobarbar",
-                new Substring(EMPTY, l("foobarbar"), l(1), l(null)).makePipe().asProcessor().process(null));
-        assertEquals("foobarbar",
-                new Substring(EMPTY, l("foobarbar"), l(null), l(3)).makePipe().asProcessor().process(null));
+        assertNull(new Substring(EMPTY, l("foobarbar"), l(1), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new Substring(EMPTY, l("foobarbar"), l(null), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Substring(EMPTY, l(null), l(1), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Substring(EMPTY, l(null), l(null), l(null)).makePipe().asProcessor().process(null));
 

@@ -28,7 +28,7 @@ public class ParsedMin extends ParsedSingleValueNumericMetricsAggregation implem
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        boolean hasValue = !Double.isInfinite(value);
+        boolean hasValue = Double.isInfinite(value) == false;
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
         if (hasValue && valueAsString != null) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);

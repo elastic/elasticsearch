@@ -1,9 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[logstash-api-get-pipeline]]
-=== Get Pipeline API
+=== Get pipeline API
+++++
+<titleabbrev>Get {ls} pipeline</titleabbrev>
+++++
 
-This API retrieves Pipelines used for Logstash Central Management.
+This API retrieves pipelines used for
+{logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
+Management].
 
 [[logstash-api-get-pipeline-request]]
 ==== {api-request-title}
@@ -21,18 +26,18 @@ This API retrieves Pipelines used for Logstash Central Management.
 [[logstash-api-get-pipeline-desc]]
 ==== {api-description-title}
 
-Retrieve one or more Logstash Pipelines.
+Retrieve one or more {ls} pipelines.
 
 [[logstash-api-get-pipeline-params]]
 ==== {api-path-parms-title}
 
 `<pipeline_id>`::
-  (Optional, string) Comma-separated list of Pipeline identifiers.
+  (Optional, string) Comma-separated list of pipeline identifiers.
 
 [[logstash-api-get-pipeline-example]]
 ==== {api-examples-title}
 
-The following example retrieves the Pipeline named `my_pipeline`:
+The following example retrieves the pipeline named `my_pipeline`:
 
 //////////////////////////
 
@@ -40,7 +45,7 @@ The following example retrieves the Pipeline named `my_pipeline`:
 --------------------------------------------------
 PUT _logstash/pipeline/my_pipeline
 {
-  "description": "Sample Pipeline for illustration purposes",
+  "description": "Sample pipeline for illustration purposes",
   "last_modified": "2021-01-02T02:50:51.250Z",
   "pipeline_metadata": {
     "type": "logstash_pipeline",
@@ -69,13 +74,13 @@ GET _logstash/pipeline/my_pipeline
 // TEST[continued]
 
 
-If the request succeeds, the body of the response contains the Pipeline definition:
+If the request succeeds, the body of the response contains the pipeline definition:
 
 [source,console-result]
 --------------------------------------------------
 {
   "my_pipeline": {
-    "description": "Sample Pipeline for illustration purposes",
+    "description": "Sample pipeline for illustration purposes",
     "last_modified": "2021-01-02T02:50:51.250Z",
     "pipeline_metadata": {
       "type": "logstash_pipeline",

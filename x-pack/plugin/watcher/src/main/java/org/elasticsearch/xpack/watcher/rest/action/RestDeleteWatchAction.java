@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -30,13 +30,9 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return singletonList(
-            new ReplacedRoute(DELETE, "/_watcher/watch/{id}", DELETE, URI_BASE + "/watcher/watch/{id}"));
+            Route.builder(DELETE, "/_watcher/watch/{id}")
+                .replaces(DELETE, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build());
     }
 
     @Override

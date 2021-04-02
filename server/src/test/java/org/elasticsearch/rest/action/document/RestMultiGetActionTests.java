@@ -8,6 +8,8 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,7 +30,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> new MultiGetResponse(new MultiGetItemResponse[0]));
 
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.GET)
@@ -60,7 +62,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             .endObject();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> new MultiGetResponse(new MultiGetItemResponse[0]));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withPath("_mget")

@@ -48,8 +48,9 @@ public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverR
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
     }
 
     @Override

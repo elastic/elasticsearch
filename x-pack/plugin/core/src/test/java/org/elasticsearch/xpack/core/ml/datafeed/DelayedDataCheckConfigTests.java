@@ -73,7 +73,7 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
         TimeValue timeWindow = instance.getCheckWindow();
         switch (between(0, 1)) {
         case 0:
-            enabled = !enabled;
+            enabled = enabled == false;
             if (randomBoolean()) {
                 timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
             } else {

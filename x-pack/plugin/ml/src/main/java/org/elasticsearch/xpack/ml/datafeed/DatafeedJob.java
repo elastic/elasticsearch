@@ -151,7 +151,7 @@ class DatafeedJob {
             sendPersistRequest();
         }
 
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
             LOGGER.info("[{}] Lookback has finished", jobId);
             if (isLookbackOnly) {
@@ -197,7 +197,7 @@ class DatafeedJob {
     }
 
     private void checkForMissingDataIfNecessary() {
-        if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
+        if (isRunning() && isIsolated == false && checkForMissingDataTriggered()) {
 
             // Keep track of the last bucket time for which we did a missing data check
             this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
@@ -311,7 +311,7 @@ class DatafeedJob {
         long recordCount = 0;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         while (dataExtractor.hasNext()) {
-            if ((isIsolated || !isRunning()) && !dataExtractor.isCancelled()) {
+            if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
                 dataExtractor.cancel();
             }
             if (isIsolated) {
@@ -345,7 +345,10 @@ class DatafeedJob {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
-                    LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
+                    LOGGER.trace(() -> new ParameterizedMessage("[{}] Processed another {} records with latest timestamp [{}]",
+                        jobId,
+                        counts.getProcessedRecordCount(),
+                        counts.getLatestRecordTimeStamp()));
                     timingStatsReporter.reportDataCounts(counts);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
@@ -354,7 +357,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
+                    LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.
@@ -387,7 +390,7 @@ class DatafeedJob {
         // If the datafeed was stopped, then it is possible that by the time
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
-        if (isRunning() && !isIsolated) {
+        if (isRunning() && isIsolated == false) {
             Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
                 this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();

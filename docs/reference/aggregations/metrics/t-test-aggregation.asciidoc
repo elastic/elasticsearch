@@ -142,7 +142,7 @@ indices, the term filter on the <<mapping-index-field,`_index`>> field can be us
 
 ==== Script
 
-The `t_test` metric supports scripting.  For example, if we need to adjust out load times for the before values, we could use
+The `t_test` metric supports scripting. For example, if we need to adjust out load times for the before values, we could use
 a script to recalculate them on-the-fly:
 
 [source,console]

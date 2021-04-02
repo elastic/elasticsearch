@@ -14,20 +14,20 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return unmodifiableList(
-            asList(
-                new Route(RestRequest.Method.GET, "/_searchable_snapshots/stats"),
-                new Route(RestRequest.Method.GET, "/{index}/_searchable_snapshots/stats")
-            )
+            asList(new Route(GET, "/_searchable_snapshots/stats"), new Route(GET, "/{index}/_searchable_snapshots/stats"))
         );
     }
 
@@ -44,5 +44,12 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
             new SearchableSnapshotsStatsRequest(indices),
             new RestToXContentListener<>(channel)
         );
+    }
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

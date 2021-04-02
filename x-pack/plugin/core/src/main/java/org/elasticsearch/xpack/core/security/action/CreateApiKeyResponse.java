@@ -108,14 +108,13 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             return false;
         }
         final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
-        if (expiration == null) {
-            if (other.expiration != null)
-                return false;
-        } else if (!Objects.equals(expiration, other.expiration))
+        if (expiration == null && other.expiration != null) {
             return false;
-        return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(name, other.name);
+        }
+        return Objects.equals(expiration, other.expiration)
+            && Objects.equals(id, other.id)
+            && Objects.equals(key, other.key)
+            && Objects.equals(name, other.name);
     }
 
     @Override

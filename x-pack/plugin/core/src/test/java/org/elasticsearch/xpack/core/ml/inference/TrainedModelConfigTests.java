@@ -91,7 +91,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override
@@ -168,7 +168,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         assertThat(reference.utf8ToString(), containsString("\"definition\""));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
-
+    
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());

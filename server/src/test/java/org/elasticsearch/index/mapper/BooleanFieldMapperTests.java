@@ -181,4 +181,20 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
         assertParseMaximalWarnings();
     }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomBoolean();
+            case 1:
+                return randomBoolean() ? "true" : "false";
+            case 2:
+                return randomBoolean() ? "true" : "";
+            case 3:
+                return randomBoolean() ? "true" : null;
+            default:
+                throw new IllegalStateException();
+        }
+    }
 }

@@ -123,7 +123,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
                     intersectsExistingMonthTimes = true;
                 }
             }
-            if (!intersectsExistingMonthTimes) {
+            if (intersectsExistingMonthTimes == false) {
                 times.add(testMonthTimes);
             }
         }

@@ -34,7 +34,7 @@ public class CopyOnWriteHashMapTests extends ESTestCase {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null || !(obj instanceof O)) {
+            if (obj == null || (obj instanceof O) == false) {
                 return false;
             }
             return value == ((O) obj).value;

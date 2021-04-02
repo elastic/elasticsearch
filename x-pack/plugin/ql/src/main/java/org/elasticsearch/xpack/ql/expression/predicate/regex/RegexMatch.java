@@ -26,14 +26,20 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFunction {
 
     private final T pattern;
+    private final boolean caseInsensitive;
 
-    protected RegexMatch(Source source, Expression value, T pattern) {
+    protected RegexMatch(Source source, Expression value, T pattern, boolean caseInsensitive) {
         super(source, value);
         this.pattern = pattern;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public T pattern() {
         return pattern;
+    }
+
+    public boolean caseInsensitive() {
+        return caseInsensitive;
     }
 
     @Override
@@ -74,21 +80,32 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
+        // keep backwards compatibility with previous 7.x versions
+        if (caseInsensitive == false) {
+            return new ScriptTemplate(
+                formatTemplate(format("{ql}.", "regex({},{})", fieldAsScript.template())),
+                paramsBuilder().script(fieldAsScript.params()).variable(pattern.asJavaRegex()).build(),
+                dataType()
+            );
+        }
         return new ScriptTemplate(
-                formatTemplate(format("{sql}.", "regex({},{})", fieldAsScript.template())),
-                paramsBuilder()
-                        .script(fieldAsScript.params())
-                        .variable(pattern.asJavaRegex())
-                        .build(),
-                dataType());
+            formatTemplate(format("{ql}.", "regex({},{},{})", fieldAsScript.template())),
+            paramsBuilder().script(fieldAsScript.params()).variable(pattern.asJavaRegex()).variable(caseInsensitive).build(),
+            dataType()
+        );
     }
 
+    @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(((RegexMatch<?>) obj).pattern(), pattern());
+        if (super.equals(obj)) {
+            RegexMatch<?> other = (RegexMatch<?>) obj;
+            return caseInsensitive == other.caseInsensitive && Objects.equals(pattern, other.pattern);
+        }
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pattern());
+        return Objects.hash(super.hashCode(), pattern(), caseInsensitive);
     }
 }

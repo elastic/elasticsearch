@@ -46,12 +46,12 @@ public class BinaryOptionalMathProcessor implements Processor {
             if (left == null) {
                 return null;
             }
-            if (!(left instanceof Number)) {
+            if ((left instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", left);
             }
 
             if (right != null) {
-                if (!(right instanceof Number)) {
+                if ((right instanceof Number) == false) {
                     throw new SqlIllegalArgumentException("A number is required; received [{}]", right);
                 }
                 if (right instanceof Float || right instanceof Double) {
@@ -97,12 +97,12 @@ public class BinaryOptionalMathProcessor implements Processor {
         if (left == null) {
             return null;
         }
-        if (!(left instanceof Number)) {
+        if ((left instanceof Number) == false) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", left);
         }
 
         if (right != null) {
-            if (!(right instanceof Number)) {
+            if ((right instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", right);
             }
             if (right instanceof Float || right instanceof Double) {

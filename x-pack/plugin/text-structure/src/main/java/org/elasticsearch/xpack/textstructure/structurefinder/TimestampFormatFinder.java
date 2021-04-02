@@ -384,7 +384,7 @@ public final class TimestampFormatFinder {
             char curChar = overrideFormat.charAt(pos);
 
             if (curChar == '\'') {
-                notQuoted = !notQuoted;
+                notQuoted = notQuoted == false;
             } else if (notQuoted && Character.isLetter(curChar)) {
                 int startPos = pos;
                 int endPos = startPos + 1;
@@ -1508,7 +1508,7 @@ public final class TimestampFormatFinder {
                     for (int pos = 0; pos < format.length(); ++pos) {
                         char curChar = format.charAt(pos);
                         if (curChar == '\'') {
-                            notQuoted = !notQuoted;
+                            notQuoted = notQuoted == false;
                         } else if (notQuoted && (curChar == 'X' || curChar == 'z')) {
                             return false;
                         }
@@ -1538,7 +1538,7 @@ public final class TimestampFormatFinder {
                             // from off to on or on to off and then back. However, since by definition there
                             // is nothing in between the consecutive single quotes in this case, the net
                             // effect is correct and good enough for what this method is doing.
-                            notQuoted = !notQuoted;
+                            notQuoted = notQuoted == false;
                             consecutiveSs = 0;
                         } else if (notQuoted) {
                             if (curChar == 'S') {

@@ -212,6 +212,17 @@ public final class Role {
         private Builder() {
         }
 
+        public Builder clone(Role role) {
+            return this
+                .name(role.name)
+                .clusterPrivileges(role.clusterPrivileges)
+                .globalApplicationPrivileges(role.globalPrivileges)
+                .indicesPrivileges(role.indicesPrivileges)
+                .applicationResourcePrivileges(role.applicationPrivileges)
+                .runAsPrivilege(role.runAsPrivilege)
+                .metadata(role.metadata);
+        }
+
         public Builder name(String name) {
             if (Strings.hasText(name) == false){
                 throw new IllegalArgumentException("role name must be provided");

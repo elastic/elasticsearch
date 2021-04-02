@@ -31,7 +31,6 @@ public class LikePattern extends AbstractStringPattern {
     private final String regex;
     private final String wildcard;
     private final String indexNameWildcard;
-    private final String string;
 
     public LikePattern(String pattern, char escape) {
         this.pattern = pattern;
@@ -40,7 +39,6 @@ public class LikePattern extends AbstractStringPattern {
         this.regex = StringUtils.likeToJavaPattern(pattern, escape);
         this.wildcard = StringUtils.likeToLuceneWildcard(pattern, escape);
         this.indexNameWildcard = StringUtils.likeToIndexWildcard(pattern, escape);
-        this.string = pattern.replace(Character.toString(escape), StringUtils.EMPTY);
     }
 
     public String pattern() {
@@ -60,11 +58,6 @@ public class LikePattern extends AbstractStringPattern {
     @Override
     public String asJavaRegex() {
         return regex;
-    }
-
-    @Override
-    public String asString() {
-        return string;
     }
 
     /**

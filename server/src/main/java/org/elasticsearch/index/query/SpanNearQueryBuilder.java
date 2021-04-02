@@ -207,7 +207,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             assert query instanceof SpanQuery;
         }
         if (clauses.size() == 1) {
-            assert !isGap;
+            assert isGap == false;
             return query;
         }
         String spanNearFieldName = null;

@@ -587,7 +587,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      * @return a random {@link DocValueFormat} that can be used in aggregations which
      * compute numbers.
      */
-    protected static DocValueFormat randomNumericDocValueFormat() {
+    public static DocValueFormat randomNumericDocValueFormat() {
         final List<Supplier<DocValueFormat>> formats = new ArrayList<>(3);
         formats.add(() -> DocValueFormat.RAW);
         formats.add(() -> new DocValueFormat.Decimal(randomFrom("###.##", "###,###.##")));

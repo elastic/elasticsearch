@@ -22,22 +22,13 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String WATCHER_TEMPLATE_VERSION_VARIABLE = "xpack.watcher.template.version";
-    public static final IndexTemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES = new IndexTemplateConfig(
-        WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME,
-        "/triggered-watches.json",
-        WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
-    public static final IndexTemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES_11 = new IndexTemplateConfig(
-        WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME_11,
-        "/triggered-watches-11.json",
-        11,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
         "/watch-history.json",
@@ -68,16 +59,6 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         "/watch-history-no-ilm-11.json",
         11,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
-    public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCHES = new IndexTemplateConfig(
-        WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME,
-        "/watches.json",
-        WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
-    public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCHES_11 = new IndexTemplateConfig(
-        WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME_11,
-        "/watches-11.json",
-        11,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
 
     public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
         "/watch-history-ilm-policy.json");
@@ -92,29 +73,23 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_10_0)) {
             return Collections.emptyList();
         } else if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
-            return Arrays.asList(
-                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_11 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_11,
-                TEMPLATE_CONFIG_TRIGGERED_WATCHES_11,
-                TEMPLATE_CONFIG_WATCHES_11
+            return Collections.singletonList(
+                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_11 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_11
             );
         } else {
-            return Arrays.asList(
-                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10,
-                TEMPLATE_CONFIG_TRIGGERED_WATCHES_11,
-                TEMPLATE_CONFIG_WATCHES_11
+            return Collections.singletonList(
+                ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY_10 : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM_10
             );
         }
     }
 
     @Override
     protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
-        return Arrays.asList(
-            ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
-            TEMPLATE_CONFIG_TRIGGERED_WATCHES,
-            TEMPLATE_CONFIG_WATCHES
+        return Collections.singletonList(
+            ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM
         );
     }
 
@@ -135,22 +110,21 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        if(state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_9_0)){
-            return (state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)) &&
-                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME) &&
-                state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME);
-        } else if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
-            return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_11) ||
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_11)) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME_11) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME_11);
-        } else {
-            return (state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_10) ||
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM_10)) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME_11) &&
-                state.getMetadata().getTemplates().containsKey(WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME_11);
-        }
+        // A .watch-history should exist, whether it is a legacy or composable index template
+        // that doesn't matter when deciding to start watcher.
+        final Stream<String> watcherHistoryTemplateIds = Stream.concat(state.getMetadata().templatesV2().keySet().stream(),
+            Arrays.stream(state.getMetadata().getTemplates().keys().toArray(String.class)));
+        return watcherHistoryTemplateIds.filter(s -> s.startsWith(".watch-history-"))
+            .map(s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)))
+            .anyMatch(version -> version >= 9);
     }
 
+
+    @Override
+    protected boolean requiresMasterNode() {
+        // These installs a composable index template which is only supported in early versions of 7.x
+        // In mixed cluster without this set to true can result in errors in the logs during rolling upgrades.
+        // If these template(s) are only installed via elected master node then composable templates are available.
+        return true;
+    }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -17,11 +16,18 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
@@ -42,7 +48,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
+        DataStream rolledDs = ds.rollover(Metadata.EMPTY_METADATA, UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -54,7 +60,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRolloverWithLegacyBackingIndexNames() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
+        DataStream rolledDs = ds.rollover(Metadata.EMPTY_METADATA, UUIDs.randomBase64UUID(), Version.V_7_10_0);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -63,6 +69,31 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertThat(rolledDs.getWriteIndex().getName(),
             equalTo(DataStream.getLegacyDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1)));
+    }
+
+    public void testRolloverWithConflictingBackingIndexName() {
+        // used a fixed time provider to guarantee name conflicts
+        DataStream ds = DataStreamTestHelper.randomInstance(() -> 0L).promoteDataStream();
+
+        // create some indices with names that conflict with the names of the data stream's backing indices
+        int numConflictingIndices = randomIntBetween(1, 10);
+        Metadata.Builder builder = Metadata.builder();
+        for (int k = 1; k <= numConflictingIndices; k++) {
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + k, 0L))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            builder.put(im, false);
+        }
+
+        DataStream rolledDs = ds.rollover(builder.build(), UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + numConflictingIndices + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
     }
 
     public void testRemoveBackingIndex() {
@@ -151,5 +182,69 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(indices.get(writeIndexPosition), newBackingIndex));
+    }
+
+    public void testSnapshot() {
+        DataStream preSnapshotDataStream = DataStreamTestHelper.randomInstance();
+        List<Index> indicesToRemove = randomSubsetOf(preSnapshotDataStream.getIndices());
+        if (indicesToRemove.size() == preSnapshotDataStream.getIndices().size()) {
+            // never remove them all
+            indicesToRemove.remove(0);
+        }
+        List<Index> indicesToAdd = DataStreamTestHelper.randomIndexInstances();
+        List<Index> postSnapshotIndices = new ArrayList<>(preSnapshotDataStream.getIndices());
+        postSnapshotIndices.removeAll(indicesToRemove);
+        postSnapshotIndices.addAll(indicesToAdd);
+
+        DataStream postSnapshotDataStream = new DataStream(
+            preSnapshotDataStream.getName(),
+            preSnapshotDataStream.getTimeStampField(),
+            postSnapshotIndices,
+            preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
+            preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
+            preSnapshotDataStream.isHidden(),
+            preSnapshotDataStream.isReplicated() && randomBoolean());
+
+        DataStream reconciledDataStream =
+            postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()));
+
+        assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
+        assertThat(reconciledDataStream.getTimeStampField(), equalTo(postSnapshotDataStream.getTimeStampField()));
+        assertThat(reconciledDataStream.getGeneration(), equalTo(postSnapshotDataStream.getGeneration()));
+        if (reconciledDataStream.getMetadata() != null) {
+            assertThat(
+                new HashSet<>(reconciledDataStream.getMetadata().entrySet()),
+                hasItems(postSnapshotDataStream.getMetadata().entrySet().toArray())
+            );
+        } else {
+            assertNull(postSnapshotDataStream.getMetadata());
+        }
+        assertThat(reconciledDataStream.isHidden(), equalTo(postSnapshotDataStream.isHidden()));
+        assertThat(reconciledDataStream.isReplicated(), equalTo(postSnapshotDataStream.isReplicated()));
+        assertThat(reconciledDataStream.getIndices(), everyItem(not(in(indicesToRemove))));
+        assertThat(reconciledDataStream.getIndices(), everyItem(not(in(indicesToAdd))));
+        assertThat(reconciledDataStream.getIndices().size(), equalTo(preSnapshotDataStream.getIndices().size() - indicesToRemove.size()));
+    }
+
+    public void testSnapshotWithAllBackingIndicesRemoved() {
+        DataStream preSnapshotDataStream = DataStreamTestHelper.randomInstance();
+        List<Index> indicesToAdd = new ArrayList<>();
+        while (indicesToAdd.isEmpty()) {
+            // ensure at least one index
+            indicesToAdd.addAll(DataStreamTestHelper.randomIndexInstances());
+        }
+
+        DataStream postSnapshotDataStream = new DataStream(
+            preSnapshotDataStream.getName(),
+            preSnapshotDataStream.getTimeStampField(),
+            indicesToAdd,
+            preSnapshotDataStream.getGeneration(),
+            preSnapshotDataStream.getMetadata(),
+            preSnapshotDataStream.isHidden(),
+            preSnapshotDataStream.isReplicated()
+        );
+
+        assertNull(postSnapshotDataStream.snapshot(
+                preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())));
     }
 }

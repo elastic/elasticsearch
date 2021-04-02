@@ -719,18 +719,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
 
     private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
-        executeNext(pendingExecutions == null ? null : pendingExecutions::finishAndRunNext, originalThread);
+        executeNext(pendingExecutions == null ? null : pendingExecutions.finishAndGetNext(), originalThread);
     }
 
     void executeNext(Runnable runnable, Thread originalThread) {
-        if (throttleConcurrentRequests) {
+        if (runnable != null) {
+            assert throttleConcurrentRequests;
             if (originalThread == Thread.currentThread()) {
                 fork(runnable);
             } else {
                 runnable.run();
             }
-        } else {
-            assert runnable == null;
         }
     }
 
@@ -744,12 +743,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             this.permits = permits;
         }
 
-        void finishAndRunNext() {
+        Runnable finishAndGetNext() {
             synchronized (this) {
                 permitsTaken--;
                 assert permitsTaken >= 0 : "illegal taken permits: " + permitsTaken;
             }
-            tryRun(null);
+            return tryQueue(null);
         }
 
         void tryRun(Runnable runnable) {

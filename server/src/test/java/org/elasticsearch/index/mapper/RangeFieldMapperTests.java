@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 
@@ -73,6 +74,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     @Override
     protected Object getSampleValueForQuery() {
         return 6;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -337,9 +343,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testSerializeDefaults() throws Exception {
         for (String type : types()) {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
-            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.mapping().getRoot().getMapper("field");
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            mapper.doXContentBody(builder, params);
             String got = Strings.toString(builder.endObject());
 
             // if type is date_range we check that the mapper contains the default format and locale
@@ -357,4 +364,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        // Doc value fetching crashes.
+        // https://github.com/elastic/elasticsearch/issues/70269
+        // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
+        assumeFalse("DocValuesFetcher doesn't work", true);
+        return null;
+    }
 }

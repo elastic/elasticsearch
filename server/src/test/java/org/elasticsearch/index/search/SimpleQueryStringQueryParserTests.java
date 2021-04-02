@@ -21,11 +21,11 @@ public class SimpleQueryStringQueryParserTests extends ESTestCase {
         assertNotEquals(settings1, null);
         assertNotEquals(settings1, s);
 
-        settings2.lenient(!settings1.lenient());
+        settings2.lenient(settings1.lenient() == false);
         assertNotEquals(settings1, settings2);
 
         settings2 = new SimpleQueryStringQueryParser.Settings();
-        settings2.analyzeWildcard(!settings1.analyzeWildcard());
+        settings2.analyzeWildcard(settings1.analyzeWildcard() == false);
         assertNotEquals(settings1, settings2);
 
         settings2 = new SimpleQueryStringQueryParser.Settings();
@@ -33,7 +33,7 @@ public class SimpleQueryStringQueryParserTests extends ESTestCase {
         assertNotEquals(settings1, settings2);
 
         settings2 = new SimpleQueryStringQueryParser.Settings();
-        settings2.autoGenerateSynonymsPhraseQuery(!settings1.autoGenerateSynonymsPhraseQuery());
+        settings2.autoGenerateSynonymsPhraseQuery(settings1.autoGenerateSynonymsPhraseQuery() == false);
         assertNotEquals(settings1, settings2);
 
         settings2 = new SimpleQueryStringQueryParser.Settings();
@@ -45,7 +45,7 @@ public class SimpleQueryStringQueryParserTests extends ESTestCase {
         assertNotEquals(settings1, settings2);
 
         settings2 = new SimpleQueryStringQueryParser.Settings();
-        settings2.fuzzyTranspositions(!settings1.fuzzyTranspositions());
+        settings2.fuzzyTranspositions(settings1.fuzzyTranspositions() == false);
         assertNotEquals(settings1, settings2);
     }
 }

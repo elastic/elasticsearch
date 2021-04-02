@@ -9,10 +9,12 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -37,7 +39,9 @@ public class RestUpdateActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
+        verifyingClient.setExecuteVerifier(
+            (arg1, arg2) -> new UpdateResponse(new ShardId("index", "uuid", 0), "_doc", "id", 0, 1, 1, UpdateResponse.Result.UPDATED)
+        );
 
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.POST)

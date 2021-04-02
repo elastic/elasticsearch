@@ -41,7 +41,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(asList(
             new Route(GET, SEARCH_PATH),
-            new Route(POST, SEARCH_PATH)));
+            new Route(POST, SEARCH_PATH)
+        ));
     }
 
     @Override

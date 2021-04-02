@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestDataStreamsStatsAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -26,10 +28,7 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Arrays.asList(
-            new Route(RestRequest.Method.GET, "/_data_stream/_stats"),
-            new Route(RestRequest.Method.GET, "/_data_stream/{name}/_stats")
-        );
+        return Arrays.asList(new Route(GET, "/_data_stream/_stats"), new Route(GET, "/_data_stream/{name}/_stats"));
     }
 
     @Override

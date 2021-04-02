@@ -82,7 +82,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
             } catch (ExecutionException e) {
                 throw new ElasticsearchException(e);
             }
-            return !bulkResponse.hasFailures();
+            return bulkResponse.hasFailures() == false;
         }
     }
 

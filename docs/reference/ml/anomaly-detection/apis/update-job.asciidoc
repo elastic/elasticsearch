@@ -53,7 +53,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 ====
 `model_memory_limit`:::
 (long or string) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 +
 --
 NOTE: You can update the `analysis_limits` only while the job is closed. The 

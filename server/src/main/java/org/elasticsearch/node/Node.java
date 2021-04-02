@@ -38,11 +38,11 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -102,7 +102,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -351,11 +350,36 @@ public class Node implements Closeable {
             this.environment = new Environment(settings, initialEnvironment.configFile(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-            logger.info("node name [{}], node ID [{}], cluster name [{}], roles {}",
-                NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(), ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
-                DiscoveryNode.getRolesFromSettings(settings).stream()
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toCollection(LinkedHashSet::new)));
+            final Set<String> roleNames = DiscoveryNode.getRolesFromSettings(settings).stream()
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            logger.info(
+                "node name [{}], node ID [{}], cluster name [{}], roles {}",
+                NODE_NAME_SETTING.get(tmpSettings),
+                nodeEnvironment.nodeId(),
+                ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
+                roleNames
+            );
+            {
+                // are there any legacy settings in use?
+                final List<Setting<Boolean>> maybeLegacyRoleSettings = Collections.unmodifiableList(DiscoveryNode.getPossibleRoles()
+                    .stream()
+                    .filter(s -> s.legacySetting() != null)
+                    .map(DiscoveryNodeRole::legacySetting)
+                    .filter(s -> s.exists(settings))
+                    .collect(Collectors.toList()));
+                if (maybeLegacyRoleSettings.isEmpty() == false) {
+                    final String legacyRoleSettingNames =
+                        maybeLegacyRoleSettings.stream().map(Setting::getKey).collect(Collectors.joining(", "));
+                    deprecationLogger.deprecate(
+                        DeprecationCategory.SETTINGS,
+                        "legacy role settings",
+                        "legacy role settings [{}] are deprecated, use [node.roles={}]",
+                        legacyRoleSettingNames,
+                        roleNames
+                    );
+                }
+            }
             resourcesToClose.add(nodeEnvironment);
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
@@ -416,6 +440,22 @@ public class Node implements Closeable {
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
+            final Map<String, SystemIndices.Feature> featuresMap = Collections.unmodifiableMap(pluginsService
+                .filterPlugins(SystemIndexPlugin.class)
+                .stream()
+                .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
+                .collect(Collectors.toMap(
+                    plugin -> plugin.getFeatureName(),
+                    plugin -> new SystemIndices.Feature(
+                        plugin.getFeatureDescription(),
+                        plugin.getSystemIndexDescriptors(settings),
+                        plugin.getAssociatedIndexPatterns(),
+                        plugin::cleanUpFeature
+                    ))
+                )
+            );
+            final SystemIndices systemIndices = new SystemIndices(featuresMap);
+
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.createGuiceModules()) {
@@ -428,7 +468,7 @@ public class Node implements Closeable {
             final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(settings, clusterService,
                 repositoriesServiceReference::get, rerouteServiceReference::get);
             final ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService,
-                snapshotsInfoService, threadPool.getThreadContext());
+                snapshotsInfoService, threadPool.getThreadContext(), systemIndices);
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
@@ -509,14 +549,6 @@ public class Node implements Closeable {
                     .map(IndexStorePlugin::getSnapshotCommitSuppliers)
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = Collections.unmodifiableMap(pluginsService
-                .filterPlugins(SystemIndexPlugin.class)
-                .stream()
-                .collect(Collectors.toMap(
-                    plugin -> plugin.getClass().getSimpleName(),
-                    plugin -> plugin.getSystemIndexDescriptors(settings))));
-            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
 
             final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
             clusterService.addListener(systemIndexManager);
@@ -606,13 +638,15 @@ public class Node implements Closeable {
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
-                    clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters());
+                    clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters(),
+                    systemIndices.getFeatures());
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
                     transportService, indicesService);
             TransportNodesSnapshotsStatus nodesSnapshotsStatus = new TransportNodesSnapshotsStatus(threadPool, clusterService,
                 transportService, snapshotShardsService, actionModule.getActionFilters());
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
-                    metadataCreateIndexService, indexMetadataVerifier, shardLimitValidator);
+                    metadataCreateIndexService, clusterModule.getMetadataDeleteIndexService(), indexMetadataVerifier,
+                 shardLimitValidator, systemIndices);
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);

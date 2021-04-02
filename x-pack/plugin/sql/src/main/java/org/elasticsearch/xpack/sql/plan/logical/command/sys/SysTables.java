@@ -118,7 +118,7 @@ public class SysTables extends Command {
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
 
         // if the catalog doesn't match, don't return any results
-        if (cRegex != null && !Pattern.matches(cRegex, cluster)) {
+        if (cRegex != null && Pattern.matches(cRegex, cluster) == false) {
             listener.onResponse(Page.last(Rows.empty(output())));
             return;
         }

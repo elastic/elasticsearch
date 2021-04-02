@@ -44,7 +44,7 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
         return isInteger(field(), sourceText(), ParamOrdinal.DEFAULT);

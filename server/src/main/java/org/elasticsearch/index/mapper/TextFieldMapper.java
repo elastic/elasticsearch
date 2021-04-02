@@ -167,7 +167,7 @@ public class TextFieldMapper extends FieldMapper {
             Defaults.INDEX_PREFIX_MIN_CHARS);
         int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"),
             Defaults.INDEX_PREFIX_MAX_CHARS);
-        DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix);
+        MappingParser.checkNoRemainingFields(propName, indexPrefix);
         return new PrefixConfig(minChars, maxChars);
     }
 
@@ -222,7 +222,7 @@ public class TextFieldMapper extends FieldMapper {
         double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
         double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);
         int minSegmentSize = XContentMapValues.nodeIntegerValue(frequencyFilter.remove("min_segment_size"), 0);
-        DocumentMapperParser.checkNoRemainingFields(name, frequencyFilter);
+        MappingParser.checkNoRemainingFields(name, frequencyFilter);
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
@@ -305,7 +305,7 @@ public class TextFieldMapper extends FieldMapper {
         private TextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
-            if (analyzers.positionIncrementGap.get() != TextParams.POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
                         + name + "] without positions enabled");
@@ -313,7 +313,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft = new TextFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), tsi, meta.getValue());
-            ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
+            ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
             ft.setBoost(boost.getValue());
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
@@ -578,6 +578,7 @@ public class TextFieldMapper extends FieldMapper {
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
+        private boolean eagerGlobalOrdinals = false;
 
         public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
             super(name, indexed, stored, false, tsi, meta);
@@ -598,6 +599,11 @@ public class TextFieldMapper extends FieldMapper {
 
         public boolean fielddata() {
             return fielddata;
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return eagerGlobalOrdinals;
         }
 
         public void setFielddata(boolean fielddata, FielddataFrequencyFilter filter) {
@@ -964,8 +970,9 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         // this is a pain, but we have to do this to maintain BWC
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.field("type", contentType());
         this.builder.boost.toXContent(builder, includeDefaults);
         this.builder.index.toXContent(builder, includeDefaults);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -26,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -82,18 +82,17 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return singletonList(new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT));
-    }
-
-    @Override
     public String getName() {
         return "test_deprecation_header_action";
     }
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
+        return org.elasticsearch.common.collect.List.of(
+            // note: RestApiVersion.current() is acceptable here because this is test code -- ordinary callers of `.deprecated(...)`
+            // should use an actual version
+            Route.builder(GET, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build()
+        );
     }
 
     @SuppressWarnings("unchecked") // List<String> casts

@@ -11,17 +11,8 @@ Integrations are not plugins, but are external tools or modules that make it eas
 [discrete]
 ==== Supported by the community:
 
-* https://drupal.org/project/search_api_elasticsearch[Drupal]:
-  Drupal Elasticsearch integration via Search API.
-
-* https://drupal.org/project/elasticsearch_connector[Drupal]:
-  Drupal Elasticsearch integration.
-
 * https://wordpress.org/plugins/elasticpress/[ElasticPress]:
   Elasticsearch WordPress Plugin
-
-* https://wordpress.org/plugins/wpsolr-search-engine/[WPSOLR]:
-  Elasticsearch (and Apache Solr) WordPress Plugin
 
 * https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]:
   Tiki has native support for Elasticsearch. This provides faster & better
@@ -53,21 +44,15 @@ releases 2.0 and later do not support rivers.
 [discrete]
 ==== Supported by the community:
 
-* https://github.com/jprante/elasticsearch-jdbc[JDBC importer]:
-  The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for indexing into Elasticsearch (by Jörg Prante)
+* https://github.com/spinscale/cookiecutter-elasticsearch-ingest-processor[Ingest processor template]:
+  A template for creating new ingest processors.
 
 * https://github.com/BigDataDevs/kafka-elasticsearch-consumer[Kafka Standalone Consumer (Indexer)]:
   Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo's Wiki.
 
-* https://github.com/ozlerhakan/mongolastic[Mongolastic]:
-  A tool that clones data from Elasticsearch to MongoDB and vice versa
-
 * https://github.com/Aconex/scrutineer[Scrutineer]:
   A high performance consistency checker to compare what you've indexed
   with your source of truth content (e.g. DB)
-
-* https://github.com/salyh/elasticsearch-imap[IMAP/POP3/Mail importer]:
-  The Mail importer allows to fetch data from IMAP and POP3 servers for indexing into Elasticsearch (by Hendrik Saly)
 
 * https://github.com/dadoonet/fscrawler[FS Crawler]:
   The File System (FS) crawler allows to index documents (PDF, Open Office...) from your local file system and over SSH. (by David Pilato)
@@ -112,9 +97,6 @@ releases 2.0 and later do not support rivers.
 * https://plugins.grails.org/plugin/puneetbehl/elasticsearch[Grails]:
   Elasticsearch Grails plugin.
 
-* https://haystacksearch.org/[Haystack]:
-  Modular search for Django
-
 * https://hibernate.org/search/[Hibernate Search]
   Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
 
@@ -123,9 +105,6 @@ releases 2.0 and later do not support rivers.
 
 * https://github.com/dadoonet/spring-elasticsearch[Spring Elasticsearch]:
   Spring Factory for Elasticsearch
-
-* https://github.com/twitter/storehaus[Twitter Storehaus]:
-  Thin asynchronous Scala client for Storehaus.
 
 * https://zeebe.io[Zeebe]:
   An Elasticsearch exporter acts as a bridge between Zeebe and Elasticsearch
@@ -142,9 +121,6 @@ releases 2.0 and later do not support rivers.
 
 * https://metamodel.apache.org/[Apache MetaModel]:
   Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.
-
-* https://jooby.org/doc/elasticsearch/[Jooby Framework]:
-  Scalable, fast and modular micro web framework for Java.
 
 * https://micrometer.io[Micrometer]:
   Vendor-neutral application metrics facade. Think SLF4j, but for metrics.
@@ -173,9 +149,6 @@ releases 2.0 and later do not support rivers.
 
 [discrete]
 ==== Supported by the community:
-
-* https://github.com/radu-gheorghe/check-es[check-es]:
-  Nagios/Shinken plugins for checking on Elasticsearch
 
 * https://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated

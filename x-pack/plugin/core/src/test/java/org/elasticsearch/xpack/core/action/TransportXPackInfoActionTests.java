@@ -42,6 +42,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
         EnumSet<XPackInfoRequest.Category> categories = EnumSet.noneOf(XPackInfoRequest.Category.class);
         int maxCategoryCount = randomIntBetween(0, XPackInfoRequest.Category.values().length);

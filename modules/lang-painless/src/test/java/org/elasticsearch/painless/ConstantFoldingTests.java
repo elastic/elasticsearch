@@ -106,4 +106,28 @@ public class ConstantFoldingTests extends ScriptTestCase {
         assertBytecodeExists("2+'2D'", "LDC \"22D\"");
         assertBytecodeExists("4L<5F", "ICONST_1");
     }
+
+    public void testStoreInMap()  {
+        assertBytecodeExists("Map m = [:]; m.a = 1 + 1; m.a", "ICONST_2");
+    }
+
+    public void testStoreInMapDef()  {
+        assertBytecodeExists("def m = [:]; m.a = 1 + 1; m.a", "ICONST_2");
+    }
+
+    public void testStoreInList()  {
+        assertBytecodeExists("List l = [null]; l.0 = 1 + 1; l.0", "ICONST_2");
+    }
+
+    public void testStoreInListDef()  {
+        assertBytecodeExists("def l = [null]; l.0 = 1 + 1; l.0", "ICONST_2");
+    }
+
+    public void testStoreInArray()  {
+        assertBytecodeExists("int[] a = new int[1]; a[0] = 1 + 1; a[0]", "ICONST_2");
+    }
+
+    public void testStoreInArrayDef()  {
+        assertBytecodeExists("def a = new int[1]; a[0] = 1 + 1; a[0]", "ICONST_2");
+    }
 }

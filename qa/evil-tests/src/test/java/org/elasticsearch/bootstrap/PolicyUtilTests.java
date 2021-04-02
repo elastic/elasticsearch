@@ -214,6 +214,9 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> PLUGIN_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
+        // TODO: move this back to module test permissions, see https://github.com/elastic/elasticsearch/issues/69464
+        "java.io.FilePermission /foo/bar read",
+
         "java.lang.reflect.ReflectPermission suppressAccessChecks",
         "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getClassLoader",
@@ -274,7 +277,6 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     static final List<String> MODULE_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
-        "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation"
@@ -315,6 +317,8 @@ public class PolicyUtilTests extends ESTestCase {
         "java.lang.RuntimePermission setDefaultUncaughtExceptionHandler",
         "java.lang.RuntimePermission preferences",
         "java.lang.RuntimePermission usePolicy",
+        // blanket runtime permission not allowed
+        "java.lang.RuntimePermission *",
         "java.net.NetPermission setDefaultAuthenticator",
         "java.net.NetPermission specifyStreamHandler",
         "java.net.NetPermission setProxySelector",

@@ -21,7 +21,7 @@ public class DataLoadParams {
     }
 
     public boolean isResettingBuckets() {
-        return !getStart().isEmpty();
+        return getStart().isEmpty() == false;
     }
 
     public String getStart() {

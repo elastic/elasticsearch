@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -176,7 +177,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
         IndexFeatureStats expectedStats = new IndexFeatureStats("german");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
@@ -199,7 +200,23 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
         assertEquals(Collections.emptySet(), analysisStats.getUsedBuiltInAnalyzers());
+    }
+
+    public void testChecksForCancellation() {
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
+                .settings(settings);
+        Metadata metadata = new Metadata.Builder()
+                .put(indexMetadata)
+                .build();
+        expectThrows(TaskCancelledException.class, () -> AnalysisStats.of(metadata, () -> {
+            throw new TaskCancelledException("task cancelled");
+        }));
     }
 }

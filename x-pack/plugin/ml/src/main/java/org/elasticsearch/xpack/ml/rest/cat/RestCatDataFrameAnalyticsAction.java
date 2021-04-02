@@ -28,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,9 +36,10 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "_cat/ml/data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}"),
-            new Route(GET, "_cat/ml/data_frame/analytics")));
+        return org.elasticsearch.common.collect.List.of(
+            new Route(GET, "_cat/ml/data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"),
+            new Route(GET, "_cat/ml/data_frame/analytics")
+        );
     }
 
     @Override

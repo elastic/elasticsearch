@@ -74,7 +74,7 @@ public final class FieldPermissionsDefinition {
 
             FieldGrantExcludeGroup that = (FieldGrantExcludeGroup) o;
 
-            if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
+            if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
             return Arrays.equals(excludedFields, that.excludedFields);
         }
 

@@ -27,7 +27,7 @@ public class MlConfigMigrationEligibilityCheck {
     private static final Version MIN_NODE_VERSION = Version.V_6_6_0;
 
     public static final Setting<Boolean> ENABLE_CONFIG_MIGRATION = Setting.boolSetting(
-        "xpack.ml.enable_config_migration", true, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        "xpack.ml.enable_config_migration", true, Setting.Property.OperatorDynamic, Setting.Property.NodeScope);
 
     private volatile boolean isConfigMigrationEnabled;
 

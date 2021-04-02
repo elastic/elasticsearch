@@ -109,7 +109,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnScheduler() throws InterruptedException {
-        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         try {
             checkExecutionError(getExecuteRunner(scheduler));
             checkExecutionError(getSubmitRunner(scheduler));
@@ -220,7 +220,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnScheduler() throws InterruptedException {
-        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         try {
             checkExecutionException(getExecuteRunner(scheduler), true);
             // while submit does return a Future, we choose to log exceptions anyway,

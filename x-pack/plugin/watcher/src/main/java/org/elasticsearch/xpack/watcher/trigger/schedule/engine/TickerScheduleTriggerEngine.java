@@ -50,7 +50,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
         this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
-        this.ticker = new Ticker(DiscoveryNode.isDataNode(settings));
+        this.ticker = new Ticker(DiscoveryNode.canContainData(settings));
     }
 
     @Override

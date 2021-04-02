@@ -1,9 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.elasticsearch.client;
@@ -16,7 +27,6 @@ import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -93,14 +103,18 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         return httpServer;
     }
 
-    private static class WaitForCancelHandler implements HttpHandler {
-        private volatile CountDownLatch requestCameInLatch;
-        private volatile CountDownLatch cancelHandlerLatch;
-
-        void reset() {
-            cancelHandlerLatch = new CountDownLatch(1);
-            requestCameInLatch = new CountDownLatch(1);
+    private static WaitForCancelHandler resetWaitHandlers() {
+        WaitForCancelHandler handler = new WaitForCancelHandler();
+        for (HttpServer httpServer : httpServers) {
+            httpServer.removeContext(pathPrefix + "/wait");
+            httpServer.createContext(pathPrefix + "/wait", handler);
         }
+        return handler;
+    }
+
+    private static class WaitForCancelHandler implements HttpHandler {
+        private final CountDownLatch requestCameInLatch = new CountDownLatch(1);
+        private final CountDownLatch cancelHandlerLatch = new CountDownLatch(1);
 
         void cancelDone() {
             cancelHandlerLatch.countDown();
@@ -221,14 +235,13 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
-    @Ignore("https://github.com/elastic/elasticsearch/issues/45577")
     public void testCancelAsyncRequests() throws Exception {
         int numRequests = randomIntBetween(5, 20);
         final List<Response> responses = new CopyOnWriteArrayList<>();
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numRequests; i++) {
             CountDownLatch latch = new CountDownLatch(1);
-            waitForCancelHandler.reset();
+            waitForCancelHandler = resetWaitHandlers();
             Cancellable cancellable = restClient.performRequestAsync(new Request("GET", "/wait"), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {

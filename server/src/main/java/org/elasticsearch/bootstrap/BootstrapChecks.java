@@ -172,9 +172,9 @@ final class BootstrapChecks {
     static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound =
-                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
-                isLoopbackAddress.test(boundTransportAddress.publishAddress()));
-        return bound && !"single-node".equals(discoveryType);
+                (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress) &&
+                isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
+        return bound && "single-node".equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -306,7 +306,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings()) && !isMemoryLocked()) {
+            if (BootstrapSettings.MEMORY_LOCK_SETTING.get(context.settings()) && isMemoryLocked() == false) {
                 return BootstrapCheckResult.failure("memory locking requested for elasticsearch process but memory is not locked");
             } else {
                 return BootstrapCheckResult.success();
@@ -529,7 +529,7 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && !isSystemCallFilterInstalled()) {
+            if (BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(context.settings()) && isSystemCallFilterInstalled() == false) {
                 final String message =  "system call filters failed to install; " +
                         "check the logs and fix your configuration or disable system call filters at your own risk";
                 return BootstrapCheckResult.failure(message);
@@ -578,7 +578,7 @@ final class BootstrapChecks {
         @Override
         boolean mightFork() {
             final String onError = onError();
-            return onError != null && !onError.equals("");
+            return onError != null && onError.isEmpty() == false;
         }
 
         // visible for testing
@@ -603,7 +603,7 @@ final class BootstrapChecks {
         @Override
         boolean mightFork() {
             final String onOutOfMemoryError = onOutOfMemoryError();
-            return onOutOfMemoryError != null && !onOutOfMemoryError.equals("");
+            return onOutOfMemoryError != null && onOutOfMemoryError.isEmpty() == false;
         }
 
         // visible for testing

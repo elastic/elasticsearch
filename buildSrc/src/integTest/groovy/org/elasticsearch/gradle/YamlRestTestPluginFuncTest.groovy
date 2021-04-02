@@ -42,6 +42,12 @@ class YamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
+
+           tasks.register("printYamlRestTestClasspath").configure {
+               doLast {
+                   println sourceSets.yamlRestTest.runtimeClasspath.asPath
+               }
+           }
         """
         String api = "foo.json"
         setupRestResources([api])
@@ -49,21 +55,20 @@ class YamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
         when:
-        def result = gradleRunner("yamlRestTest").build()
+        def result = gradleRunner("yamlRestTest", "printYamlRestTestClasspath").build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 
-        file("/build/resources/yamlRestTest/rest-api-spec/api/" + api).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + api).exists()
         file("/build/resources/yamlRestTest/rest-api-spec/test/10_basic.yml").exists()
         file("/build/classes/java/yamlRestTest/MockIT.class").exists()
 
-        //ensure we don't use the default test sourceset
-        file("/build/resources/test/rest-api-spec/api/" + api).exists() == false
-        file("/build/resources/test/rest-api-spec/test/10_basic.yml").exists() == false
-        file("/build/resources/test/rest-api-spec/MockIT.class").exists() == false
+        // check that our copied specs and tests are on the yamlRestTest classpath
+        normalized(result.output).contains("./build/restResources/yamlSpecs")
+        normalized(result.output).contains("./build/restResources/yamlTests")
 
         when:
         result = gradleRunner("yamlRestTest").build()

@@ -31,6 +31,7 @@ import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -292,6 +293,15 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(createApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withRefreshPolicy(createApiKeyRequest.getRefreshPolicy());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request grantApiKey(final GrantApiKeyRequest grantApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/api_key/grant");
+        request.setEntity(createEntity(grantApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params();
+        params.withRefreshPolicy(grantApiKeyRequest.getApiKeyRequest().getRefreshPolicy());
         request.addParameters(params.asMap());
         return request;
     }

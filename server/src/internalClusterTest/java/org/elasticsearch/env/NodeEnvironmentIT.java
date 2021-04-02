@@ -11,6 +11,7 @@ package org.elasticsearch.env;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -22,9 +23,6 @@ import org.elasticsearch.test.NodeRoles;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -62,9 +60,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) {
-                        return NodeRoles.removeRoles(Collections.unmodifiableSet(
-                            new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
-                        ));
+                        return NodeRoles.removeRoles(nonDataNode(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
                     }
                 }));
         if (writeDanglingIndices) {

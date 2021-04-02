@@ -11,10 +11,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Rolls up index using a {@link RollupActionConfig}
@@ -30,10 +33,6 @@ public class RollupStep extends AsyncActionStep {
         this.config = config;
     }
 
-    public static String getRollupIndexName(String index) {
-        return ROLLUP_INDEX_NAME_PREFIX + index;
-    }
-
     @Override
     public boolean isRetryable() {
         return true;
@@ -41,8 +40,16 @@ public class RollupStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        String originalIndex = indexMetadata.getIndex().getName();
-        RollupAction.Request request = new RollupAction.Request(originalIndex, getRollupIndexName(originalIndex), config);
+        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String indexName = indexMetadata.getIndex().getName();
+        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        final String rollupIndexName = lifecycleState.getRollupIndexName();
+        if (Strings.hasText(rollupIndexName) == false) {
+            listener.onFailure(new IllegalStateException("rollup index name was not generated for policy [" + policyName +
+                "] and index [" + indexName + "]"));
+            return;
+        }
+        RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config);
         // currently RollupAction always acknowledges action was complete when no exceptions are thrown.
         getClient().execute(RollupAction.INSTANCE, request,
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

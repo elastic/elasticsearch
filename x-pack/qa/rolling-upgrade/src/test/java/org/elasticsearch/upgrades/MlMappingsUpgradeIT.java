@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,7 +35,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.ML_POST_V660_TEMPLATES.stream(),
+        List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
+            ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        return Stream.concat(templatesToWaitFor.stream(),
             super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 

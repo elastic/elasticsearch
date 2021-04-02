@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -148,6 +150,8 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         return EMPTY;
     }
 
+    private static final Object NOT_FOUND = new Object();
+
     private final Map<AttributeWrapper, E> delegate;
     private Set<Attribute> keySet = null;
     private Collection<E> values = null;
@@ -238,14 +242,14 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public boolean containsKey(Object key) {
         if (key instanceof NamedExpression) {
-            return delegate.keySet().contains(new AttributeWrapper(((NamedExpression) key).toAttribute()));
+            return delegate.containsKey(new AttributeWrapper(((NamedExpression) key).toAttribute()));
         }
         return false;
     }
 
     @Override
     public boolean containsValue(Object value) {
-        return delegate.values().contains(value);
+        return delegate.containsValue(value);
     }
 
     @Override
@@ -258,10 +262,32 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public E getOrDefault(Object key, E defaultValue) {
-        E e;
-        return (((e = get(key)) != null) || containsKey(key))
-            ? e
-            : defaultValue;
+        if (key instanceof NamedExpression) {
+            return delegate.getOrDefault(new AttributeWrapper(((NamedExpression) key).toAttribute()), defaultValue);
+        }
+        return defaultValue;
+    }
+
+    public E resolve(Object key) {
+        return resolve(key, null);
+    }
+
+    public E resolve(Object key, E defaultValue) {
+        E value = defaultValue;
+        E candidate = null;
+        int allowedLookups = 1000;
+        while ((candidate = get(key)) != null || containsKey(key)) {
+            // instead of circling around, return
+            if (candidate == key) {
+                return candidate;
+            }
+            if (--allowedLookups == 0) {
+                throw new QlIllegalArgumentException("Potential cycle detected");
+            }
+            key = candidate;
+            value = candidate;
+        }
+        return value;
     }
 
     @Override

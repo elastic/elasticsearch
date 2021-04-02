@@ -13,6 +13,7 @@ import org.apache.lucene.util.UnicodeUtil;
 
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Objects;
 
 public final class Uid {
 
@@ -40,13 +41,8 @@ public final class Uid {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         Uid uid = (Uid) o;
-
-        if (id != null ? !id.equals(uid.id) : uid.id != null) return false;
-        if (type != null ? !type.equals(uid.type) : uid.type != null) return false;
-
-        return true;
+        return Objects.equals(type, uid.type) && Objects.equals(id, uid.id);
     }
 
     @Override

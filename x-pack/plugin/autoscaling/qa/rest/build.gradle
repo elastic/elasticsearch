@@ -3,13 +3,12 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 restResources {
   restApi {
-    includeCore '_common'
-    includeXpack 'autoscaling'
+    include '_common', 'autoscaling'
   }
 }
 

@@ -291,7 +291,7 @@ GET /_search
 
 *Time Zone*
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
 that bucketing should use a different time zone.
 
@@ -848,11 +848,12 @@ GET /_search
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
+[[search-aggregations-bucket-composite-aggregation-pipeline-aggregations]]
 ==== Pipeline aggregations
 
 The composite agg is not currently compatible with pipeline aggregations, nor does it make sense in most cases.
 E.g. due to the paging nature of composite aggs, a single logical partition (one day for example) might be spread
-over multiple pages.  Since pipeline aggregations are purely post-processing on the final list of buckets,
+over multiple pages. Since pipeline aggregations are purely post-processing on the final list of buckets,
 running something like a derivative on a composite page could lead to inaccurate results as it is only taking into
 account a "partial" result on that page.
 

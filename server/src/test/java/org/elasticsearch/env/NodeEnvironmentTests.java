@@ -31,8 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -477,9 +475,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // build settings using same path.data as original but without data and master roles
         Settings noDataNoMasterSettings = Settings.builder()
             .put(settings)
-            .put(NodeRoles.removeRoles(
-                settings,
-                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))))
+            .put(NodeRoles.removeRoles(nonDataNode(settings), org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.MASTER_ROLE)))
             .build();
 
         // test that we can create data=false and master=false with no meta information

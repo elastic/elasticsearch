@@ -124,8 +124,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
      * Needed by {@link UpdateSettingsIT#testEngineGCDeletesSetting()}
      */
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.estimated_time_interval", 0)
             .build();
     }

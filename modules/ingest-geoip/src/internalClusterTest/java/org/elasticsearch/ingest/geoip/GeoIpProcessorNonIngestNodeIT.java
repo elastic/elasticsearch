@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(nonIngestNode()).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(nonIngestNode()).build();
     }
 
     /**

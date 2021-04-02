@@ -30,7 +30,7 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
 
     private static final String NAME = "pytorch_inference";
 
-    private static AtomicLong requestId = new AtomicLong(1);
+    private static AtomicLong requestIdCounter = new AtomicLong(1);
 
     private final ProcessResultsParser<PyTorchResult> resultsParser;
 
@@ -72,7 +72,7 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
 
     @Override
     public String writeInferenceRequest(double[] inputs) throws IOException {
-        long requestId = NativePyTorchProcess.requestId.getAndIncrement();
+        long requestId = requestIdCounter.getAndIncrement();
         String json = new StringBuilder("{")
             .append("\"request_id\":\"")
             .append(requestId)

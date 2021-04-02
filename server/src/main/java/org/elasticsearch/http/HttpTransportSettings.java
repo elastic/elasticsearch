@@ -112,6 +112,9 @@ public final class HttpTransportSettings {
         Setting.listSetting("http.tracer.exclude",
             Collections.emptyList(), Function.identity(), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
+    public static final Setting<Boolean> SETTING_HTTP_CLIENT_STATS_ENABLED =
+        boolSetting("http.client_stats.enabled", true, Property.Dynamic, Property.NodeScope);
+
     private HttpTransportSettings() {
     }
 }

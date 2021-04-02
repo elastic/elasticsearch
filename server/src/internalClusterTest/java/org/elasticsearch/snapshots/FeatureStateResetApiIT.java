@@ -8,10 +8,13 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -35,6 +38,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(SystemIndexTestPlugin.class);
         plugins.add(SecondSystemIndexTestPlugin.class);
+        plugins.add(EvilSystemIndexTestPlugin.class);
         return plugins;
     }
 
@@ -65,6 +69,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         assertThat(apiResponse.getItemList(), containsInAnyOrder(
             new ResetFeatureStateResponse.ResetFeatureStateStatus("SystemIndexTestPlugin", "SUCCESS"),
             new ResetFeatureStateResponse.ResetFeatureStateStatus("SecondSystemIndexTestPlugin", "SUCCESS"),
+            new ResetFeatureStateResponse.ResetFeatureStateStatus("EvilSystemIndexTestPlugin", "SUCCESS"),
             new ResetFeatureStateResponse.ResetFeatureStateStatus("tasks", "SUCCESS")
         ));
 
@@ -92,6 +97,21 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             .get();
 
         assertThat(response.getIndices(), arrayContaining("my_index"));
+    }
+
+    /**
+     * Evil test - what if the cleanup method fails?
+     */
+    public void testFailFastOnStateCleanupFailure() throws Exception {
+        try {
+            EvilSystemIndexTestPlugin.beEvil = true;
+            Exception e1 = expectThrows(Exception.class,
+                () -> client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get());
+
+            assertThat(e1.getMessage(), containsString("problem!"));
+        } finally {
+            EvilSystemIndexTestPlugin.beEvil = false;
+        }
     }
 
     /**
@@ -143,6 +163,36 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         @Override
         public String getFeatureDescription() {
             return "A second test plugin";
+        }
+    }
+
+    /**
+     * An evil test plugin to test failure cases.
+     */
+    public static class EvilSystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
+
+        private static boolean beEvil = false;
+
+        @Override
+        public String getFeatureName() {
+            return "EvilSystemIndexTestPlugin";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "a plugin that can be very bad";
+        }
+
+        @Override
+        public void cleanUpFeature(
+            ClusterService clusterService,
+            Client client,
+            ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
+            if (beEvil == false) {
+                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(getFeatureName(), "SUCCESS"));
+            } else {
+                listener.onFailure(new Exception("problem!"));
+            }
         }
     }
 }

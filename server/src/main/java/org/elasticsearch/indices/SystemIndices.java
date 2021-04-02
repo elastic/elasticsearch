@@ -358,7 +358,7 @@ public class SystemIndices {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onResponse(new ResetFeatureStateStatus(name, "FAILURE: " + e.getMessage()));
+                    listener.onFailure(new Exception("Error resetting state for feature: " + name, e));
                 }
             });
         }

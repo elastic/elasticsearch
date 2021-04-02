@@ -11,11 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
@@ -113,7 +115,8 @@ public class DeploymentManager {
             TimeValue timeout = TimeValue.timeValueSeconds(5);
             PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(requestId, timeout);
             if (pyTorchResult == null) {
-                listener.onFailure(ExceptionsHelper.serverError("no result was produced within timeout value [{}]", timeout));
+                listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
+                    RestStatus.TOO_MANY_REQUESTS, timeout));
             } else {
                 listener.onResponse(pyTorchResult);
             }

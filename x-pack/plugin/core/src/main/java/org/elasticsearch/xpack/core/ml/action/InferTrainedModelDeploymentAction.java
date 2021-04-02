@@ -129,5 +129,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             result.toXContent(builder, params);
             return builder;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            result.writeTo(out);
+        }
     }
 }

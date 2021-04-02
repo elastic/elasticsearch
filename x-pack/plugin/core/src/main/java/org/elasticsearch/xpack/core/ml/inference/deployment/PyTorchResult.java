@@ -46,11 +46,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
                 double[][] primitiveDoubles = new double[listOfListOfDoubles.size()][];
                 for (int i = 0; i < listOfListOfDoubles.size(); i++) {
                     List<Double> row = listOfListOfDoubles.get(i);
-                    double[] primitiveRow = new double[row.size()];
-                    for (int j = 0; j < row.size(); j++) {
-                        primitiveRow[j] = row.get(j);
-                    }
-                    primitiveDoubles[i] = primitiveRow;
+                    primitiveDoubles[i] = row.stream().mapToDouble(d -> d).toArray();
                 }
                 return primitiveDoubles;
             },

@@ -99,7 +99,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, meta);
+            return Arrays.asList(meta);
         }
 
         private MatchOnlyTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {

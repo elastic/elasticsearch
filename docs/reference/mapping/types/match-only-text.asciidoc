@@ -11,6 +11,10 @@ as on `text` fields, however queries that need positions such as the
 need to look at the `_source` document to verify whether a phrase matches. All
 queries return constant scores that are equal to 1.0.
 
+Analysis is not configurable: text is always analyzed with the
+<<specify-index-time-default-analyzer,default analyzer>>
+(<<analysis-standard-analyzer,`standard`>> by default).
+
 <<span-queries,span queries>>, as well as `wildcard` and `fuzzy` rules of
 <<query-dsl-intervals-query,interval queries>> are not supported by this field.
 Use the <<text-field-type,`text`>> field type if you need them.
@@ -43,14 +47,6 @@ The following mapping parameters are accepted:
 
 [horizontal]
 
-<<analyzer,`analyzer`>>::
-
-    The <<analysis,analyzer>> which should be used for
-    the `match_only_text` field, both at index-time and at
-    search-time (unless overridden by the  <<search-analyzer,`search_analyzer`>>).
-    Defaults to the default index analyzer, or the
-    <<analysis-standard-analyzer,`standard` analyzer>>.
-
 <<multi-fields,`fields`>>::
 
     Multi-fields allow the same string value to be indexed in multiple ways for
@@ -61,13 +57,3 @@ The following mapping parameters are accepted:
 <<mapping-field-meta,`meta`>>::
 
     Metadata about the field.
-
-<<search-analyzer,`search_analyzer`>>::
-
-    The <<analyzer,`analyzer`>> that should be used at search time on
-    the `match_only_text` field. Defaults to the `analyzer` setting.
-
-<<search-quote-analyzer,`search_quote_analyzer`>>::
-
-    The <<analyzer,`analyzer`>> that should be used at search time when a
-    phrase is encountered. Defaults to the `search_analyzer` setting.

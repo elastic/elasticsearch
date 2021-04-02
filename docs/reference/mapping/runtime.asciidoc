@@ -203,10 +203,9 @@ as part of the `runtime_mappings` section, just as you would if
 <<runtime-mapping-fields,adding a runtime field to the mappings>>.
 
 Defining a runtime field in a search request uses the same format as defining
-a runtime field in the index mapping. That consistency means you can promote a
-runtime field from a search request to the index mapping by moving the field
-definition from `runtime_mappings` in the search request to the `runtime`
-section of the index mapping.
+a runtime field in the index mapping. Just copy the field definition from
+the `runtime_mappings` in the search request to the `runtime` section of the
+index mapping.
 
 The following search request adds a `day_of_week` field to the
 `runtime_mappings` section. The field values will be calculated dynamically,
@@ -310,6 +309,7 @@ GET my-index/_search
 }
 ----
 // TEST[continued]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 The response includes the aggregation results without changing the values for
 the underlying data:
@@ -317,8 +317,6 @@ the underlying data:
 [source,console-result]
 ----
 {
-  ...
-  +++
   "aggregations" : {
     "avg_start" : {
       "value" : 333.3333333333333
@@ -329,8 +327,6 @@ the underlying data:
   }
 }
 ----
-// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/\+\+\+/"hits" : $body.hits,/]
 
 Further, you can define a runtime field as part of a search query that
 calculates a value, and then run a
@@ -366,6 +362,7 @@ GET my-index/_search
 }
 ----
 // TEST[continued]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Even though the `duration` runtime field only exists in the context of a search
 query, you can search and aggregate on that field. This flexibility is
@@ -375,8 +372,6 @@ and dynamically complete calculations all within a single search request.
 [source,console-result]
 ----
 {
-  ...
-  +++
   "aggregations" : {
     "duration_stats" : {
       "count" : 6,
@@ -388,8 +383,6 @@ and dynamically complete calculations all within a single search request.
   }
 }
 ----
-// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/\+\+\+/"hits" : $body.hits,/]
 
 [[runtime-override-values]]
 === Override field values at query time

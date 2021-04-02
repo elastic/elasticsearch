@@ -182,14 +182,10 @@ class CompositeAggregationDataExtractor implements DataExtractor {
                     // by max timestamp, our iteration of the page results is. So, once we cross over to the next bucket within
                     // a given page, we know the previous bucket has been exhausted.
                     if (nextBucketOnCancel == 0L) {
-                        if (timestamp.equals(afterKeyTimeBucket)) {
-                            // If the timestamp is the current floor, this means we need to keep processing until the next timebucket
-                            // This is because the order of these timestamps in the middle of the page is not guaranteed.
-                            nextBucketOnCancel = afterKeyTimeBucket + interval;
-                        } else {
-                            // If we are not matching the current bucket floor, then simply align to the next bucket
-                            nextBucketOnCancel = Intervals.alignToCeil(timestamp, interval);
-                        }
+                        // This simple equation handles two unique scenarios:
+                        //   If the timestamp is the current floor, this means we need to keep processing until the next timebucket
+                        //   If we are not matching the current bucket floor, then this simply aligns to the next bucket
+                        nextBucketOnCancel = Intervals.alignToFloor(timestamp + interval, interval);
                         LOGGER.debug(() -> new ParameterizedMessage(
                             "[{}] set future timestamp cancel to [{}] via timestamp [{}]",
                             context.jobId,

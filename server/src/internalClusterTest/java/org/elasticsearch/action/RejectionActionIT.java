@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class RejectionActionIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("thread_pool.search.size", 1)
                 .put("thread_pool.search.queue_size", 1)
                 .put("thread_pool.write.size", 1)

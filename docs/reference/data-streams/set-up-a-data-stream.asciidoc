@@ -113,7 +113,7 @@ during a search.
 ====
 
 To create a component template in {kib}, open the main menu and go to *Stack
-Management > Index Management*. In the *Index Templates* view, click *Create a
+Management > Index Management*. In the *Index Templates* view, click *Create
 component template*.
 
 You can also use the <<indices-component-template,create component template

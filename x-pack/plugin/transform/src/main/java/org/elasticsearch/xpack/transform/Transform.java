@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -150,30 +149,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.Dynamic
     );
 
-    /**
-     * Setting whether transform (the coordinator task) can run on this node.
-     */
-    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
-        "node.transform",
-        settings ->
-            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings)),
-        Property.Deprecated,
-        Property.NodeScope
-    );
-
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
 
         @Override
-        public Setting<Boolean> legacySetting() {
-            return TRANSFORM_ENABLED_NODE;
-        }
-
-        @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return super.isEnabledByDefault(settings) &&
-                // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
+            // don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            return (DiscoveryNode.hasDataRole(settings) || DataTier.isExplicitDataTier(settings));
         }
 
     };
@@ -324,7 +305,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(Arrays.asList(TRANSFORM_ENABLED_NODE, NUM_FAILURE_RETRIES_SETTING));
+        return List.of(NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override

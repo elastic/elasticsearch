@@ -414,6 +414,11 @@ of the direct generators to require a constant prefix to provide
 high-performance suggestions. The `pre_filter` and `post_filter` options
 accept ordinary analyzer names.
 
+Having multiple generators and filters lets you do some neat tricks. For instance, if
+typos are likely to happen both at the beginning and end of words, you can use multi-
+ple generators to avoid expensive suggestions with low prefix lengths by using the
+reverse token filter.
+
 [source,js]
 --------------------------------------------------
 POST _search

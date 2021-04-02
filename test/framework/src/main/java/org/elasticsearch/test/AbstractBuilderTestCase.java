@@ -142,6 +142,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
     }
 
+    protected Collection<Class<? extends Plugin>> getExtraPlugins() {
+        return Collections.emptyList();
+    }
+
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
     }
 
@@ -208,9 +212,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             // this setup
             long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
             RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
-                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
+                plugins.addAll(getExtraPlugins());
+                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), plugins, nowInMillis,
                         AbstractBuilderTestCase.this, true);
-                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), plugins, nowInMillis,
                         AbstractBuilderTestCase.this, false);
                 return null;
             });

@@ -38,6 +38,11 @@ public class CategorizationAnalyzer implements Closeable {
         closeAnalyzer = tuple.v2();
     }
 
+    public final TokenStream tokenStream(final String fieldName,
+                                         final String text) {
+        return analyzer.tokenStream(fieldName, text);
+    }
+
     /**
      * Release resources held by the analyzer (unless it's global).
      */

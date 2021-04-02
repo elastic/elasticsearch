@@ -264,6 +264,8 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationSt
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -1218,6 +1220,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Arrays.asList(jobComms, utility, datafeed);
     }
 
+    @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return MapBuilder.<String, AnalysisProvider<CharFilterFactory>>newMapBuilder()
             .put(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new)
@@ -1244,6 +1247,18 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return Arrays.asList(
             new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
+        );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return Arrays.asList(
+            new AggregationSpec(
+                CategorizeTextAggregationBuilder.NAME,
+                CategorizeTextAggregationBuilder::new,
+                CategorizeTextAggregationBuilder.PARSER
+            ).addResultReader(InternalCategorizationAggregation::new)
+            .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
     }
 

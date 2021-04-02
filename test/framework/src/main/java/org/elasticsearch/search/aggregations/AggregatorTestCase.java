@@ -56,6 +56,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -94,8 +96,10 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
@@ -159,6 +163,7 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private List<AggregationContext> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
+    protected AnalysisModule analysisModule;
 
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
@@ -178,10 +183,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
+    @Before
+    public void initAnalysisRegistry() throws IOException {
+        analysisModule = new AnalysisModule(
+            TestEnvironment.newEnvironment(
+                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+            ),
+            getAnalysisPlugins()
+        );
+    }
+
     /**
      * Test cases should override this if they have plugins that need to be loaded, e.g. the plugins their aggregators are in.
      */
     protected List<SearchPlugin> getSearchPlugins() {
+        return List.of();
+    }
+
+    protected List<AnalysisPlugin> getAnalysisPlugins() {
         return List.of();
     }
 
@@ -283,6 +302,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
+            analysisModule.getAnalysisRegistry(),
             searchExecutionContext,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
             bytesToPreallocate,

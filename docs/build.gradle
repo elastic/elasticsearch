@@ -1071,6 +1071,40 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "indexes":"farequote"
           }
 '''
+buildRestTests.setups['categorize_text'] = '''
+  - do:
+        indices.create:
+          index: log-messages
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  time:
+                    type: date
+                  message:
+                    type: text
+
+  - do:
+        bulk:
+          index: log-messages
+          refresh: true
+          body: |
+            {"index": {}}
+            {"time":"2016-02-07T00:00:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
+            {"index": {}}
+            {"time":"2016-02-07T00:00:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
+            {"index": {}}
+            {"time":"2016-02-07T00:00:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
+            {"index": {}}
+            {"time":"2016-02-08T00:00:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
+            {"index": {}}
+            {"time":"2016-02-08T00:00:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
+            {"index": {}}
+            {"time":"2016-02-08T00:00:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
+'''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
         indices.create:

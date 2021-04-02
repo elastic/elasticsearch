@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -93,6 +94,10 @@ public abstract class AggregationContext implements Releasable {
             return null;
         }
         return new FieldContext(field, buildFieldData(ft), ft);
+    }
+
+    public AnalysisRegistry getAnalysisRegistry() {
+        return null;
     }
 
     /**
@@ -277,10 +282,12 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
+        private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
         public ProductionAggregationContext(
+            AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
             long bytesToPreallocate,
@@ -295,6 +302,7 @@ public abstract class AggregationContext implements Releasable {
             Function<Query, Query> filterQuery,
             boolean enableRewriteToFilterByFilter
         ) {
+            this.analysisRegistry = analysisRegistry;
             this.context = context;
             if (bytesToPreallocate == 0) {
                 /*
@@ -325,6 +333,11 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public AnalysisRegistry getAnalysisRegistry() {
+            return this.analysisRegistry;
         }
 
         @Override

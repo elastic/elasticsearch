@@ -48,7 +48,7 @@ public abstract class ParsedMultiBucketAggregation<B extends ParsedMultiBucketAg
         return builder;
     }
 
-    protected static <A extends ParsedMultiBucketAggregation<T>, T extends ParsedBucket> void declareMultiBucketAggregationFields(
+    public static <A extends ParsedMultiBucketAggregation<T>, T extends ParsedBucket> void declareMultiBucketAggregationFields(
         final ObjectParser<A, Void> objectParser,
         final CheckedFunction<XContentParser, T, IOException> bucketParser,
         final CheckedFunction<XContentParser, T, IOException> keyedBucketParser

@@ -985,6 +985,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
+                indicesService.getAnalysis(),
                 context.getSearchExecutionContext(),
                 bigArrays,
                 source.aggregations().bytesToPreallocate(),

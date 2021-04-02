@@ -1,0 +1,396 @@
+[[search-aggregations-bucket-categorize-text-aggregation]]
+=== Categorize text aggregation
+++++
+<titleabbrev>Categorize text</titleabbrev>
+++++
+
+experimental::[]
+
+A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed
+using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted
+text values. This aggregation works best with machine generated text like system logs.
+
+WARNING: Re-analyzing _large_ result sets will require a lot of time and memory. This aggregation should be
+         used in conjunction with <<async-search, Async search>>.
+
+[[bucket-categorize-text-agg-syntax]]
+==== Parameters
+
+`field`::
+(Required, string)
+The semi-structured text field to categorize.
+
+`max_children`::
+(Optional, integer, default: `100`)
+The maximum number of unique tokens at any given layer of the tokenization tree.
+Must be larger than 1. The smaller the value, the more broad the text categories.
+Larger values may cause the aggregation to more memory and run more slowly
+
+`max_depth`::
+(Optional, integer, default: `5`)
+The maximum number of tokens matched on before attempting to merge categories.
+Larger values may cause the aggregation to more memory and run more slowly.
+
+`similarity_threshold`::
+(Optional, double, default: `0.5`)
+The minimum percentage of tokens that must match for text to be added to the
+category bucket.
+Must be between 0.1 and 1.0. The larger the value the more restrictive the log categories.
+Larger values may increase memory usage.
+
+`categorization_filters`::
+(Optional, array of strings, default: `[]`)
+This property expects an array of regular expressions. The expressions
+are used to filter out matching sequences from the categorization field values.
+You can use this functionality to fine tune the categorization by excluding
+sequences from consideration when categories are defined. For example, you can
+exclude SQL statements that appear in your log files.
+
+`shard_size`::
+(Optional, integer)
+The number of categorization buckets to return from each shard before merging
+all the results.
+
+`size`::
+(Optional, integer, default: `10`)
+The number of buckets to return.
+
+`min_doc_count`::
+(Optional, integer)
+The minimum number of documents for a bucket to be returned to the results.
+
+`shard_min_doc_count`::
+(Optional, integer)
+The minimum number of documents for a bucket to be returned from the shard before
+merging.
+
+==== Basic use
+
+Example:
+
+[source,console,id=categorize-text-aggregation-example]
+--------------------------------------------------
+POST log-messages/_search?filter_path=aggregations
+{
+  "aggs": {
+    "categories": {
+      "categorize_text": {
+        "field": "message"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:categorize_text]
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations" : {
+    "categories" : {
+      "buckets" : [
+        {
+          "doc_count" : 3,
+          "key" : "Node shutting down"
+        },
+        {
+          "doc_count" : 1,
+          "key" : "User foo_864 logged off"
+        },
+        {
+          "doc_count" : 1,
+          "key" : "User foo_325 logging on"
+        },
+        {
+          "doc_count" : 1,
+          "key" : "Node starting up"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+Here is an example using `categorization_filters`
+
+[source,console,id=categorize-text-aggregation-with-filters-example]
+--------------------------------------------------
+POST log-messages/_search?filter_path=aggregations
+{
+  "aggs": {
+    "categories": {
+      "categorize_text": {
+        "field": "message",
+        "categorization_filters": ["\\w+\\_\\d{3}"] <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:categorize_text]
+<1> The filters to apply to the analyzed tokens. It filters
+    out tokens like `bar_123`.
+Note how the `foo_<number>` tokens are not part of the
+category results
+
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations" : {
+    "categories" : {
+      "buckets" : [
+        {
+          "doc_count" : 3,
+          "key" : "Node shutting down"
+        },
+        {
+          "doc_count" : 1,
+          "key" : "User logged off"
+        },
+        {
+          "doc_count" : 1,
+          "key" : "User logging on"
+        },
+        {
+          "doc_count" : 1,
+          "key" : "Node starting up"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Here is an example using `categorization_filters`
+
+[source,console,id=categorize-text-aggregation-with-broad-categories-example]
+--------------------------------------------------
+POST log-messages/_search?filter_path=aggregations
+{
+  "aggs": {
+    "categories": {
+      "categorize_text": {
+        "field": "message",
+        "categorization_filters": ["\\w+\\_\\d{3}"], <1>
+        "max_depth": 2, <2>
+        "similarity_threshold": 0.3 <3>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:categorize_text]
+<1> The filters to apply to the analyzed tokens. It filters
+out tokens like `bar_123`.
+<2> Only the token tree to have 2 tokens before the log categories
+    attempt to merge together
+<3> Require 30% of the tokens to match before expanding a log categories
+    to add a new log entry
+
+The resulting categories are now broad, matching the first token
+and merging the log groups.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations" : {
+    "categories" : {
+      "buckets" : [
+        {
+          "doc_count" : 4,
+          "key" : "Node *"
+        },
+        {
+          "doc_count" : 2,
+          "key" : "User *"
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+This aggregation can have both sub-aggregations and itself be a sub-aggregation.
+
+[source,console,id=categorize-text-aggregation-with-broad-categories-sub-aggs-example]
+--------------------------------------------------
+POST log-messages/_search?filter_path=aggregations
+{
+  "aggs": {
+    "daily": {
+      "date_histogram": {
+        "field": "time",
+        "fixed_interval": "1d"
+      },
+      "aggs": {
+        "categories": {
+          "categorize_text": {
+            "field": "message",
+            "categorization_filters": ["\\w+\\_\\d{3}"]
+          },
+          "aggs": {
+            "hit": {
+              "top_hits": {
+                "size": 1,
+                "_source": "message"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+[source,console-result]
+--------------------------------------------------
+{
+  "aggregations" : {
+    "daily" : {
+      "buckets" : [
+        {
+          "key_as_string" : "2016-02-07T00:00:00.000Z",
+          "key" : 1454803200000,
+          "doc_count" : 3,
+          "categories" : {
+            "buckets" : [
+              {
+                "doc_count" : 2,
+                "key" : "Node shutting down",
+                "hit" : {
+                  "hits" : {
+                    "total" : {
+                      "value" : 2,
+                      "relation" : "eq"
+                    },
+                    "max_score" : 1.0,
+                    "hits" : [
+                      {
+                        "_index" : "log-messages",
+                        "_id" : "DU9q4HsBtGA51sVjTrac",
+                        "_score" : 1.0,
+                        "_source" : {
+                          "message" : "2016-02-07T00:00:00+0000 Node 3 shutting down"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "doc_count" : 1,
+                "key" : "Node starting up",
+                "hit" : {
+                  "hits" : {
+                    "total" : {
+                      "value" : 1,
+                      "relation" : "eq"
+                    },
+                    "max_score" : 1.0,
+                    "hits" : [
+                      {
+                        "_index" : "log-messages",
+                        "_id" : "Dk9q4HsBtGA51sVjTrac",
+                        "_score" : 1.0,
+                        "_source" : {
+                          "message" : "2016-02-07T00:00:00+0000 Node 5 starting up"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "key_as_string" : "2016-02-08T00:00:00.000Z",
+          "key" : 1454889600000,
+          "doc_count" : 3,
+          "categories" : {
+            "buckets" : [
+              {
+                "doc_count" : 1,
+                "key" : "User logged off",
+                "hit" : {
+                  "hits" : {
+                    "total" : {
+                      "value" : 1,
+                      "relation" : "eq"
+                    },
+                    "max_score" : 1.0,
+                    "hits" : [
+                      {
+                        "_index" : "log-messages",
+                        "_id" : "Ek9q4HsBtGA51sVjTrac",
+                        "_score" : 1.0,
+                        "_source" : {
+                          "message" : "2016-02-08T00:00:00+0000 User foo_864 logged off"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "doc_count" : 1,
+                "key" : "User logging on",
+                "hit" : {
+                  "hits" : {
+                    "total" : {
+                      "value" : 1,
+                      "relation" : "eq"
+                    },
+                    "max_score" : 1.0,
+                    "hits" : [
+                      {
+                        "_index" : "log-messages",
+                        "_id" : "EU9q4HsBtGA51sVjTrac",
+                        "_score" : 1.0,
+                        "_source" : {
+                          "message" : "2016-02-08T00:00:00+0000 User foo_325 logging on"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "doc_count" : 1,
+                "key" : "Node shutting down",
+                "hit" : {
+                  "hits" : {
+                    "total" : {
+                      "value" : 1,
+                      "relation" : "eq"
+                    },
+                    "max_score" : 1.0,
+                    "hits" : [
+                      {
+                        "_index" : "log-messages",
+                        "_id" : "EE9q4HsBtGA51sVjTrac",
+                        "_score" : 1.0,
+                        "_source" : {
+                          "message" : "2016-02-08T00:00:00+0000 Node 5 shutting down"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+

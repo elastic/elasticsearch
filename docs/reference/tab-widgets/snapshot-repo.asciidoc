@@ -1,6 +1,6 @@
 // tag::cloud[]
-The default `found-snapshots` repository supports {search-snaps} and requires no
-additional registration.
+The default {cloud}/ec-snapshot-restore.html[`found-snapshots`] repository
+supports {search-snaps} and requires no additional registration.
 
 The `found-snapshots` repository is specific to your cluster. To use another
 cluster's default repository, see

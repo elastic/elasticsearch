@@ -192,7 +192,7 @@ public class SearchStatesIT extends ESRestTestCase {
 
     static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
-            client.index(new IndexRequest(index).id("doc-id").source("f", i), RequestOptions.DEFAULT);
+            client.index(new IndexRequest(index).id("id_" + i).source("f", i), RequestOptions.DEFAULT);
         }
         client.indices().refresh(new RefreshRequest(index), RequestOptions.DEFAULT);
         return numDocs;

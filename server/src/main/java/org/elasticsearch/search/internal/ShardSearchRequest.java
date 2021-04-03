@@ -205,12 +205,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             keepAlive = null;
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             channelVersion = Version.min(Version.readVersion(in), in.getVersion());
         } else {
             channelVersion = in.getVersion();
         }
-        assert channelVersion.onOrAfter(Version.V_7_13_0) : "Channel version is not serialized/deserialized correctly";
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -275,7 +274,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             Version.writeVersion(channelVersion, out);
         }
     }

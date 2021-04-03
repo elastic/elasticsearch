@@ -68,9 +68,10 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
             // NB: this loop modifies the list (just like an array)
             for (int i = 0; i < commutativeChildren.size() - 1; i++) {
                 // reduce two children into one and moves to the next pair
+                Expression current = commutativeChildren.get(i);
                 Expression next = commutativeChildren.remove(i + 1);
                 // do the update in place to minimize the amount of array modifications
-                commutativeChildren.set(i, replaceChildren(commutativeChildren.get(i), next));
+                commutativeChildren.set(i, replaceChildren(current, next));
 
             }
         }

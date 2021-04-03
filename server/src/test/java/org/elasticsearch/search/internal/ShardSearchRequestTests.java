@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -196,5 +197,57 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseInnerQueryBuilder(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    ShardSearchRequest serialize(ShardSearchRequest request, Version version) throws IOException {
+        if (version.before(Version.V_7_11_0)) {
+            if (request.source() != null) {
+                request.source().runtimeMappings(Map.of());
+            }
+        }
+        return copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
+    }
+
+    public void testChannelVersion() throws Exception {
+        ShardSearchRequest request = createShardSearchRequest();
+        Version channelVersion = Version.CURRENT;
+        assertThat(request.getChannelVersion(), equalTo(channelVersion));
+        int iterations = between(0, 5);
+        // New version
+        for (int i = 0; i < iterations; i++) {
+            Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_12_1, Version.CURRENT);
+            request = serialize(request, newVersion);
+            channelVersion = Version.min(newVersion, channelVersion);
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
+        // Old version
+        iterations = between(1, 5);
+        for (int i = 0; i < iterations; i++) {
+            channelVersion = VersionUtils.randomVersionBetween(random(),
+                Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_12_1));
+            request = serialize(request, channelVersion);
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
+        // Any version
+        iterations = between(1, 5);
+        for (int i = 0; i < iterations; i++) {
+            Version version = VersionUtils.randomVersion(random());
+            request = serialize(request, version);
+            if (version.onOrAfter(Version.V_7_12_1)) {
+                channelVersion = Version.min(channelVersion, version);
+            } else {
+                channelVersion = version;
+            }
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
     }
 }

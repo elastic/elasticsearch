@@ -110,8 +110,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(cacheSettings).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(cacheSettings).build();
     }
 
     public void testBlobStoreCache() throws Exception {

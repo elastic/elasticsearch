@@ -403,17 +403,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
-    private static final Setting<Boolean> ML_ENABLED =
-            Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.Deprecated, Property.NodeScope);
-
-    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            return ML_ENABLED;
-        }
-
-    };
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {};
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -558,7 +548,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return List.of(
                 MachineLearningField.AUTODETECT_PROCESS,
                 PROCESS_CONNECT_TIMEOUT,
-                ML_ENABLED,
                 CONCURRENT_JOB_ALLOCATIONS,
                 MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
                 MAX_LAZY_ML_NODES,

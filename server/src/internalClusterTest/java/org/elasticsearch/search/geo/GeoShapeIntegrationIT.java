@@ -33,12 +33,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
                 // Check that only geo-shape queries on legacy PrefixTree based
                 // geo shapes are disallowed.
                 .put("search.allow_expensive_queries", false)
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .build();
     }
 

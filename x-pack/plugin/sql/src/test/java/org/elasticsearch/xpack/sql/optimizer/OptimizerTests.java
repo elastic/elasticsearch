@@ -308,6 +308,16 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Math.E, foldFunction(new E(EMPTY)));
     }
 
+    public void testNullIfFolding() {
+        assertEquals(null, foldFunction(new NullIf(EMPTY, ONE, ONE)));
+        assertEquals(1, foldFunction(new NullIf(EMPTY, ONE, TWO)));
+        assertEquals(2, foldFunction(new NullIf(EMPTY, TWO, ONE)));
+
+        FieldAttribute fa = fieldAttribute();
+        // works even if the expressions are not foldable
+        assertEquals(null, foldFunction(new NullIf(EMPTY, fa, fa)));
+    }
+
     private static Object foldFunction(Function f) {
         return ((Literal) new ConstantFolding().rule(f)).value();
     }
@@ -433,16 +443,19 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(conditionalFunction, rule.rule(conditionalFunction));
     }
 
-    public void testSimplifyCoalesceNulls() {
-        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, asList(NULL, NULL)));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
-    }
-
     public void testSimplifyCoalesceRandomNulls() {
         Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, randomListOfNulls()));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
+    }
+
+    public void testSimplifyCoalesceWithOnlyOneChild() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, singletonList(fa))));
+    }
+
+    public void testSimplifyCoalesceSameExpression() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, randomList(2, 10, () -> fa))));
     }
 
     public void testSimplifyCoalesceRandomNullsWithValue() {
@@ -471,8 +484,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIfNullNulls() {
         Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, NULL, NULL));
-        assertEquals(IfNull.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
@@ -493,6 +505,12 @@ public class OptimizerTests extends ESTestCase {
         Expression orig = new NullIf(EMPTY, ONE, NULL);
         Expression f = new FoldNull().rule(orig);
         assertEquals(orig, f);
+    }
+
+    public void testSimplifyNullIf() {
+        assertEquals(ONE, new SimplifyConditional().rule(new NullIf(EMPTY, ONE, NULL)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, ONE)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, NULL)));
     }
 
     public void testSimplifyGreatestNulls() {

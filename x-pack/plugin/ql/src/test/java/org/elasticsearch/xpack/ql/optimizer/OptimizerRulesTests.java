@@ -1548,13 +1548,13 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(FALSE, new PropagateNullable().rule(and));
     }
 
-    // a IS NULL AND a > 1 => a IS NULL
+    // a IS NULL AND a > 1 => a IS NULL AND false
     public void testIsNullAndComparison() throws Exception {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
         And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
-        assertEquals(isNull, new PropagateNullable().rule(and));
+        assertEquals(new And(EMPTY, isNull, NULL), new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
@@ -1566,7 +1566,9 @@ public class OptimizerRulesTests extends ESTestCase {
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
-        assertEquals(Predicates.splitAnd(and), Predicates.splitAnd(new PropagateNullable().rule(top)));
+        Expression optimized = new PropagateNullable().rule(top);
+        Expression expected = new And(EMPTY, and, NULL);
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 
     // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => a IS NULL AND b < 3
@@ -1574,11 +1576,14 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
-        Expression removed = new And(EMPTY, greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE), new Add(EMPTY, fa, TWO));
+        Expression nullified = new And(EMPTY, greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE), new Add(EMPTY, fa, TWO));
         Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
-        And and = new And(EMPTY, removed, kept);
+        And and = new And(EMPTY, nullified, kept);
 
-        assertTrue(kept.semanticEquals(new PropagateNullable().rule(and)));
+        Expression optimized = new PropagateNullable().rule(and);
+        Expression expected = new And(EMPTY, new And(EMPTY, NULL, NULL), kept);
+
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 
     // a IS NULL OR a IS NOT NULL => no change

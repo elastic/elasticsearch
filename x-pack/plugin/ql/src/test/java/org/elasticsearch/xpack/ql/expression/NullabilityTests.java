@@ -50,8 +50,6 @@ public class NullabilityTests extends ESTestCase {
     private Nullable MAYBE = new Nullable(EMPTY, UNKNOWN);
 
     public void testLogicalAndOfNullabilities() {
-        assertEquals(FALSE, Expressions.nullable(asList(NO)));
-
         assertEquals(TRUE, Expressions.nullable(asList(YES)));
         assertEquals(FALSE, Expressions.nullable(asList(NO)));
         assertEquals(UNKNOWN, Expressions.nullable(asList(MAYBE)));

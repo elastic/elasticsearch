@@ -1514,7 +1514,7 @@ public final class OptimizerRules {
     }
 
     // a IS NULL AND a IS NOT NULL -> FALSE
-    // a IS NULL AND a > 10 -> a IS NULL
+    // a IS NULL AND a > 10 -> a IS NULL and FALSE
     // can be extended to handle null conditions where available
     public static class PropagateNullable extends OptimizerExpressionRule {
 
@@ -1581,18 +1581,11 @@ public final class OptimizerRules {
                     // identify matching expressions
                     if (t.anyMatch(s::semanticEquals)) {
                         Expression replacement = replacer.apply(t, s);
-                        // if the expression has changed, replace it or remove it
+                        // if the expression has changed, replace it
                         if (replacement != t) {
                             modified = true;
-                            // remove the element from the target list and the original expression list
-                            if (replacement == null) {
-                                target.remove(i--);
-                                originalExpressions.removeIf(e -> t.semanticEquals(e));
-                            } else {
-                                // otherwise replace it
-                                target.set(i, replacement);
-                                originalExpressions.replaceAll(e -> t.semanticEquals(e) ? replacement : e);
-                            }
+                            target.set(i, replacement);
+                            originalExpressions.replaceAll(e -> t.semanticEquals(e) ? replacement : e);
                         }
                     }
                 }
@@ -1602,7 +1595,7 @@ public final class OptimizerRules {
 
         // default implementation nullifies all nullable expressions
         protected Expression nullify(Expression exp, Expression nullExp) {
-            return exp.nullable() == Nullability.TRUE ? null : exp;
+            return exp.nullable() == Nullability.TRUE ? new Literal(exp.source(), null, DataTypes.NULL) : exp;
         }
 
         // placeholder for non-null

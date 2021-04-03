@@ -995,7 +995,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchService.freeReaderContext(readerContext.id());
         }
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_12_1, Version.CURRENT);
             request = serialize(request, version);
             assertThat(request.getChannelVersion(), equalTo(version));
             ReaderContext readerContext = searchService.createOrGetReaderContext(request);
@@ -1005,7 +1005,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             searchService.freeReaderContext(readerContext.id());
         } else {
             final Version version = VersionUtils.randomVersionBetween(
-                random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+                random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_12_1));
             request = serialize(request, version);
             assertThat(request.getChannelVersion(), equalTo(version));
             ReaderContext readerContext = searchService.createOrGetReaderContext(request);

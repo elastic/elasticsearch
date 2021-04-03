@@ -215,7 +215,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_12_1, Version.CURRENT);
             request = serialize(request, newVersion);
             channelVersion = Version.min(newVersion, channelVersion);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
@@ -227,7 +227,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         iterations = between(1, 5);
         for (int i = 0; i < iterations; i++) {
             channelVersion = VersionUtils.randomVersionBetween(random(),
-                Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+                Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_12_1));
             request = serialize(request, channelVersion);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
@@ -239,7 +239,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         for (int i = 0; i < iterations; i++) {
             Version version = VersionUtils.randomVersion(random());
             request = serialize(request, version);
-            if (version.onOrAfter(Version.V_7_13_0)) {
+            if (version.onOrAfter(Version.V_7_12_1)) {
                 channelVersion = Version.min(channelVersion, version);
             } else {
                 channelVersion = version;

@@ -359,7 +359,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                     + (stopTransformsResponse.getTaskFailures().isEmpty()
                         ? ""
                         : "task failures: " + stopTransformsResponse.getTaskFailures());
-                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(this.getFeatureName(), errMsg));
+                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(this.getFeatureName(), errMsg));
             }
         }, listener::onFailure);
 

@@ -92,24 +92,47 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
      */
     public static class ResetFeatureStateStatus implements Writeable, ToXContentObject {
         private final String featureName;
-        private final String status;
+        private final Status status;
+        private final String exception;
 
-        public ResetFeatureStateStatus(String featureName, String status) {
+        public enum Status {
+            SUCCESS,
+            FAILURE
+        }
+
+        public static ResetFeatureStateStatus success(String featureName) {
+            return new ResetFeatureStateStatus(featureName, Status.SUCCESS, null);
+        }
+
+        public static ResetFeatureStateStatus failure(String featureName, String exceptionMessage) {
+            return new ResetFeatureStateStatus(
+                featureName,
+                Status.FAILURE,
+                exceptionMessage);
+        }
+
+        private ResetFeatureStateStatus(String featureName, Status status, String exception) {
             this.featureName = featureName;
             this.status = status;
+            this.exception = exception;
         }
 
         ResetFeatureStateStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
-            this.status = in.readString();
+            this.status = Status.valueOf(in.readString());
+            this.exception = in.readOptionalString();
         }
 
         public String getFeatureName() {
             return this.featureName;
         }
 
-        public String getStatus() {
+        public Status getStatus() {
             return this.status;
+        }
+
+        public String getException() {
+            return this.exception;
         }
 
         @Override
@@ -117,6 +140,9 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             builder.startObject();
             builder.field("feature_name", this.featureName);
             builder.field("status", this.status);
+            if (this.exception != null) {
+                builder.field("exception", this.status);
+            }
             builder.endObject();
             return builder;
         }
@@ -124,7 +150,8 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
-            out.writeString(this.status);
+            out.writeString(this.status.toString());
+            out.writeOptionalString(exception);
         }
 
         @Override
@@ -132,19 +159,20 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ResetFeatureStateStatus that = (ResetFeatureStateStatus) o;
-            return Objects.equals(featureName, that.featureName) && Objects.equals(status, that.status);
+            return Objects.equals(featureName, that.featureName) && status == that.status && Objects.equals(exception, that.exception);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(featureName, status);
+            return Objects.hash(featureName, status, exception);
         }
 
         @Override
         public String toString() {
             return "ResetFeatureStateStatus{" +
                 "featureName='" + featureName + '\'' +
-                ", status='" + status + '\'' +
+                ", status=" + status +
+                ", exception='" + exception + '\'' +
                 '}';
         }
     }

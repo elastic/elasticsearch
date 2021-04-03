@@ -67,10 +67,10 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
         assertThat(apiResponse.getItemList(), containsInAnyOrder(
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("SystemIndexTestPlugin", "SUCCESS"),
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("SecondSystemIndexTestPlugin", "SUCCESS"),
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("EvilSystemIndexTestPlugin", "SUCCESS"),
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("tasks", "SUCCESS")
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
+            ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
         ));
 
         // verify that both indices are gone
@@ -189,9 +189,9 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             Client client,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
             if (beEvil == false) {
-                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(getFeatureName(), "SUCCESS"));
+                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.success(getFeatureName()));
             } else {
-                listener.onFailure(new Exception("problem!"));
+                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(getFeatureName(), "problem!"));
             }
         }
     }

@@ -754,12 +754,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         }
                     }
 
+                    // update expression
                     if (newChildren.size() < children.size()) {
-                        return c.replaceChildren(newChildren);
+                        e = c.replaceChildren(newChildren);
                     }
 
                     // there's no need for a conditional if all the children are the same (this includes the case of just one value)
-                    if (c instanceof Coalesce && children.size() > 0) {
+                    if (e instanceof Coalesce && children.size() > 0) {
                         Expression firstChild = children.get(0);
                         boolean sameChild = true;
                         for (int i = 1; i < children.size(); i++) {

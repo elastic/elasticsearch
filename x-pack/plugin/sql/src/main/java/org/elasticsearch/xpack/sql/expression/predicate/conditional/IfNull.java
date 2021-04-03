@@ -23,7 +23,10 @@ public class IfNull extends Coalesce {
         this(source, Arrays.asList(first, second));
     }
 
-    private IfNull(Source source, List<Expression> expressions) {
+    /**
+     * Used internally when modifying its children.
+     */
+    public IfNull(Source source, List<Expression> expressions) {
         super(source, expressions);
     }
 
@@ -34,6 +37,6 @@ public class IfNull extends Coalesce {
 
     @Override
     protected NodeInfo<IfNull> info() {
-        return NodeInfo.create(this, IfNull::new, children().get(0), children().get(1));
+        return NodeInfo.create(this, IfNull::new, children());
     }
 }

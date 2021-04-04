@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -45,4 +46,12 @@ tasks.named("thirdPartyAudit").configure {
           'org.osgi.framework.wiring.BundleWire',
           'org.osgi.framework.wiring.BundleWiring'
   )
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'ingest/80_foreach/Test foreach Processor',
+    'ingest/230_change_target_index/Test Change Target Index with Explicit Pipeline',
+    'ingest/230_change_target_index/Test Change Target Index with Default Pipeline'
+  ].join(',')
 }

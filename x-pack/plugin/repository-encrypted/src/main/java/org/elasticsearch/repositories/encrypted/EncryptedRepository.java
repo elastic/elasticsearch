@@ -24,7 +24,6 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -71,7 +70,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class EncryptedRepository extends BlobStoreRepository {
@@ -148,39 +147,26 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected void executeConsistentStateUpdate(
-        TriConsumer<RepositoryData, RepositoryMetadata, ActionListener<ClusterStateUpdateTask>> createUpdateTaskSupplier,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        if (source.startsWith("create_snapshot")
-            && false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
-            onFailure.accept(LicenseUtils.newComplianceException("encrypted snapshots"));
-            return;
+    public void permitSnapshot() {
+        super.permitSnapshot();
+        if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+            throw LicenseUtils.newComplianceException("encrypted snapshots");
         }
-        final StepListener<Void> putPasswordHashInRepositoryMetadataStep = new StepListener<>();
-        // this repository has just been created and no operations have yet triggered a hash publication
-        if (false == repositoryPasswords.containsPasswordsHash(metadata)) {
-            // trigger hash publication
-            maybePublishCurrentPasswordHash(putPasswordHashInRepositoryMetadataStep);
-        } else {
-            putPasswordHashInRepositoryMetadataStep.onResponse(null);
-        }
-        final StepListener<Void> verifyRepoHashesStep = new StepListener<>();
-        putPasswordHashInRepositoryMetadataStep.whenComplete(
-            // best to verify the passwords hash before starting a snapshot
-            // rather than wait to fail in finalize
-            aVoid -> repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(metadata, verifyRepoHashesStep),
-            onFailure
-        );
-        verifyRepoHashesStep.whenComplete(aVoid -> super.executeConsistentStateUpdate(createUpdateTaskSupplier, source, onFailure), e -> {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                onFailure.accept(new RepositoryException(metadata.name(), "Interrupted while verifying password(s) hash", e));
+    }
+
+    @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        super.getRepositoryData(ActionListener.wrap(repositoryData -> {
+            final StepListener<Void> putPasswordHashInRepositoryMetadataStep = new StepListener<>();
+            // this repository has just been created and no operations have yet triggered a hash publication
+            if (false == repositoryPasswords.containsPasswordsHash(metadata)) {
+                // trigger hash publication
+                maybePublishCurrentPasswordHash(putPasswordHashInRepositoryMetadataStep);
             } else {
-                onFailure.accept(new RepositoryException(metadata.name(), "Error verifying password(s) hash", e));
+                putPasswordHashInRepositoryMetadataStep.onResponse(null);
             }
-        });
+            putPasswordHashInRepositoryMetadataStep.whenComplete(aVoid -> listener.onResponse(repositoryData), listener::onFailure);
+        }, listener::onFailure));
     }
 
     public void startOrResumePasswordChange(
@@ -199,7 +185,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             repositoryPasswords.verifyResumePasswordChange(currentMetadata, changeFromPasswordName, changeToPasswordName, listener);
         } else {
             updateMetadata(
-                (latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
+                (latestRepositoryMetadata, newRepositoryMetadataListener) -> {
                     // unlikely concurrent password change
                     if (repositoryPasswords.isPasswordChangeInProgress(latestRepositoryMetadata)) {
                         // resume or fail, probably not important
@@ -232,7 +218,7 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     // protected for tests
     protected void maybePublishCurrentPasswordHash(ActionListener<Void> listener) {
-        updateMetadata((latestRepositoryData, latestRepositoryMetadata, newRepositoryMetadataListener) -> {
+        updateMetadata((latestRepositoryMetadata, newRepositoryMetadataListener) -> {
             // something else published the hashes in the meantime
             if (repositoryPasswords.containsPasswordsHash(latestRepositoryMetadata)) {
                 logger.debug("Repository [" + latestRepositoryMetadata.name() + "] already contains some passwords hash");
@@ -358,12 +344,12 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     // protected for tests
     protected void updateMetadata(
-        TriConsumer<RepositoryData, RepositoryMetadata, ActionListener<RepositoryMetadata>> updateAction,
+        BiConsumer<RepositoryMetadata, ActionListener<RepositoryMetadata>> updateAction,
         String source,
         ActionListener<Void> listener
     ) {
-        super.executeConsistentStateUpdate((latestRepositoryData, latestRepositoryMetadata, updateTaskListener) -> {
-            updateAction.apply(latestRepositoryData, latestRepositoryMetadata, ActionListener.wrap(newRepositoryMetadata -> {
+        super.executeConsistentStateUpdate((latestRepositoryMetadata, updateTaskListener) -> {
+            updateAction.accept(latestRepositoryMetadata, ActionListener.wrap(newRepositoryMetadata -> {
                 if (false == newRepositoryMetadata.name().equals(latestRepositoryMetadata.name())) {
                     listener.onFailure(
                         new IllegalArgumentException(

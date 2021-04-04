@@ -228,9 +228,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         //       retries
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         Repository repository = repositoriesService.repository(request.repository());
-        if (repository.isReadOnly()) {
-            listener.onFailure(
-                    new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
+        try {
+            repository.permitSnapshot();
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);

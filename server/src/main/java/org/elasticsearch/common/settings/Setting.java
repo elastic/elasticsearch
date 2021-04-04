@@ -538,7 +538,7 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
                 " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
         }
-        return settings.get(getKey(), defaultValue.apply(settings));
+        return settings.get(getKey(), defaultValue.apply(settings), isListSetting());
     }
 
     /** Logs a deprecation warning if the setting is deprecated and used. */

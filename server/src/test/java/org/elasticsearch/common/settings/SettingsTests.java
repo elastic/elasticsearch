@@ -492,6 +492,13 @@ public class SettingsTests extends ESTestCase {
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
     }
 
+    public void testValidateStringSetting() {
+      Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
+      Setting<String> stringSetting = Setting.simpleString("foo.bar");
+      IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stringSetting.get(settings));
+      assertEquals("Found list type value for setting [foo.bar] but did not expect a list for it.", e.getMessage());
+    }
+
     public void testGetAsArrayFailsOnDuplicates() {
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Settings.builder()
             .put("foobar.0", "bar")

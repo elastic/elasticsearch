@@ -231,6 +231,28 @@ public final class Settings implements ToXContentFragment {
         return retVal == null ? defaultValue : retVal;
     }
 
+  /**
+   * Returns the setting value associated with the setting key. If it does not exists, returns the default
+   * value provided.
+   */
+    String get(String setting, String defaultValue, boolean isList) {
+      Object value = settings.get(setting);
+      if (value != null) {
+        if (isList == false && value instanceof List) {
+          throw new IllegalArgumentException(
+              "Found list type value for setting [" + setting + "] but did not expect a list for it."
+          );
+        }
+        else if (isList) {
+          throw new IllegalArgumentException(
+              "Expected list type value for setting [" + setting + "] but found [" + value.getClass() + "]"
+          );
+        }
+        return toString(value);
+      }
+      return defaultValue;
+    }
+
     /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.

@@ -522,8 +522,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT AVG(int) FROM test GROUP BY bool HAVING int > 10"));
         accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
     }
-    
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
+
     public void testGroupByWhereSubselect() {
         accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
         accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");

@@ -559,7 +559,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoryException.class,
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
-        assertThat(e.getRootCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
@@ -576,7 +576,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoryException.class,
             () -> client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get()
         );
-        assertThat(e.getRootCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         // restart master node and fill in the good password
         secureSettingsWithPassword.setString(
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),

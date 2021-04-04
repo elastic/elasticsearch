@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class EncryptedRepository extends BlobStoreRepository {
@@ -152,6 +153,9 @@ public class EncryptedRepository extends BlobStoreRepository {
         if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
             throw LicenseUtils.newComplianceException("encrypted snapshots");
         }
+        // TODO prevent starting snapshot that can't finish
+        // if the master can't verify hashes it will fail to finalize the snapshots, even if the data nodes
+        // verify the hashes
     }
 
     @Override
@@ -426,14 +430,26 @@ public class EncryptedRepository extends BlobStoreRepository {
         };
     }
 
-    List<Tuple<String, byte[]>> wrapDek(String dekId, SecretKey dek) throws RepositoryException {
+    // package-private for tests
+    Map<String, byte[]> wrapDek(String dekId, SecretKey dek) throws RepositoryException {
+        return wrapDekUsingPasswords(dekId, dek, (repositoryMetadata) -> repositoryPasswords.passwordsForDekWrapping(repositoryMetadata));
+    }
+
+    Map<String, byte[]> wrapDekUsingPasswords(
+        String dekId,
+        SecretKey dek,
+        Function<RepositoryMetadata, Map<String, SecureString>> passwordsSupplier
+    ) throws RepositoryException {
         final RepositoryMetadata repositoryMetadata = metadata;
-        // check that the local passwords that are used to wrap the DEKs match the repository's
-        verifyPublishedPasswordsHash(repositoryPasswords, repositoryMetadata);
-        final List<Tuple<String, byte[]>> wrappedDeks = new ArrayList<>(2);
+        Map<String, byte[]> wrappedDeks = new HashMap<>(2);
         try {
-            final List<SecureString> passwords = repositoryPasswords.passwordsForDekWrapping(repositoryMetadata);
-            for (SecureString password : passwords) {
+            Map<String, SecureString> passwords = passwordsSupplier.apply(repositoryMetadata);
+            // check that the local passwords that are used to wrap the DEKs match the repository's
+            boolean verifyResult = repositoryPasswords.verifyPasswordsHash(repositoryMetadata, passwords.keySet());
+            if (false == verifyResult) {
+                throw new IllegalArgumentException("Local repository password is incorrect");
+            }
+            for (SecureString password : passwords.values()) {
                 // we rely on the DEK Id being generated randomly so it can be used as a salt
                 SecretKey kek = AESKeyUtils.generatePasswordBasedKey(password, dekId);
                 String kekId = AESKeyUtils.computeId(kek);
@@ -443,21 +459,28 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (encryptedDEKBytes.length != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
                     throw new IllegalStateException("Wrapped DEK [" + dekId + "] has unexpected length [" + encryptedDEKBytes.length + "]");
                 }
-                wrappedDeks.add(new Tuple<>(kekId, encryptedDEKBytes));
+                wrappedDeks.put(kekId, encryptedDEKBytes);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RepositoryException(repositoryMetadata.name(), "Interrupted while wrapping DEK [" + dekId + "]", e);
         } catch (Exception e) {
-            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while wrapping DEK [" + dekId + "]", e);
+            throw new RepositoryException(repositoryMetadata.name(), "Error while wrapping DEK [" + dekId + "]", e);
         }
         return wrappedDeks;
     }
 
-    Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unWrapDek(String dekId) throws RepositoryException {
+    private Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unWrapDek(String dekId) throws RepositoryException {
+        return unWrapDekUsingPassword(dekId, (repositoryMetadata -> repositoryPasswords.currentLocalPassword(repositoryMetadata).v2()));
+    }
+
+    private Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>> unWrapDekUsingPassword(
+        String dekId,
+        Function<RepositoryMetadata, SecureString> passwordSupplier
+    ) throws RepositoryException {
         final RepositoryMetadata repositoryMetadata = metadata;
         try {
-            final SecureString currentPassword = repositoryPasswords.currentLocalPassword(repositoryMetadata).v2();
+            final SecureString currentPassword = passwordSupplier.apply(repositoryMetadata);
             final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(currentPassword, dekId);
             final String kekId = AESKeyUtils.computeId(kek);
             logger.debug("Repository [{}] computed KEK [{}] for DEK [{}] for unwrapping", repositoryMetadata.name(), kekId, dekId);
@@ -492,6 +515,7 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     public boolean hasAtomicOverwrites() {
+        // TODO look into this
         return delegatedRepository.hasAtomicOverwrites();
     }
 
@@ -500,19 +524,16 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final String repositoryName;
-        private final CheckedBiFunction<String, SecretKey, List<Tuple<String, byte[]>>, RepositoryException> dekWrapper;
-        private final CheckedFunction<
-            String,
-            Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>>,
-            RepositoryException> dekUnwrapper;
-        private final Cache<String, SecretKey> dekCache;
-        private final CheckedSupplier<SingleUseKey, IOException> singleUseDEKSupplier;
+        // pkg-private for tests
+        final CheckedSupplier<SingleUseKey, IOException> singleUseDEKSupplier;
+        // pkg-private for tests
+        final CheckedFunction<String, SecretKey, IOException> getDEKById;
 
         EncryptedBlobStore(
             BlobStore delegatedBlobStore,
             BlobPath delegatedBasePath,
             String repositoryName,
-            CheckedBiFunction<String, SecretKey, List<Tuple<String, byte[]>>, RepositoryException> dekWrapper,
+            CheckedBiFunction<String, SecretKey, Map<String, byte[]>, RepositoryException> dekWrapper,
             CheckedFunction<
                 String,
                 Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>>,
@@ -523,34 +544,46 @@ public class EncryptedRepository extends BlobStoreRepository {
             this.delegatedBlobStore = delegatedBlobStore;
             this.delegatedBasePath = delegatedBasePath;
             this.repositoryName = repositoryName;
-            this.dekWrapper = dekWrapper;
-            this.dekUnwrapper = dekUnwrapper;
-            this.dekCache = dekCache;
             this.singleUseDEKSupplier = SingleUseKey.createSingleUseKeySupplier(() -> {
                 Tuple<BytesReference, SecretKey> newDEK = dekGenerator.get();
                 // store the newly generated DEK before making it available
-                storeDEK(newDEK.v1().utf8ToString(), newDEK.v2());
+                storeDEK(newDEK.v1().utf8ToString(), newDEK.v2(), dekWrapper);
                 return newDEK;
             });
-        }
-
-        // pkg-private for tests
-        SecretKey getDEKById(String dekId) throws IOException {
-            try {
-                return dekCache.computeIfAbsent(dekId, ignored -> loadDEK(dekId));
-            } catch (ExecutionException e) {
-                // some exception types are to be expected
-                if (e.getCause() instanceof IOException) {
-                    throw (IOException) e.getCause();
-                } else if (e.getCause() instanceof ElasticsearchException) {
-                    throw (ElasticsearchException) e.getCause();
-                } else {
-                    throw new RepositoryException(repositoryName, "Unexpected exception retrieving DEK [" + dekId + "]", e);
+            this.getDEKById = (dekId) -> {
+                try {
+                    return dekCache.computeIfAbsent(dekId, ignored -> loadDEK(dekId, dekUnwrapper));
+                } catch (ExecutionException e) {
+                    // some exception types are to be expected
+                    if (e.getCause() instanceof NoSuchFileException) {
+                        // do NOT throw or wrap NoSuchFileException when the DEK does not exist, as this is a decryption problem
+                        // and IOExceptions can move the repository in the corrupted state
+                        throw new RepositoryException(
+                            repositoryName,
+                            "Failure to read and decrypt DEK ["
+                                + dekId
+                                + "]. Most likely the repository password is incorrect, where previous "
+                                + "snapshots have used a different password. Reason: "
+                                + e.getCause().toString()
+                        );
+                    } else if (e.getCause() instanceof IOException) {
+                        throw (IOException) e.getCause();
+                    } else if (e.getCause() instanceof ElasticsearchException) {
+                        throw (ElasticsearchException) e.getCause();
+                    } else {
+                        throw new RepositoryException(repositoryName, "Unexpected exception retrieving DEK [" + dekId + "]", e);
+                    }
                 }
-            }
+            };
         }
 
-        private SecretKey loadDEK(String dekId) throws IOException, RepositoryException {
+        private SecretKey loadDEK(
+            String dekId,
+            CheckedFunction<
+                String,
+                Tuple<String, CheckedFunction<byte[], SecretKey, RepositoryException>>,
+                RepositoryException> dekUnwrapper
+        ) throws IOException, RepositoryException {
             final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(dekId);
             logger.debug("Repository [{}] loading wrapped DEK [{}] from blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
@@ -567,20 +600,6 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (encryptedDEKInputStream.read() != -1) {
                     throw new RepositoryException(repositoryName, "Wrapped DEK [" + dekId + "] is larger than expected");
                 }
-            } catch (NoSuchFileException e) {
-                // do NOT throw or wrap IOExceptions (NoSuchFileException) when the DEK does not exist, as this is a decryption problem
-                // and IOExceptions can move the repository in the corrupted state
-                throw new RepositoryException(
-                    repositoryName,
-                    "Failure to read and decrypt DEK ["
-                        + dekId
-                        + "] from "
-                        + dekBlobContainer.path().add(unwrapper.v1())
-                        + ". Most likely the repository password is incorrect, where previous "
-                        + "snapshots have used a different password. "
-                        + "Reason: "
-                        + e.getMessage()
-                );
             }
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -593,19 +612,22 @@ public class EncryptedRepository extends BlobStoreRepository {
             return unwrapper.v2().apply(encryptedDEKBytes);
         }
 
-        // pkg-private for tests
-        void storeDEK(String dekId, SecretKey dek) throws IOException, RepositoryException {
+        private void storeDEK(
+            String dekId,
+            SecretKey dek,
+            CheckedBiFunction<String, SecretKey, Map<String, byte[]>, RepositoryException> dekWrapper
+        ) throws IOException, RepositoryException {
             final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(dekId);
             logger.debug("Repository [{}] storing wrapped DEK [{}] under blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            for (Tuple<String, byte[]> wrappedDek : dekWrapper.apply(dekId, dek)) {
-                dekBlobContainer.writeBlobAtomic(wrappedDek.v1(), new BytesArray(wrappedDek.v2()), true);
+            for (Map.Entry<String, byte[]> wrappedDek : dekWrapper.apply(dekId, dek).entrySet()) {
+                dekBlobContainer.writeBlobAtomic(wrappedDek.getKey(), new BytesArray(wrappedDek.getValue()), true);
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "Repository [{}] successfully stored wrapped DEK [{}] under path [{}]",
                         repositoryName,
                         dekId,
-                        dekBlobPath.add(wrappedDek.v1())
+                        dekBlobPath.add(wrappedDek.getKey())
                     )
                 );
             }
@@ -619,7 +641,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 delegatedBlobContainerPath = delegatedBlobContainerPath.add(pathIterator.next());
             }
             final BlobContainer delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBlobContainerPath);
-            return new EncryptedBlobContainer(path, repositoryName, delegatedBlobContainer, singleUseDEKSupplier, this::getDEKById);
+            return new EncryptedBlobContainer(path, repositoryName, delegatedBlobContainer, singleUseDEKSupplier, getDEKById);
         }
 
         @Override
@@ -803,18 +825,6 @@ public class EncryptedRepository extends BlobStoreRepository {
                 );
             }
             return Map.copyOf(resultBuilder);
-        }
-    }
-
-    private static void verifyPublishedPasswordsHash(RepositoryPasswords repositoryPasswords, RepositoryMetadata repositoryMetadata)
-        throws RepositoryException {
-        try {
-            repositoryPasswords.verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RepositoryException(repositoryMetadata.name(), "Interrupted while verifying passwords hash", e);
-        } catch (Exception e) {
-            throw new RepositoryException(repositoryMetadata.name(), "Unexpected exception while verifying passwords hash", e);
         }
     }
 

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -103,7 +102,7 @@ public final class RepositoryPasswords {
         return new Tuple<>(currentPasswordName, currentPassword);
     }
 
-    public List<SecureString> passwordsForDekWrapping(RepositoryMetadata repositoryMetadata) {
+    public Map<String, SecureString> passwordsForDekWrapping(RepositoryMetadata repositoryMetadata) {
         Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
         String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         SecureString currentPassword = localPasswords.get(currentPasswordName);
@@ -126,9 +125,9 @@ public final class RepositoryPasswords {
                         + "] on the local node"
                 );
             }
-            return List.of(currentPassword, toPassword);
+            return Map.of(currentPasswordName, currentPassword, toPasswordName, toPassword);
         } else {
-            return List.of(currentPassword);
+            return Map.of(currentPasswordName, currentPassword);
         }
     }
 
@@ -252,52 +251,14 @@ public final class RepositoryPasswords {
         return waitStep.asFuture().get();
     }
 
-    public void verifyPublishedPasswordsHashForBlobWrite(RepositoryMetadata repositoryMetadata, ActionListener<Void> listener) {
-        // hashes verification happens on a dedicated thread pool, but the listener is forked on the generic pool
-        verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata, threadPool.generic(), listener);
-    }
-
-    public void verifyPublishedPasswordsHashForBlobWrite(RepositoryMetadata repositoryMetadata) throws ExecutionException,
+    public boolean verifyPasswordsHash(RepositoryMetadata repositoryMetadata, Set<String> passwordsName) throws ExecutionException,
         InterruptedException {
-        StepListener<Void> stepWait = new StepListener<>();
-        // blocks the current thread until hash verification completes on a different thread
-        verifyPublishedPasswordsHashForBlobWrite(repositoryMetadata, EsExecutors.newDirectExecutorService(), stepWait);
-        stepWait.asFuture().get();
-    }
-
-    private void verifyPublishedPasswordsHashForBlobWrite(
-        RepositoryMetadata repositoryMetadata,
-        ExecutorService executor,
-        ActionListener<Void> listener
-    ) {
-        final Map<String, String> publishedPasswordsHash = getPasswordsHash(repositoryMetadata);
-        final String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
-        final String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
-        final String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
-        // check only the passwords that can be used to encrypt blobs, see {@link #passwordsForDekWrapping}
-        final Map<String, String> hashesToVerify;
-        try {
-            if (isPasswordChangeInProgress(repositoryMetadata) && currentPasswordName.equals(fromPasswordName)) {
-                hashesToVerify = Map.of(
-                    currentPasswordName,
-                    publishedPasswordsHash.get(currentPasswordName),
-                    toPasswordName,
-                    publishedPasswordsHash.get(toPasswordName)
-                );
-            } else {
-                hashesToVerify = Map.of(currentPasswordName, publishedPasswordsHash.get(currentPasswordName));
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
+        Map<String, String> publishedPasswordsHash = getPasswordsHash(repositoryMetadata);
+        Map<String, String> hashesToVerify = new HashMap<>(passwordsName.size());
+        for (String passwordName : passwordsName) {
+            hashesToVerify.put(passwordName, publishedPasswordsHash.get(passwordName));
         }
-        verifyPasswordsHash(hashesToVerify, executor, ActionListener.wrap(verifyResult -> {
-            if (false == verifyResult) {
-                listener.onFailure(new IllegalArgumentException("Local repository password is incorrect"));
-            } else {
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
+        return verifyPasswordsHash(hashesToVerify);
     }
 
     public boolean verifyPasswordsHash(Map<String, String> passwordsHash) throws ExecutionException, InterruptedException {
@@ -315,7 +276,7 @@ public final class RepositoryPasswords {
         final AtomicInteger hashesToVerifyCount = new AtomicInteger(0);
         for (Map.Entry<String, String> passwordNameAndHash : passwordsHash.entrySet()) {
             if (false == Strings.hasLength(passwordNameAndHash.getValue())) {
-                listener.onFailure(new IllegalStateException("Null or empty hash to verify for [" + passwordNameAndHash.getKey() + "]"));
+                listener.onFailure(new IllegalArgumentException("Missing hash to verify for [" + passwordNameAndHash.getKey() + "]"));
                 return;
             }
             SecureString password = localRepositoryPasswordsMap.get(passwordNameAndHash.getKey());

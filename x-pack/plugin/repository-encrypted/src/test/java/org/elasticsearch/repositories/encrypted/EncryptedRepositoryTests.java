@@ -44,6 +44,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -139,11 +140,10 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     public void testStoreDEKSuccess() throws Exception {
-        String DEKId = randomAlphaOfLengthBetween(16, 32); // at least 128 bits because of FIPS
-        SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
+        SingleUseKey singleUseKey = encryptedBlobStore.singleUseDEKSupplier.get();
 
-        encryptedBlobStore.storeDEK(DEKId, DEK);
-
+        String DEKId = singleUseKey.getKeyId().utf8ToString();
+        SecretKey DEK = singleUseKey.getKey();
         SecretKey KEK = AESKeyUtils.generatePasswordBasedKey(repoPassword, DEKId);
         String KEKId = AESKeyUtils.computeId(KEK);
         assertThat(blobsMap.keySet(), contains(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(KEKId)));
@@ -161,20 +161,20 @@ public class EncryptedRepositoryTests extends ESTestCase {
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         blobsMap.put(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(KEKId), wrappedDEK);
 
-        SecretKey loadedDEK = encryptedBlobStore.getDEKById(DEKId);
+        SecretKey loadedDEK = encryptedBlobStore.getDEKById.apply(DEKId);
         assertThat(loadedDEK.getEncoded(), equalTo(DEK.getEncoded()));
     }
 
     public void testGetTamperedDEKFails() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32);  // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8), "AES");
-        Tuple<String, byte[]> wrappedDEK = encryptedRepository.wrapDek(DEKId, DEK).get(0);
+        Tuple<String, byte[]> wrappedDEK = wrapDek(DEKId, DEK);
 
         int tamperPos = randomIntBetween(0, wrappedDEK.v2().length - 1);
         wrappedDEK.v2()[tamperPos] ^= 0xFF;
         blobsMap.put(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(wrappedDEK.v1()), wrappedDEK.v2());
 
-        RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDEKById(DEKId));
+        RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDEKById.apply(DEKId));
         assertThat(e.repository(), equalTo(repositoryMetadata.name()));
         assertThat(e.getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
     }
@@ -188,7 +188,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 .readBlob(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
-        IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDEKById("this must be at least 16"));
+        IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDEKById.apply("this must be at least 16"));
         assertThat(e.getMessage(), containsString("Tested IOException"));
     }
 
@@ -196,13 +196,20 @@ public class EncryptedRepositoryTests extends ESTestCase {
         String id1 = "fixed identifier 1";
         String id2 = "fixed identifier 2";
         SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
-        Tuple<String, byte[]> KEK1 = encryptedRepository.wrapDek(id1, DEK).get(0);
-        Tuple<String, byte[]> KEK2 = encryptedRepository.wrapDek(id2, DEK).get(0);
+        Tuple<String, byte[]> KEK1 = wrapDek(id1, DEK);
+        Tuple<String, byte[]> KEK2 = wrapDek(id2, DEK);
         assertThat(KEK1.v1(), not(equalTo(KEK2.v1())));
         assertThat(KEK1.v2(), not(equalTo(KEK2.v2())));
-        Tuple<String, byte[]> sameKEK1 = encryptedRepository.wrapDek(id1, DEK).get(0);
+        Tuple<String, byte[]> sameKEK1 = wrapDek(id1, DEK);
         assertThat(KEK1.v1(), equalTo(sameKEK1.v1()));
         assertThat(KEK1.v2(), equalTo(sameKEK1.v2()));
     }
 
+    private Tuple<String, byte[]> wrapDek(String id, SecretKey DEK) {
+        Map<String, byte[]> wrappedDEK = encryptedRepository.wrapDek(id, DEK);
+        assertThat(wrappedDEK.size(), is(1));
+        String wrappedDEKName = wrappedDEK.keySet().stream().findFirst().get();
+        byte[] wrappedDEKContents = wrappedDEK.get(wrappedDEKName);
+        return new Tuple<>(wrappedDEKName, wrappedDEKContents);
+    }
 }

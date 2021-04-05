@@ -56,11 +56,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        // Verify that the requested node actually exists in the cluster
-        if (state.nodes().nodeExists(request.getNodeId()) == false) {
-            throw new IllegalArgumentException("there is no node with id [" + request.getNodeId() + "] in this cluster");
-        }
-
         clusterService.submitStateUpdateTask(
             "put-node-shutdown-" + request.getNodeId(),
             new AckedClusterStateUpdateTask(request, listener) {

@@ -68,8 +68,8 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
 
         return builder.build();

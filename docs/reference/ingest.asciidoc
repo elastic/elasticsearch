@@ -44,7 +44,7 @@ Pipelines**. From the list view, you can:
 * Edit or clone existing pipelines
 * Delete pipelines
 
-To create a new pipeline, click **Create a pipeline**. For an example tutorial,
+To create a new pipeline, click **Create pipeline**. For an example tutorial,
 see <<common-log-format-example>>.
 
 [role="screenshot"]

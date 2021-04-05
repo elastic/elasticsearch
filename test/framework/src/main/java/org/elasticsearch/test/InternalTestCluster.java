@@ -418,7 +418,7 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
             .put(getRandomNodeSettings(nodeSeed));
-        Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
+        Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal, others);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
                 throw new IllegalStateException("Tests must not set a '" + ClusterName.CLUSTER_NAME_SETTING.getKey()
@@ -1050,17 +1050,19 @@ public final class InternalTestCluster extends TestCluster {
         final List<Settings> settings = new ArrayList<>();
 
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY);
-            settings.add(nonDataNode(nodeSettings));
+            final Settings otherSettings = nonDataNode();
+            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], otherSettings);
+            settings.add(nodeSettings);
         }
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY);
+            final Settings otherSettings;
             if (numSharedDedicatedMasterNodes > 0) {
-                settings.add(removeRoles(nodeSettings, Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+                otherSettings = removeRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE));
             } else {
                 // if we don't have dedicated master nodes, keep things default
-                settings.add(nodeSettings);
+                otherSettings = Settings.EMPTY;
             }
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], otherSettings));
         }
         for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
              i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {

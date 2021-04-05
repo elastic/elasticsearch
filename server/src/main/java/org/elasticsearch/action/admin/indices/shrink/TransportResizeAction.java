@@ -96,7 +96,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // TODO: only fetch indices stats for shrink type resize requests
         client.execute(IndicesStatsAction.INSTANCE, statsRequest,
-            ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
+            listener.delegateFailure((delegatedListener, indicesStatsResponse) -> {
                 final CreateIndexClusterStateUpdateRequest updateRequest;
                 try {
                     StoreStats indexStoreStats = indicesStatsResponse.getPrimaries().store;

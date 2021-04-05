@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAliasStep> {
@@ -32,33 +33,29 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrinkSetAliasStep(stepKey, nextStepKey, client, shrunkIndexPrefix);
+        return new ShrinkSetAliasStep(stepKey, nextStepKey, client);
     }
 
     @Override
     public ShrinkSetAliasStep mutateInstance(ShrinkSetAliasStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 1:
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
-        case 2:
-            shrunkIndexPrefix += randomAlphaOfLength(5);
-            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new ShrinkSetAliasStep(key, nextKey, instance.getClient(), shrunkIndexPrefix);
+        return new ShrinkSetAliasStep(key, nextKey, instance.getClient());
     }
 
     @Override
     public ShrinkSetAliasStep copyInstance(ShrinkSetAliasStep instance) {
-        return new ShrinkSetAliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getShrunkIndexPrefix());
+        return new ShrinkSetAliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
     public void testPerformAction() {
@@ -82,7 +79,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         ShrinkSetAliasStep step = createRandomInstance();
 
         String sourceIndex = indexMetadata.getIndex().getName();
-        String shrunkenIndex = step.getShrunkIndexPrefix() + sourceIndex;
+        String shrunkenIndex = SHRUNKEN_INDEX_PREFIX + sourceIndex;
         List<AliasActions> expectedAliasActions = Arrays.asList(
             IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndex),
             IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex),

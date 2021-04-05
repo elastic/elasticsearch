@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,12 +64,14 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -84,43 +84,27 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
-    private static final String BOOLEAN_FIELD = "boolean-field";
-    private static final String NUMERICAL_FIELD = "numerical-field";
-    private static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
-    private static final String TEXT_FIELD = "text-field";
-    private static final String KEYWORD_FIELD = "keyword-field";
-    private static final String NESTED_FIELD = "outer-field.inner-field";
-    private static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
-    private static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
-    private static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
-    private static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
-    private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
-    private static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
+    static final String BOOLEAN_FIELD = "boolean-field";
+    static final String NUMERICAL_FIELD = "numerical-field";
+    static final String DISCRETE_NUMERICAL_FIELD = "discrete-numerical-field";
+    static final String TEXT_FIELD = "text-field";
+    static final String KEYWORD_FIELD = "keyword-field";
+    static final String NESTED_FIELD = "outer-field.inner-field";
+    static final String ALIAS_TO_KEYWORD_FIELD = "alias-to-keyword-field";
+    static final String ALIAS_TO_NESTED_FIELD = "alias-to-nested-field";
+    static final List<Boolean> BOOLEAN_FIELD_VALUES = List.of(false, true);
+    static final List<Double> NUMERICAL_FIELD_VALUES = List.of(1.0, 2.0);
+    static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
+    static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
 
     private String jobId;
     private String sourceIndex;
     private String destIndex;
     private boolean analysisUsesExistingDestIndex;
 
-    @Before
-    public void setupLogging() {
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.dataframe.inference", "DEBUG")
-                .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG"))
-            .get();
-    }
-
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.dataframe.inference")
-                .putNull("logger.org.elasticsearch.xpack.core.ml.inference"))
-            .get();
     }
 
     @Override
@@ -490,7 +474,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67581")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70698")
     public void testStopAndRestart() throws Exception {
         initialize("classification_stop_and_restart");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -893,6 +877,67 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
+    public void testPreview() throws Exception {
+        initialize("preview_analytics");
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        putAnalytics(config);
+
+        List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), containsInAnyOrder(
+                BOOLEAN_FIELD,
+                KEYWORD_FIELD,
+                NUMERICAL_FIELD,
+                DISCRETE_NUMERICAL_FIELD,
+                TEXT_FIELD+".keyword",
+                NESTED_FIELD,
+                ALIAS_TO_KEYWORD_FIELD,
+                ALIAS_TO_NESTED_FIELD
+            ));
+        }
+    }
+
+    public void testPreviewWithProcessors() throws Exception {
+        initialize("processed_preview_analytics");
+        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
+        DataFrameAnalyticsConfig config =
+            buildAnalytics(jobId, sourceIndex, destIndex, null,
+                new Classification(
+                    KEYWORD_FIELD,
+                    BoostedTreeParams.builder().setNumTopFeatureImportanceValues(0).build(),
+                    null,
+                    null,
+                    2,
+                    10.0,
+                    42L,
+                    Arrays.asList(
+                        new OneHotEncoding(NESTED_FIELD, MapBuilder.<String, String>newMapBuilder()
+                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_2")
+                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_2").map(), true),
+                        new OneHotEncoding(TEXT_FIELD, MapBuilder.<String, String>newMapBuilder()
+                            .put(KEYWORD_FIELD_VALUES.get(0), "cat_column_custom_3")
+                            .put(KEYWORD_FIELD_VALUES.get(1), "dog_column_custom_3").map(), true)
+                    ),
+                    null));
+        putAnalytics(config);
+
+        List<Map<String, Object>> preview = previewDataFrame(jobId).getFeatureValues();
+        for (Map<String, Object> feature : preview) {
+            assertThat(feature.keySet(), hasItems(
+                BOOLEAN_FIELD,
+                KEYWORD_FIELD,
+                NUMERICAL_FIELD,
+                DISCRETE_NUMERICAL_FIELD,
+                "cat_column_custom_2",
+                "dog_column_custom_2",
+                "cat_column_custom_3",
+                "dog_column_custom_3"
+            ));
+            assertThat(feature.keySet(), not(hasItems(NESTED_FIELD, TEXT_FIELD)));
+        }
+    }
+
     private static <T> T getOnlyElement(List<T> list) {
         assertThat(list, hasSize(1));
         return list.get(0);
@@ -913,7 +958,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
     }
 
-    private static void createIndex(String index, boolean isDatastream) {
+    static void createIndex(String index, boolean isDatastream) {
         String mapping = "{\n" +
             "      \"properties\": {\n" +
             "        \"@timestamp\": {\n" +
@@ -965,7 +1010,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
     }
 
-    private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
+    static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {

@@ -73,7 +73,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         List<Object> components = new ArrayList<>();
-        if (DiscoveryNode.isDataNode(environment.settings())) {
+        if (DiscoveryNode.canContainData(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
             AsyncTaskIndexService<AsyncSearchResponse> indexService = new AsyncTaskIndexService<>(
                 XPackPlugin.ASYNC_RESULTS_INDEX,

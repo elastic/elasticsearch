@@ -72,7 +72,7 @@ GET my-index-000001/_search
 ==== Multiple date formats
 
 Multiple formats can be specified by separating them with `||` as a separator.
-Each format will be tried in turn until a matching format is found.  The first
+Each format will be tried in turn until a matching format is found. The first
 format will be used to convert the _milliseconds-since-the-epoch_ value back
 into a string.
 
@@ -106,7 +106,7 @@ The following parameters are accepted by `date` fields:
 
 <<mapping-date-format,`format`>>::
 
-    The date format(s) that can be parsed.  Defaults to
+    The date format(s) that can be parsed. Defaults to
     `strict_date_optional_time||epoch_millis`.
 
 `locale`::
@@ -127,7 +127,7 @@ The following parameters are accepted by `date` fields:
 <<null-value,`null_value`>>::
 
     Accepts a date value in one of the configured +format+'s as the field
-    which is substituted for any explicit `null` values.  Defaults to `null`,
+    which is substituted for any explicit `null` values. Defaults to `null`,
     which means the field is treated as missing.
 
 <<mapping-store,`store`>>::

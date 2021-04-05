@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -61,26 +60,13 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     public void testPrefixAndStorageTypeDefaults() {
-        SearchableSnapshotAction action = new SearchableSnapshotAction("repo", randomBoolean(), null);
+        SearchableSnapshotAction action = new SearchableSnapshotAction("repo", randomBoolean());
         StepKey nonFrozenKey = new StepKey(randomFrom("hot", "warm", "cold", "delete"), randomAlphaOfLength(5), randomAlphaOfLength(5));
         StepKey frozenKey = new StepKey("frozen", randomAlphaOfLength(5), randomAlphaOfLength(5));
 
-        assertThat(action.getStorageType(), equalTo(null));
         assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
         assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
 
-        assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
-        assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
-
-        action = new SearchableSnapshotAction("repo", randomBoolean(), MountSearchableSnapshotRequest.Storage.FULL_COPY);
-        assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
-        assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
-        assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.FULL_COPY));
-        assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX));
-
-        action = new SearchableSnapshotAction("repo", randomBoolean(), MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
-        assertThat(action.getConcreteStorageType(nonFrozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
-        assertThat(action.getRestoredIndexPrefix(nonFrozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
         assertThat(action.getConcreteStorageType(frozenKey), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
         assertThat(action.getRestoredIndexPrefix(frozenKey), equalTo(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX));
     }
@@ -125,20 +111,6 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME));
     }
 
-    @Nullable
-    public static MountSearchableSnapshotRequest.Storage randomStorageType() {
-        if (randomBoolean()) {
-            // null is the same as a full copy, it just means it was not specified
-            if (randomBoolean()) {
-                return null;
-            } else {
-                return MountSearchableSnapshotRequest.Storage.FULL_COPY;
-            }
-        } else {
-            return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
-        }
-    }
-
     @Override
     protected SearchableSnapshotAction doParseInstance(XContentParser parser) throws IOException {
         return SearchableSnapshotAction.parse(parser);
@@ -160,6 +132,6 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     static SearchableSnapshotAction randomInstance() {
-        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomBoolean(), randomStorageType());
+        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), randomBoolean());
     }
 }

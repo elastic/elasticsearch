@@ -125,7 +125,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         // This configuration disables the size count and size thresholds,
         // and instead uses a scheduled flush only. This means that calling
         // processor.add() will not block the calling thread.
-        return BulkProcessor.builder(client::bulk, listener)
+        return BulkProcessor.builder(client::bulk, listener, "deprecation-indexing")
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
             .setBulkActions(-1)

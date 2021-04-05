@@ -110,6 +110,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "        \"rating\": { " +
             "            \"keyword\": {" +
             "                \"type\": \"keyword\"," +
+            "                \"metadata_field\": false," +
             "                \"searchable\": false," +
             "                \"aggregatable\": true," +
             "                \"indices\": [\"index3\", \"index4\"]," +
@@ -117,6 +118,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "            }," +
             "            \"long\": {" +
             "                \"type\": \"long\"," +
+            "                \"metadata_field\": false," +
             "                \"searchable\": true," +
             "                \"aggregatable\": false," +
             "                \"indices\": [\"index1\", \"index2\"]," +
@@ -126,6 +128,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "        \"title\": { " +
             "            \"text\": {" +
             "                \"type\": \"text\"," +
+            "                \"metadata_field\": false," +
             "                \"searchable\": true," +
             "                \"aggregatable\": false" +
             "            }" +
@@ -141,16 +144,17 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put("text", new FieldCapabilities("title", "text", true, false, null, null, null, Collections.emptyMap()));
+        titleCapabilities.put("text", new FieldCapabilities("title", "text", false, true, false,
+            null, null, null, Collections.emptyMap()));
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
         ratingCapabilities.put("long", new FieldCapabilities("rating", "long",
-            true, false,
+            false, true, false,
             new String[]{"index1", "index2"},
             null,
             new String[]{"index1"}, Collections.emptyMap()));
         ratingCapabilities.put("keyword", new FieldCapabilities("rating", "keyword",
-            false, true,
+            false, false, true,
             new String[]{"index3", "index4"},
             new String[]{"index4"},
             null, Collections.emptyMap()));

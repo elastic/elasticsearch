@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -35,8 +34,7 @@ public class RestClearApiKeyCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(POST, "/_security/api_key/{ids}/_clear_cache"));
+        return List.of(new Route(POST, "/_security/api_key/{ids}/_clear_cache"));
     }
 
     @Override

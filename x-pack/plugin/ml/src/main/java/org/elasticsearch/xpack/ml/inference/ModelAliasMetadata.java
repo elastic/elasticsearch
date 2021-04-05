@@ -114,8 +114,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        // TODO change after backport
-        return Version.V_8_0_0;
+        return Version.V_7_13_0;
     }
 
     @Override

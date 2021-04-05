@@ -1,6 +1,6 @@
 [role="xpack"]
 [[java-rest-high-security-put-role-mapping]]
-=== Put Role Mapping API
+=== Create or update role mapping API
 
 [[java-rest-high-security-put-role-mapping-execution]]
 ==== Execution

@@ -42,7 +42,12 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
     @Override
     protected MigrateAction createTestInstance() {
-        return new MigrateAction();
+        return new MigrateAction(randomBoolean());
+    }
+
+    @Override
+    protected MigrateAction mutateInstance(MigrateAction instance) throws IOException {
+        return new MigrateAction(instance.isEnabled() == false);
     }
 
     @Override
@@ -51,7 +56,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
     }
 
     public void testToSteps() {
-        String phase = randomValueOtherThan(DELETE_PHASE, () -> randomFrom(TimeseriesLifecycleType.VALID_PHASES));
+        String phase = randomValueOtherThan(DELETE_PHASE, () -> randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES));
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
         {

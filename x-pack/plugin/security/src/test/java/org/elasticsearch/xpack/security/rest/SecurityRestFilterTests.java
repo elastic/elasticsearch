@@ -166,7 +166,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     private void testProcessAuthenticationFailed(Exception authnException, RestStatus expectedRestStatus, boolean errorTrace,
                                                  boolean detailedErrorsEnabled, boolean traceExists) throws Exception {
         RestRequest request;
-        if (errorTrace != !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT || randomBoolean()) {
+        if (errorTrace != ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false || randomBoolean()) {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withParams(Map.of("error_trace", Boolean.toString(errorTrace))).build();
         } else {
@@ -251,11 +251,6 @@ public class SecurityRestFilterTests extends ESTestCase {
                 authcServiceRequest.get().content().streamInput()).map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
-    }
-
-    public void testDelegationForCompatibleWithMethod() throws Exception {
-        filter.compatibleWithVersion();
-        verify(restHandler).compatibleWithVersion();
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {

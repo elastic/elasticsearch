@@ -50,6 +50,7 @@ public class Mul extends ArithmeticOperation implements BinaryComparisonInversib
         return new Mul(source(), newLeft, newRight);
     }
 
+    @Override
     public Mul swapLeftAndRight() {
         return new Mul(source(), right(), left());
     }
@@ -57,5 +58,10 @@ public class Mul extends ArithmeticOperation implements BinaryComparisonInversib
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
         return Div::new;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
     }
 }

@@ -28,8 +28,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
-import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,7 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
@@ -381,18 +378,6 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::clone, highLevelClient().snapshot()::cloneAsync);
 
         assertTrue(response.isAcknowledged());
-    }
-
-    public void testGetFeatures() throws IOException {
-        GetSnapshottableFeaturesRequest request = new GetSnapshottableFeaturesRequest();
-
-        GetSnapshottableFeaturesResponse response = execute(request,
-            highLevelClient().snapshot()::getFeatures, highLevelClient().snapshot()::getFeaturesAsync);
-
-        assertThat(response, notNullValue());
-        assertThat(response.getFeatures(), notNullValue());
-        assertThat(response.getFeatures().size(), greaterThan(1));
-        assertTrue(response.getFeatures().stream().anyMatch(feature -> "tasks".equals(feature.getFeatureName())));
     }
 
     private static Map<String, Object> randomUserMetadata() {

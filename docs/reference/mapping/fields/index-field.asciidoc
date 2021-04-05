@@ -9,7 +9,7 @@ or scripting:
 
 [source,console]
 ----
-PUT index_1/_doc/1
+PUT index_1/_doc/1?refresh=true
 {
   "text": "Document in index 1"
 }

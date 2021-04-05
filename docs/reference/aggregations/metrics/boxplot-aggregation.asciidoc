@@ -77,8 +77,8 @@ query for them directly.
 
 If you need to create a boxplot for values that aren't indexed exactly you
 should create a <<runtime,runtime field>> and get the boxplot of that. For
-example, if our load times are in milliseconds but we want values calculated
-in seconds, we could use a runtime field to convert them on-the-fly:
+example, if your load times are in milliseconds but you want values calculated
+in seconds, use a runtime field to convert them on-the-fly:
 
 [source,console]
 ----

@@ -109,8 +109,8 @@ but observed performance will depend on the sample data.
 
 ==== Script
 
-In our example above, product reviews are on a scale of one to five. If we
-wanted to modify them to a scale of one to ten, we can use a <<runtime,runtime field>>.
+In the example above, product reviews are on a scale of one to five. If you
+want to modify them to a scale of one to ten, use a <<runtime,runtime field>>.
 
 [source,console]
 ----

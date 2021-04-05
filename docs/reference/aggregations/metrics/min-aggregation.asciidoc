@@ -46,8 +46,8 @@ response.
 
 ==== Script
 
-If you need to get the `min` of something more complex than a single field
-you should run the aggregation on a <<runtime,runtime field>>.
+If you need to get the `min` of something more complex than a single field,
+run the aggregation on a <<runtime,runtime field>>.
 
 [source,console]
 ----

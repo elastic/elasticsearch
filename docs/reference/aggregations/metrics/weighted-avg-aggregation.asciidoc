@@ -146,7 +146,7 @@ The aggregation returns `2.0` as the result, which matches what we would expect 
 ==== Runtime field
 
 If you have to sum or weigh values that don't quite line up with the indexed
-values you should run the aggregation on a <<runtime,runtime field>>.
+values, run the aggregation on a <<runtime,runtime field>>.
 
 [source,console]
 ----
@@ -237,4 +237,3 @@ POST /exams/_search
 }
 --------------------------------------------------
 // TEST[setup:exams]
-

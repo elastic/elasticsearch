@@ -180,8 +180,8 @@ make sure that hashes are computed at most once per unique value per segment.
 
 ==== Script
 
-If you need the cardinality of the combination of two fields you can
-create a <<runtime,runtime field>> combining them and aggregate on that.
+If you need the cardinality of the combination of two fields,
+create a <<runtime,runtime field>> combining them and aggregate it.
 
 [source,console]
 ----

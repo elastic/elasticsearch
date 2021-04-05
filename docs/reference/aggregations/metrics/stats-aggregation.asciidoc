@@ -46,8 +46,8 @@ The name of the aggregation (`grades_stats` above) also serves as the key by whi
 
 ==== Script
 
-If you need to get the `stats` for something more complex than a single field
-you should run the aggregation on a <<runtime,runtime field>>.
+If you need to get the `stats` for something more complex than a single field,
+run the aggregation on a <<runtime,runtime field>>.
 
 [source,console]
 --------------------------------------------------

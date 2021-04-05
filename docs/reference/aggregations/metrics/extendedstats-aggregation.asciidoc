@@ -100,7 +100,7 @@ if your data is skewed heavily left or right, the value returned will be mislead
 
 ==== Script
 
-If you need to aggregate on a value that isn't indexed you can use a <<runtime,runtime field>>.
+If you need to aggregate on a value that isn't indexed, use a <<runtime,runtime field>>.
 Say the we found out that the grades we've been working on were for an exam that was above
 the level of the students and we want to "correct" it:
 

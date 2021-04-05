@@ -163,9 +163,9 @@ Response:
 
 ==== Script
 
-If you need to run the aggregation against values not indexed you can run the
-aggregation on a <<runtime,runtime field>>. For example, if our load times
-are in milliseconds but we want percentiles calculated in seconds:
+If you need to run the aggregation against values that aren't indexed, use
+a <<runtime,runtime field>>. For example, if our load times
+are in milliseconds but you want percentiles calculated in seconds:
 
 [source,console]
 ----

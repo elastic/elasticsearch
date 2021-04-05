@@ -266,7 +266,7 @@ is `day` based, only  `second`, ` minute`, `hour`, `day`, and `week` rate interv
 
 ==== Script
 
-If you need to run the aggregation against values not indexed you can run the
+If you need to run the aggregation against values that aren't indexed, run the
 aggregation on a <<runtime,runtime field>>. For example, if we need to adjust
 our prices before calculating rates:
 

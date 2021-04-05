@@ -128,7 +128,7 @@ The `distribution` object shows the probability of each character appearing in a
 ==== Script
 
 If you need to get the `string_stats` for something more complex than a single
-field you should run the aggregation on a <<runtime,runtime field>>.
+field, run the aggregation on a <<runtime,runtime field>>.
 
 [source,console]
 ----

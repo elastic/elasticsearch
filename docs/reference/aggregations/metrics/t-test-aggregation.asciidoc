@@ -142,8 +142,8 @@ indices, the term filter on the <<mapping-index-field,`_index`>> field can be us
 ==== Script
 
 If you need to run the `t_test` on values that aren't represented cleanly
-by a field you should run the aggregation on a <<runtime,runtime field>>.
-For example, if we need to adjust out load times for the before values:
+by a field you should, run the aggregation on a <<runtime,runtime field>>.
+For example, if you want to adjust out load times for the before values:
 
 [source,console]
 ----

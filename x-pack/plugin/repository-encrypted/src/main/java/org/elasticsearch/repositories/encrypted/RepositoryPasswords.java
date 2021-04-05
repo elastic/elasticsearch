@@ -102,7 +102,17 @@ public final class RepositoryPasswords {
         return new Tuple<>(currentPasswordName, currentPassword);
     }
 
-    public Map<String, SecureString> passwordsForDekWrapping(RepositoryMetadata repositoryMetadata) {
+    public Tuple<SecureString, SecureString> passwordsForChange(RepositoryMetadata repositoryMetadata) {
+        Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
+        if (localPasswords.size() > 1) {
+            throw new IllegalArgumentException("No password in progress");
+        }
+        String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
+        String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
+        return new Tuple<>(localPasswords.get(fromPasswordName), localPasswords.get(toPasswordName));
+    }
+
+    public Map<String, SecureString> passwordsForBlobStoreDekWrapping(RepositoryMetadata repositoryMetadata) {
         Map<String, SecureString> localPasswords = localPasswords(repositoryMetadata);
         String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         SecureString currentPassword = localPasswords.get(currentPasswordName);

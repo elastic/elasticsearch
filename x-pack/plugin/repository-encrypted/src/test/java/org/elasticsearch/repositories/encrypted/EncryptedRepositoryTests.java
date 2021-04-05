@@ -140,7 +140,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     public void testStoreDEKSuccess() throws Exception {
-        SingleUseKey singleUseKey = encryptedBlobStore.singleUseDEKSupplier.get();
+        SingleUseKey singleUseKey = encryptedBlobStore.singleUseDekSupplier.get();
 
         String DEKId = singleUseKey.getKeyId().utf8ToString();
         SecretKey DEK = singleUseKey.getKey();
@@ -161,7 +161,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         blobsMap.put(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(KEKId), wrappedDEK);
 
-        SecretKey loadedDEK = encryptedBlobStore.getDEKById.apply(DEKId);
+        SecretKey loadedDEK = encryptedBlobStore.getDekById.apply(DEKId);
         assertThat(loadedDEK.getEncoded(), equalTo(DEK.getEncoded()));
     }
 
@@ -174,7 +174,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
         wrappedDEK.v2()[tamperPos] ^= 0xFF;
         blobsMap.put(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(wrappedDEK.v1()), wrappedDEK.v2());
 
-        RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDEKById.apply(DEKId));
+        RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDekById.apply(DEKId));
         assertThat(e.repository(), equalTo(repositoryMetadata.name()));
         assertThat(e.getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
     }
@@ -188,7 +188,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 .readBlob(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
-        IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDEKById.apply("this must be at least 16"));
+        IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDekById.apply("this must be at least 16"));
         assertThat(e.getMessage(), containsString("Tested IOException"));
     }
 
@@ -206,7 +206,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     private Tuple<String, byte[]> wrapDek(String id, SecretKey DEK) {
-        Map<String, byte[]> wrappedDEK = encryptedRepository.wrapDek(id, DEK);
+        Map<String, byte[]> wrappedDEK = encryptedRepository.wrapDekForBlobStore(id).apply(DEK);
         assertThat(wrappedDEK.size(), is(1));
         String wrappedDEKName = wrappedDEK.keySet().stream().findFirst().get();
         byte[] wrappedDEKContents = wrappedDEK.get(wrappedDEKName);

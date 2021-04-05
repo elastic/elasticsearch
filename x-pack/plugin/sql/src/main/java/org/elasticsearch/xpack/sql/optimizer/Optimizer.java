@@ -111,6 +111,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -165,7 +166,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneOrderByNestedFields(),
                 new PruneCast(),
                 // order by alignment of the aggs
-                new SortAggregateOnOrderBy()
+                new SortAggregateOnOrderBy(),
+                new PushDownAndCombineFilters()
         );
 
         Batch aggregate = new Batch("Aggregation Rewrite",

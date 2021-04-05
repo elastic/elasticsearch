@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
@@ -66,8 +67,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
         VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
         VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = Setting.simpleString(INDEX_ROUTING_PREFER,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
+        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
@@ -83,6 +84,14 @@ public class DataTierAllocationDecider extends AllocationDecider {
     private static class DataTierValidator implements Setting.Validator<String> {
         private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
             SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
+
+        public static String getDefaultTierPreference(Settings settings) {
+            if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+                return DATA_FROZEN;
+            } else {
+                return "";
+            }
+        }
 
         @Override
         public void validate(String value) {

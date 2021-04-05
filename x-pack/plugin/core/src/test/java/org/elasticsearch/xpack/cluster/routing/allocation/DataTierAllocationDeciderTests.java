@@ -751,16 +751,42 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
         Randomness.shuffle(tierList);
 
-        String value = Strings.join(tierList, ",");
-        Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, value);
-        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
-        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+        {
+            String value = Strings.join(tierList, ",");
+            Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, value);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
-        Settings settings = builder.build();
+            Settings settings = builder.build();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
-        assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+            assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+        }
+
+        {
+            Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "");
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+            Settings settings = builder.build();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+            assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+        }
+
+        {
+            Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "  ");
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+            Settings settings = builder.build();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+            assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+        }
     }
 
     public void testDefaultValueForPreference() {

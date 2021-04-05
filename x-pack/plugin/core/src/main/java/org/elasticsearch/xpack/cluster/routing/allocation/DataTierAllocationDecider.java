@@ -100,7 +100,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
         @Override
         public void validate(String value, Map<Setting<?>, Object> settings) {
-            if (Strings.hasText(value)) {
+            if (value != null) {
                 if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
                     if (value.equals(DATA_FROZEN) == false) {
                         throw new IllegalArgumentException("only the [" + DATA_FROZEN +

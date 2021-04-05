@@ -8,7 +8,7 @@ Its value is accessible in certain queries and aggregations, and when sorting
 or scripting:
 
 [source,console]
---------------------------
+----
 PUT index_1/_doc/1
 {
   "text": "Document in index 1"
@@ -41,21 +41,53 @@ GET index_1,index_2/_search
       }
     }
   ],
-  "script_fields": {
-    "index_name": {
-      "script": {
-        "lang": "painless",
-        "source": "doc['_index']" <4>
-      }
+  "fields": [
+    {"field": "index.suffix"}
+  ],
+  "runtime_mappings": {
+    "index.suffix": {
+      "type": "keyword",
+      "script": """
+        String index = doc['_index'].value; <4>
+        emit(/_/.split(index)[1])
+      """
     }
   }
 }
---------------------------
-
+----
+// TEST[s/_search/_search?filter_path=hits.hits/]
 <1> Querying on the `_index` field
 <2> Aggregating on the `_index` field
 <3> Sorting on the `_index` field
 <4> Accessing the `_index` field in scripts
+
+////
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "_index": "index_1",
+        "_score": null,
+        "_source": {"text": "Document in index 1"},
+        "fields": {"index.suffix": ["1"]},
+        "sort": ["index_1"]
+      },
+      {
+        "_id": "2",
+        "_index": "index_2",
+        "_score": null,
+        "_source": {"text": "Document in index 2"},
+        "fields": {"index.suffix": ["2"]},
+        "sort": ["index_2"]
+      }
+    ]
+  }
+}
+----
+////
 
 The `_index` field is exposed virtually -- it is not added to the Lucene index
 as a real field. This means that you can use the `_index` field in a `term` or

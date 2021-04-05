@@ -39,7 +39,7 @@ The name of the aggregation (`avg_grade` above) also serves as the key by which 
 
 ==== Script
 
-It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can average a <<runtime,runtime field>> to get a corrected average:
+Let's say the exam was exceedingly difficult, and you need to apply a grade correction. Average a <<runtime,runtime field>> to get a corrected average:
 
 [source,console]
 ----

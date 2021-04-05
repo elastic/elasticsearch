@@ -761,7 +761,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
-            assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+            assertThat(e.getMessage(),
+                containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
         }
 
         {
@@ -773,7 +774,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
-            assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+            assertThat(e.getMessage(),
+                containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
         }
 
         {
@@ -785,7 +787,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
-            assertThat(e.getMessage(), containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+            assertThat(e.getMessage(),
+                containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
         }
     }
 

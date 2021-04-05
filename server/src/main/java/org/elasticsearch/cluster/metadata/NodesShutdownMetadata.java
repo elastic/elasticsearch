@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -83,20 +82,10 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     /**
-     * Retrieve metadata for a single node.
-     * @param nodeId The node ID to get the shutdown metadata for.
-     * @return The shutdown metadata for this node, if it exists, or {@code null} if it does not.
+     * @return A map of NodeID to shutdown metadata.
      */
-    @Nullable
-    public SingleNodeShutdownMetadata getNodeMetadata(String nodeId) {
-        return nodes.get(nodeId);
-    }
-
-    /**
-     * @return All {@link SingleNodeShutdownMetadata}s that currently exist.
-     */
-    public List<SingleNodeShutdownMetadata> getAllNodeMetadata() {
-        return new ArrayList<>(nodes.values());
+    public Map<String, SingleNodeShutdownMetadata> getAllNodeMetdataMap() {
+        return Collections.unmodifiableMap(nodes);
     }
 
     /**

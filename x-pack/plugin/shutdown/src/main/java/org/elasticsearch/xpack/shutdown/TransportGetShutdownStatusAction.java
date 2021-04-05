@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -65,10 +66,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         if (nodesShutdownMetadata == null) {
             response = new GetShutdownStatusAction.Response(new ArrayList<>());
         } else if (request.getNodeIds().length == 0) {
-            response = new GetShutdownStatusAction.Response(nodesShutdownMetadata.getAllNodeMetadata());
+            response = new GetShutdownStatusAction.Response(new ArrayList<>(nodesShutdownMetadata.getAllNodeMetdataMap().values()));
         } else {
+            Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetdataMap();
             final List<SingleNodeShutdownMetadata> shutdownStatuses = Arrays.stream(request.getNodeIds())
-                .map(nodesShutdownMetadata::getNodeMetadata)
+                .map(nodeShutdownMetadataMap::get)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             response = new GetShutdownStatusAction.Response(shutdownStatuses);

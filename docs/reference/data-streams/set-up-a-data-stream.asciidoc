@@ -29,6 +29,7 @@ To create an index lifecycle policy in {kib}, open the main menu and go to
 
 You can also use the <<ilm-put-lifecycle,create lifecycle policy API>>.
 
+// tag::ilm-policy-api-ex[]
 [source,console]
 ----
 PUT _ilm/policy/my-lifecycle-policy
@@ -58,7 +59,7 @@ PUT _ilm/policy/my-lifecycle-policy
         "min_age": "60d",
         "actions": {
           "searchable_snapshot": {
-            "snapshot_repository": "my-snapshot-repo"
+            "snapshot_repository": "found-snapshots"
           }
         }
       },
@@ -66,7 +67,7 @@ PUT _ilm/policy/my-lifecycle-policy
         "min_age": "90d",
         "actions": {
           "searchable_snapshot": {
-            "snapshot_repository": "my-snapshot-repo"
+            "snapshot_repository": "found-snapshots"
           }
         }
       },
@@ -80,11 +81,13 @@ PUT _ilm/policy/my-lifecycle-policy
   }
 }
 ----
+// end::ilm-policy-api-ex[]
 
 [discrete]
 [[create-component-templates]]
 === Step 2. Create component templates
 
+// tag::ds-create-component-templates[]
 A data stream requires a matching index template. In most cases, you compose
 this index template using one or more component templates. You typically use
 separate component templates for mappings and index settings. This lets you
@@ -156,11 +159,13 @@ PUT _component_template/my-settings
 }
 ----
 // TEST[continued]
+// end::ds-create-component-templates[]
 
 [discrete]
 [[create-index-template]]
 === Step 3. Create an index template
 
+// tag::ds-create-index-template[]
 Use your component templates to create an index template. Specify:
 
 * One or more index patterns that match the data stream's name. We recommend
@@ -196,11 +201,13 @@ PUT _index_template/my-index-template
 }
 ----
 // TEST[continued]
+// end::ds-create-index-template[]
 
 [discrete]
 [[create-data-stream]]
 === Step 4. Create the data stream
 
+// tag::ds-create-data-stream[]
 <<add-documents-to-a-data-stream,Indexing requests>> add documents to a data
 stream. These requests must use an `op_type` of `create`. Documents must include
 a `@timestamp` field.
@@ -224,6 +231,7 @@ POST my-data-stream/_doc
 }
 ----
 // TEST[continued]
+// end::ds-create-data-stream[]
 
 You can also manually create the stream using the
 <<indices-create-data-stream,create data stream API>>. The stream's name must

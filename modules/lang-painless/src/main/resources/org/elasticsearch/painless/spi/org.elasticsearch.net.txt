@@ -6,6 +6,15 @@
 # Side Public License, v 1.
 #
 
+class java.net.URL {
+    (String)
+    String getHost()
+    String getPath()
+    int getPort()
+    String getProtocol()
+    String getRef()
+}
+
 class org.elasticsearch.painless.api.CIDR {
     (String)
     boolean contains(String)

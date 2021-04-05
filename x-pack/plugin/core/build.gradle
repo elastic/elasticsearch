@@ -139,7 +139,7 @@ restResources {
   }
 }
 
-testClusters.yamlRestTest {
+testClusters.all {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

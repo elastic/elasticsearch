@@ -143,6 +143,9 @@ Closure setupMyIndex = { String name, int count ->
                           type: keyword
                 message:
                   type: text
+                  fields:
+                    keyword:
+                      type: keyword
                 user:
                   properties:
                     id:

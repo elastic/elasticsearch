@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -94,6 +95,14 @@ public class In extends ScalarFunction {
             return null;
         }
         return InProcessor.apply(value.fold(), foldAndConvertListOfValues(list, value.dataType()));
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        // order values for commutative operators
+        List<Expression> canonicalValues = Expressions.canonicalize(list);
+        Collections.sort(canonicalValues, (l, r) -> Integer.compare(l.hashCode(), r.hashCode()));
+        return new In(source(), value, canonicalValues, zoneId);
     }
 
     @Override

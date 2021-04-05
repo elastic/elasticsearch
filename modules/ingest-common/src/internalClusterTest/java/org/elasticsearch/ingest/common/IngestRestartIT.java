@@ -9,6 +9,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -203,10 +205,7 @@ public class IngestRestartIT extends ESIntegTestCase {
 
     public void testWithDedicatedIngestNode() throws Exception {
         String node = internalCluster().startNode();
-        String ingestNode = internalCluster().startNode(Settings.builder()
-                .put("node.master", false)
-                .put("node.data", false)
-        );
+        String ingestNode = internalCluster().startNode(onlyRole(DiscoveryNodeRole.INGEST_ROLE));
 
         BytesReference pipeline = new BytesArray("{\n" +
                 "  \"processors\" : [\n" +

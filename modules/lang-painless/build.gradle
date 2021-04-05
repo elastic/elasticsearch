@@ -9,6 +9,7 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -38,7 +39,7 @@ tasks.named("dependencyLicenses").configure {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
                 'scripts_painless_execute', 'put_script', 'delete_script'
   }
 }

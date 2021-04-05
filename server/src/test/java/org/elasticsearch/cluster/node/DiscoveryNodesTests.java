@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
@@ -99,14 +98,14 @@ public class DiscoveryNodesTests extends ESTestCase {
         final String[] coordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+                    .filter(n -> n.canContainData() == false && n.isIngestNode() == false && n.isMasterNode() == false)
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
         final String[] nonCoordinatorOnlyNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                     .map(n -> n.value)
-                    .filter(n -> n.isMasterNode() || n.isDataNode() || n.isIngestNode())
+                    .filter(n -> n.isMasterNode() || n.canContainData() || n.isIngestNode())
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
@@ -271,14 +270,7 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
             if (frequently()) {
-                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
-
-                    @Override
-                    public Setting<Boolean> legacySetting() {
-                        return null;
-                    }
-
-                });
+                roles.add(new DiscoveryNodeRole("custom_role", "cr"));
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);

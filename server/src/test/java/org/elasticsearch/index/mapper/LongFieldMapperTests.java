@@ -18,6 +18,7 @@ import java.math.BigInteger;
 import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -43,6 +44,41 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         b.field("type", "long");
     }
 
+    @Override
+    protected boolean allowsIndexTimeScript() {
+        return true;
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("coerce", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [coerce] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("null_value", 7);
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("ignore_malformed", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+        }
+    }
+
     public void testLongIndexingOutOfRange() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("ignore_malformed", true)));
         ParsedDocument doc = mapper.parse(
@@ -58,5 +94,22 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
         assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+    }
+
+    @Override
+    protected Number randomNumber() {
+        if (randomBoolean()) {
+            return randomLong();
+        }
+        if (randomBoolean()) {
+            return randomDouble();
+        }
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
+        return randomDoubleBetween(Long.MIN_VALUE, Long.MAX_VALUE, true);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
+    public void testFetchCoerced() throws IOException {
+        assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
     }
 }

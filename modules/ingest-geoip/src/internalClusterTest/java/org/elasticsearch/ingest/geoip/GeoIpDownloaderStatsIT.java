@@ -33,6 +33,7 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
@@ -46,8 +47,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (ENDPOINT != null) {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
         }
@@ -92,6 +93,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
             Map<String, Map<String, List<Map<String, Object>>>> nodes = view.get("nodes");
             assertThat(nodes.values(), hasSize(greaterThan(0)));
             for (Map<String, List<Map<String, Object>>> value : nodes.values()) {
+                assertThat(value, hasKey("databases"));
                 assertThat(value.get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                     containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb"));
             }

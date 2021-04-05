@@ -15,6 +15,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -498,6 +499,50 @@ public class DateFieldMapperTests extends MapperTestCase {
             new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION)),
             "strict_date_optional_time_nanos"
         );
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", randomBoolean() ? "date" : "date_nanos");
+    }
+
+    @Override
+    protected String randomFetchTestFormat() {
+        // TODO more choices! The test should work fine even for choices that throw out a ton of precision.
+        switch (randomInt(2)) {
+            case 0:
+                return null;
+            case 1:
+                return "epoch_millis";
+            case 2:
+                return "iso8601";
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (((DateFieldType) ft).resolution()) {
+            case MILLISECONDS:
+                if (randomBoolean()) {
+                    return randomIs8601Nanos(MAX_ISO_DATE);
+                }
+                return randomLongBetween(0, Long.MAX_VALUE);
+            case NANOSECONDS:
+                switch (randomInt(2)) {
+                    case 0:
+                        return randomLongBetween(0, MAX_NANOS);
+                    case 1:
+                        return randomIs8601Nanos(MAX_NANOS);
+                    case 2:
+                        return new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION));
+                    default:
+                        throw new IllegalStateException();
+                }
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     private MapperService dateNanosMapperService() throws IOException {

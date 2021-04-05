@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -31,6 +32,8 @@ import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
+
+    public static final Version EQL_GA_VERSION = Version.V_7_10_0;
 
     private EqlTestUtils() {
     }

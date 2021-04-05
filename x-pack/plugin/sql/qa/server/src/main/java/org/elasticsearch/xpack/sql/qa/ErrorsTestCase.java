@@ -34,7 +34,5 @@ public interface ErrorsTestCase {
 
     void testSelectScoreSubField() throws Exception;
 
-    void testSelectScoreInScalar() throws Exception;
-
     void testHardLimitForSortOnAggregate() throws Exception;
 }

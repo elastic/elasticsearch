@@ -76,7 +76,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path dataPath = fileSystemProvider.getRootDir().resolve("node-" + nodeOrdinal);
         try {
             Files.createDirectories(dataPath);
@@ -85,7 +85,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         }
         fileSystemProvider.addTrackedPath(dataPath);
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(Environment.PATH_DATA_SETTING.getKey(), dataPath)
             .put(FsService.ALWAYS_REFRESH_SETTING.getKey(), true)
             .build();

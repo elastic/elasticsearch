@@ -15,12 +15,12 @@ import static org.hamcrest.Matchers.not;
 
 public class HdfsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return "hdfs";
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         final String uri = System.getProperty("test.hdfs.uri");
         assertThat(uri, not(blankOrNullString()));
 

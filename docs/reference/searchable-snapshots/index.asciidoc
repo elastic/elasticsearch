@@ -48,6 +48,13 @@ same mechanisms as for regular indices. For example, you could use
 <<shard-allocation-filtering>> to restrict {search-snap} shards to a subset of
 your nodes.
 
+The speed of recovery of a {search-snap} index is limited by the repository
+setting `max_restore_bytes_per_sec` and the node setting
+`indices.recovery.max_bytes_per_sec` just like a normal restore operation. By
+default `max_restore_bytes_per_sec` is unlimited, but the default for
+`indices.recovery.max_bytes_per_sec` depends on the configuration of the node.
+See <<recovery-settings>>.
+
 We recommend that you <<indices-forcemerge, force-merge>> indices to a single
 segment per shard before taking a snapshot that will be mounted as a
 {search-snap} index. Each read from a snapshot repository takes time and costs
@@ -164,13 +171,11 @@ You can configure the setting in `elasticsearch.yml`:
 xpack.searchable.snapshot.shared_cache.size: 4TB
 ----
 
-IMPORTANT: Currently, you can configure
-`xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
-you will only be able to configure this setting on nodes with the
+IMPORTANT: You can only configure this setting on nodes with the
 <<data-frozen-node,`data_frozen`>> role.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
-couple of gigabytes up to 90% of available disk space. We only recommend higher
+couple of gigabytes up to 90% of available disk space. We only recommend larger
 sizes if you use the node exclusively on a frozen tier or for searchable
 snapshots.
 
@@ -212,11 +217,11 @@ repository storage then you are responsible for its reliability.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
-=== Configure a frozen tier on the {ess}
+=== Configure a frozen tier on {ess}
 
-The frozen data tier is not yet available on the {ess-trial}[{ess}]. However,
+The frozen data tier is not yet available on {ess-trial}[{ess}]. However,
 you can configure another tier to use <<shared-cache,shared snapshot caches>>.
-This effectively recreates a frozen tier in your {ess} deployment. Follow these
+This effectively recreates a frozen tier in your deployment. Follow these
 steps:
 
 . Choose an existing tier to use. Typically, you'll use the cold tier, but the

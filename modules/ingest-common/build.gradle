@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -27,7 +28,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
+    include '_common', 'ingest', 'cluster', 'indices', 'index', 'bulk', 'nodes', 'get', 'update', 'cat', 'mget'
   }
 }
 
@@ -46,4 +47,12 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.log.Hierarchy',
     'org.apache.log.Logger',
   )
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'ingest/80_foreach/Test foreach Processor',
+    'ingest/230_change_target_index/Test Change Target Index with Explicit Pipeline',
+    'ingest/230_change_target_index/Test Change Target Index with Default Pipeline'
+  ].join(',')
 }

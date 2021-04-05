@@ -1180,6 +1180,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             baseConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
         }
 
+        baseConfig.put("action.destructive_requires_name", "false");
+
         HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
         overriden.retainAll(settings.keySet());
         overriden.removeAll(OVERRIDABLE_SETTINGS);

@@ -32,10 +32,11 @@ class SnippetsTask extends DefaultTask {
     private static final String CATCH = /catch:\s*((?:\/[^\/]+\/)|[^ \]]+)/
     private static final String SKIP = /skip:([^\]]+)/
     private static final String SETUP = /setup:([^ \]]+)/
+    private static final String TEARDOWN = /teardown:([^ \]]+)/
     private static final String WARNING = /warning:(.+)/
     private static final String NON_JSON = /(non_json)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING|(skip_shard_failures)) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$TEARDOWN|$WARNING|(skip_shard_failures)) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
@@ -226,10 +227,14 @@ class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(7) != null) {
-                                snippet.warnings.add(it.group(7))
+                                snippet.teardown = it.group(7)
                                 return
                             }
                             if (it.group(8) != null) {
+                                snippet.warnings.add(it.group(8))
+                                return
+                            }
+                            if (it.group(9) != null) {
                                 snippet.skipShardsFailures = true
                                 return
                             }
@@ -341,6 +346,7 @@ class SnippetsTask extends DefaultTask {
         String language = null
         String catchPart = null
         String setup = null
+        String teardown = null
         boolean curl
         List warnings = new ArrayList()
         boolean skipShardsFailures = false
@@ -371,6 +377,9 @@ class SnippetsTask extends DefaultTask {
                 }
                 if (setup) {
                     result += "[setup:$setup]"
+                }
+                if (teardown) {
+                    result += "[teardown:$teardown]"
                 }
                 for (String warning in warnings) {
                     result += "[warning:$warning]"

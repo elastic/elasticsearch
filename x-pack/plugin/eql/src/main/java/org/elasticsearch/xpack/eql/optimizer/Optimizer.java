@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -64,6 +66,7 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -87,6 +90,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanFunctionEqualsElimination(),
                 // needs to occur before BinaryComparison combinations
                 new PropagateEquals(),
+                new PropagateNullable(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
@@ -94,6 +98,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
+                new PruneCast(),
                 new CombineLimits());
 
         Batch constraints = new Batch("Infer constraints", Limiter.ONCE,
@@ -232,6 +237,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return new LocalRelation(plan.source(), plan.output(), Type.EVENT);
             }
             return plan;
+        }
+    }
+
+    static class PruneCast extends OptimizerRules.PruneCast<ToString> {
+
+        PruneCast() {
+            super(ToString.class);
+        }
+
+        @Override
+        protected Expression maybePruneCast(ToString cast) {
+            return cast.dataType().equals(cast.value().dataType()) ? cast.value() : cast;
         }
     }
 

@@ -21,9 +21,9 @@ final class ElasticServiceAccounts {
 
     static final String NAMESPACE = "elastic";
 
-    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet",
+    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet-server",
         new RoleDescriptor(
-            NAMESPACE + "/fleet",
+            NAMESPACE + "/fleet-server",
             new String[]{"monitor", "manage_own_api_key"},
             new RoleDescriptor.IndicesPrivileges[]{
                 RoleDescriptor.IndicesPrivileges

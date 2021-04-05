@@ -99,7 +99,7 @@ Name of the component template to create.
 - `synthetics-settings`
 // end::built-in-component-templates[]
 
-The {fleet-guide}/fleet-overview.html[{agent}] uses these templates to configure
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to configure
 backing indices for its data streams. If you use {agent} and want to overwrite
 one of these templates, set the `version` for your replacement template higher
 than the current version.

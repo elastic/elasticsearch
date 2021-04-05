@@ -169,19 +169,22 @@ collect_mode::                Optional. Specifies the strategy for data collecti
 
 Generating the terms using a script:
 
-[source,console,id=multi-terms-aggregation-script-example]
---------------------------------------------------
+[source,console,id=multi-terms-aggregation-runtime-field-example]
+----
 GET /products/_search
 {
+  "runtime_mappings": {
+    "genre.length": {
+      "type": "long",
+      "script": "emit(doc['genre'].value.length())"
+    }
+  },
   "aggs": {
     "genres_and_products": {
       "multi_terms": {
         "terms": [
           {
-            "script": {
-              "source": "doc['genre'].value.length()",
-              "lang": "painless"
-            }
+            "field": "genre.length"
           },
           {
             "field": "product"
@@ -191,7 +194,7 @@ GET /products/_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
@@ -207,7 +210,7 @@ Response:
       "buckets" : [
         {
           "key" : [
-            "4",
+            4,
             "Product A"
           ],
           "key_as_string" : "4|Product A",
@@ -215,7 +218,7 @@ Response:
         },
         {
           "key" : [
-            "4",
+            4,
             "Product B"
           ],
           "key_as_string" : "4|Product B",
@@ -223,7 +226,7 @@ Response:
         },
         {
           "key" : [
-            "10",
+            10,
             "Product B"
           ],
           "key_as_string" : "10|Product B",

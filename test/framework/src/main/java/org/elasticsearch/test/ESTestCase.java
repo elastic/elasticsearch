@@ -411,19 +411,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             if (warnings != null) {
-                List<String> filteredWarnings = new ArrayList<>(warnings);
-                if (enableJodaDeprecationWarningsCheck() == false) {
-                    filteredWarnings = filterJodaDeprecationWarnings(filteredWarnings);
-                }
-                if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-                    // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
-                    filteredWarnings = filteredWarnings
-                        .stream()
-                        .filter(k -> k.contains(
-                            "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
-                        ) == false)
-                        .collect(Collectors.toList());
-                }
+                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
+                final List<String> filteredWarnings = warnings
+                    .stream()
+                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
                 assertNull("unexpected warning headers", warnings);
@@ -431,6 +423,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         } finally {
             resetDeprecationLogger();
         }
+    }
+
+    protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        if (enableJodaDeprecationWarningsCheck()) {
+            filtered.add(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+        }
+        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+        }
+        return filtered;
     }
 
     /**
@@ -490,24 +493,23 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> rawWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarnings;
+            if (rawWarnings == null) {
+                actualWarnings = Collections.emptyList();
+            } else {
+                actualWarnings = rawWarnings.stream()
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
+            }
             if ((expectedWarnings == null || expectedWarnings.length == 0)) {
-                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
-            } else if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
-                assertWarnings(stripXContentPosition, filteredWarnings, expectedWarnings);
+                assertThat("expected 0 warnings, actual: " + actualWarnings, actualWarnings, empty());
             } else {
                 assertWarnings(stripXContentPosition, actualWarnings, expectedWarnings);
             }
         } finally {
             resetDeprecationLogger();
         }
-    }
-
-    private List<String> filterJodaDeprecationWarnings(List<String> actualWarnings) {
-        return actualWarnings.stream()
-                             .filter(m -> m.contains(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS) == false)
-                             .collect(Collectors.toList());
     }
 
     private void assertWarnings(boolean stripXContentPosition, List<String> actualWarnings, String[] expectedWarnings) {

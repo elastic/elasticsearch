@@ -145,4 +145,3 @@ testClusters.yamlRestTest {
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
 }
-

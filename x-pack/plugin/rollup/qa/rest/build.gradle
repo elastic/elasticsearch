@@ -8,7 +8,6 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.yaml-rest-test'
 
-
 dependencies {
   yamlRestTestImplementation project(path: xpackModule('rollup'))
 }

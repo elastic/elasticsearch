@@ -36,7 +36,7 @@ public class Or extends BinaryLogic implements Negatable<BinaryLogic> {
 
     @Override
     public And negate() {
-        return new And(source(), new Not(source(), left()), new Not(source(), right()));
+        return new And(source(), Not.negate(left()), Not.negate(right()));
     }
 
     @Override

@@ -118,6 +118,14 @@ public final class Expressions {
         return value;
     }
 
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
+    }
+
     public static boolean foldable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
             if (exp.foldable() == false) {

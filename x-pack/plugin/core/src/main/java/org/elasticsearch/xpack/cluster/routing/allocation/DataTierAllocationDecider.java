@@ -99,12 +99,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
         }
 
         @Override
-        public void validate(String value, Map<Setting<?>, Object> settings) {
-            if (value != null) {
+        public void validate(String value, Map<Setting<?>, Object> settings, boolean exists) {
+            if (exists && value != null) {
                 if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
                     if (value.equals(DATA_FROZEN) == false) {
                         throw new IllegalArgumentException("only the [" + DATA_FROZEN +
-                            "] tier preference may be used for partial searchable snapshots");
+                            "] tier preference may be used for partial searchable snapshots (got: [" + value + "])");
                     }
                 } else {
                     String[] split = value.split(",");

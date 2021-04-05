@@ -4,11 +4,11 @@
 <titleabbrev>Script</titleabbrev>
 ++++
 
-NOTE: <<runtime,Runtime fields>> provide a very similar feature that is quite
-      a bit more flexible. You write a script to create field values and they
-      are available everywhere - <<search-fields, `fields`>>,
-      <<query-dsl, all queries>>, <<search-aggregations, aggregations>>,
-      and anything else you can think of.
+NOTE: <<runtime,Runtime fields>> provide a very similar feature that is
+      more flexible. You write a script to create field values and they
+      are available everywhere, such as <<search-fields, `fields`>>,
+      <<query-dsl, all queries>>, and <<search-aggregations, aggregations>>.
+
 
 Filters documents based on a provided <<modules-scripting-using,script>>. The
 `script` query is typically used in a <<query-filter-context,filter context>>.

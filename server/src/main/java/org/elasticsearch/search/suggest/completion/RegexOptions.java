@@ -51,7 +51,6 @@ public class RegexOptions implements ToXContentFragment, Writeable {
                     + " " + FLAGS_VALUE.getPreferredName() + " supports string or number");
             }
         }, FLAGS_VALUE, ObjectParser.ValueType.VALUE);
-        PARSER.declareStringOrNull(Builder::setFlags, FLAGS_VALUE);
     }
 
     public static Builder builder() {

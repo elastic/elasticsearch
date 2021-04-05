@@ -317,27 +317,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    public void testSelectDistinctFails() throws Exception {
-        index("{\"name\":\"test\"}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT DISTINCT name FROM test"),
-            containsString("line 1:8: SELECT DISTINCT is not yet supported")
-        );
-    }
-
     public void testSelectGroupByAllFails() throws Exception {
         index("{\"foo\":1}", "{\"foo\":2}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT foo FROM test GROUP BY ALL foo"),
             containsString("line 1:32: GROUP BY ALL is not supported")
-        );
-    }
-
-    public void testSelectWhereExistsFails() throws Exception {
-        index("{\"foo\":1}", "{\"foo\":2}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)", randomBoolean()),
-            containsString("line 1:28: EXISTS is not yet supported")
         );
     }
 
@@ -472,20 +456,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @Override
-    public void testSelectScoreInScalar() throws Exception {
-        index("{\"foo\":1}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
-            containsString("line 1:12: [SCORE()] cannot be an argument to a function")
-        );
-    }
-
-    @Override
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("{\"a\": 1, \"b\": 2}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000"),
-            containsString("The maximum LIMIT for aggregate sorting is [65535], received [120000]")
+            containsString("The maximum LIMIT for aggregate sorting is [65536], received [120000]")
         );
     }
 
@@ -924,6 +899,35 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testNextPageCSV() throws IOException {
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
+    }
+
+    public void testCSVWithDelimiterParameter() throws IOException {
+        String format = randomFrom("txt", "tsv", "json", "yaml", "smile", "cbor");
+        String query = "SELECT * FROM test";
+        index("{\"foo\":1}");
+
+        Request badRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        badRequest.addParameter("format", format);
+        badRequest.addParameter("delimiter", ";");
+        badRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(badRequest);
+            return Collections.emptyMap();
+        }, containsString("request [/_sql] contains unrecognized parameter: [delimiter]"));
+
+        Request csvRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT + "?format=csv&delimiter=%3B");
+        csvRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        assertOK(client().performRequest(csvRequest));
     }
 
     public void testQueryInTSV() throws IOException {

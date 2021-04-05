@@ -41,6 +41,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -109,6 +110,11 @@ public abstract class AggregationContext implements Releasable {
      * Lookup a {@link MappedFieldType} by path.
      */
     public abstract MappedFieldType getFieldType(String path);
+
+    /**
+     * Returns the registered mapped field types.
+     */
+    public abstract Collection<MappedFieldType> getFieldTypes();
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -327,6 +333,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public MappedFieldType getFieldType(String path) {
             return context.getFieldType(path);
+        }
+
+        @Override
+        public Collection<MappedFieldType> getFieldTypes() {
+            return context.getFieldTypes();
         }
 
         @Override

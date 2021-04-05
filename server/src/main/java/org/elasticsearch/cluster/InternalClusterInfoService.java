@@ -136,7 +136,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         // Refresh if a data node was added
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.isDataNode()) {
+            if (addedNode.canContainData()) {
                 refreshAsync(new PlainActionFuture<>());
                 break;
             }

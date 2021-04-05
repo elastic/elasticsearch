@@ -41,9 +41,9 @@ public final class EncryptedS3BlobStoreRepositoryIntegTests extends S3BlobStoreR
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName());
         MockSecureSettings superSecureSettings = (MockSecureSettings) settingsBuilder.getSecureSettings();
         superSecureSettings.merge(nodeSecureSettings());

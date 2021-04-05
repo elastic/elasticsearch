@@ -11,6 +11,7 @@ package org.elasticsearch.gradle
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.ObjectReader
 import com.fasterxml.jackson.databind.ObjectWriter
+import com.fasterxml.jackson.databind.SequenceWriter
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
@@ -28,6 +29,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
     def YAML_FACTORY = new YAMLFactory()
     def MAPPER = new ObjectMapper(YAML_FACTORY)
     def READER = MAPPER.readerFor(ObjectNode.class)
+    def WRITER = MAPPER.writerFor(ObjectNode.class)
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -71,9 +73,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;
-            testClusters {
-              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
-            }
 
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
@@ -196,10 +195,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;
-            testClusters {
-              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
-            }
-
+     
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
             }
@@ -209,6 +205,11 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.removeMatch("_source.blah")
               task.removeMatch("_source.junk", "two")
               task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
+              task.addWarning("one", "warning1", "warning2")
+              task.addWarningRegex("two", "regex warning here .* [a-z]")
+              task.addAllowedWarning("added allowed warning")
+              task.addAllowedWarningRegex("added allowed warning regex .* [0-9]")
+              task.removeWarning("one", "warning to remove")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -222,6 +223,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               get:
                 index: test
                 id: 1
+              warnings:
+                - "warning to remove"
           - match: { _source.values: ["foo"] }
           - match: { _type: "_foo" }
           - match: { _source.blah: 1234 }
@@ -253,16 +256,28 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         ---
         setup:
         - skip:
-            features: "headers"
+            features:
+            - "headers"
+            - "warnings"
+            - "warnings_regex"
+            - "allowed_warnings"
+            - "allowed_warnings_regex"
         ---
         one:
         - do:
             get:
               index: "test"
               id: 1
+            warnings:
+            - "warning1"
+            - "warning2"
             headers:
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
               Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+            allowed_warnings:
+            - "added allowed warning"
+            allowed_warnings_regex:
+            - "added allowed warning regex .* [0-9]"
         - match:
             _source.values:
             - "z"
@@ -286,6 +301,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             headers:
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
               Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+            warnings_regex:
+            - "regex warning here .* [a-z]"
+            allowed_warnings:
+            - "added allowed warning"
+            allowed_warnings_regex:
+            - "added allowed warning regex .* [0-9]"
         - match:
             _source.values:
             - "foo"
@@ -296,6 +317,14 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """.stripIndent()).readAll()
 
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->
+            if(expected != actual.get(i)) {
+                println("\nTransformed Test:")
+                SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
+                for (ObjectNode transformedTest : actual) {
+                    sequenceWriter.write(transformedTest)
+                }
+                sequenceWriter.close()
+            }
            assert expected == actual.get(i)
         }
 

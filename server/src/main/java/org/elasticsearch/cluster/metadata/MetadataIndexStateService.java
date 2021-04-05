@@ -133,18 +133,6 @@ public class MetadataIndexStateService {
         if (concreteIndices == null || concreteIndices.length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
-        List<String> writeIndices = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> lookup = clusterService.state().metadata().getIndicesLookup();
-        for (Index index : concreteIndices) {
-            IndexAbstraction ia = lookup.get(index.getName());
-            if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
-                writeIndices.add(index.getName());
-            }
-        }
-        if (writeIndices.size() > 0) {
-            throw new IllegalArgumentException("cannot close the following data stream write indices [" +
-                Strings.collectionToCommaDelimitedString(writeIndices) + "]");
-        }
 
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
             new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
@@ -565,22 +553,15 @@ public class MetadataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(ReplicationResponse replicationResponse) {
-                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                        new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
-                    if (request.ackTimeout() != null) {
-                        shardRequest.timeout(request.ackTimeout());
-                    }
-                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest,
+                    listener.delegateFailure((delegate, replicationResponse) -> {
+                        final TransportVerifyShardBeforeCloseAction.ShardRequest req =
+                                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
+                        if (request.ackTimeout() != null) {
+                            req.timeout(request.ackTimeout());
+                        }
+                        client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, req, delegate);
+                    }));
         }
     }
 

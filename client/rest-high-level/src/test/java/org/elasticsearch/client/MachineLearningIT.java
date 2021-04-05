@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -225,7 +226,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+        ensureNoInitializingShards();
+        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
     }
 
     public void testPutJob() throws Exception {
@@ -1824,7 +1826,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         AucRocResult aucRocResult =
             evaluateDataFrameResponse.getMetricByName(org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME);
         assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-        assertThat(aucRocResult.getValue(), closeTo(0.70025, 1e-9));
+        assertThat(aucRocResult.getValue(), closeTo(0.70, 1e-3));
         assertNotNull(aucRocResult.getCurve());
         List<AucRocPoint> curve = aucRocResult.getCurve();
         AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
@@ -1959,7 +1961,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             AucRocResult aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocResult.getValue(), closeTo(0.6425, 1e-9));
+            assertThat(aucRocResult.getValue(), closeTo(0.619, 1e-3));
             assertNotNull(aucRocResult.getCurve());
         }
         {  // Accuracy
@@ -2380,7 +2382,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdModel.getModelId(), equalTo(modelIdCompressed));
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest(modelIdCompressed).setDecompressDefinition(true).setIncludeDefinition(true),
+            new GetTrainedModelsRequest(modelIdCompressed).setDecompressDefinition(true).includeDefinition(),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 
@@ -2492,12 +2494,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "          }\n" +
             "        }\n" +
             "      }]}\n";
+        String pipelineId = "regression-stats-pipeline";
 
         highLevelClient().ingest().putPipeline(
-            new PutPipelineRequest("regression-stats-pipeline",
+            new PutPipelineRequest(pipelineId,
                 new BytesArray(regressionPipeline.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON),
             RequestOptions.DEFAULT);
+        highLevelClient().index(
+            new IndexRequest("trained-models-stats-test-index").source("{\"col1\": 1}", XContentType.JSON).setPipeline(pipelineId),
+            RequestOptions.DEFAULT
+        );
         {
             GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
                 GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
@@ -2527,6 +2534,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     .collect(Collectors.toList()),
                 containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
         }
+        highLevelClient().ingest().deletePipeline(new DeletePipelineRequest(pipelineId), RequestOptions.DEFAULT);
+        assertBusy(() -> {
+            assertTrue(indexExists(".ml-stats-000001"));
+            ensureGreen(".ml-stats-*");
+        });
     }
 
     public void testDeleteTrainedModel() throws Exception {
@@ -2535,7 +2547,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         putTrainedModel(modelId);
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            new GetTrainedModelsRequest(modelId + "*").setAllowNoMatch(true),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 
@@ -2548,7 +2560,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(deleteTrainedModelResponse.isAcknowledged());
 
         getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            new GetTrainedModelsRequest(modelId + "*").setAllowNoMatch(true),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 
@@ -2560,7 +2572,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         GetTrainedModelsResponse getTrainedModelsResponse = execute(
-            new GetTrainedModelsRequest("lang_ident_model_1").setIncludeDefinition(true),
+            new GetTrainedModelsRequest("lang_ident_model_1").includeDefinition(),
             machineLearningClient::getTrainedModels,
             machineLearningClient::getTrainedModelsAsync);
 

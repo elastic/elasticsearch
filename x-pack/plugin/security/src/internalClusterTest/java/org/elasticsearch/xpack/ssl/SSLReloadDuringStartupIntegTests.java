@@ -31,8 +31,8 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = super.nodeSettings(nodeOrdinal);
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Environment tmpEnv = TestEnvironment.newEnvironment(settings);
         // each node gets its own keystore under its home/config dir
         Path origKeystorePath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");

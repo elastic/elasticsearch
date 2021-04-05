@@ -46,12 +46,20 @@ public class ScriptModule {
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
             TemplateScript.CONTEXT,
+            TemplateScript.INGEST_CONTEXT,
             MovingFunctionScript.CONTEXT,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             ScriptedMetricAggContexts.MapScript.CONTEXT,
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-            IntervalFilterScript.CONTEXT
+            IntervalFilterScript.CONTEXT,
+            BooleanFieldScript.CONTEXT,
+            DateFieldScript.CONTEXT,
+            DoubleFieldScript.CONTEXT,
+            GeoPointFieldScript.CONTEXT,
+            IpFieldScript.CONTEXT,
+            LongFieldScript.CONTEXT,
+            StringFieldScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

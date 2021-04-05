@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -64,6 +66,7 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -76,7 +79,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
                 new ReplaceWildcards(),
                 new ReplaceSurrogateFunction(),
-                new ReplaceRegexMatch());
+                new ReplaceRegexMatch(),
+                new ReplaceNullChecks());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -85,8 +89,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanLiteralsOnTheRight(),
                 new BooleanFunctionEqualsElimination(),
                 // needs to occur before BinaryComparison combinations
-                new ReplaceNullChecks(),
                 new PropagateEquals(),
+                new PropagateNullable(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
@@ -94,6 +98,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
+                new PruneCast(),
                 new CombineLimits());
 
         Batch constraints = new Batch("Infer constraints", Limiter.ONCE,
@@ -165,11 +170,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Expression result = cmp;
                 // expr == null || expr != null
                 if (cmp instanceof Equals || cmp instanceof NotEquals) {
+                    Expression comparableToNull = null;
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
+                        comparableToNull = cmp.left();
+                    } else if (cmp.left().foldable() && cmp.left().fold() == null) {
+                        comparableToNull = cmp.right();
+                    }
+                    if (comparableToNull != null) {
                         if (cmp instanceof Equals) {
-                            result = new IsNull(cmp.source(), cmp.left());
+                            result = new IsNull(cmp.source(), comparableToNull);
                         } else {
-                            result = new IsNotNull(cmp.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), comparableToNull);
                         }
                     }
                 }
@@ -226,6 +237,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return new LocalRelation(plan.source(), plan.output(), Type.EVENT);
             }
             return plan;
+        }
+    }
+
+    static class PruneCast extends OptimizerRules.PruneCast<ToString> {
+
+        PruneCast() {
+            super(ToString.class);
+        }
+
+        @Override
+        protected Expression maybePruneCast(ToString cast) {
+            return cast.dataType().equals(cast.value().dataType()) ? cast.value() : cast;
         }
     }
 

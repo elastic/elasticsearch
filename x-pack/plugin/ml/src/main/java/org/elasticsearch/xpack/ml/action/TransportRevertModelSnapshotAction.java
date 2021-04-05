@@ -172,17 +172,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                     Annotation.Event.DELAYED_DATA.toString(),
                     // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
                     Annotation.Event.MODEL_CHANGE.toString());
-            dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean success) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete,
+                    listener.delegateFailure((l, r) -> l.onResponse(response)));
         }, listener::onFailure);
     }
 
@@ -199,17 +190,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean success) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.delegateFailure((l, r) -> l.onResponse(response)));
         }, listener::onFailure);
     }
 
@@ -218,22 +199,10 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             ModelSnapshot modelSnapshot,
             String jobId) {
 
-        return ActionListener.wrap(response -> {
-            jobResultsProvider.dataCounts(jobId, counts -> {
-                counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                jobDataCountsPersister.persistDataCountsAsync(jobId, counts, new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean aBoolean) {
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }, listener::onFailure);
-        }, listener::onFailure);
+        return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
+            counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
+            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.delegateFailure((l, r) -> l.onResponse(response)));
+        }, listener::onFailure), listener::onFailure);
     }
 
     @Override

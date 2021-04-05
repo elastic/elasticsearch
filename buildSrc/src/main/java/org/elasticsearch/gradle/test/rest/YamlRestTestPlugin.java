@@ -64,17 +64,13 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             );
         });
 
-        project.getTasks()
-            .named(yamlTestSourceSet.getProcessResourcesTaskName())
-            .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
-
         // Register rest resources with source set
         yamlTestSourceSet.getOutput()
             .dir(
                 project.getTasks()
                     .withType(CopyRestApiTask.class)
                     .named(RestResourcesPlugin.COPY_REST_API_SPECS_TASK)
-                    .map(CopyRestApiTask::getOutputResourceDir)
+                    .flatMap(CopyRestApiTask::getOutputResourceDir)
             );
 
         yamlTestSourceSet.getOutput()
@@ -82,7 +78,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
                 project.getTasks()
                     .withType(CopyRestTestsTask.class)
                     .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
-                    .map(CopyRestTestsTask::getOutputResourceDir)
+                    .flatMap(CopyRestTestsTask::getOutputResourceDir)
             );
 
         // setup IDE

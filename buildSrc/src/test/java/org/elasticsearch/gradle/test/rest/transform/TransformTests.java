@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
@@ -177,6 +178,91 @@ public abstract class TransformTests extends GradleUnitTestCase {
             }
         }
         return null;
+    }
+
+    protected void validateBodyHasWarnings(String featureName, List<ObjectNode> tests, Set<String> expectedWarnings) {
+        validateBodyHasWarnings(featureName, null, tests, expectedWarnings);
+    }
+
+    protected void validateBodyHasWarnings(String featureName, String testName, List<ObjectNode> tests, Set<String> expectedWarnings) {
+        AtomicBoolean actuallyDidSomething = new AtomicBoolean(false);
+        tests.forEach(test -> {
+            Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+            while (testsIterator.hasNext()) {
+                Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                if (testName == null || testName.equals(testObject.getKey())) {
+                    ArrayNode testBody = (ArrayNode) testObject.getValue();
+                    testBody.forEach(arrayObject -> {
+                        assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
+                        ObjectNode testSection = (ObjectNode) arrayObject;
+                        if (testSection.get("do") != null) {
+                            ObjectNode doSection = (ObjectNode) testSection.get("do");
+                            assertThat(doSection.get(featureName), CoreMatchers.notNullValue());
+                            ArrayNode warningsNode = (ArrayNode) doSection.get(featureName);
+                            LongAdder assertions = new LongAdder();
+                            warningsNode.forEach(warning -> {
+                                if (expectedWarnings.contains(warning.asText())) {
+                                    assertions.increment();
+                                }
+                            });
+                            assertThat(assertions.intValue(), CoreMatchers.equalTo(expectedWarnings.size()));
+                            actuallyDidSomething.set(true);
+                        }
+                    });
+                }
+            }
+        });
+        assertTrue(actuallyDidSomething.get());
+    }
+
+    protected void validateBodyHasNoWarnings(String featureName, List<ObjectNode> tests) {
+        validateBodyHasNoWarnings(featureName, null, tests);
+    }
+
+    protected void validateBodyHasNoWarnings(String featureName, String testName, List<ObjectNode> tests) {
+        AtomicBoolean actuallyDidSomething = new AtomicBoolean(false);
+        tests.forEach(test -> {
+            Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+            while (testsIterator.hasNext()) {
+                Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                if (testName == null || testName.equals(testObject.getKey())) {
+                    assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                    ArrayNode testBody = (ArrayNode) testObject.getValue();
+                    testBody.forEach(arrayObject -> {
+                        assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
+                        ObjectNode testSection = (ObjectNode) arrayObject;
+                        if (testSection.get("do") != null) {
+                            ObjectNode doSection = (ObjectNode) testSection.get("do");
+                            assertThat(doSection.get(featureName), CoreMatchers.nullValue());
+                            actuallyDidSomething.set(true);
+                        }
+                    });
+                }
+            }
+        });
+        assertTrue(actuallyDidSomething.get());
+    }
+
+    protected void validateBodyHasEmptyNoWarnings(String featureName, List<ObjectNode> tests) {
+        tests.forEach(test -> {
+            Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+            while (testsIterator.hasNext()) {
+                Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                ArrayNode testBody = (ArrayNode) testObject.getValue();
+                testBody.forEach(arrayObject -> {
+                    assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
+                    ObjectNode testSection = (ObjectNode) arrayObject;
+                    if (testSection.get("do") != null) {
+                        ObjectNode doSection = (ObjectNode) testSection.get("do");
+                        assertThat(doSection.get(featureName), CoreMatchers.notNullValue());
+                        ArrayNode warningsNode = (ArrayNode) doSection.get(featureName);
+                        assertTrue(warningsNode.isEmpty());
+                    }
+                });
+            }
+        });
     }
 
     protected void validateBodyHasHeaders(List<ObjectNode> tests, Map<String, String> expectedHeaders) {

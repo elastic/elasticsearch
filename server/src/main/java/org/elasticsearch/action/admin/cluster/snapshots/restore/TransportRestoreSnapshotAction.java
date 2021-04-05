@@ -52,13 +52,12 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     @Override
     protected void masterOperation(Task task, final RestoreSnapshotRequest request, final ClusterState state,
                                    final ActionListener<RestoreSnapshotResponse> listener) {
-        restoreService.restoreSnapshot(request, ActionListener.delegateFailure(listener,
-            (delegatedListener, restoreCompletionResponse) -> {
-                if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                    RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
-                } else {
-                    delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
-                }
-            }));
+        restoreService.restoreSnapshot(request, listener.delegateFailure((delegatedListener, restoreCompletionResponse) -> {
+            if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
+                RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
+            } else {
+                delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
+            }
+        }));
     }
 }

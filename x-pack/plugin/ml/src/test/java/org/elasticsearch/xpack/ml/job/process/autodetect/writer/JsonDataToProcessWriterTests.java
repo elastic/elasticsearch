@@ -87,7 +87,9 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH);
 
         Detector detector = new Detector.Builder("metric", "value").build();
-        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector))
+            .setBucketSpan(TimeValue.timeValueSeconds(1))
+            .build();
     }
 
     public void testWrite_GivenTimeFormatIsEpochAndDataIsValid() throws Exception {
@@ -168,11 +170,51 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting();
     }
 
+    public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsOutOfOrderWithinBucketSpan() throws Exception {
+        analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(
+                new Detector.Builder("metric", "value").build()
+            ))
+            .setBucketSpan(TimeValue.timeValueSeconds(10))
+            .build();
+
+        StringBuilder input = new StringBuilder();
+        input.append("{\"time\":\"4\", \"metric\":\"foo\", \"value\":\"4.0\"}");
+        input.append("{\"time\":\"5\", \"metric\":\"foo\", \"value\":\"5.0\"}");
+        input.append("{\"time\":\"3\", \"metric\":\"bar\", \"value\":\"3.0\"}");
+        input.append("{\"time\":\"4\", \"metric\":\"bar\", \"value\":\"4.0\"}");
+        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
+        input.append("{\"time\":\"12\", \"metric\":\"bar\", \"value\":\"12.0\"}");
+        input.append("{\"time\":\"2\", \"metric\":\"bar\", \"value\":\"2.0\"}");
+        InputStream inputStream = createInputStream(input.toString());
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        // The final field is the control field
+        expectedRecords.add(new String[]{"time", "value", "."});
+        expectedRecords.add(new String[]{"4", "4.0", ""});
+        expectedRecords.add(new String[]{"5", "5.0", ""});
+        expectedRecords.add(new String[]{"3", "3.0", ""});
+        expectedRecords.add(new String[]{"4", "4.0", ""});
+        expectedRecords.add(new String[]{"2", "2.0", ""});
+        expectedRecords.add(new String[]{"12", "12.0", ""});
+        assertWrittenRecordsEqualTo(expectedRecords);
+
+        verify(dataCountsReporter, times(1)).reportOutOfOrderRecord(2);
+        verify(dataCountsReporter, never()).reportLatestTimeIncrementalStats(anyLong());
+        verify(dataCountsReporter).finishReporting();
+    }
+
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws Exception {
-        AnalysisConfig.Builder builder =
-                new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));
-        builder.setLatency(TimeValue.timeValueSeconds(2));
-        analysisConfig = builder.build();
+        analysisConfig = new AnalysisConfig.Builder(
+            Collections.singletonList(
+                new Detector.Builder("metric", "value").build()
+            ))
+            .setLatency(TimeValue.timeValueSeconds(2))
+            .setBucketSpan(TimeValue.timeValueSeconds(1)).setLatency(TimeValue.timeValueSeconds(2))
+            .build();
 
         StringBuilder input = new StringBuilder();
         input.append("{\"time\":\"4\", \"metric\":\"foo\", \"value\":\"4.0\"}");
@@ -326,10 +368,10 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         assertWrittenRecordsEqualTo(expectedRecords);
 
         verify(dataCountsReporter, times(1)).reportMissingFields(1L);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 2000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 3000);
-        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 4000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(2, 1000, 1000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 2000, 2000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 3000, 3000);
+        verify(dataCountsReporter, times(1)).reportRecordWritten(1, 4000, 4000);
         verify(dataCountsReporter, times(1)).reportDateParseError(0);
         verify(dataCountsReporter).finishReporting();
     }

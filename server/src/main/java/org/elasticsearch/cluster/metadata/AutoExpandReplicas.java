@@ -91,6 +91,10 @@ public final class AutoExpandReplicas {
         return Math.min(maxReplicas, numDataNodes-1);
     }
 
+    public boolean expandToAllNodes() {
+        return maxReplicas == Integer.MAX_VALUE;
+    }
+
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
             int numMatchingDataNodes = 0;

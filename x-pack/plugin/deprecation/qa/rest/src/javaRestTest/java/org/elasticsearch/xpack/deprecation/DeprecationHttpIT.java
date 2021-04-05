@@ -19,7 +19,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
@@ -333,14 +333,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
             final RequestOptions compatibleOptions = compatibleRequest.getOptions()
                 .toBuilder()
                 .addHeader("X-Opaque-Id", "some xid")
-                .addHeader(
-                    "Accept",
-                    "application/vnd.elasticsearch+json;compatible-with=" + RestApiCompatibleVersion.minimumSupported().major
-                )
-                .addHeader(
-                    "Content-Type",
-                    "application/vnd.elasticsearch+json;compatible-with=" + RestApiCompatibleVersion.minimumSupported().major
-                )
+                .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
+                .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
                 .build();
             compatibleRequest.setOptions(compatibleOptions);
             compatibleRequest.setEntity(

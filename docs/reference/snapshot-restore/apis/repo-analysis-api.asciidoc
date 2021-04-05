@@ -32,6 +32,16 @@ POST /_snapshot/my_repository/_analyze?blob_count=10&max_blob_size=1mb&timeout=1
 
 `POST /_snapshot/<repository>/_analyze`
 
+[[repo-analysis-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. For more
+information, see <<security-privileges>>.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
 [[repo-analysis-api-desc]]
 ==== {api-description-title}
 
@@ -182,7 +192,7 @@ Defaults to `10`.
 
 `read_node_count`::
 (Optional, integer) The number of nodes on which to perform a read operation
-after writing each blob.  Defaults to `10`.
+after writing each blob. Defaults to `10`.
 
 `early_read_node_count`::
 (Optional, integer) The number of nodes on which to perform an early read

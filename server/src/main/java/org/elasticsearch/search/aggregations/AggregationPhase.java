@@ -44,7 +44,7 @@ public class AggregationPhase {
                 }
                 context.aggregations().aggregators(aggregators);
                 if (collectors.isEmpty() == false) {
-                    Collector collector = MultiBucketCollector.wrap(collectors);
+                    Collector collector = MultiBucketCollector.wrap(true, collectors);
                     ((BucketCollector)collector).preCollection();
                     if (context.getProfilers() != null) {
                         collector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION,
@@ -80,7 +80,7 @@ public class AggregationPhase {
 
         // optimize the global collector based execution
         if (globals.isEmpty() == false) {
-            BucketCollector globalsCollector = MultiBucketCollector.wrap(globals);
+            BucketCollector globalsCollector = MultiBucketCollector.wrap(false, globals);
             Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 
             try {

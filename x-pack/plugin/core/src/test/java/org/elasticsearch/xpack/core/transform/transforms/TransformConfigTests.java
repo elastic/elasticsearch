@@ -17,6 +17,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
@@ -27,13 +29,18 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -528,6 +535,57 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
+    }
+
+    public void testGetAdditionalValidations_WithNoRuntimeMappings() throws IOException {
+        String transformWithRuntimeMappings = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
+        assertThat(transformConfig.getAdditionalValidations(), is(empty()));
+    }
+
+    public void testGetAdditionalValidations_WithRuntimeMappings() throws IOException {
+        String json = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {"
+            + "   \"index\":\"src\","
+            + "   \"runtime_mappings\":{ \"some-field\": \"some-value\" }"
+            + "},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
+        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalValidations();
+        assertThat(additiionalValidations, hasSize(1));
+        assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
+        RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
+            (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
+        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedVersion(), is(equalTo(Version.V_7_12_0)));
+        assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

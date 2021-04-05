@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.common.CheckedFunction;
@@ -37,6 +36,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.QueryToFilterAdapter;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
@@ -345,15 +345,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
             return null;
         }
-        // TODO bail here for runtime fields. We should check the cost estimates on the Scorer.
         if (valuesSourceConfig.fieldType() instanceof DateFieldType
             && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
+            return null;
+        }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
-        String[] keys = new String[ranges.length];
-        Query[] filters = new Query[ranges.length];
+        List<QueryToFilterAdapter<?>> filters = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             /*
              * If the bounds on the ranges are too high then the `double`s
@@ -368,7 +369,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
             if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > MAX_ACCURATE_BOUND) {
                 return null;
             }
-            keys[i] = Integer.toString(i);
             /*
              * Use the native format on the field rather than the one provided
              * on the valuesSourceConfig because the format on the field is what
@@ -380,31 +380,23 @@ public abstract class RangeAggregator extends BucketsAggregator {
             RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.fieldType().name());
             builder.from(ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from)).includeLower(true);
             builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
-            filters[i] = context.buildQuery(builder);
-        }
-        FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
-            name,
-            factories,
-            keys,
-            filters,
-            false,
-            null,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-        if (delegate == null) {
-            return null;
+            filters.add(QueryToFilterAdapter.build(context.searcher(), Integer.toString(i), context.buildQuery(builder)));
         }
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
             factories,
             subAggregators -> {
-                if (subAggregators.countAggregators() > 0) {
-                    throw new IllegalStateException("didn't expect to have a delegate if there are child aggs");
-                }
-                return delegate;
+                return FiltersAggregator.buildFilterByFilter(
+                    name,
+                    subAggregators,
+                    filters,
+                    false,
+                    null,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
             },
             valuesSourceConfig.format(),
             ranges,
@@ -412,6 +404,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
             rangeFactory,
             averageDocsPerRange
         );
+        if (fromFilters.scoreMode().needsScores()) {
+            /*
+             * Filter by filter won't produce the correct results if the
+             * sub-aggregators need scores because we're not careful with how
+             * we merge filters. Right now we have to build the whole
+             * aggregation in order to know if it'll need scores or not.
+             */
+            // TODO make filter by filter produce the correct result or skip this in canUseFilterbyFilter
+            return null;
+        }
         return fromFilters;
     }
 

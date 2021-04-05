@@ -104,6 +104,7 @@ public class TransportExplainLifecycleAction
                         lifecycleState.getStepTime(),
                         lifecycleState.getSnapshotRepository(),
                         lifecycleState.getSnapshotName(),
+                        lifecycleState.getShrinkIndexName(),
                         stepInfoBytes,
                         phaseExecutionInfo);
                 } else {

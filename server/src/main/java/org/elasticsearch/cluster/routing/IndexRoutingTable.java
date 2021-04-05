@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * The {@link IndexRoutingTable} represents routing information for a single
@@ -53,6 +54,11 @@ import java.util.Set;
  */
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
+    private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
+        ShardRouting::unassigned,
+        ShardRouting::initializing,
+        shardRouting -> true
+    );
     private final Index index;
     private final ShardShuffler shuffler;
 
@@ -457,20 +463,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 for (ShardRouting shardRouting : indexShard) {
                     builder.addShard(shardRouting);
                 }
-                // first check if there is one that is not assigned to a node, and remove it
+
                 boolean removed = false;
-                for (ShardRouting shardRouting : indexShard) {
-                    if (shardRouting.primary() == false && shardRouting.assignedToNode() == false) {
-                        builder.removeShard(shardRouting);
-                        removed = true;
-                        break;
-                    }
-                }
-                if (removed == false) {
-                    for (ShardRouting shardRouting : indexShard) {
-                        if (shardRouting.primary() == false) {
-                            builder.removeShard(shardRouting);
-                            break;
+                for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
+                    if (removed == false) {
+                        for (ShardRouting shardRouting : indexShard) {
+                            if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
+                                builder.removeShard(shardRouting);
+                                removed = true;
+                                break;
+                            }
                         }
                     }
                 }

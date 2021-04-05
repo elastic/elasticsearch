@@ -242,7 +242,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
-        new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
     }
 
     public void testCreateJob() throws Exception {
@@ -3613,7 +3613,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(otherClassesCount, equalTo(0L));
 
             assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
-            assertThat(aucRocScore, closeTo(0.6425, 1e-9));
+            assertThat(aucRocScore, closeTo(0.619, 1e-3));
         }
     }
 

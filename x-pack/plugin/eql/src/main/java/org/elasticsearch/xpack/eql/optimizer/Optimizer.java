@@ -66,6 +66,7 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -89,6 +90,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanFunctionEqualsElimination(),
                 // needs to occur before BinaryComparison combinations
                 new PropagateEquals(),
+                new PropagateNullable(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),

@@ -865,7 +865,8 @@ Response:
         "_id": "1",
         "_score": 1.6011951,
         "_source": {
-          "message": "some message with the number 1"
+          "message": "some message with the number 1",
+          "context": "bar"
         },
         "highlight": {
           "message": [
@@ -920,7 +921,8 @@ Response:
         "_id": "1",
         "_score": 1.6011951,
         "_source": {
-          "message": "some message with the number 1"
+          "message": "some message with the number 1",
+          "context": "bar"
         },
         "highlight": {
           "message": [

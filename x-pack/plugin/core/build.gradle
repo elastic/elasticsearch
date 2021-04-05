@@ -7,6 +7,7 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack-core'

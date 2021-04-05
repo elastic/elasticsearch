@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -26,11 +27,20 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
+    private static final String DEPRECATION_WARNING = "Legacy index templates are deprecated and will be removed completely in a " +
+        "future version. Please use composable templates instead.";
+    private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_8;
+
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_template/{name}"),
-            new Route(PUT, "/_template/{name}"));
+            Route.builder(POST, "/_template/{name}")
+                .deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION)
+                .build(),
+            Route.builder(PUT, "/_template/{name}")
+                .deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION)
+                .build()
+        );
     }
 
     @Override

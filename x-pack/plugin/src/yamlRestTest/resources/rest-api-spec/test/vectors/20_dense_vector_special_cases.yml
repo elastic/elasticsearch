@@ -189,3 +189,55 @@ setup:
 - match: {hits.hits.0._id: "1"}
 - match: {hits.hits.1._id: "2"}
 - match: {hits.hits.1._score: 0.0}
+
+---
+"No sort, no aggs, no docvalue_fields are allowed":
+- do:
+    index:
+      refresh: true
+      index: test-index
+      id: 1
+      body:
+        my_dense_vector: [10, 10, 10]
+
+# sorting on dense_vector field is not supported
+- do:
+    catch: bad_request
+    search:
+      index: test-index
+      body:
+        query:
+          match_all: {}
+        sort:
+          my_dense_vector
+
+- match: { status: 400 }
+- match: { error.root_cause.0.reason: "Field [my_dense_vector] of type [dense_vector] doesn't support sort" }
+
+# aggs on dense_vector field are not supported
+- do:
+    catch: bad_request
+    search:
+      index: test-index
+      body:
+        aggs:
+          my_agg:
+            terms:
+              field: my_dense_vector
+
+- match: { status: 400 }
+- match: { error.root_cause.0.reason: "Field [my_dense_vector] of type [dense_vector] doesn't support docvalue_fields or aggregations" }
+
+
+  # docvalue_fields of dense_vector field are not supported
+- do:
+    catch: bad_request
+    search:
+      index: test-index
+      body:
+        query:
+          match_all: {}
+        docvalue_fields: ["my_dense_vector"]
+
+- match: { status: 400 }
+- match: { error.root_cause.0.reason: "Field [my_dense_vector] of type [dense_vector] doesn't support docvalue_fields or aggregations" }

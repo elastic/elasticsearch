@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 
 import java.nio.ByteBuffer;
 
+
 public final class VectorEncoderDecoder {
     public static final byte INT_BYTES = 4;
 
@@ -31,7 +32,39 @@ public final class VectorEncoderDecoder {
      */
     public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
         assert indexVersion.onOrAfter(Version.V_7_5_0);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-        return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
+        int offset = vectorBR.offset + vectorBR.length - INT_BYTES;
+        int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
+            ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
+            ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
+            (vectorBR.bytes[offset+3] & 0xFF);
+        return Float.intBitsToFloat(intValue);
     }
+
+    public static float getVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+        }
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            return decodeVectorMagnitude(indexVersion, vectorBR);
+        } else {
+            throw new IllegalArgumentException(
+                "Vector magnitude is not stored for vectors created before version [" + indexVersion.toString() + "].");
+        }
+    }
+
+    /**
+     * Decodes a BytesRef into the provided array of floats
+     * @param vectorBR - dense vector encoded in BytesRef
+     * @param vector - array of floats where the decoded vector should be stored
+     */
+    public static void decodeDenseVector(BytesRef vectorBR, float[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+        }
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        for (int dim = 0; dim < vector.length; dim++) {
+            vector[dim] = byteBuffer.getFloat();
+        }
+    }
+
 }

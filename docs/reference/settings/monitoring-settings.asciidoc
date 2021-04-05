@@ -148,7 +148,7 @@ automatically upgrade bulk requests to future-proof them.
 `cluster_alerts.management.enabled`::
 
 Whether to create cluster alerts for this cluster. The default value is `true`.
-To use this feature, {watcher} must be enabled.  If you have a basic license,
+To use this feature, {watcher} must be enabled. If you have a basic license,
 cluster alerts are not displayed.
 
 `wait_master.timeout`::

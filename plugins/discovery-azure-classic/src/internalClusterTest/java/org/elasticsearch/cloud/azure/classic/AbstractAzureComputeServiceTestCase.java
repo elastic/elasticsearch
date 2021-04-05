@@ -50,9 +50,9 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "azure");
 
         // We add a fake subscription_id to start mock compute service

@@ -2,7 +2,7 @@
 ==== Pre-processing documents to add security details
 
 // If an index is shared by many small users it makes sense to put all these users
-// into the same index.  Having a dedicated index or shard per user is wasteful.
+// into the same index. Having a dedicated index or shard per user is wasteful.
 // TBD: It's unclear why we're putting users in an index here. 
 
 To guarantee that a user reads only their own documents, it makes sense to set up

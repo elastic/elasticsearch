@@ -58,7 +58,6 @@ following sections:
 [discrete]
 [[search-fields-param]]
 === Fields
-beta::[]
 
 // tag::fields-param-desc[]
 The `fields` parameter allows for retrieving a list of document fields in

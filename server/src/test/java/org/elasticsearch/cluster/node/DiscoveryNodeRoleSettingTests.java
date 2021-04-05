@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class DiscoveryNodeRoleSettingTests extends ESTestCase {
 
     public void testIsDataNode() {
-        runRoleTest(DiscoveryNode::isDataNode, DiscoveryNodeRole.DATA_ROLE);
+        runRoleTest(DiscoveryNode::hasDataRole, DiscoveryNodeRole.DATA_ROLE);
     }
 
     public void testIsIngestNode() {

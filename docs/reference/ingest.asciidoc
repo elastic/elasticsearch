@@ -44,7 +44,7 @@ Pipelines**. From the list view, you can:
 * Edit or clone existing pipelines
 * Delete pipelines
 
-To create a new pipeline, click **Create a pipeline**. For an example tutorial,
+To create a new pipeline, click **Create pipeline**. For an example tutorial,
 see <<common-log-format-example>>.
 
 [role="screenshot"]
@@ -319,7 +319,7 @@ PUT _ingest/pipeline/logs-my_app-default
 . Create an <<index-templates,index template>> that includes your pipeline in
 the <<index-default-pipeline,`index.default_pipeline`>> or
 <<index-final-pipeline,`index.final_pipeline`>> index setting. Ensure the
-template is <<create-a-data-stream-template,data stream enabled>>. The
+template is <<create-index-template,data stream enabled>>. The
 template's index pattern should match `logs-<dataset-name>-*`.
 +
 --

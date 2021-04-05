@@ -30,12 +30,12 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -92,7 +93,7 @@ public class FrozenCacheService implements Releasable {
         };
     }
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<ByteSizeValue>(
         SHARED_CACHE_SETTINGS_PREFIX + "size",
         ByteSizeValue.ZERO.getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size"),
@@ -132,7 +133,19 @@ public class FrozenCacheService implements Releasable {
 
         },
         Setting.Property.NodeScope
-    );
+    ) {
+        @Override
+        public ByteSizeValue get(final Settings settings) {
+            final ByteSizeValue value = super.get(settings);
+            final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
+            final Set<DiscoveryNodeRole> roleSet = new HashSet<>(roles);
+            if (DataTier.isFrozenNode(roleSet)) {
+                return value;
+            } else {
+                return ByteSizeValue.ZERO;
+            }
+        }
+    };
 
     public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
@@ -671,7 +684,6 @@ public class FrozenCacheService implements Releasable {
                         @Override
                         protected void doRun() throws Exception {
                             if (CacheFileRegion.this.tryIncRef() == false) {
-                                // assert false : "expected a non-closed channel reference";
                                 throw new AlreadyClosedException("Cache file channel has been released and closed");
                             }
                             try {

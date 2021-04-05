@@ -12,7 +12,6 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71145")
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
 public class GeoIpCliTests extends LuceneTestCase {
 
@@ -45,16 +44,8 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        Path tempPath = createTempDir();
-        source = tempPath.resolve("source");
-        target = tempPath.resolve("target");
-        Files.createDirectory(source);
-        Files.createDirectory(target);
-    }
-
-    @SuppressForbidden(reason = "process builder requires File for directory")
-    private File getTargetFile() {
-        return target.toFile();
+        source = createTempDir();
+        target = createTempDir();
     }
 
     public void testNoSource() throws Exception {

@@ -99,14 +99,14 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Path resolve = logDir.resolve(Integer.toString(nodeOrdinal));
         try {
             Files.createDirectory(resolve);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
             .put(TransportSettings.PORT.getKey(), 0)

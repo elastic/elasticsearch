@@ -72,7 +72,7 @@ original shard can be split into) is determined by the
 specifies the hashing space that is used internally to distribute documents
 across shards with consistent hashing. For instance, a 5 shard index with
 `number_of_routing_shards` set to `30` (`5 x 2 x 3`) could be split by a
-factor of `2` or `3`.  In other words, it could be split as follows:
+factor of `2` or `3`. In other words, it could be split as follows:
 
 * `5` -> `10` -> `30`  (split by 2, then by 3)
 * `5` -> `15` -> `30` (split by 3, then by 2)
@@ -112,7 +112,7 @@ maximum of 640 shards (with a single split action or multiple split actions).
 
 If the original index contains one primary shard (or a multi-shard index has
 been <<indices-shrink-index,shrunk>> down to a single primary shard), then the
-index may by split into an arbitrary number of shards greater than 1.  The
+index may by split into an arbitrary number of shards greater than 1. The
 properties of the default number of routing shards will then apply to the
 newly split index.
 
@@ -244,7 +244,7 @@ can be allocated on that node.
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 split process begins. When the split operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 

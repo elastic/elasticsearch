@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -42,7 +43,9 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         NAME,
         "node setting ["
             + SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-            + "] is set to zero, so frozen searchable snapshot shards cannot be allocated to this node"
+            + "] is set to zero, or the node is not a ["
+            + DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName()
+            + "] node, so frozen searchable snapshot shards cannot be allocated to this node"
     );
 
     private static final Decision UNKNOWN_FROZEN_CACHE = Decision.single(

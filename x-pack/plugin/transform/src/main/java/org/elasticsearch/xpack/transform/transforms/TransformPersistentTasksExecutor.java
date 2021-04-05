@@ -143,7 +143,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
-        if (node.isDataNode() == false) {
+        if (node.canContainData() == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a data node");
             }

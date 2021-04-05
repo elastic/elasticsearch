@@ -58,9 +58,9 @@ import static org.hamcrest.Matchers.hasItem;
 public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // default to no cache: the tests create nodes with a cache configured as needed
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO)
             .build();

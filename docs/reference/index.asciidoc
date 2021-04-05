@@ -1,5 +1,5 @@
 [[elasticsearch-reference]]
-= Elasticsearch Reference
+= Elasticsearch Guide
 
 :include-xpack:         true
 :es-test-dir:           {elasticsearch-root}/docs/src/test

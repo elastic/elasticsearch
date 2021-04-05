@@ -1571,7 +1571,7 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 
-    // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => a IS NULL AND b < 3
+    // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => NULL AND NULL AND a IS NULL AND b < 3
     public void testIsNullAndDeeplyNestedExpression() throws Exception {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);

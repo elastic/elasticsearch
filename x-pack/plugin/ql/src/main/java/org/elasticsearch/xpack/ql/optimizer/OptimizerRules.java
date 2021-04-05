@@ -344,8 +344,8 @@ public final class OptimizerRules {
             for (BinaryComparison eq : equals) {
                 Object eqValue = eq.right().fold();
 
-                for (int i = 0; i < ranges.size(); i++) {
-                    Range range = ranges.get(i);
+                for (Iterator<Range> iterator = ranges.iterator(); iterator.hasNext(); ) {
+                    Range range = iterator.next();
 
                     if (range.value().semanticEquals(eq.left())) {
                         // if equals is outside the interval, evaluate the whole expression to FALSE
@@ -373,7 +373,7 @@ public final class OptimizerRules {
                         }
 
                         // it's in the range and thus, remove it
-                        ranges.remove(i);
+                        iterator.remove();
                         changed = true;
                     }
                 }
@@ -789,8 +789,7 @@ public final class OptimizerRules {
                     if (conjunctive) {
                         // can tighten range
                         if (lower || upper) {
-                            ranges.remove(i);
-                            ranges.add(i,
+                            ranges.set(i,
                                     new Range(main.source(), main.value(),
                                             lower ? main.lower() : other.lower(),
                                             lower ? main.includeLower() : other.includeLower(),
@@ -806,13 +805,12 @@ public final class OptimizerRules {
                     else {
                         // can loosen range
                         if (lower && upper) {
-                            ranges.remove(i);
-                            ranges.add(i,
+                            ranges.set(i,
                                     new Range(main.source(), main.value(),
-                                            lower ? main.lower() : other.lower(),
-                                            lower ? main.includeLower() : other.includeLower(),
-                                            upper ? main.upper() : other.upper(),
-                                            upper ? main.includeUpper() : other.includeUpper(),
+                                            main.lower(),
+                                            main.includeLower(),
+                                            main.upper(),
+                                            main.includeUpper(),
                                             main.zoneId()));
                             return true;
                         }
@@ -844,8 +842,7 @@ public final class OptimizerRules {
                                 boolean lower = comp > 0 || lowerEq;
 
                                 if (lower) {
-                                    ranges.remove(i);
-                                    ranges.add(i,
+                                    ranges.set(i,
                                             new Range(other.source(), other.value(),
                                                     main.right(), lowerEq ? false : main instanceof GreaterThanOrEqual,
                                                     other.upper(), other.includeUpper(), other.zoneId()));
@@ -865,8 +862,7 @@ public final class OptimizerRules {
                                 boolean upper = comp < 0 || upperEq;
 
                                 if (upper) {
-                                    ranges.remove(i);
-                                    ranges.add(i, new Range(other.source(), other.value(),
+                                    ranges.set(i, new Range(other.source(), other.value(),
                                             other.lower(), other.includeLower(),
                                             main.right(), upperEq ? false : main instanceof LessThanOrEqual, other.zoneId()));
                                 }
@@ -1443,6 +1439,28 @@ public final class OptimizerRules {
         }
     }
 
+    // NB: it is important to start replacing casts from the bottom to properly replace aliases
+    public abstract static class PruneCast<C extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
+
+        private final Class<C> castType;
+
+        public PruneCast(Class<C> castType) {
+            this.castType = castType;
+        }
+
+        @Override
+        public final LogicalPlan apply(LogicalPlan plan) {
+            return rule(plan);
+        }
+
+        @Override
+        protected final LogicalPlan rule(LogicalPlan plan) {
+            // eliminate redundant casts
+            return plan.transformExpressionsUp(castType, this::maybePruneCast);
+        }
+
+        protected abstract Expression maybePruneCast(C cast);
+    }
 
     public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override

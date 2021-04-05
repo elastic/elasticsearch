@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -89,6 +90,7 @@ public class ResultsPersisterService {
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
     private volatile int maxFailureRetries;
     private volatile boolean isShutdown = false;
+    private volatile boolean isResetMode = false;
 
     // Visible for testing
     public ResultsPersisterService(ThreadPool threadPool,
@@ -104,6 +106,11 @@ public class ResultsPersisterService {
             @Override
             public void beforeStop() {
                 shutdown();
+            }
+        });
+        clusterService.addListener((event) -> {
+            if (event.metadataChanged()) {
+                isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
             }
         });
     }
@@ -183,7 +190,7 @@ public class ResultsPersisterService {
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
             jobId,
             new BulkRequestRewriter(bulkRequest),
-            shouldRetryWrapper(shouldRetry),
+            () -> (isShutdown == false && isResetMode == false) && shouldRetry.get(),
             retryMsgHandler,
             actionExecutor,
             removeListener
@@ -192,6 +199,9 @@ public class ResultsPersisterService {
         bulkRetryableAction.run();
         if (isShutdown) {
             bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
+        }
+        if (isResetMode) {
+            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Machine learning feature is being reset"));
         }
         return getResponse.actionGet();
     }
@@ -210,7 +220,7 @@ public class ResultsPersisterService {
             jobId,
             searchRequest,
             client,
-            shouldRetryWrapper(shouldRetry),
+            () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
             removeListener);
         onGoingRetryableActions.put(key, mlRetryableAction);

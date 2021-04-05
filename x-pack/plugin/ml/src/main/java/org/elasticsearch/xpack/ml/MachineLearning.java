@@ -1336,9 +1336,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
             // Stop data frame analytics
             StopDataFrameAnalyticsAction.Request  stopDataFramesReq = new StopDataFrameAnalyticsAction.Request("_all")
-                .setForce(true)
                 .setAllowNoMatch(true);
-            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, afterDataframesStopped);
+            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, ActionListener.wrap(
+                afterDataframesStopped::onResponse,
+                failure -> {
+                    logger.warn(
+                        "failed stopping data frame analytics jobs for machine learning feature reset. Attempting with force=true",
+                        failure
+                    );
+                    client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq.setForce(true), afterDataframesStopped);
+                }
+            ));
         }, unsetResetModeListener::onFailure);
 
         // Close anomaly detection jobs
@@ -1348,20 +1356,29 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
             // Close anomaly detection jobs
             CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request()
-                .setForce(true)
                 .setAllowNoMatch(true)
                 .setJobId("_all");
-            client.execute(CloseJobAction.INSTANCE, closeJobsRequest, afterAnomalyDetectionClosed);
+            client.execute(CloseJobAction.INSTANCE, closeJobsRequest, ActionListener.wrap(
+                afterAnomalyDetectionClosed::onResponse,
+                failure -> {
+                    logger.warn("failed closing anomaly jobs for machine learning feature reset. Attempting with force=true", failure);
+                    client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), afterAnomalyDetectionClosed);
+                }
+            ));
         }, unsetResetModeListener::onFailure);
 
         // Stop data feeds
         ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(
             acknowledgedResponse -> {
                 StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all")
-                    .setAllowNoMatch(true)
-                    .setForce(true);
-                client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq,
-                    afterDataFeedsStopped);
+                    .setAllowNoMatch(true);
+                client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq, ActionListener.wrap(
+                    afterDataFeedsStopped::onResponse,
+                    failure -> {
+                        logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
+                        client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), afterDataFeedsStopped);
+                    }
+                ));
             },
             unsetResetModeListener::onFailure
         );

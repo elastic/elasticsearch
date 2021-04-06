@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.painless.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -153,6 +154,73 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         result[0] = 4.0;
         result[1] = Math.log(4.0);
         assertArrayEquals((double[])response.getResult(), result, 0.00001);
+    }
+
+    public void testGeoPointFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"test_point\":\"30.0,40.0\"}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit(doc['test_point'].value.lat + 1.0, doc['test_point'].value.lon - 1.0)", emptyMap()),
+                "geo_point_script_field_script_field", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        long[] result = new long[1];
+        result[0] = 3176939252927413179L;
+        assertArrayEquals((long[])response.getResult(), result);
+    }
+
+    public void testIpFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_ip", "type=ip");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"test_ip\":\"192.168.1.254\"}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit(doc['test_ip'].value);", emptyMap()),
+                "ip_script_field_script_field", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        BytesRef[] result = new BytesRef[1];
+        result[0] = new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,(byte)255,(byte)255,(byte)192,(byte)168,1,(byte)254});
+        assertArrayEquals((BytesRef[])response.getResult(), result);
+    }
+
+    public void testLongFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"test_point\":\"30.2,40.2\"}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit((long)doc['test_point'].value.lat); emit((long)doc['test_point'].value.lon);", emptyMap()),
+                "long_script_field_script_field", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        long[] result = new long[2];
+        result[0] = 30;
+        result[1] = 40;
+        assertArrayEquals((long[])response.getResult(), result);
+    }
+
+    public void testStringFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"test_point\":\"30.2,40.2\"}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit(doc['test_point'].value.lat.toString().substring(0, 5)); " +
+                        "emit(doc['test_point'].value.lon.toString().substring(0, 5));", emptyMap()),
+                "string_script_field_script_field", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        List<String> result = new ArrayList<>();
+        result.add("30.19");
+        result.add("40.19");
+        assertEquals(response.getResult(), result);
     }
 
     public void testContextWhitelists() throws IOException {

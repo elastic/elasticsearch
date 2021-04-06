@@ -39,13 +39,12 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
         httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service accounts", () -> {
-            final Predicate<ServiceAccount> filter;
-            if (request.getNamespace() == null && request.getServiceName() == null) {
-                filter = v -> true;
-            } else if (request.getServiceName() == null) {
-                filter = v -> v.id().namespace().equals(request.getNamespace());
-            } else {
-                filter = v -> v.id().namespace().equals(request.getNamespace()) && v.id().serviceName().equals(request.getServiceName());
+            Predicate<ServiceAccount> filter = v -> true;
+            if (request.getNamespace() != null) {
+                filter = filter.and( v -> v.id().namespace().equals(request.getNamespace()) );
+            } 
+            if (request.getServiceName() != null) {
+                filter = filter.and( v -> v.id().serviceName().equals(request.getServiceName()) );
             }
             final Map<String, RoleDescriptor> results = ServiceAccountService.getServiceAccounts()
                 .values()

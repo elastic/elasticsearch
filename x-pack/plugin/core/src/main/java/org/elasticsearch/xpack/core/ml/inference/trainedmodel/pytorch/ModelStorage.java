@@ -32,6 +32,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Meta information describing the size of a PyTorch model
  * and where to find the model chunks.
+ *
+ * Binary data is stored base64 encoded. {@link #getModelSize()}
+ * is the total size of the raw binary chunks before they have
+ * been base64 encoded
  */
 public class ModelStorage implements ToXContentObject, Writeable {
 

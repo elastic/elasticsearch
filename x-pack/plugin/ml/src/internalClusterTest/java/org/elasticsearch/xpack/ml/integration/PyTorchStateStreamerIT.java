@@ -54,12 +54,12 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
 
         byte[] writtenData = outputStream.toByteArray();
 
+        // the first 4 bytes are the model size
         int writtenSize = ByteBuffer.wrap(writtenData, 0, 4).getInt();
         assertEquals(modelSize, writtenSize);
 
         byte[] writtenChunk = new byte[chunkSize];
         for (int i=0; i<numChunks; i++) {
-            logger.info("comparing ");
             System.arraycopy(writtenData, i * chunkSize + 4, writtenChunk, 0, chunkSize);
             assertArrayEquals(chunks.get(i), writtenChunk);
         }

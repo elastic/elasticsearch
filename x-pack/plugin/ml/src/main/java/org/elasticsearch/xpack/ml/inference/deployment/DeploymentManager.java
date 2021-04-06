@@ -78,13 +78,12 @@ public class DeploymentManager {
 
         loadModelStorage(task.getModelId(), ActionListener.wrap(
             modelStorage -> {
-
                 processContext.startProcess();
                 try {
                     processContext.loadModel(modelStorage);
-                } catch (IOException e) {
-                    logger.error(new ParameterizedMessage("[{}] error loading model", task.getModelId()), e);
-                    // TODO should the process be stopped??
+                } catch (Exception e) {
+                    failTask(task, e);
+                    return;
                 }
 
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.process(processContext.process.get()));
@@ -223,7 +222,6 @@ public class DeploymentManager {
         }
 
         void loadModel(ModelStorage storage) throws IOException {
-
             process.get().loadModel(stateStreamer, storage);
         }
     }

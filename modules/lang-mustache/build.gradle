@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -23,4 +24,11 @@ restResources {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
       'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
   }
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'lang_mustache/60_typed_keys/Multisearch template with typed_keys parameter',
+    'lang_mustache/60_typed_keys/Search template with typed_keys parameter'
+  ].join(',')
 }

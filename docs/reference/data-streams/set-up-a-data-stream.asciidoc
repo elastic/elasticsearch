@@ -29,6 +29,7 @@ To create an index lifecycle policy in {kib}, open the main menu and go to
 
 You can also use the <<ilm-put-lifecycle,create lifecycle policy API>>.
 
+// tag::ilm-policy-api-ex[]
 [source,console]
 ----
 PUT _ilm/policy/my-lifecycle-policy
@@ -38,7 +39,6 @@ PUT _ilm/policy/my-lifecycle-policy
       "hot": {
         "actions": {
           "rollover": {
-            "max_age": "30d",
             "max_primary_shard_size": "50gb"
           }
         }
@@ -58,7 +58,7 @@ PUT _ilm/policy/my-lifecycle-policy
         "min_age": "60d",
         "actions": {
           "searchable_snapshot": {
-            "snapshot_repository": "my-snapshot-repo"
+            "snapshot_repository": "found-snapshots"
           }
         }
       },
@@ -66,7 +66,7 @@ PUT _ilm/policy/my-lifecycle-policy
         "min_age": "90d",
         "actions": {
           "searchable_snapshot": {
-            "snapshot_repository": "my-snapshot-repo"
+            "snapshot_repository": "found-snapshots"
           }
         }
       },
@@ -80,11 +80,13 @@ PUT _ilm/policy/my-lifecycle-policy
   }
 }
 ----
+// end::ilm-policy-api-ex[]
 
 [discrete]
 [[create-component-templates]]
 === Step 2. Create component templates
 
+// tag::ds-create-component-templates[]
 A data stream requires a matching index template. In most cases, you compose
 this index template using one or more component templates. You typically use
 separate component templates for mappings and index settings. This lets you
@@ -98,8 +100,20 @@ with default options.
 
 * Your lifecycle policy in the `index.lifecycle.name` index setting.
 
+[TIP]
+====
+Use the {ecs-ref}[Elastic Common Schema (ECS)] when mapping your fields. ECS
+fields integrate with several {stack} features by default.
+
+If you're unsure how to map your fields, use <<runtime-search-request,runtime
+fields>> to extract fields from <<mapping-unstructured-content,unstructured
+content>> at search time. For example, you can index a log message to a
+`wildcard` field and later extract IP addresses and other data from this field
+during a search.
+====
+
 To create a component template in {kib}, open the main menu and go to *Stack
-Management > Index Management*. In the *Index Templates* view, click *Create a
+Management > Index Management*. In the *Index Templates* view, click *Create
 component template*.
 
 You can also use the <<indices-component-template,create component template
@@ -144,11 +158,13 @@ PUT _component_template/my-settings
 }
 ----
 // TEST[continued]
+// end::ds-create-component-templates[]
 
 [discrete]
 [[create-index-template]]
 === Step 3. Create an index template
 
+// tag::ds-create-index-template[]
 Use your component templates to create an index template. Specify:
 
 * One or more index patterns that match the data stream's name. We recommend
@@ -184,11 +200,13 @@ PUT _index_template/my-index-template
 }
 ----
 // TEST[continued]
+// end::ds-create-index-template[]
 
 [discrete]
 [[create-data-stream]]
 === Step 4. Create the data stream
 
+// tag::ds-create-data-stream[]
 <<add-documents-to-a-data-stream,Indexing requests>> add documents to a data
 stream. These requests must use an `op_type` of `create`. Documents must include
 a `@timestamp` field.
@@ -212,6 +230,7 @@ POST my-data-stream/_doc
 }
 ----
 // TEST[continued]
+// end::ds-create-data-stream[]
 
 You can also manually create the stream using the
 <<indices-create-data-stream,create data stream API>>. The stream's name must

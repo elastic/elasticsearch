@@ -53,6 +53,10 @@ public class ServiceAccountService {
         return ACCOUNTS.keySet();
     }
 
+    public static Map<String, ServiceAccount> getServiceAccounts() {
+        return Map.copyOf(ACCOUNTS);
+    }
+
     /**
      * Parses a token object from the content of a {@link ServiceAccountToken#asBearerString()} bearer string}.
      * This bearer string would typically be

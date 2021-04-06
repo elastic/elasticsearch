@@ -21,7 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointShardAction;
+import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsShardAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 import org.elasticsearch.xpack.fleet.rest.RestGetGlobalCheckpointsAction;
 
@@ -64,8 +64,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return Arrays.asList(
             new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.TransportGetGlobalCheckpointsAction.class),
             new ActionHandler<>(
-                GetGlobalCheckpointShardAction.INSTANCE,
-                GetGlobalCheckpointShardAction.TransportGetGlobalCheckpointAction.class
+                GetGlobalCheckpointsShardAction.INSTANCE,
+                GetGlobalCheckpointsShardAction.TransportGetGlobalCheckpointAction.class
             )
         );
     }

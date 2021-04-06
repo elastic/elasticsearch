@@ -198,26 +198,26 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 }
             }
 
-            final AtomicArray<GetGlobalCheckpointShardAction.Response> responses = new AtomicArray<>(numberOfShards);
+            final AtomicArray<GetGlobalCheckpointsShardAction.Response> responses = new AtomicArray<>(numberOfShards);
             final CountDown countDown = new CountDown(numberOfShards);
             for (int i = 0; i < numberOfShards; ++i) {
                 final int shardIndex = i;
-                GetGlobalCheckpointShardAction.Request shardChangesRequest = new GetGlobalCheckpointShardAction.Request(
+                GetGlobalCheckpointsShardAction.Request shardChangesRequest = new GetGlobalCheckpointsShardAction.Request(
                     new ShardId(indexMetadata.getIndex(), shardIndex),
                     request.waitForAdvance(),
                     currentCheckpoints[shardIndex],
                     request.pollTimeout()
                 );
 
-                client.execute(GetGlobalCheckpointShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
+                client.execute(GetGlobalCheckpointsShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
                     @Override
-                    public void onResponse(GetGlobalCheckpointShardAction.Response response) {
+                    public void onResponse(GetGlobalCheckpointsShardAction.Response response) {
                         assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
                         responses.set(shardIndex, response);
                         if (countDown.countDown()) {
                             long[] globalCheckpoints = new long[responses.length()];
                             int i = 0;
-                            for (GetGlobalCheckpointShardAction.Response r : responses.asList()) {
+                            for (GetGlobalCheckpointsShardAction.Response r : responses.asList()) {
                                 globalCheckpoints[i++] = r.getGlobalCheckpoint();
                             }
                             listener.onResponse(new Response(globalCheckpoints));

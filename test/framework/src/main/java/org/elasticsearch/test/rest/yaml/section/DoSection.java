@@ -478,7 +478,6 @@ public class DoSection implements ExecutableSection {
         catches.put("request_timeout", tuple("408", equalTo(408)));
         catches.put("conflict", tuple("409", equalTo(409)));
         catches.put("unavailable", tuple("503", equalTo(503)));
-        catches.put("gateway_timeout", tuple("504", equalTo(504)));
         catches.put("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
                 not(equalTo(400)),
                 not(equalTo(401)),

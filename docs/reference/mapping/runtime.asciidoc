@@ -794,7 +794,7 @@ PUT my-index/
 You then bulk index some sample data from your sensors. This data includes
 `voltage` readings for each sensor:
 
-[source,console-result]
+[source,console]
 ----
 POST my-index/_bulk?refresh=true
 {"index":{}}
@@ -856,8 +856,8 @@ GET my-index/_search
 
 After reviewing the sensor data and running some tests, you determine that the
 multiplier for reported sensor data should be `4`. To gain greater performance,
-you decide to update your script and index the `voltage_reading` runtime field
-with the new `multiplier` parameter.
+you decide to index the `voltage_reading` runtime field with the new
+`multiplier` parameter.
 
 In a new index named `my-index-00001`, copy the `voltage_reading` runtime field
 definition into the mappings of the new index. It's that simple!
@@ -897,23 +897,23 @@ PUT my-index-00001/
 }
 ----
 
-Bulk index some sample data into the `my-index-00001` index:
+Bulk index some sample data from your sensors into the `my-index-00001` index:
 
 [source,console]
 ----
 POST my-index-00001/_bulk?refresh=true
-{"index":{}}
-{"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
-{"index":{}}
-{"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
-{"index":{}}
-{"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
-{"index":{}}
-{"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
-{"index":{}}
-{"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
-{"index":{}}
-{"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+{ "index": {}}
+{ "timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+{ "index": {}}
+{ "timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+{ "index": {}}
+{ "timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+{ "index": {}}
+{ "timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+{ "index": {}}
+{ "timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+{ "index": {}}
+{ "timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 ----
 // TEST[continued]
 
@@ -957,7 +957,6 @@ included script:
     "hits" : [
       {
         "_index" : "my-index-00001",
-        "_type" : "_doc",
         "_id" : "fYR4qHgBdg9xpPrUEz-q",
         "_score" : 1.0,
         "_source" : {
@@ -969,7 +968,6 @@ included script:
       },
       {
         "_index" : "my-index-00001",
-        "_type" : "_doc",
         "_id" : "f4R4qHgBdg9xpPrUEz-q",
         "_score" : 1.0,
         "_source" : {
@@ -984,6 +982,8 @@ included script:
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "fYR4qHgBdg9xpPrUEz-q"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "f4R4qHgBdg9xpPrUEz-q"/"_id": $body.hits.hits.1._id/]
 
 [[runtime-examples]]
 === Explore your data with runtime fields

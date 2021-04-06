@@ -140,7 +140,7 @@ public class ReaderContext implements Releasable {
 
     // BWC
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
-        return Objects.requireNonNull(other);
+        return Objects.requireNonNull(other, "ShardSearchRequest must be sent back in a fetch request");
     }
 
     public ScrollContext scrollContext() {
@@ -156,7 +156,7 @@ public class ReaderContext implements Releasable {
     }
 
     public RescoreDocIds getRescoreDocIds(RescoreDocIds other) {
-        return Objects.requireNonNull(other);
+        return Objects.requireNonNull(other, "RescoreDocIds must be sent back in a fetch request");
     }
 
     public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {

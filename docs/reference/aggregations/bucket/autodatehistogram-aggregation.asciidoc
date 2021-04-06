@@ -251,12 +251,6 @@ instead of the usual 24 hours for other buckets. The same is true for shorter in
 like e.g. 12h. Here, we will have only a 11h bucket on the morning of 27 March when the
 DST shift happens.
 
-==== Scripts
-
-Like with the normal <<search-aggregations-bucket-datehistogram-aggregation, `date_histogram`>>, both document level
-scripts and value level scripts are supported. This aggregation does not however, support the `min_doc_count`,
-`extended_bounds`, `hard_bounds` and `order` parameters.
-
 ==== Minimum Interval parameter
 
 The `minimum_interval` allows the caller to specify the minimum rounding interval that should be used.

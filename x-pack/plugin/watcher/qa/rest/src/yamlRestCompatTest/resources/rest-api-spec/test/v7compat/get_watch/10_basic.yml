@@ -26,7 +26,7 @@ teardown:
         ignore: 404
 
 ---
-"Test put, get, and delete watch with 7.x compatibilty":
+"Test get watch api":
   - do:
       headers:
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"

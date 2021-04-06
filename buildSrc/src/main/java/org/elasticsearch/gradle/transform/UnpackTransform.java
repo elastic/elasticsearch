@@ -42,10 +42,14 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         @Optional
         List<String> getKeepStructureFor();
 
+        /**
+         * Mark output as handled like a filetree meaning that
+         * each file will be part of the output and not the singular ouptut directory.
+         * */
         @Input
-        boolean getFileTreeOutput();
+        boolean getAsFiletreeOutput();
 
-        void setFileTreeOutput(boolean fileTreeOutput);
+        void setAsFiletreeOutput(boolean asFiletreeOutput);
 
         @Internal
         File getTargetDirectory();
@@ -66,17 +70,16 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         try {
             Logging.getLogger(UnpackTransform.class)
                 .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");
-            unpack(archiveFile, extractedDir, outputs, getParameters().getFileTreeOutput());
+            unpack(archiveFile, extractedDir, outputs, getParameters().getAsFiletreeOutput());
         } catch (IOException e) {
             throw UncheckedException.throwAsUncheckedException(e);
         }
     }
 
-    void unpack(File archiveFile, File targetDir, TransformOutputs outputs, boolean fileTreeOutput) throws IOException;
+    void unpack(File archiveFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException;
 
     default Function<String, Path> pathResolver() {
         List<String> keepPatterns = getParameters().getKeepStructureFor();
-
         String trimmedPrefixPattern = getParameters().getTrimmedPrefixPattern();
         return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(keepPatterns, trimmedPrefixPattern, i) : (i) -> Path.of(i);
     }

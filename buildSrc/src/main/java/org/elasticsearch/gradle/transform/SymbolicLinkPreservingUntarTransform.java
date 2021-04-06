@@ -28,7 +28,7 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
 
     private static final Path CURRENT_DIR_PATH = Paths.get(".");
 
-    public void unpack(File tarFile, File targetDir, TransformOutputs outputs, boolean fileTreeOutput) throws IOException {
+    public void unpack(File tarFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException {
         Function<String, Path> pathModifier = pathResolver();
         TarArchiveInputStream tar = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile)));
         final Path destinationPath = targetDir.toPath();
@@ -54,6 +54,9 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
                 Files.createFile(destination);
                 try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
                     tar.transferTo(fos);
+                }
+                if (asFiletreeOutput) {
+                    outputs.file(destination.toFile());
                 }
             }
             if (entry.isSymbolicLink() == false) {

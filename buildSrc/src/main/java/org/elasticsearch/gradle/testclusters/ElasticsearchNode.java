@@ -337,7 +337,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 transformSpec.getTo()
                     .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
                     .attribute(bundleAttribute, true);
-                transformSpec.getParameters().setFileTreeOutput(true);
+                transformSpec.getParameters().setAsFiletreeOutput(true);
             });
         }
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));

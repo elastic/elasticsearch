@@ -25,7 +25,7 @@ import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
-    public void unpack(File zipFile, File targetDir, TransformOutputs outputs, boolean fileTreeOutput) throws IOException {
+    public void unpack(File zipFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException {
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
         Function<String, Path> pathModifier = pathResolver();
@@ -48,7 +48,7 @@ public abstract class UnzipTransform implements UnpackTransform {
                     IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
                 }
                 chmod(outputPath, zipEntry.getUnixMode());
-                if (fileTreeOutput) {
+                if (asFiletreeOutput) {
                     outputs.file(outputPath.toFile());
                 }
             }

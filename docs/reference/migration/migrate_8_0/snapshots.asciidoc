@@ -143,16 +143,3 @@ deprecated starting 7.10.0 and will be removed in 8.0.0.
 *Impact* +
 Use the <<repositories-metering-apis,Repositories Metering APIs>>.
 ====
-
-.The `xpack.searchable.snapshot.cache.size` node-level setting has been removed
-[%collapsible]
-====
-*Details* +
-The `xpack.searchable.snapshot.cache.size` setting has been introduced in 7.10.0 with the experimental
-searchable snapshots feature and was never documented. This setting is deprecated starting 7.13.0 and
-will be removed in 8.0.0.
-
-*Impact* +
-Discontinue use of the `xpack.searchable.snapshot.cache.size` node-level setting. This cache is now
-always unbounded.
-====

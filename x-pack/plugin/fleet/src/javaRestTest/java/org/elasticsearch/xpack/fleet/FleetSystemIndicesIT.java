@@ -171,4 +171,11 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("architecture"));
     }
+
+    public void testCreationOfFleetActionsResults() throws Exception {
+        Request request = new Request("POST", "/.fleet-actions-results/_doc");
+        request.setJsonEntity("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"agent_id\": \"my-agent\" }");
+        Response response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+    }
 }

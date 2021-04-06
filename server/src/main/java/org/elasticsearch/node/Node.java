@@ -402,6 +402,26 @@ public class Node implements Closeable {
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
+            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
+            List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
+                NetworkModule.getNamedWriteables().stream(),
+                IndicesModule.getNamedWriteables().stream(),
+                searchModule.getNamedWriteables().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedWriteables().stream()),
+                ClusterModule.getNamedWriteables().stream())
+                .flatMap(Function.identity()).collect(Collectors.toList());
+            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
+                NetworkModule.getNamedXContents().stream(),
+                IndicesModule.getNamedXContents().stream(),
+                searchModule.getNamedXContents().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedXContent().stream()),
+                ClusterModule.getNamedXWriteables().stream())
+                .flatMap(Function.identity()).collect(toList()),
+                getCompatibleNamedXContents()
+            );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
@@ -411,6 +431,7 @@ public class Node implements Closeable {
                     plugin -> new SystemIndices.Feature(
                         plugin.getFeatureDescription(),
                         plugin.getSystemIndexDescriptors(settings),
+                        plugin.getSystemDataStreamDescriptors(),
                         plugin.getAssociatedIndexPatterns(),
                         plugin::cleanUpFeature
                     ))
@@ -430,7 +451,6 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 
-            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
                 .stream()
                 .map(plugin -> plugin.getCircuitBreaker(settings))
@@ -450,25 +470,6 @@ public class Node implements Closeable {
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
-            List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
-                NetworkModule.getNamedWriteables().stream(),
-                IndicesModule.getNamedWriteables().stream(),
-                searchModule.getNamedWriteables().stream(),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedWriteables().stream()),
-                ClusterModule.getNamedWriteables().stream())
-                .flatMap(Function.identity()).collect(Collectors.toList());
-            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
-                NetworkModule.getNamedXContents().stream(),
-                IndicesModule.getNamedXContents().stream(),
-                searchModule.getNamedXContents().stream(),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedXContent().stream()),
-                ClusterModule.getNamedXWriteables().stream())
-                .flatMap(Function.identity()).collect(toList()),
-                getCompatibleNamedXContents()
-                );
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays, clusterService.getClusterSettings(),

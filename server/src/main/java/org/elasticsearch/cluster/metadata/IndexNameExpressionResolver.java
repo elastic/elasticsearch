@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -57,8 +57,6 @@ public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
-    public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
-    public static final String EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_external_system_index_access_origin";
     public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
@@ -323,9 +321,7 @@ public class IndexNameExpressionResolver {
                 systemIndexAccessLevelPredicate = indexMetadata -> true;
             } else {
                 // everything other than allowed should be included in the deprecation message
-                systemIndexAccessLevelPredicate = systemIndices
-                    .getProductSystemIndexMetadataPredicate(threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY))
-                    .negate();
+                systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexMetadataPredicate(threadContext).negate();
             }
             final List<String> resolvedSystemIndices = concreteIndices.stream()
                 .map(metadata::index)
@@ -714,33 +710,8 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
-    /**
-     * Determines what level of system index access should be allowed in the current context.
-     *
-     * @return {@link SystemIndexAccessLevel#ALL} if unrestricted system index access should be allowed,
-     * {@link SystemIndexAccessLevel#RESTRICTED} if a subset of system index access should be allowed, or
-     * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
-     */
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
-        final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
-        final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
-
-        final boolean allowed = Booleans.parseBoolean(headerValue, true);
-        if (allowed) {
-            if (productHeaderValue != null) {
-                return SystemIndexAccessLevel.RESTRICTED;
-            } else {
-                return SystemIndexAccessLevel.ALL;
-            }
-        } else {
-            return SystemIndexAccessLevel.NONE;
-        }
-    }
-
-    public enum SystemIndexAccessLevel {
-        ALL,
-        NONE,
-        RESTRICTED
+        return systemIndices.getSystemIndexAccessLevel(threadContext);
     }
 
     public static class Context {

@@ -9,16 +9,24 @@ package org.elasticsearch.xpack.fleet;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 
@@ -45,6 +53,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetServersSystemIndexDescriptors(),
             fleetArtifactsSystemIndexDescriptors()
         );
+    }
+
+    @Override
+    public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return List.of(fleetActionsResultsDescriptor());
     }
 
     @Override
@@ -181,6 +194,24 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setAliasName(".fleet-artifacts")
             .setDescription("Fleet artifacts")
             .build();
+    }
+
+    private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
+        final String source = loadTemplateSource("/fleet-actions-results.json");
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)) {
+            ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
+            return new SystemDataStreamDescriptor(
+                ".fleet-actions-results",
+                "Result history of fleet actions",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                ALLOWED_PRODUCTS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private String loadTemplateSource(String resource) {

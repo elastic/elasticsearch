@@ -21,10 +21,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -50,11 +53,18 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  */
 public class SystemIndices {
+    public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
+    public static final String EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_external_system_index_access_origin";
+
+    private static final Automaton EMPTY = Automata.makeEmpty();
+
     private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
         TASKS_FEATURE_NAME, new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
     );
 
-    private final CharacterRunAutomaton runAutomaton;
+    private final CharacterRunAutomaton systemIndexAutomaton;
+    private final CharacterRunAutomaton systemDataStreamIndicesAutomaton;
+    private final Predicate<String> systemDataStreamAutomaton;
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
 
@@ -67,11 +77,13 @@ public class SystemIndices {
         featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
-        this.runAutomaton = buildCharacterRunAutomaton(featureDescriptors);
-        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(this.getSystemIndexDescriptors());
+        this.systemIndexAutomaton = buildIndexCharacterRunAutomaton(featureDescriptors);
+        this.systemDataStreamIndicesAutomaton = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
+        this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
+        this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
     }
 
-    private void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
+    private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
         final Map<String, Integer> aliasCounts = new HashMap<>();
 
         for (SystemIndexDescriptor descriptor : descriptors) {
@@ -93,18 +105,40 @@ public class SystemIndices {
         }
     }
 
-    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Collection<SystemIndexDescriptor> descriptors) {
-        Map<String, Automaton> map = descriptors.stream()
-            .filter(SystemIndexDescriptor::isExternal)
-            .flatMap(descriptor -> descriptor.getAllowedElasticProductOrigins().stream().map(product -> new Tuple<>(product, descriptor)))
-            .collect(Collectors.toUnmodifiableMap(Tuple::v1, tuple -> {
-                SystemIndexDescriptor descriptor = tuple.v2();
-                return SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
-            }, Operations::union));
+    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> descriptors) {
+        Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
+        for (Feature feature : descriptors.values()) {
+            feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
+                if (systemIndexDescriptor.isExternal()) {
+                    systemIndexDescriptor.getAllowedElasticProductOrigins().forEach(origin ->
+                        productToSystemIndicesMap.compute(origin, (key, value) -> {
+                            Automaton automaton = SystemIndexDescriptor.buildAutomaton(
+                                systemIndexDescriptor.getIndexPattern(), systemIndexDescriptor.getAliasName());
+                            return value == null ? automaton : Operations.union(value, automaton);
+                        })
+                    );
+                }
+            });
+            feature.getDataStreamDescriptors().forEach(dataStreamDescriptor -> {
+                if (dataStreamDescriptor.isExternal()) {
+                    dataStreamDescriptor.getAllowedElasticProductOrigins().forEach(origin ->
+                        productToSystemIndicesMap.compute(origin, (key, value) -> {
+                            Automaton automaton = SystemIndexDescriptor.buildAutomaton(
+                                dataStreamDescriptor.getBackingIndexPattern(), dataStreamDescriptor.getDataStreamName());
+                            return value == null ? automaton : Operations.union(value, automaton);
+                        })
+                    );
+                }
+            });
+        }
 
-        return map.entrySet().stream()
+        return productToSystemIndicesMap.entrySet().stream()
             .collect(Collectors.toUnmodifiableMap(Entry::getKey, entry ->
                 new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))));
+    }
+
+    public boolean isSystemName(String name) {
+        return isSystemIndex(name) || isSystemDataStream(name) || isSystemIndexBackingDataStream(name);
     }
 
     /**
@@ -122,7 +156,15 @@ public class SystemIndices {
      * @return true if the index name matches a pattern from a {@link SystemIndexDescriptor}
      */
     public boolean isSystemIndex(String indexName) {
-        return runAutomaton.run(indexName);
+        return systemIndexAutomaton.run(indexName);
+    }
+
+    public boolean isSystemDataStream(String name) {
+        return systemDataStreamAutomaton.test(name);
+    }
+
+    public boolean isSystemIndexBackingDataStream(String name) {
+        return systemDataStreamIndicesAutomaton.run(name);
     }
 
     /**
@@ -157,11 +199,47 @@ public class SystemIndices {
     }
 
     /**
+     * Finds a single matching {@link SystemDataStreamDescriptor}, if any, for the given DataStream name.
+     * @param name the name of the DataStream
+     * @return The matching {@link SystemDataStreamDescriptor} or {@code null} if no descriptor is found
+     * @throws IllegalStateException if multiple descriptors match the name
+     */
+    public @Nullable SystemDataStreamDescriptor findMatchingDataStreamDescriptor(String name) {
+        final List<SystemDataStreamDescriptor> matchingDescriptors = featureDescriptors.values().stream()
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .filter(descriptor -> descriptor.getDataStreamName().equals(name))
+            .collect(toUnmodifiableList());
+
+        if (matchingDescriptors.isEmpty()) {
+            return null;
+        } else if (matchingDescriptors.size() == 1) {
+            return matchingDescriptors.get(0);
+        } else {
+            // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
+            StringBuilder errorMessage = new StringBuilder()
+                .append("DataStream name [")
+                .append(name)
+                .append("] is claimed as a system data stream by multiple descriptors: [")
+                .append(matchingDescriptors.stream()
+                    .map(descriptor -> "name: [" + descriptor.getDataStreamName() +
+                        "], description: [" + descriptor.getDescription() + "]").collect(Collectors.joining("; ")));
+            // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
+            assert false : errorMessage.toString();
+            throw new IllegalStateException(errorMessage.toString());
+        }
+    }
+
+    /**
      * Builds a predicate that tests if a system index should be accessible based on the provided product name
-     * @param product the name of the product that is attempting to access an external system index
+     * contained in headers.
+     * @param threadContext the threadContext containing headers used for system index access
      * @return Predicate to check external system index metadata with
      */
-    public Predicate<IndexMetadata> getProductSystemIndexMetadataPredicate(String product) {
+    public Predicate<IndexMetadata> getProductSystemIndexMetadataPredicate(ThreadContext threadContext) {
+        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+        if (product == null) {
+            return indexMetadata -> false;
+        }
         final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
         if (automaton == null) {
             return indexMetadata -> false;
@@ -171,10 +249,15 @@ public class SystemIndices {
 
     /**
      * Builds a predicate that tests if a system index name should be accessible based on the provided product name
-     * @param product the name of the product that is attempting to access an external system index
+     * contained in headers.
+     * @param threadContext the threadContext containing headers used for system index access
      * @return Predicate to check external system index names with
      */
-    public Predicate<String> getProductSystemIndexNamePredicate(String product) {
+    public Predicate<String> getProductSystemIndexNamePredicate(ThreadContext threadContext) {
+        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+        if (product == null) {
+            return name -> false;
+        }
         final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
         if (automaton == null) {
             return name -> false;
@@ -186,12 +269,103 @@ public class SystemIndices {
         return featureDescriptors;
     }
 
-    private static CharacterRunAutomaton buildCharacterRunAutomaton(Map<String, Feature> descriptors) {
+    private static CharacterRunAutomaton buildIndexCharacterRunAutomaton(Map<String, Feature> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
-            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .map(SystemIndices::featureToIndexAutomaton)
+            .reduce(Operations::union);
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+    }
+
+    private static Automaton featureToIndexAutomaton(Feature feature) {
+        Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors().stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
+
+        return systemIndexAutomaton.orElse(EMPTY);
+    }
+
+    private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> descriptors) {
+        Set<String> systemDataStreamNames = descriptors.values().stream()
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .collect(Collectors.toUnmodifiableSet());
+        return systemDataStreamNames::contains;
+    }
+
+    private static CharacterRunAutomaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> descriptors) {
+        Optional<Automaton> automaton = descriptors.values().stream()
+            .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
+            .reduce(Operations::union);
+        return new CharacterRunAutomaton(automaton.orElse(EMPTY));
+    }
+
+    private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {
+        Optional<Automaton> systemDataStreamAutomaton = feature.getDataStreamDescriptors().stream()
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(
+                descriptor.getBackingIndexPattern(),
+                null
+            ))
+            .reduce(Operations::union);
+        return systemDataStreamAutomaton.orElse(EMPTY);
+    }
+
+    public SystemDataStreamDescriptor validateDataStreamAccess(String dataStreamName, ThreadContext threadContext) {
+        if (systemDataStreamAutomaton.test(dataStreamName)) {
+            SystemDataStreamDescriptor dataStreamDescriptor = featureDescriptors.values().stream()
+                .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+                .filter(descriptor -> descriptor.getDataStreamName().equals(dataStreamName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("system datastream descriptor not found for [" + dataStreamName + "]"));
+            if (dataStreamDescriptor.isExternal()) {
+                final SystemIndexAccessLevel accessLevel = getSystemIndexAccessLevel(threadContext);
+                if (accessLevel == SystemIndexAccessLevel.NONE) {
+                    throw new IllegalArgumentException("DataStream [" + dataStreamName + "] is reserved for system use and access");
+                } else if (accessLevel == SystemIndexAccessLevel.RESTRICTED) {
+                    if (getProductSystemIndexNamePredicate(threadContext).test(dataStreamName) == false) {
+                        throw new IllegalArgumentException("DataStream [" + dataStreamName + "] is not accessible by product [" +
+                            threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY) + "]");
+                    } else {
+                        return dataStreamDescriptor;
+                    }
+                } else {
+                    assert accessLevel == SystemIndexAccessLevel.ALL;
+                    return dataStreamDescriptor;
+                }
+            } else {
+                return dataStreamDescriptor;
+            }
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Determines what level of system index access should be allowed in the current context.
+     *
+     * @return {@link SystemIndexAccessLevel#ALL} if unrestricted system index access should be allowed,
+     * {@link SystemIndexAccessLevel#RESTRICTED} if a subset of system index access should be allowed, or
+     * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
+     */
+    public SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
+        final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+        final String productHeaderValue = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+
+        final boolean allowed = Booleans.parseBoolean(headerValue, true);
+        if (allowed) {
+            if (productHeaderValue != null) {
+                return SystemIndexAccessLevel.RESTRICTED;
+            } else {
+                return SystemIndexAccessLevel.ALL;
+            }
+        } else {
+            return SystemIndexAccessLevel.NONE;
+        }
+    }
+
+    public enum SystemIndexAccessLevel {
+        ALL,
+        NONE,
+        RESTRICTED
     }
 
     /**
@@ -224,6 +398,7 @@ public class SystemIndices {
                         .collect(Collectors.joining(", ")));
             }
         });
+        // TODO this needs to be re-worked to account for alias, primaryIndex, and datastreams
     }
 
     private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
@@ -269,6 +444,7 @@ public class SystemIndices {
     public static class Feature {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
+        private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
         private final Collection<String> associatedIndexPatterns;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
 
@@ -282,10 +458,12 @@ public class SystemIndices {
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<String> associatedIndexPatterns,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
+            this.dataStreamDescriptors = dataStreamDescriptors;
             this.associatedIndexPatterns = associatedIndexPatterns;
             this.cleanUpFunction = cleanUpFunction;
         }
@@ -297,7 +475,7 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(description, indexDescriptors, Collections.emptyList(),
+            this(description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
                 (clusterService, client, listener) ->
                     cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
             );
@@ -309,6 +487,10 @@ public class SystemIndices {
 
         public Collection<SystemIndexDescriptor> getIndexDescriptors() {
             return indexDescriptors;
+        }
+
+        public Collection<SystemDataStreamDescriptor> getDataStreamDescriptors() {
+            return dataStreamDescriptors;
         }
 
         public Collection<String> getAssociatedIndexPatterns() {

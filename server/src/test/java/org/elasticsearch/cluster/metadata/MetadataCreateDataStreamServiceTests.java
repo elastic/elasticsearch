@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -45,7 +47,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
-        ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+        ClusterState newState =
+            MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY));
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
@@ -65,7 +68,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
 
         ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY)));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
     }
 
@@ -76,7 +79,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY)));
         assertThat(e.getMessage(), containsString("must not contain the following characters"));
     }
 
@@ -87,7 +90,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY)));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must be lowercase"));
     }
 
@@ -98,7 +101,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY)));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.ds-'"));
     }
 
@@ -110,7 +113,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY)));
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [my-data-stream]"));
     }
 
@@ -125,7 +128,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY)));
         assertThat(e.getMessage(),
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
     }
@@ -141,11 +144,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .build();
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest req =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
-        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, new ThreadContext(Settings.EMPTY));
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
+        when(s.getSystemIndices()).thenReturn(EmptySystemIndices.INSTANCE);
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean()))
             .thenAnswer(mockInvocation -> {
                 ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -25,7 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SystemIndexAccessLevel.NONE;
+import static org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel.NONE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
@@ -35,7 +34,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
         ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
-        SystemIndexAccessLevel.NONE
+        NONE
     );
 
     public void testNormal() throws Exception {

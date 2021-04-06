@@ -160,4 +160,8 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
         return null;
     }
 
+    public boolean remove(ShardId shardId) {
+        return shardIds.remove(shardId);
+    }
+
 }

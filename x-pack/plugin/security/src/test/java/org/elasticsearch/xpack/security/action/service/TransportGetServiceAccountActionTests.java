@@ -19,9 +19,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -52,8 +50,8 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final PlainActionFuture<GetServiceAccountResponse> future1 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request1, future1);
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
-        assertThat(getServiceAccountResponse1.getServiceAccounts().size(), equalTo(1));
-        assertThat(getServiceAccountResponse1.getServiceAccounts(), hasKey("elastic/fleet-server"));
+        assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(1));
+        assertThat(getServiceAccountResponse1.getServiceAccountInfos()[0].getPrincipal(), equalTo("elastic/fleet-server"));
 
         final GetServiceAccountRequest request2 = randomFrom(
             new GetServiceAccountRequest("foo", null),
@@ -62,6 +60,6 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final PlainActionFuture<GetServiceAccountResponse> future2 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request2, future2);
         final GetServiceAccountResponse getServiceAccountResponse2 = future2.actionGet();
-        assertThat(getServiceAccountResponse2.getServiceAccounts(), anEmptyMap());
+        assertThat(getServiceAccountResponse2.getServiceAccountInfos().length, equalTo(0));
     }
 }

@@ -12,45 +12,46 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class GetServiceAccountResponse extends ActionResponse implements ToXContentObject {
 
-    private final Map<String, RoleDescriptor> serviceAccounts;
+    private final ServiceAccountInfo[] serviceAccountInfos;
 
-    public GetServiceAccountResponse(Map<String, RoleDescriptor> serviceAccounts) {
-        this.serviceAccounts = Objects.requireNonNull(serviceAccounts);
+    public GetServiceAccountResponse(ServiceAccountInfo[] serviceAccountInfos) {
+        this.serviceAccountInfos = Objects.requireNonNull(serviceAccountInfos);
     }
 
     public GetServiceAccountResponse(StreamInput in) throws IOException {
         super(in);
-        this.serviceAccounts = in.readMap(StreamInput::readString, RoleDescriptor::new);
+        this.serviceAccountInfos = in.readArray(ServiceAccountInfo::new, ServiceAccountInfo[]::new);
     }
 
-    public Map<String, RoleDescriptor> getServiceAccounts() {
-        return serviceAccounts;
+    public ServiceAccountInfo[] getServiceAccountInfos() {
+        return serviceAccountInfos;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(serviceAccounts, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeArray(serviceAccountInfos);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (Map.Entry<String, RoleDescriptor> entry: serviceAccounts.entrySet()) {
-            builder.startObject(entry.getKey());
-            builder.field("role_descriptor");
-            entry.getValue().toXContent(builder, params);
-            builder.endObject();
+        for (ServiceAccountInfo info : serviceAccountInfos) {
+            info.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return "GetServiceAccountResponse{" + "serviceAccountInfos=" + Arrays.toString(serviceAccountInfos) + '}';
     }
 
     @Override
@@ -60,11 +61,11 @@ public class GetServiceAccountResponse extends ActionResponse implements ToXCont
         if (o == null || getClass() != o.getClass())
             return false;
         GetServiceAccountResponse that = (GetServiceAccountResponse) o;
-        return serviceAccounts.equals(that.serviceAccounts);
+        return Arrays.equals(serviceAccountInfos, that.serviceAccountInfos);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(serviceAccounts);
+        return Arrays.hashCode(serviceAccountInfos);
     }
 }

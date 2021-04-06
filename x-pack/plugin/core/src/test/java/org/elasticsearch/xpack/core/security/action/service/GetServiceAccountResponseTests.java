@@ -34,16 +34,19 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     @Override
     protected GetServiceAccountResponse createTestInstance() {
         final String principal = randomPrincipal();
-        return new GetServiceAccountResponse(randomBoolean() ? Map.of(principal, getRoleDescriptorFor(principal)) : Map.of());
+        return new GetServiceAccountResponse(randomBoolean()
+            ? new ServiceAccountInfo[]{new ServiceAccountInfo(principal, getRoleDescriptorFor(principal))}
+            : new ServiceAccountInfo[0]);
     }
 
     @Override
     protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) throws IOException {
-        if (instance.getServiceAccounts().isEmpty()) {
+        if (instance.getServiceAccountInfos().length == 0) {
             final String principal = randomPrincipal();
-            return new GetServiceAccountResponse(Map.of(principal, getRoleDescriptorFor(principal)));
+            return new GetServiceAccountResponse(new ServiceAccountInfo[]{
+                new ServiceAccountInfo(principal, getRoleDescriptorFor(principal))});
         } else {
-            return new GetServiceAccountResponse(Map.of());
+            return new GetServiceAccountResponse(new ServiceAccountInfo[0]);
         }
     }
 
@@ -55,14 +58,14 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         final Map<String, Object> responseMap = XContentHelper.convertToMap(
             BytesReference.bytes(builder),
             false, builder.contentType()).v2();
-        final Map<String, RoleDescriptor> serviceAccounts = response.getServiceAccounts();
-        if (serviceAccounts.isEmpty()) {
+        final ServiceAccountInfo[] serviceAccountInfos = response.getServiceAccountInfos();
+        if (serviceAccountInfos.length == 0) {
             assertThat(responseMap, anEmptyMap());
         } else {
-            assertThat(responseMap.size(), equalTo(serviceAccounts.size()));
-            assertThat(responseMap.keySet(), equalTo(serviceAccounts.keySet()));
-            for (String key : responseMap.keySet()) {
-                assertRoleDescriptorEquals((Map<String, Object>) responseMap.get(key), serviceAccounts.get(key));
+            assertThat(responseMap.size(), equalTo(serviceAccountInfos.length));
+            for (int i = 0; i < serviceAccountInfos.length - 1; i++) {
+                final String key = serviceAccountInfos[i].getPrincipal();
+                assertRoleDescriptorEquals((Map<String, Object>) responseMap.get(key), serviceAccountInfos[i].getRoleDescriptor());
             }
         }
     }

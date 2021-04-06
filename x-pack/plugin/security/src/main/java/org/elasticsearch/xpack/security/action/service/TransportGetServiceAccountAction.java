@@ -16,14 +16,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
-import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
@@ -46,12 +44,13 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             if (request.getServiceName() != null) {
                 filter = filter.and( v -> v.id().serviceName().equals(request.getServiceName()) );
             }
-            final Map<String, RoleDescriptor> results = ServiceAccountService.getServiceAccounts()
+            final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
                 .values()
                 .stream()
                 .filter(filter)
-                .collect(Collectors.toMap(v -> v.id().asPrincipal(), ServiceAccount::roleDescriptor));
-            listener.onResponse(new GetServiceAccountResponse(results));
+                .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
+                .toArray(ServiceAccountInfo[]::new);
+            listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
         });
     }
 }

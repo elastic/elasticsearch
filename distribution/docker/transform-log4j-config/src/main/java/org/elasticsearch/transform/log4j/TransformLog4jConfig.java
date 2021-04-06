@@ -23,32 +23,15 @@ import java.util.List;
 public class TransformLog4jConfig {
 
     public static void main(String[] args) throws IOException {
-        List<String> lines = getConfigFile(args);
+        validateArguments(args);
 
-        final List<String> output = skipBlanks(transformConfig(lines));
+        final Path inputPath = Path.of(args[0]);
+        final Path outputPath = Path.of(args[1]);
 
-        output.forEach(System.out::println);
-    }
+        final List<String> inputLines = Files.readAllLines(inputPath);
+        final List<String> outputLines = skipBlanks(transformConfig(inputLines));
 
-    private static List<String> getConfigFile(String[] args) throws IOException {
-        if (args.length != 1) {
-            System.err.println("ERROR: Must supply a single argument, the file to process");
-            System.exit(1);
-        }
-
-        Path configPath = Path.of(args[0]);
-
-        if (Files.exists(configPath) == false) {
-            System.err.println("ERROR: [" + configPath + "] does not exist");
-            System.exit(1);
-        }
-
-        if (Files.isReadable(configPath) == false) {
-            System.err.println("ERROR: [" + configPath + "] exists but is not readable");
-            System.exit(1);
-        }
-
-        return Files.readAllLines(configPath);
+        Files.write(outputPath, outputLines);
     }
 
     /** Squeeze multiple empty lines into a single line. */
@@ -151,5 +134,31 @@ public class TransformLog4jConfig {
         }
 
         return output;
+    }
+
+    private static void validateArguments(String[] args) {
+        if (args.length != 2) {
+            System.err.println("ERROR: Must supply two arguments, the input file and the output file");
+            System.exit(1);
+        }
+
+        Path configPath = Path.of(args[0]);
+
+        if (Files.exists(configPath) == false) {
+            System.err.println("ERROR: Input path [" + configPath + "] does not exist");
+            System.exit(1);
+        }
+
+        if (Files.isReadable(configPath) == false) {
+            System.err.println("ERROR: Input path [" + configPath + "] exists but is not readable");
+            System.exit(1);
+        }
+
+        Path outputPath = Path.of(args[1]);
+
+        if (Files.isWritable(outputPath.getParent()) == false) {
+            System.err.println("ERROR: Output directory [" + outputPath.getParent() + "] is not writable");
+            System.exit(1);
+        }
     }
 }

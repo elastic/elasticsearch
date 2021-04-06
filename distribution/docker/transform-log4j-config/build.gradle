@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.LoggedExec
+import org.gradle.internal.jvm.Jvm
+
 apply plugin: 'elasticsearch.build'
 
 repositories {
@@ -7,12 +10,6 @@ repositories {
 dependencies {
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
-
-tasks.named('jar').configure {
-  manifest {
-    attributes 'Main-Class': 'org.elasticsearch.transform.log4j.TransformLog4jConfig'
-  }
 }
 
 // This tests depend on ES core
@@ -27,3 +24,23 @@ tasks.named('testingConventions').configure {
   }
 }
 
+String inputFile = "${parent.parent.buildDir}/outputs/default/log4j2.properties"
+String outputFile = "${project.buildDir}/distributions/log4j2.properties"
+String transformSource = "${project.projectDir}/src/main/java/org/elasticsearch/transform/log4j/TransformLog4jConfig.java"
+
+  tasks.register("transformDistributionConfig", LoggedExec) {
+  dependsOn project(':distribution').tasks.named('buildDefaultLog4jConfig')
+  inputs.files(inputFile, transformSource)
+  outputs.file(outputFile)
+
+  executable Jvm.current().getJavaExecutable()
+  args transformSource, inputFile, outputFile
+}
+
+configurations.register('log4jConfig')
+
+artifacts.add('log4jConfig', file(outputFile)) {
+  type 'file'
+  name 'log4j2.properties'
+  builtBy 'transformDistributionConfig'
+}

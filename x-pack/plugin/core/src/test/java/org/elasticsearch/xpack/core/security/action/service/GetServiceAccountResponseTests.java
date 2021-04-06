@@ -47,6 +47,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
         final GetServiceAccountResponse response = createTestInstance();
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -61,7 +62,6 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
             assertThat(responseMap.size(), equalTo(serviceAccounts.size()));
             assertThat(responseMap.keySet(), equalTo(serviceAccounts.keySet()));
             for (String key : responseMap.keySet()) {
-                //noinspection unchecked
                 assertRoleDescriptorEquals((Map<String, Object>) responseMap.get(key), serviceAccounts.get(key));
             }
         }

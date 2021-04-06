@@ -188,7 +188,6 @@ public class UserTreeToXContent extends UserTreeBaseVisitor<ScriptScope> {
     public void visitFor(SFor userForNode, ScriptScope scope) {
         start(userForNode);
 
-        // TODO(stu): why is initializerNode ANode instead of an expression
         ANode initializerNode = userForNode.getInitializerNode();
         builder.startArray("initializer");
         if (initializerNode != null) {

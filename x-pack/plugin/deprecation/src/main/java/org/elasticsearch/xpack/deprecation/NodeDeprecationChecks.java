@@ -379,4 +379,15 @@ class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins) {
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
+        if (dataPaths.size() > 1) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "multiple [path.data] entries are deprecated, use a single data directory",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.");
+        }
+        return null;
+    }
+
 }

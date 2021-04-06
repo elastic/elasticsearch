@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
+    private static final String MAPPINGS = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
+
     /**
      * Tests the various validation rules that are applied when creating a new system index descriptor.
      */
@@ -121,63 +123,23 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     }
 
     public void testPriorSystemIndexDescriptorValidation() {
-        final String mappings = "{ \"_doc\": { \"_meta\": { \"version\": \"7.4.0\" } } }";
-        SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0)
-            .build();
+        SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
 
         // same minimum node version
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0)
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build());
         assertThat(iae.getMessage(), containsString("same minimum node version"));
 
         // different min version but prior is after latest!
-        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
+        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
             .setMinimumNodeVersion(Version.fromString("6.8.0"))
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build());
         assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
 
         // prior has another prior!
-        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
+        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
             .setMinimumNodeVersion(Version.V_7_5_0)
             .setPriorSystemIndexDescriptors(List.of(
                 SystemIndexDescriptor.builder()
@@ -187,7 +149,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
                     .setAliasName(".system")
                     .setType(Type.INTERNAL)
                     .setSettings(Settings.EMPTY)
-                    .setMappings(mappings)
+                    .setMappings(MAPPINGS)
                     .setVersionMetaKey("version")
                     .setOrigin("system")
                     .setMinimumNodeVersion(Version.V_7_4_1)
@@ -198,61 +160,32 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("has its own prior descriptors"));
 
         // different index patterns
-        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
+        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
             .setIndexPattern(".system1*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_5_0)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build());
         assertThat(iae.getMessage(), containsString("index pattern must be the same"));
 
         // different primary index
-        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
+        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
             .setPrimaryIndex(".system-2")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_5_0)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build());
         assertThat(iae.getMessage(), containsString("primary index must be the same"));
 
         // different alias
-        iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
+        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
             .setAliasName(".system1")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_5_0)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build());
         assertThat(iae.getMessage(), containsString("alias name must be the same"));
 
         // success!
-        assertNotNull(SystemIndexDescriptor.builder()
-            .setIndexPattern(".system*")
-            .setDescription("system stuff")
-            .setPrimaryIndex(".system-1")
-            .setAliasName(".system")
-            .setType(Type.INTERNAL)
-            .setSettings(Settings.EMPTY)
-            .setMappings(mappings)
-            .setVersionMetaKey("version")
-            .setOrigin("system")
+        assertNotNull(priorSystemIndexDescriptorBuilder()
+            .setMinimumNodeVersion(Version.V_7_5_0)
             .setPriorSystemIndexDescriptors(List.of(prior))
             .build());
     }
@@ -299,5 +232,19 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         compat = descriptor.getDescriptorCompatibleWith(
             VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin));
         assertSame(prior, compat);
+    }
+
+    private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL)
+            .setSettings(Settings.EMPTY)
+            .setMappings(MAPPINGS)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0);
     }
 }

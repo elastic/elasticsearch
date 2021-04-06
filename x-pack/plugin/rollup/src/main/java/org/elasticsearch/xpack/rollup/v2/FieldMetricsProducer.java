@@ -89,7 +89,8 @@ class FieldMetricsProducer {
     }
 
     private static class Sum extends Metric {
-        private double sum = 0;
+        private double sum = 0.0;
+        private double compensation = 0.0;
 
         private Sum() {
             super("sum");
@@ -97,18 +98,25 @@ class FieldMetricsProducer {
 
         @Override
         void collect(double value) {
-            // TODO: switch to Kahan summation ?
-            this.sum += value;
+            value -= this.compensation;
+            double tempSum = this.sum + value;
+            this.compensation = tempSum - this.sum - value;
+            this.sum = tempSum;
         }
 
         @Override
         Number get() {
+            if (this.compensation != 0.0) {
+                sum -= compensation;
+                compensation = 0.0;
+            }
             return sum;
         }
 
         @Override
         void reset() {
-            sum = 0;
+            sum = 0.0;
+            compensation = 0.0;
         }
     }
 

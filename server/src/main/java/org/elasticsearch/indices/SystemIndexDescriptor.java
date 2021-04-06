@@ -201,11 +201,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
-            Version mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
-            if (mappingVersion == null) {
-                throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
-            }
-            this.mappingVersion = mappingVersion;
+            this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);;
         } else {
             this.mappingVersion = null;
         }
@@ -673,7 +669,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         }
         final String value = (String) meta.get(versionMetaKey);
         if (value == null) {
-            return null;
+            throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
         }
         return Version.fromString(value);
     }

@@ -240,7 +240,12 @@ public class TransportFieldCapabilitiesIndexAction
             ShardRouting shardRouting = nextRoutingOrNull();
             if (shardRouting == null) {
                 if (canMatchShard == false) {
-                    listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                    if (lastFailure == null) {
+                        listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                    } else {
+                        logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
+                        listener.onFailure(lastFailure);
+                    }
                 } else {
                     if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
                         listener.onFailure(new NoShardAvailableActionException(null,

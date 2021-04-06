@@ -41,7 +41,7 @@ In a new terminal session, run:
 
 [source,sh]
 ----
-curl -XGET http://localhost:9200/
+curl -X GET http://localhost:9200/
 ----
 // NOTCONSOLE
 

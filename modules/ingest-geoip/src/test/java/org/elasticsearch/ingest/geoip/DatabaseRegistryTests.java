@@ -122,7 +122,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         resourceWatcherService.close();
         threadPool.shutdownNow();
     }
-
+    
     public void testCheckDatabases() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;

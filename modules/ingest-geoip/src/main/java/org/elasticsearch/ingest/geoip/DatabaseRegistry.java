@@ -259,12 +259,12 @@ public final class DatabaseRegistry implements Closeable {
             bytes -> Files.write(databaseTmpGzFile, bytes, StandardOpenOption.APPEND),
             () -> {
                 LOGGER.debug("decompressing [{}]", databaseTmpGzFile.getFileName());
-                decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
                 // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
                 // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
-                try (TarInputStream is = new TarInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpFile)))) {
+                try (TarInputStream is =
+                         new TarInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192))) {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
                         //there might be ./ entry in tar, we should skip it
@@ -369,12 +369,6 @@ public final class DatabaseRegistry implements Closeable {
                 failureHandler.accept(e);
             }
         });
-    }
-
-    static void decompress(Path source, Path target) throws IOException {
-        try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(source), 8192)) {
-            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
     public Set<String> getAvailableDatabases() {

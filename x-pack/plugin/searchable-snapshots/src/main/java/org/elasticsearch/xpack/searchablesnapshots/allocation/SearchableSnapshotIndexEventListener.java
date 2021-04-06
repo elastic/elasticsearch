@@ -50,7 +50,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         @Nullable CacheService cacheService,
         @Nullable FrozenCacheService frozenCacheService
     ) {
-        assert cacheService != null || DiscoveryNode.isDataNode(settings) == false;
+        assert cacheService != null || DiscoveryNode.canContainData(settings) == false;
         this.cacheService = cacheService;
         this.frozenCacheService = frozenCacheService;
     }

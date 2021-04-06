@@ -62,7 +62,7 @@ PUT /my_source_index/_settings
     the index, are still allowed.
 
 
-It can take a while to relocate the source index.  Progress can be tracked
+It can take a while to relocate the source index. Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
 with the `wait_for_no_relocating_shards` parameter.
@@ -195,7 +195,7 @@ can't be allocated on the shrink node, its primary shard will remain
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 shrink process begins. When the shrink operation completes, the shard will
-become `active`. At that  point, Elasticsearch will try to allocate any
+become `active`. At that point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 

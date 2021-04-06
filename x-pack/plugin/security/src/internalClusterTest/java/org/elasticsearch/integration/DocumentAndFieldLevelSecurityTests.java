@@ -459,7 +459,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     private static void assertExpectedFields(FieldCapabilitiesResponse fieldCapabilitiesResponse, String... expectedFields) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
-        for (String field : responseMap.keySet()) {
+        for (String field : fieldCapabilitiesResponse.get().keySet()) {
             if (fieldCapabilitiesResponse.isMetadataField(field)) {
                 assertNotNull(" expected field [" + field + "] not found", responseMap.remove(field));
             }
@@ -474,7 +474,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
                                             String... expectedFields) {
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
-        for (String field : fields.keySet()) {
+        for (String field : actual.keySet()) {
             // best effort to remove metadata fields
             if (field.startsWith("_")) {
                 assertNotNull(" expected field [" + field + "] not found", fields.remove(field));

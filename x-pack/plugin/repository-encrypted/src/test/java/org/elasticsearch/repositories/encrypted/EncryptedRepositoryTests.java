@@ -206,7 +206,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     private Tuple<String, byte[]> wrapDek(String id, SecretKey DEK) {
-        Map<String, byte[]> wrappedDEK = encryptedRepository.wrapDekForBlobStore(id).apply(DEK);
+        Map<String, byte[]> wrappedDEK = encryptedRepository.getDekWrapperForBlobStore(id).apply(DEK);
         assertThat(wrappedDEK.size(), is(1));
         String wrappedDEKName = wrappedDEK.keySet().stream().findFirst().get();
         byte[] wrappedDEKContents = wrappedDEK.get(wrappedDEKName);

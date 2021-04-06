@@ -435,6 +435,8 @@ DELETE _data_stream/logs-my_app-default
 [[stop-remove-docker-containers]]
 === Step 11. Stop and remove your Docker containers
 
+TIP: If you're using {ess}, skip this step.
+
 If you're using Docker to run {es} or {kib}, run the following command in a new
 terminal session to stop the containers:
 

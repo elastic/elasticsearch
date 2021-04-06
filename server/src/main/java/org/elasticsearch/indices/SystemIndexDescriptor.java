@@ -103,7 +103,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
         this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL, List.of(), List.of());
+            Type.INTERNAL_MANAGED, List.of(), List.of());
     }
 
     /**
@@ -359,8 +359,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     }
 
     public boolean isAutomaticallyManaged() {
-        // TODO remove mappings/settings check after all internal indices have been migrated
-        return type.isManaged() && (this.mappings != null || this.settings != null);
+        return type.isManaged();
     }
 
     public String getOrigin() {
@@ -440,19 +439,22 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     }
 
     /**
-     * The specific type of system index that this descriptor represents. System indices have three defined types, which is used to
-     * control behavior. Elasticsearch itself and plugins have system indices that are necessary for their features;
-     * these system indices are referred to as internal system indices. Internal system indices are always managed indices that
-     * Elasticsearch manages.
+     * The specific type of system index that this descriptor represents. System indices can be one of four defined types; the type is used
+     * to control behavior. Elasticsearch itself and plugins have system indices that are necessary for their features;
+     * these system indices are referred to as internal system indices. System indices can also belong to features outside of Elasticsearch
+     * that may be part of other Elastic stack components. These are external system indices as the intent is for these to be accessed via
+     * normal APIs with a special value.
      *
-     * System indices can also belong to features outside of Elasticsearch that may be part of other Elastic stack components. These are
-     * external system indices as the intent is for these to be accessed via normal APIs with a special value. Within external system
-     * indices, there are two sub-types. The first are those that are managed by Elasticsearch and will have mappings/settings changed as
-     * the cluster itself is upgraded. The second are those managed by the external application and for those Elasticsearch will not
-     * perform any updates.
+     * Within both internal and external system indices, there are two sub-types. The first are those that are managed by Elasticsearch and
+     * will have mappings/settings changed as the cluster itself is upgraded. The second are those managed by the owning applications code
+     * and for those Elasticsearch will not perform any updates.
+     *
+     * Internal system indices are almost always managed indices that Elasticsearch manages, but there are cases where the component of
+     * Elasticsearch will need to manage the system indices itself.
      */
     public enum Type {
-        INTERNAL(false, true),
+        INTERNAL_MANAGED(false, true),
+        INTERNAL_UNMANAGED(false, false),
         EXTERNAL_MANAGED(true, true),
         EXTERNAL_UNMANAGED(true, false);
 
@@ -491,7 +493,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         private String versionMetaKey = null;
         private String origin = null;
         private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
-        private Type type = Type.INTERNAL;
+        private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
 

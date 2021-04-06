@@ -176,7 +176,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
 
         RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDekById.apply(DEKId));
         assertThat(e.repository(), equalTo(repositoryMetadata.name()));
-        assertThat(e.getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
+        assertThat(e.getRootCause().getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
     }
 
     public void testGetDEKIOException() {

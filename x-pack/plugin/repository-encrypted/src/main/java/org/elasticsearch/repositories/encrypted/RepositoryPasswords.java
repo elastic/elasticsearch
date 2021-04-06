@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -29,7 +30,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -244,8 +244,7 @@ public final class RepositoryPasswords {
         return localPasswords(repositoryMetadata).size() > 1;
     }
 
-    public Map<String, String> computePasswordsHashForBlobWrite(RepositoryMetadata repositoryMetadata) throws ExecutionException,
-        InterruptedException {
+    public Map<String, String> computePasswordsHashForBlobWrite(RepositoryMetadata repositoryMetadata) {
         final String currentPasswordName = CURRENT_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         final String fromPasswordName = CHANGE_FROM_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
         final String toPasswordName = CHANGE_TO_PASSWORD_NAME_SETTING.get(repositoryMetadata.settings());
@@ -256,13 +255,12 @@ public final class RepositoryPasswords {
         } else {
             hashesToCompute = Set.of(currentPasswordName);
         }
-        final StepListener<Map<String, String>> waitStep = new StepListener<>();
-        computePasswordsHash(hashesToCompute, EsExecutors.newDirectExecutorService(), waitStep);
-        return waitStep.asFuture().get();
+        final PlainActionFuture<Map<String, String>> future = PlainActionFuture.newFuture();
+        computePasswordsHash(hashesToCompute, EsExecutors.newDirectExecutorService(), future);
+        return FutureUtils.get(future);
     }
 
-    public boolean verifyPasswordsHash(RepositoryMetadata repositoryMetadata, Set<String> passwordsName) throws ExecutionException,
-        InterruptedException {
+    public boolean verifyPasswordsHash(RepositoryMetadata repositoryMetadata, Set<String> passwordsName) {
         Map<String, String> publishedPasswordsHash = getPasswordsHash(repositoryMetadata);
         Map<String, String> hashesToVerify = new HashMap<>(passwordsName.size());
         for (String passwordName : passwordsName) {
@@ -271,10 +269,10 @@ public final class RepositoryPasswords {
         return verifyPasswordsHash(hashesToVerify);
     }
 
-    public boolean verifyPasswordsHash(Map<String, String> passwordsHash) throws ExecutionException, InterruptedException {
-        StepListener<Boolean> waitStep = new StepListener<>();
-        verifyPasswordsHash(passwordsHash, EsExecutors.newDirectExecutorService(), waitStep);
-        return waitStep.asFuture().get();
+    public boolean verifyPasswordsHash(Map<String, String> passwordsHash) {
+        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        verifyPasswordsHash(passwordsHash, EsExecutors.newDirectExecutorService(), future);
+        return FutureUtils.get(future);
     }
 
     private void verifyPasswordsHash(Map<String, String> passwordsHash, ExecutorService executor, ActionListener<Boolean> listener) {

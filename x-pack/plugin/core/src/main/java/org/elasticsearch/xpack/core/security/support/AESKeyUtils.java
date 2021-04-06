@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
 import javax.crypto.Cipher;
@@ -69,8 +70,8 @@ public final class AESKeyUtils {
         return new String(Base64.getUrlEncoder().withoutPadding().encode(ciphertextOfKnownPlaintext), StandardCharsets.UTF_8);
     }
 
-    public static SecretKey generatePasswordBasedKey(SecureString password, String salt) throws ExecutionException, InterruptedException {
-        return generatePasswordBasedKey(password, salt, EsExecutors.newDirectExecutorService()).get();
+    public static SecretKey generatePasswordBasedKey(SecureString password, String salt) {
+        return FutureUtils.get(generatePasswordBasedKey(password, salt, EsExecutors.newDirectExecutorService()));
     }
 
     private static ListenableFuture<SecretKey> generatePasswordBasedKey(SecureString password, String salt,

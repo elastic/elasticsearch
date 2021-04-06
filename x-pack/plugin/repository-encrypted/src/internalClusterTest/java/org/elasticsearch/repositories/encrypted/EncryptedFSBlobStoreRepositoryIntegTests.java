@@ -151,11 +151,10 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         final Settings settings = Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, randomBoolean()).build();
         final boolean verifyOnCreate = randomBoolean();
 
+        RepositoryException e;
         if (verifyOnCreate) {
-            assertThat(
-                expectThrows(RepositoryException.class, () -> createRepository(repoName, settings, true)).getMessage(),
-                containsString("the encryption metadata in the repository has been corrupted")
-            );
+            e = expectThrows(RepositoryException.class, () -> createRepository(repoName, settings, true));
+            assertThat(e.getRootCause().getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
             // it still creates the repository even if verification failed
         } else {
             createRepository(repoName, settings, false);
@@ -164,20 +163,16 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(
             RepositoriesService.class
         ).repository(repoName);
-        assertThat(
-            expectThrows(
-                RepositoryException.class,
-                () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
-            ).getMessage(),
-            containsString("the encryption metadata in the repository has been corrupted")
+        e = expectThrows(
+            RepositoryException.class,
+            () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
         );
-        assertThat(
-            expectThrows(
-                RepositoryException.class,
-                () -> client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true).get()
-            ).getMessage(),
-            containsString("the encryption metadata in the repository has been corrupted")
+        assertThat(e.getRootCause().getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
+        e = expectThrows(
+            RepositoryException.class,
+            () -> client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(true).get()
         );
+        assertThat(e.getRootCause().getMessage(), containsString("the encryption metadata in the repository has been corrupted"));
     }
 
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -87,7 +88,8 @@ public class ResultsPersisterService {
 
     private final ThreadPool threadPool;
     private final OriginSettingClient client;
-    private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<Object, RetryableAction<?>> onGoingRetryableSearchActions = ConcurrentCollections.newConcurrentMap();
+    private final Map<Object, RetryableAction<?>> onGoingRetryableBulkActions = ConcurrentCollections.newConcurrentMap();
     private volatile int maxFailureRetries;
     private volatile boolean isShutdown = false;
     private volatile boolean isResetMode = false;
@@ -111,20 +113,31 @@ public class ResultsPersisterService {
         clusterService.addListener((event) -> {
             if (event.metadataChanged()) {
                 isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
+                if (isResetMode) {
+                    final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("Reset mode has been enabled");
+                    for (RetryableAction<?> action : onGoingRetryableBulkActions.values()) {
+                        action.cancel(exception);
+                    }
+                    onGoingRetryableBulkActions.clear();
+                }
             }
         });
     }
 
     void shutdown() {
         isShutdown = true;
-        if (onGoingRetryableActions.isEmpty()) {
+        if (onGoingRetryableSearchActions.isEmpty() && onGoingRetryableBulkActions.isEmpty()) {
             return;
         }
         final RuntimeException exception = new CancellableThreads.ExecutionCancelledException("Node is shutting down");
-        for (RetryableAction<?> action : onGoingRetryableActions.values()) {
+        for (RetryableAction<?> action : onGoingRetryableSearchActions.values()) {
             action.cancel(exception);
         }
-        onGoingRetryableActions.clear();
+        for (RetryableAction<?> action : onGoingRetryableBulkActions.values()) {
+            action.cancel(exception);
+        }
+        onGoingRetryableSearchActions.clear();
+        onGoingRetryableBulkActions.clear();
     }
 
     void setMaxFailureRetries(int value) {
@@ -181,11 +194,17 @@ public class ResultsPersisterService {
                                             Supplier<Boolean> shouldRetry,
                                             Consumer<String> retryMsgHandler,
                                             BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor) {
+        if (isShutdown || isResetMode) {
+            throw new ElasticsearchException(
+                "Bulk indexing has failed as {}",
+                isShutdown ? "node is shutting down." : "machine learning feature is being reset."
+            );
+        }
         final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
         final Object key = new Object();
         final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
             getResponse,
-            () -> onGoingRetryableActions.remove(key)
+            () -> onGoingRetryableBulkActions.remove(key)
         );
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
             jobId,
@@ -195,13 +214,12 @@ public class ResultsPersisterService {
             actionExecutor,
             removeListener
         );
-        onGoingRetryableActions.put(key, bulkRetryableAction);
+        onGoingRetryableBulkActions.put(key, bulkRetryableAction);
         bulkRetryableAction.run();
-        if (isShutdown) {
-            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
-        }
-        if (isResetMode) {
-            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Machine learning feature is being reset"));
+        if (isShutdown || isResetMode) {
+            bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException(
+                isShutdown ? "Node is shutting down" : "Machine learning feature is being reset"
+            ));
         }
         return getResponse.actionGet();
     }
@@ -214,7 +232,7 @@ public class ResultsPersisterService {
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
             getResponse,
-            () -> onGoingRetryableActions.remove(key)
+            () -> onGoingRetryableSearchActions.remove(key)
         );
         SearchRetryableAction mlRetryableAction = new SearchRetryableAction(
             jobId,
@@ -223,7 +241,7 @@ public class ResultsPersisterService {
             () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
             removeListener);
-        onGoingRetryableActions.put(key, mlRetryableAction);
+        onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
         if (isShutdown) {
             mlRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));

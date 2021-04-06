@@ -1354,16 +1354,20 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             // Handle the response
             results.put("datafeeds", datafeedResponse.isStopped());
 
-            // Close anomaly detection jobs
             CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request()
                 .setAllowNoMatch(true)
                 .setJobId("_all");
-            client.execute(CloseJobAction.INSTANCE, closeJobsRequest, ActionListener.wrap(
-                afterAnomalyDetectionClosed::onResponse,
-                failure -> {
-                    logger.warn("failed closing anomaly jobs for machine learning feature reset. Attempting with force=true", failure);
-                    client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), afterAnomalyDetectionClosed);
-                }
+            // First attempt to kill all anomaly jobs
+            client.execute(KillProcessAction.INSTANCE, new KillProcessAction.Request("*"), ActionListener.wrap(
+                // If successful, close and wait for jobs
+                success -> client.execute(CloseJobAction.INSTANCE, closeJobsRequest, ActionListener.wrap(
+                    afterAnomalyDetectionClosed::onResponse,
+                    failure -> {
+                        logger.warn("failed closing anomaly jobs for machine learning feature reset. Attempting with force=true", failure);
+                        client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), afterAnomalyDetectionClosed);
+                    }
+                )),
+                unsetResetModeListener::onFailure
             ));
         }, unsetResetModeListener::onFailure);
 

@@ -129,7 +129,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     };
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path home = nodePath(PARENT_DIR, nodeOrdinal);
         final Path xpackConf = home.resolve("config");
         try {
@@ -141,7 +141,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
             .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)

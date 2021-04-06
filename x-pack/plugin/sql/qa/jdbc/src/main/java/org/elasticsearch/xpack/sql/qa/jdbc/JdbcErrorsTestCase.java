@@ -123,14 +123,6 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    public void testSelectScoreInScalar() throws IOException, SQLException {
-        index("test", body -> body.field("foo", 1));
-        try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT SIN(SCORE()) FROM test").executeQuery());
-            assertThat(e.getMessage(), startsWith("Found 1 problem\nline 1:12: [SCORE()] cannot be an argument to a function"));
-        }
-    }
-
     public void testHardLimitForSortOnAggregate() throws IOException, SQLException {
         index("test", body -> body.field("a", 1).field("b", 2));
         try (Connection c = esJdbc()) {

@@ -60,7 +60,7 @@ This metadata is returned in the
 <<security-api-authenticate,authenticate API>>, and can be used with
 <<templating-role-query, templated queries>> in roles.
 
-Additional fields can be included in the user's metadata by  configuring
+Additional fields can be included in the user's metadata by configuring
 the `metadata` setting on the LDAP realm. This metadata is available for use
 with the <<mapping-roles-api, role mapping API>> or in
 <<templating-role-query, templated role queries>>.

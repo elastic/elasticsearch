@@ -131,6 +131,11 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     }
 
     @Override
+    public String toString() {
+        return getQualifiedName();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o)
             return true;

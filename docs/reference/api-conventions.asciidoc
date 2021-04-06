@@ -199,7 +199,7 @@ Statistics are returned in a format suitable for humans
 The human readable values can be turned off by adding `?human=false`
 to the query string. This makes sense when the stats results are
 being consumed by a monitoring tool, rather than intended for human
-consumption.  The default for the `human` flag is
+consumption. The default for the `human` flag is
 `false`.
 
 [[date-math]]
@@ -499,7 +499,7 @@ of supporting the native JSON number types.
 ==== Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
-the unit, like `2d` for 2 days.  The supported units are:
+the unit, like `2d` for 2 days. The supported units are:
 
 [horizontal]
 `d`::       Days

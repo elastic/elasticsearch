@@ -1,0 +1,90 @@
+// tag::cloud[]
+. Log in to the {ess-trial}[{ess} Console].
+
+. Add or select your deployment from the {ess} home page or the deployments
+page.
+
+. From your deployment menu, select **Edit deployment**.
+
+. To enable a data tier, click **Add capacity**.
+
+experimental:[] **Frozen tier** 
+
+The frozen tier is not yet available on {ess}. However, you can follow these
+steps to effectively recreate a frozen tier in your deployment:
+
+. Choose an existing tier to use. You'll typically use the cold tier, but the
+hot and warm tiers are also supported. You can use this tier as a shared tier,
+or use it exclusively as a frozen tier.
+
+. On the **Edit deployment** page, click **Edit elasticsearch.yml** for your
+chosen tier.
+
+. In the `elasticsearch.yml` configuration, set
+<<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
+to up to 90% of available disk space. The tier uses this space to
+create a <<shared-cache,shared, fixed-size cache>> for
+<<searchable-snapshots,searchable snapshots>>.
++
+[source,yaml]
+----
+xpack.searchable.snapshot.shared_cache.size: 50GB
+----
+
+. Click **Save** and **Confirm** to apply your changes.
+
+**Enable autoscaling**
+
+{cloud}/ec-autoscaling.html[Autoscaling] automatically adjusts your deployment's
+capacity to meet your storage needs. To enable autoscaling, select **Autoscale
+this deployment** on the **Edit deployment** page. Autoscaling is only available
+for {ess}.
+// end::cloud[]
+
+// tag::self-managed[]
+To assign a node to a data tier, add the respective <<node-roles,node role>> to
+the node's `elasticsearch.yml` file. Changing an existing node's roles requires
+a <<restart-cluster-rolling,rolling restart>>.
+
+[source,yaml]
+----
+# Hot tier
+node.roles: [ data_hot ]
+
+# Warm tier
+node.roles: [ data_warm ]
+
+# Cold tier
+node.roles: [ data_cold ]
+
+# Frozen tier
+node.roles: [ data_frozen ]
+----
+
+experimental:[] For nodes in the frozen tier, set
+<<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
+to up to 90% of the node's available disk space. The frozen tier uses this space
+to create a <<shared-cache,shared, fixed-size cache>> for
+<<searchable-snapshots,searchable snapshots>>.
+
+[source,yaml]
+----
+node.roles: [ data_frozen ]
+xpack.searchable.snapshot.shared_cache.size: 50GB
+----
+
+If needed, you can assign a node to more than one tier.
+
+[source,yaml]
+----
+node.roles: [ data_hot, data_warm ]
+----
+
+Assign your nodes any other roles needed for your cluster. For example, a small
+cluster may have nodes with multiple roles.
+
+[source,yaml]
+----
+node.roles: [ master, ingest, ml, data_hot, transform ]
+----
+// end::self-managed[]

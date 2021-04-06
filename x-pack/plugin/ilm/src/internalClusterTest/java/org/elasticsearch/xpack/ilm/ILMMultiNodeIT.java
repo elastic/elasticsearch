@@ -52,8 +52,8 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)

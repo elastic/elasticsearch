@@ -31,7 +31,7 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(final int nodeOrdinal) {
+    protected Settings nodeSettings(final int nodeOrdinal, final Settings otherSettings) {
         final Path databasePath = createTempDir();
         try {
             Files.createDirectories(databasePath);
@@ -50,7 +50,7 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
         return Settings.builder()
             .put("ingest.geoip.database_path", databasePath)
             .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false)
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .build();
     }
 

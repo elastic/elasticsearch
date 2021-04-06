@@ -231,10 +231,6 @@ public class ResultsPersisterService {
         return getResponse.actionGet();
     }
 
-    private Supplier<Boolean> shouldRetryWrapper(Supplier<Boolean> shouldRetry) {
-        return () -> (isShutdown == false) && shouldRetry.get();
-    }
-
     static class RecoverableException extends Exception { }
     static class IrrecoverableException extends ElasticsearchStatusException {
         IrrecoverableException(String msg, RestStatus status, Throwable cause, Object... args) {

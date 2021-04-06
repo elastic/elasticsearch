@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -45,6 +47,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -82,7 +86,7 @@ import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
-import org.elasticsearch.xpack.transform.action.TransportSetResetModeAction;
+import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
@@ -130,7 +134,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.xpack.core.transform.TransformMessages.FAILED_TO_UNSET_RESET_MODE;
 import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.AUDIT_INDEX_PATTERN;
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.TRANSFORM_PREFIX;
+import static org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants.TRANSFORM_PREFIX_DEPRECATED;
 
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
@@ -220,7 +227,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
             new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
             new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
-            new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class),
+            new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
 
             // deprecated actions, to be removed for 8.0.0
             new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
@@ -359,8 +366,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 resetFailure -> {
                     logger.error("failed to disable reset mode after otherwise successful transform reset", resetFailure);
                     finalListener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "failed to disable reset mode after otherwise successful transform reset",
+                        new ElasticsearchStatusException(
+                            TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a successful feature reset"),
+                            RestStatus.INTERNAL_SERVER_ERROR,
                             resetFailure
                         )
                     );
@@ -369,7 +377,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
                 resetSuccess -> finalListener.onFailure(failure),
                 resetFailure -> {
-                    logger.error("failed to disable reset mode after transform state clean up failure", resetFailure);
+                    logger.error(
+                        TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a failed feature reset"),
+                        resetFailure
+                    );
+                    Exception ex = new ElasticsearchException(
+                        TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a failed feature reset")
+                    );
+                    ex.addSuppressed(resetFailure);
+                    failure.addSuppressed(ex);
                     finalListener.onFailure(failure);
                 })
             )
@@ -393,15 +409,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                     .setActions(TransformField.TASK_NAME)
                     .setWaitForCompletion(true)
                     .execute(ActionListener.wrap(
-                        listMlTasks -> {
-                            listMlTasks.rethrowFailures("Waiting for transform tasks");
+                        listTransformTasks -> {
+                            listTransformTasks.rethrowFailures("Waiting for transform tasks");
                             client.admin()
                                 .cluster()
                                 .prepareListTasks()
                                 .setActions("indices:data/write/bulk")
                                 .setDetailed(true)
                                 .setWaitForCompletion(true)
-                                .setDescriptions("*.transform-*", "*.data-frame-*")
+                                .setDescriptions("*" + TRANSFORM_PREFIX + "*", "*" + TRANSFORM_PREFIX_DEPRECATED + "*")
                                 .execute(afterWaitingForTasks);
                         },
                         unsetResetModeListener::onFailure

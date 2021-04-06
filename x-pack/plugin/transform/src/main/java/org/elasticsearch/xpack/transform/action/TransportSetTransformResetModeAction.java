@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 
 
-public class TransportSetResetModeAction extends AbstractTransportSetResetModeAction {
+public class TransportSetTransformResetModeAction extends AbstractTransportSetResetModeAction {
 
     @Inject
-    public TransportSetResetModeAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSetTransformResetModeAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
+                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
     }
 

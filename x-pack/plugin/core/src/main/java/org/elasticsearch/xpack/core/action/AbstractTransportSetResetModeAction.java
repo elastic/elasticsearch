@@ -64,9 +64,9 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
                                    ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
 
-        final boolean isResetModelEnabled = isResetMode(state);
+        final boolean isResetModeEnabled = isResetMode(state);
         // Noop, nothing for us to do, simply return fast to the caller
-        if (request.isEnabled() == isResetModelEnabled) {
+        if (request.isEnabled() == isResetModeEnabled) {
             logger.debug(() -> new ParameterizedMessage("Reset mode noop for [{}]", featureName()));
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
@@ -77,7 +77,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
                 "Starting to set [reset_mode] for [{}] to [{}] from [{}]",
                 featureName(),
                 request.isEnabled(),
-                isResetModelEnabled
+                isResetModeEnabled
             )
         );
 
@@ -98,7 +98,6 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(
             acknowledgedResponse -> {
                 if (acknowledgedResponse.isAcknowledged() == false) {
-                    logger.info(new ParameterizedMessage("Cluster state update is NOT acknowledged for [{}]", featureName()));
                     wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
                     return;
                 }

@@ -99,9 +99,9 @@ public class TransformMetadata implements Metadata.Custom {
         }
 
         /**
-         * Merge the diff with the ML metadata.
-         * @param part The current ML metadata.
-         * @return The new ML metadata.
+         * Merge the diff with the transform metadata.
+         * @param part The current transform metadata.
+         * @return The new transform metadata.
          */
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {

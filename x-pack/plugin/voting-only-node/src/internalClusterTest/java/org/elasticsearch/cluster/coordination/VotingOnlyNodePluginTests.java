@@ -44,6 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -150,8 +151,11 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         final String dedicatedVotingOnlyNode = internalCluster().startNode(
             onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
         // voting-only master node that also has data
-        final String nonDedicatedVotingOnlyNode = internalCluster().startNode(
-            addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
+        Settings dataContainingVotingOnlyNodeSettings = addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE));
+        if (randomBoolean()) {
+            dataContainingVotingOnlyNodeSettings = removeRoles(dataContainingVotingOnlyNodeSettings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        }
+        final String nonDedicatedVotingOnlyNode = internalCluster().startNode(dataContainingVotingOnlyNodeSettings);
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
             .setType("verifyaccess-fs").setSettings(Settings.builder().put("location", randomRepoPath())
@@ -219,7 +223,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             protected BlobStore createBlobStore() throws Exception {
                 final DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
                 if (localNode.getRoles().contains(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)) {
-                    assertTrue(localNode.isDataNode());
+                    assertTrue(localNode.canContainData());
                 }
                 return super.createBlobStore();
             }

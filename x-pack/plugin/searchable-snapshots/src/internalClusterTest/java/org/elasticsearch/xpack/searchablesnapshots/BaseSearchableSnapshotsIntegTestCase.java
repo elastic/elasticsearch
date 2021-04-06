@@ -16,7 +16,8 @@ package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -24,9 +25,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.junit.After;
@@ -35,13 +38,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
@@ -54,20 +60,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        if (randomBoolean()) {
-            builder.put(
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                        : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-            );
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings settings;
+        {
+            final Settings initialSettings = super.nodeSettings(nodeOrdinal, otherSettings);
+            if (DiscoveryNode.canContainData(otherSettings)) {
+                settings = addRoles(initialSettings, Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
+            } else {
+                settings = initialSettings;
+            }
         }
+        final Settings.Builder builder = Settings.builder().put(settings).put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (randomBoolean()) {
             builder.put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
@@ -76,14 +79,16 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }
-        builder.put(
-            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-            rarely()
-                ? randomBoolean()
-                    ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                    : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-        );
+        if (DiscoveryNode.canContainData(otherSettings)) {
+            builder.put(
+                FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? randomBoolean()
+                        ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
+                        : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
+                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+            );
+        }
         builder.put(
             FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()

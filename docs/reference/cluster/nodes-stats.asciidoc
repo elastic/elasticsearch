@@ -1199,7 +1199,7 @@ since the {wikipedia}/Unix_time[Unix Epoch].
 
 `open_file_descriptors`::
 (integer)
-Number of opened file descriptors associated with the current  or
+Number of opened file descriptors associated with the current or
 `-1` if not supported.
 
 `max_file_descriptors`::

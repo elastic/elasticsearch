@@ -31,7 +31,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -79,7 +78,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         Sets.union(
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
             Set.of(
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
                 CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
                 CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING
@@ -90,7 +88,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected ThreadPool threadPool;
     protected ClusterService clusterService;
     protected NodeEnvironment nodeEnvironment;
-    protected Environment environment;
 
     @Before
     public void setUpTest() throws Exception {
@@ -101,7 +98,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
-        threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
+        threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders(Settings.EMPTY));
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
     }
@@ -124,9 +121,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      */
     protected CacheService randomCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
-        if (randomBoolean()) {
-            cacheSettings.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomCacheSize());
-        }
         if (randomBoolean()) {
             cacheSettings.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
@@ -167,14 +161,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     /**
-     * @return a new {@link CacheService} instance configured with the given cache size and cache range size settings
+     * @return a new {@link CacheService} instance configured with the given cache range size setting
      */
-    protected CacheService createCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
+    protected CacheService createCacheService(final ByteSizeValue cacheRangeSize) {
         return new CacheService(
-            Settings.builder()
-                .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                .put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
-                .build(),
+            Settings.builder().put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize).build(),
             clusterService,
             threadPool,
             new PersistentCache(nodeEnvironment)
@@ -197,14 +188,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      */
     protected Path randomShardPath(ShardId shardId) {
         return randomFrom(nodeEnvironment.availableShardPaths(shardId));
-    }
-
-    /**
-     * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_SIZE_SETTING}.
-     * Note that it can return a cache size of 0.
-     */
-    protected static ByteSizeValue randomCacheSize() {
-        return new ByteSizeValue(randomNonNegativeLong());
     }
 
     protected static ByteSizeValue randomFrozenCacheSize() {

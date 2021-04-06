@@ -30,7 +30,7 @@ For more information, see <<security-settings>>.
 --
 NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
-clusters that use a loopback interface do not have this requirement.  For more
+clusters that use a loopback interface do not have this requirement. For more
 information, see
 <<configuring-stack-security>>.
 

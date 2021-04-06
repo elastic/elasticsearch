@@ -139,7 +139,7 @@ choose a role yet--we'll come back to that in subsequent steps.
 --
 In {stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}],
 you configured {ls} to listen for {metricbeat}
-input and to send the events to {es}.  You therefore need to create a user
+input and to send the events to {es}. You therefore need to create a user
 that {ls} can use to communicate with {es}. For example:
 
 [role="screenshot"]
@@ -275,7 +275,7 @@ configuration. To learn more, see
 {logstash-ref}/keystore.html[Secrets keystore for secure settings].
 
 You can now use these `ES_USER` and `ES_PWD` keys in your configuration
-file.  For example, add the `user` and `password` settings in the
+file. For example, add the `user` and `password` settings in the
 `demo-metrics-pipeline.conf` file as follows:
 
 [source,ruby]

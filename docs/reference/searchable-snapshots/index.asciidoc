@@ -72,7 +72,8 @@ For more complex or time-consuming searches, you can use <<async-search>> with
 ====
 
 [[searchable-snapshots-repository-types]]
-You can use any of the following repository types with searchable snapshots:
+// tag::searchable-snapshot-repo-types[]
+Use any of the following repository types with searchable snapshots:
 
 * {plugins}/repository-s3.html[AWS S3]
 * {plugins}/repository-gcs.html[Google Cloud Storage]
@@ -83,8 +84,9 @@ You can use any of the following repository types with searchable snapshots:
 You can also use alternative implementations of these repository types, for
 instance
 {plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
-as long as they are fully compatible. You can use the <<repo-analysis-api>> API
+as long as they are fully compatible. Use the <<repo-analysis-api>> API
 to analyze your repository's suitability for use with searchable snapshots.
+// end::searchable-snapshot-repo-types[]
 
 [discrete]
 [[how-searchable-snapshots-work]]
@@ -171,9 +173,7 @@ You can configure the setting in `elasticsearch.yml`:
 xpack.searchable.snapshot.shared_cache.size: 4TB
 ----
 
-IMPORTANT: Currently, you can configure
-`xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
-you will only be able to configure this setting on nodes with the
+IMPORTANT: You can only configure this setting on nodes with the
 <<data-frozen-node,`data_frozen`>> role.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
@@ -219,33 +219,9 @@ repository storage then you are responsible for its reliability.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
-=== Configure a frozen tier on the {ess}
+=== Configure a frozen tier on {ess}
 
-The frozen data tier is not yet available on the {ess-trial}[{ess}]. However,
-you can configure another tier to use <<shared-cache,shared snapshot caches>>.
-This effectively recreates a frozen tier in your {ess} deployment. Follow these
-steps:
-
-. Choose an existing tier to use. Typically, you'll use the cold tier, but the
-hot and warm tiers are also supported. You can use this tier as a shared tier,
-or you can dedicate the tier exclusively to shared snapshot caches.
-
-. Log in to the {ess-trial}[{ess} Console].
-
-. Select your deployment from the {ess} home page or the deployments page.
-
-. From your deployment menu, select **Edit deployment**.
-
-. On the **Edit** page, click **Edit elasticsearch.yml** under your selected
-{es} tier.
-
-. In the `elasticsearch.yml` file, add the
-<<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
-setting. For example:
-+
-[source,yaml]
-----
-xpack.searchable.snapshot.shared_cache.size: 50GB
-----
-
-. Click **Save** and **Confirm** to apply your configuration changes.
+The frozen data tier is not yet available on {ess-trial}[{ess}]. However, you
+can configure another tier to use <<shared-cache,shared snapshot caches>>. This
+effectively recreates a frozen tier in your deployment. See
+<<set-up-data-tiers,Set up data tiers>>.

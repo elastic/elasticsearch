@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;
@@ -41,10 +40,10 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("xpack.security.transport.filter.deny", "127.0.0.200")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .build();

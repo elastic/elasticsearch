@@ -12,12 +12,32 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("long_script_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
+
+    public static Factory factory(Consumer<LongFieldScript> executor) {
+        return new Factory() {
+            @Override
+            public LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                return new LeafFactory() {
+                    @Override
+                    public LongFieldScript newInstance(LeafReaderContext ctx) {
+                        return new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                            @Override
+                            public void execute() {
+                                executor.accept(this);
+                            }
+                        };
+                    }
+                };
+            }
+        };
+    }
 
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);

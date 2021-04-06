@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -225,6 +226,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     @After
     public void cleanUp() throws IOException {
+        ensureNoInitializingShards();
         new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
     }
 
@@ -2501,7 +2503,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71139")
     public void testGetTrainedModelsStats() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String modelIdPrefix = "a-get-trained-model-stats-";
@@ -2526,12 +2527,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "          }\n" +
             "        }\n" +
             "      }]}\n";
+        String pipelineId = "regression-stats-pipeline";
 
         highLevelClient().ingest().putPipeline(
-            new PutPipelineRequest("regression-stats-pipeline",
+            new PutPipelineRequest(pipelineId,
                 new BytesArray(regressionPipeline.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON),
             RequestOptions.DEFAULT);
+        highLevelClient().index(
+            new IndexRequest("trained-models-stats-test-index").source("{\"col1\": 1}", XContentType.JSON).setPipeline(pipelineId),
+            RequestOptions.DEFAULT
+        );
         {
             GetTrainedModelsStatsResponse getTrainedModelsStatsResponse = execute(
                 GetTrainedModelsStatsRequest.getAllTrainedModelStatsRequest(),
@@ -2561,6 +2567,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     .collect(Collectors.toList()),
                 containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
         }
+        highLevelClient().ingest().deletePipeline(new DeletePipelineRequest(pipelineId), RequestOptions.DEFAULT);
+        assertBusy(() -> {
+            assertTrue(indexExists(".ml-stats-000001"));
+            ensureGreen(".ml-stats-*");
+        });
     }
 
     public void testDeleteTrainedModel() throws Exception {

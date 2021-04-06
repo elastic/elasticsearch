@@ -48,8 +48,16 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-            .put(ThreadContext.PREFIX + ".X-elastic-product-origin", "fleet-server")
+            .put(ThreadContext.PREFIX + ".X-elastic-product-origin", "fleet")
             .build();
+    }
+
+    public void testSearchWithoutIndexCreatedIsAllowed() throws Exception {
+        Request request = new Request("GET", ".fleet-agents/_search");
+        request.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
+        request.addParameter("ignore_unavailable", Boolean.TRUE.toString());
+
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
     public void testCreationOfFleetAgents() throws Exception {

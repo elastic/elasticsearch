@@ -215,6 +215,9 @@ public class GoogleCloudStorageService {
         return storageOptionsBuilder.build();
     }
 
+    /**
+     * This method imitates what MetadataConfig.getProjectId() does, but does not have the endpoint hardcoded.
+     */
     @SuppressForbidden(reason = "ok to open connection here")
     private static String getDefaultProjectId() throws IOException {
         String metaHost = System.getenv("GCE_METADATA_HOST");

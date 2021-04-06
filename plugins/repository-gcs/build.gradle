@@ -333,7 +333,6 @@ testClusters.matching {
 
 // Application Default Credentials
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-with-application-default-credentials')
   tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
     dependsOn('bundlePlugin')
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

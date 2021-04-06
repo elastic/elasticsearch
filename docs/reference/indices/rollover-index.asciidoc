@@ -48,7 +48,7 @@ rollover also increments the data stream's generation. See
 [TIP]
 ====
 include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=time-series-alias-tip]
-See <<convert-an-index-alias-to-a-data-stream>>.
+See <<convert-index-alias-to-data-stream>>.
 ====
 
 If an index alias points to multiple indices, one of the indices must be a

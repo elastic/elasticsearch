@@ -753,6 +753,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         {
             String value = Strings.join(tierList, ",");
             Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, value);
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
             builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
             builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
@@ -766,6 +767,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "");
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
             builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
             builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
@@ -779,6 +781,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         {
             Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "  ");
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
             builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
             builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 

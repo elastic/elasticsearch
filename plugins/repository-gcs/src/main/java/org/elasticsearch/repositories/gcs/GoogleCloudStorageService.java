@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Maps;
@@ -181,22 +182,12 @@ public class GoogleCloudStorageService {
             }
             if (defaultProjectId == null) {
                 try {
+                    // fallback to manually load project ID here as the above ServiceOptions method has the metadata endpoint hardcoded,
+                    // which makes it impossible to test
                     SocketAccess.doPrivilegedVoidIOException(() -> {
-                        String metaHost = System.getenv("GCE_METADATA_HOST");
-                        if (metaHost == null) {
-                            metaHost = "metadata.google.internal";
-                        }
-                        URL url = new URL("http://" + metaHost + "/computeMetadata/v1/project/project-id");
-                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                        connection.setConnectTimeout(5000);
-                        connection.setReadTimeout(5000);
-                        connection.setRequestProperty("Metadata-Flavor", "Google");
-                        try (InputStream input = connection.getInputStream()) {
-                            if (connection.getResponseCode() == 200) {
-                                try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, UTF_8))) {
-                                    storageOptionsBuilder.setProjectId(reader.readLine());
-                                }
-                            }
+                        final String projectId = getDefaultProjectId();
+                        if (projectId != null) {
+                            storageOptionsBuilder.setProjectId(projectId);
                         }
                     });
                 } catch (Exception e) {
@@ -222,6 +213,27 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build();
+    }
+
+    @SuppressForbidden(reason = "ok to open connection here")
+    private static String getDefaultProjectId() throws IOException {
+        String metaHost = System.getenv("GCE_METADATA_HOST");
+        if (metaHost == null) {
+            metaHost = "metadata.google.internal";
+        }
+        URL url = new URL("http://" + metaHost + "/computeMetadata/v1/project/project-id");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+        connection.setRequestProperty("Metadata-Flavor", "Google");
+        try (InputStream input = connection.getInputStream()) {
+            if (connection.getResponseCode() == 200) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, UTF_8))) {
+                    return reader.readLine();
+                }
+            }
+        }
+        return null;
     }
 
     /**

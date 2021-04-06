@@ -39,7 +39,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValueFormat() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
             "f", Version.CURRENT,1, Collections.emptyMap());
-        expectThrows(UnsupportedOperationException.class, () -> ft.docValueFormat(null, null));
+        expectThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {

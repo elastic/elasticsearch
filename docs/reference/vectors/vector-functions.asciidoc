@@ -215,7 +215,8 @@ you can access dense vectors's values directly through the following functions:
 - `float getVectorMagnitude()` – returns a vector's magnitude (available for
 vectors created in the version 7.5 or later).
 
-For example, the script below implements a cosine similarity function:
+For example, the script below implements a cosine similarity using these
+two functions:
 
 [source,console]
 --------------------------------------------------

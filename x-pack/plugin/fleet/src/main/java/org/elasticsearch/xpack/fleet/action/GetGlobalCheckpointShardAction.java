@@ -39,13 +39,13 @@ import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class GetGlobalCheckpointAction extends ActionType<GetGlobalCheckpointAction.Response> {
+public class GetGlobalCheckpointShardAction extends ActionType<GetGlobalCheckpointShardAction.Response> {
 
-    public static final GetGlobalCheckpointAction INSTANCE = new GetGlobalCheckpointAction();
-    public static final String NAME = "indices:monitor/fleet/global_checkpoint";
+    public static final GetGlobalCheckpointShardAction INSTANCE = new GetGlobalCheckpointShardAction();
+    public static final String NAME = "indices:monitor/fleet/global_checkpoint[s]";
 
-    private GetGlobalCheckpointAction() {
-        super(NAME, GetGlobalCheckpointAction.Response::new);
+    private GetGlobalCheckpointShardAction() {
+        super(NAME, GetGlobalCheckpointShardAction.Response::new);
     }
 
     public static class Response extends ActionResponse {

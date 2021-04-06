@@ -1,21 +1,21 @@
 setup:
   - do:
       indices.create:
-        index: test-1
+        index: test-2-shards
         body:
           settings:
             number_of_shards: "2"
 
   - do:
       indices.create:
-        index: test-2
+        index: test-1-shard
         body:
           settings:
             number_of_shards: "1"
 
   - do:
       index:
-        index:  test-2
+        index:  test-1-shard
         body:   { max: 2 }
 
   - do:
@@ -25,7 +25,7 @@ setup:
 "Get Global Checkpoints":
   - do:
       fleet.global_checkpoints:
-        index: "test-1"
+        index: "test-2-shards"
 
   - match: { global_checkpoints.0: -1 }
   - match: { global_checkpoints.1: -1 }
@@ -34,16 +34,17 @@ setup:
 "Get Global Checkpoints after advance":
   - do:
       fleet.global_checkpoints:
-        index: "test-2"
+        index: "test-1-shard"
 
   - match: { global_checkpoints.0: 0 }
 
 ---
 "Advance timeout":
   - do:
-      catch: gateway_timeout
       fleet.global_checkpoints:
-        index: "test-2"
+        index: "test-1-shard"
         wait_for_advance: true
         current_checkpoints: [100]
         poll_timeout: "50ms"
+
+  - match: { timed_out: true }

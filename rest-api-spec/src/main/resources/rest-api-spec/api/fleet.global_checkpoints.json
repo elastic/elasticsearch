@@ -29,11 +29,11 @@
     "params":{
       "wait_for_advance":{
         "type":"boolean",
-        "description":"Whether to wait for the global checkpoint to advance pass the specified current checkpoints",
+        "description":"Whether to wait for the global checkpoint to advance past the specified current checkpoints",
         "default":"false"
       },
       "current_checkpoints":{
-        "type":"string",
+        "type":"list",
         "description":"Comma separated list of current checkpoints",
         "default":""
       },

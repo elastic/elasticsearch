@@ -153,11 +153,8 @@ public class GetGlobalCheckpointsActionTests extends ESIntegTestCase {
             new long[] { 29 },
             TimeValue.timeValueMillis(100)
         );
-        ElasticsearchStatusException statusException = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
-        );
-        assertThat(statusException.status(), equalTo(RestStatus.GATEWAY_TIMEOUT));
+        GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet();
+        assertTrue(response.timedOut());
     }
 
     public void testMustProvideCorrectNumberOfShards() throws Exception {

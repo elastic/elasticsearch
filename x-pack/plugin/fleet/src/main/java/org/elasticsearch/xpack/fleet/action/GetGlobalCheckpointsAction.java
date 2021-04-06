@@ -54,19 +54,31 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
+        private final boolean timedOut;
         private final long[] globalCheckpoints;
 
         public Response(long[] globalCheckpoints) {
             this.globalCheckpoints = globalCheckpoints;
+            this.timedOut = false;
+        }
+
+        public Response(boolean timedOut) {
+            this.timedOut = timedOut;
+            this.globalCheckpoints = new long[0];
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            timedOut = in.readBoolean();
             globalCheckpoints = in.readLongArray();
         }
 
         public long[] globalCheckpoints() {
             return globalCheckpoints;
+        }
+
+        public boolean timedOut() {
+            return timedOut;
         }
 
         @Override
@@ -77,7 +89,11 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.array("global_checkpoints", globalCheckpoints);
+            if (timedOut) {
+                builder.field("timed_out", true);
+            } else {
+                builder.array("global_checkpoints", globalCheckpoints);
+            }
             return builder.endObject();
         }
     }
@@ -182,25 +198,26 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 }
             }
 
-            final AtomicArray<GetGlobalCheckpointAction.Response> responses = new AtomicArray<>(numberOfShards);
+            final AtomicArray<GetGlobalCheckpointShardAction.Response> responses = new AtomicArray<>(numberOfShards);
             final CountDown countDown = new CountDown(numberOfShards);
             for (int i = 0; i < numberOfShards; ++i) {
                 final int shardIndex = i;
-                GetGlobalCheckpointAction.Request shardChangesRequest = new GetGlobalCheckpointAction.Request(
+                GetGlobalCheckpointShardAction.Request shardChangesRequest = new GetGlobalCheckpointShardAction.Request(
                     new ShardId(indexMetadata.getIndex(), shardIndex),
                     request.waitForAdvance(),
                     currentCheckpoints[shardIndex],
                     request.pollTimeout()
                 );
 
-                client.execute(GetGlobalCheckpointAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
+                client.execute(GetGlobalCheckpointShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
                     @Override
-                    public void onResponse(GetGlobalCheckpointAction.Response response) {
+                    public void onResponse(GetGlobalCheckpointShardAction.Response response) {
+                        assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
                         responses.set(shardIndex, response);
                         if (countDown.countDown()) {
                             long[] globalCheckpoints = new long[responses.length()];
                             int i = 0;
-                            for (GetGlobalCheckpointAction.Response r : responses.asList()) {
+                            for (GetGlobalCheckpointShardAction.Response r : responses.asList()) {
                                 globalCheckpoints[i++] = r.getGlobalCheckpoint();
                             }
                             listener.onResponse(new Response(globalCheckpoints));
@@ -212,7 +229,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                         if (countDown.fastForward()) {
                             Throwable cause = ExceptionsHelper.unwrapCause(e);
                             if (cause instanceof ElasticsearchTimeoutException) {
-                                listener.onFailure(new ElasticsearchStatusException(cause.getMessage(), RestStatus.GATEWAY_TIMEOUT, cause));
+                                listener.onResponse(new Response(true));
                             } else {
                                 listener.onFailure(e);
                             }

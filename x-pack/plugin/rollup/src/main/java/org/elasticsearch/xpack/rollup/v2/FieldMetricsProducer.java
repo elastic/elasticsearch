@@ -98,19 +98,18 @@ class FieldMetricsProducer {
 
         @Override
         void collect(double value) {
-            value -= this.compensation;
-            double tempSum = this.sum + value;
-            this.compensation = tempSum - this.sum - value;
+            double tempSum = sum + value;
+            if (Math.abs(sum) > Math.abs(value)) {
+                compensation += ((sum - tempSum) + value);
+            } else {
+                compensation += ((value - tempSum) + sum);
+            }
             this.sum = tempSum;
         }
 
         @Override
         Number get() {
-            if (this.compensation != 0.0) {
-                sum -= compensation;
-                compensation = 0.0;
-            }
-            return sum;
+            return sum + compensation;
         }
 
         @Override

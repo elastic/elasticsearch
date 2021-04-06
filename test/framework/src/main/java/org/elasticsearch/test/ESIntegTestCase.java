@@ -1848,7 +1848,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * times with the same ordinal and is expected to return the same value for each invocation.
      * In other words subclasses must ensure this method is idempotent.
      */
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
             .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             // Default the watermarks to absurdly low to prevent the tests
@@ -1981,10 +1981,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         return new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(initialNodeSettings.build())
-                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal, otherSettings)).build();
             }
 
             @Override

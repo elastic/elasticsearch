@@ -61,10 +61,13 @@
   - is_false: fields.geo.keyword.on_aggregatable_indices
 
   - do:
+      catch: missing
       field_caps:
         index: 'my_remote_cluster:some_index_that_doesnt_exist'
         fields: [number]
-  - match: { 'fields': {} } # empty response - this index doesn't exists
+        
+  - match: { error.type: "index_not_found_exception" }
+  - match: { error.reason: "no such index [some_index_that_doesnt_exist]" }
 
   - do:
       field_caps:
@@ -85,6 +88,23 @@
   - match: {fields.number.keyword.searchable:           true}
   - match: {fields.number.keyword.aggregatable:         true}
   - match: {fields.number.keyword.type:                 keyword}
+
+  - do:
+      catch: bad_request
+      field_caps:
+        index: 'my_remote_cluster:field_caps_index_1'
+        fields: [number]
+        body:
+          runtime_mappings:
+            day_of_week:
+              type: keyword
+              script:
+                source: "bad syntax"
+
+  - match: { error.type: "script_exception" }
+  - match: { error.reason: "compile error" }
+  - match: { error.script : "bad syntax" }
+  - match: { error.lang : "painless" }
 
 ---
 "Get field caps from remote cluster with index filter":

@@ -76,7 +76,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
+            if (request.equals("GET /") &&
+                "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
+                // the SDK checks this endpoint to determine if it's running within Google Compute Engine
+                exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+            } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final BytesReference blob = blobs.get(key);
                 if (blob == null) {

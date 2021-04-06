@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
@@ -475,7 +476,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * any unique and interesting failure case. See the tests for
      * {@link DateFieldMapper} for some examples.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71053")
     public final void testFetchMany() throws IOException {
         MapperService mapperService = randomFetchTestMapper();
         try {
@@ -561,6 +561,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
                 return o;
             }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
             /*
              * Doc values sort according to something appropriate to the field
              * and the native fetchers usually don't sort. We're ok with this
@@ -568,6 +572,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
              */
             assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
         });
+    }
+
+    /**
+     * A few field types (e.g. keyword fields) don't allow duplicate values, so in those cases we need to de-dup our expected values.
+     * Field types where this is the case should overwrite this. The default is to not de-duplicate though.
+     */
+    protected boolean dedupAfterFetch() {
+        return false;
     }
 
     /**

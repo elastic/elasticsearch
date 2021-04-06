@@ -408,7 +408,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71132")
     public void testCreateAndRestorePartialSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -552,6 +551,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getIndices()
             .get(indexName)
             .getShards();
+
+        ensureGreen(restoredIndexName);
 
         final IndicesStatsResponse indicesStatsResponse = client().admin()
             .indices()

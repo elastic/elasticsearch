@@ -45,12 +45,16 @@ https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google 
 
 The plugin must authenticate the requests it makes to the Google Cloud Storage
 service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
-However, that strategy is **not** supported for use with Elasticsearch. The
+However, that strategy is only **partially supported** by Elasticsearch. The
 plugin operates under the Elasticsearch process, which runs with the security
-manager enabled. The security manager obstructs the "automatic" credential discovery.
-Therefore, you must configure <<repository-gcs-using-service-account,service account>>
-credentials even if you are using an environment that does not normally require
-this configuration (such as Compute Engine, Kubernetes Engine or App Engine).
+manager enabled. The security manager obstructs the "automatic" credential discovery
+when the environment variable `GOOGLE_APPLICATION_CREDENTIALS` is used to point to a
+local file on disk. It can, however, retrieve the service account that is attached to
+the resource that is running Elasticsearch, or fall back to the default service
+account that Compute Engine, Kubernetes Engine or App Engine provide.
+Alternatively, you must configure <<repository-gcs-using-service-account,service account>>
+credentials if you are using an environment that does not support automatic
+credential discovery.
 
 [[repository-gcs-using-service-account]]
 ===== Using a Service Account

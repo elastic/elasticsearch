@@ -488,4 +488,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 throw new IllegalStateException();
         }
     }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
 }

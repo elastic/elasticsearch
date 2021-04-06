@@ -32,6 +32,8 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,6 +60,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String query;
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
+    private Map<String, Object> runtimeMappings = Collections.emptyMap();
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -76,6 +79,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
     static final String KEY_RESULT_POSITION = "result_position";
     static final String KEY_FETCH_FIELDS = "fields";
+    static final String KEY_RUNTIME_MAPPINGS = "runtime_mappings";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -119,6 +123,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             if (in.readBoolean()) {
                 fetchFields = in.readList(FieldAndFormat::new);
             }
+            runtimeMappings = in.readMap();
         }
     }
 
@@ -166,6 +171,30 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
         }
 
+        if (runtimeMappings != null) {
+            validationException = validateRuntimeMappings(runtimeMappings, validationException);
+        }
+
+        return validationException;
+    }
+
+    private static ActionRequestValidationException validateRuntimeMappings(Map<String, Object> runtimeMappings,
+        ActionRequestValidationException validationException) {
+        for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
+            // top level objects are fields
+            String fieldName = entry.getKey();
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
+                Object typeNode = propNode.get("type");
+                if (typeNode == null) {
+                    return addValidationError("No type specified for runtime field [" + fieldName + "]", validationException);
+                }
+            } else {
+                return addValidationError("Expected map for runtime field [" + fieldName + "] definition but got ["
+                    + fieldName.getClass().getSimpleName() + "]", validationException);
+            }
+        }
         return validationException;
     }
 
@@ -193,6 +222,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (fetchFields != null && fetchFields.isEmpty() == false) {
             builder.field(KEY_FETCH_FIELDS, fetchFields);
         }
+        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
+            builder.field(KEY_RUNTIME_MAPPINGS, runtimeMappings);
+        }
 
         return builder;
     }
@@ -219,6 +251,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
         parser.declareField(EqlSearchRequest::fetchFields, EqlSearchRequest::parseFetchFields, FETCH_FIELDS_FIELD, ValueType.VALUE_ARRAY);
+        parser.declareObject(EqlSearchRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
 
@@ -232,6 +265,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     public EqlSearchRequest filter(QueryBuilder filter) {
         this.filter = filter;
+        return this;
+    }
+
+    public Map<String, Object> runtimeMappings() { return this.runtimeMappings; }
+
+    public EqlSearchRequest runtimeMappings(Map<String, Object> runtimeMappings) {
+        this.runtimeMappings = runtimeMappings;
         return this;
     }
 
@@ -368,6 +408,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             if (fetchFields != null) {
                 out.writeList(fetchFields);
             }
+            out.writeMap(runtimeMappings);
         }
     }
 
@@ -392,7 +433,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(resultPosition, that.resultPosition) &&
-                Objects.equals(fetchFields, that.fetchFields);
+                Objects.equals(fetchFields, that.fetchFields) &&
+                Objects.equals(runtimeMappings, that.runtimeMappings);
     }
 
 
@@ -411,7 +453,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             waitForCompletionTimeout,
             keepAlive,
             resultPosition,
-            fetchFields);
+            fetchFields,
+            runtimeMappings);
     }
 
     @Override

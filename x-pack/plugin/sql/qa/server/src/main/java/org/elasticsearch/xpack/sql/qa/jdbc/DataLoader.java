@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -151,6 +150,20 @@ public class DataLoader {
                 }
             }
             createIndex.endObject();
+            // define the runtime field
+            createIndex.startObject("runtime");
+            {
+                createIndex.startObject("birth_date_day_of_week").field("type", "keyword");
+                createIndex.startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['birth_date'].size()==0) return; "
+                            + "else emit(doc['birth_date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                    );
+                createIndex.endObject();
+                createIndex.endObject();
+            }
+            createIndex.endObject();
         }
         createIndex.endObject().endObject();
         request.setJsonEntity(Strings.toString(createIndex));
@@ -185,7 +198,7 @@ public class DataLoader {
         csvToLines(fileName, (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
             bulk.append('{');
-            String emp_no = fields.get(1);
+            String emp_no = fields.get(2);
 
             boolean hadLastItem = false;
 
@@ -193,7 +206,9 @@ public class DataLoader {
             boolean setWildcardName = true;
             for (int f = 0; f < fields.size(); f++) {
                 // an empty value in the csv file is treated as 'null', thus skipping it in the bulk request
-                if (fields.get(f).trim().length() > 0) {
+                // also, skip the runtime field from bulk as it gets populated automatically
+                // even if employees.csv has a value for this field in it, that one will only be used in *.sql-spec tests
+                if (titles.get(f).equals("birth_date_day_of_week") == false && fields.get(f).trim().length() > 0) {
                     if (hadLastItem) {
                         bulk.append(",");
                     }
@@ -369,7 +384,7 @@ public class DataLoader {
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        Response response = client.performRequest(request);
+        client.performRequest(request);
     }
 
     public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {

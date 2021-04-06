@@ -74,7 +74,8 @@ public class HttpClient {
                 new RequestInfo(Mode.CLI, ClientVersion.CURRENT),
                 false,
                 false,
-                cfg.binaryCommunication());
+                cfg.binaryCommunication(),
+                Collections.emptyMap());
         return query(sqlRequest);
     }
 

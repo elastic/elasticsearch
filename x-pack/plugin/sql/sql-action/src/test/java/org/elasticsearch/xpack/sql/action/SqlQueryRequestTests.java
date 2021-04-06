@@ -27,7 +27,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -49,6 +51,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_VALUE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
@@ -78,7 +81,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomRuntimeMappings(), randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
                 randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
                 randomBoolean(), randomBoolean()
         );
@@ -104,7 +107,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 request -> request.columnar(randomValueOtherThan(request.columnar(), () -> randomBoolean())),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),
+        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(), instance.runtimeMappings(),
                 instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
                 instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(), instance.indexIncludeFrozen());
         mutator.accept(newRequest);
@@ -174,6 +177,20 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
     }
 
+    public static Map<String, Object> randomRuntimeMappings() {
+        int count = between(1, 100);
+        Map<String, Object> runtimeFields = new HashMap<>(count);
+        while (runtimeFields.size() < count) {
+            int size = between(1, 10);
+            Map<String, Object> config = new HashMap<>(size);
+            while (config.size() < size) {
+                config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
+            runtimeFields.put(randomAlphaOfLength(5), config);
+        }
+        return runtimeFields;
+    }
+
     private SqlQueryRequest doParseInstance(XContentParser parser) {
         return SqlQueryRequest.fromXContent(parser);
     }
@@ -241,6 +258,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
         if (request.cursor() != null) {
             builder.field(CURSOR_NAME, request.cursor());
+        }
+        if (request.runtimeMappings() != null && request.runtimeMappings().isEmpty() == false) {
+            builder.field(RUNTIME_MAPPINGS_NAME, request.runtimeMappings());
         }
         builder.endObject();
     }

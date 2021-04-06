@@ -16,7 +16,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +52,24 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
                 eqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
             }
         }
+        if (randomBoolean()) {
+            eqlSearchRequest.runtimeMappings(randomRuntimeMappings());
+        }
         return eqlSearchRequest;
+    }
+
+    private Map<String, Object> randomRuntimeMappings() {
+        int count = between(1, 100);
+        Map<String, Object> runtimeFields = new HashMap<>(count);
+        while (runtimeFields.size() < count) {
+            int size = between(1, 10);
+            Map<String, Object> config = new HashMap<>(size);
+            while (config.size() < size) {
+                config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
+            runtimeFields.put(randomAlphaOfLength(5), config);
+        }
+        return runtimeFields;
     }
 
     @Override
@@ -70,6 +89,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
         assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));
         assertThat(serverInstance.size(), equalTo(clientTestInstance.size()));
+        assertThat(serverInstance.runtimeMappings(), equalTo(clientTestInstance.runtimeMappings()));
     }
 
     @Override

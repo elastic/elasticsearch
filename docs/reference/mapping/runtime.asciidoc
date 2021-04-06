@@ -747,6 +747,243 @@ address.
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
 
+[[runtime-indexed]]
+=== Index a runtime field
+Runtime fields are defined by the context where they run. For example, you
+can define runtime fields in the
+<<runtime-search-request,context of a search query>> or within the
+<<runtime-mapping-fields,`runtime` section>> of an index mapping. If you
+decide to index a runtime field for greater performance, just move the full
+runtime field definition (including the script) to the context of an index
+mapping. This capability means you can write a script only once, and apply
+it to any context that supports runtime fields.
+
+NOTE: Currently, you can only index runtime fields of type `long` and
+`double`.
+
+For example, let's say your company wants to replace some old pressure
+valves. The connected sensors are only capable of reporting a fraction of
+the true readings. Rather than outfit the pressure valves with new sensors,
+you decide to calculate the values based on reported readings. Based on the
+reported data, you define the following fields in your mapping for
+`my-index`:
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "temperature": {
+        "type": "long"
+      },
+      "voltage": {
+        "type": "double"
+      },
+      "node": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
+You then bulk index some sample data from your sensors. This data includes
+`voltage` readings for each sensor:
+
+[source,console-result]
+----
+POST my-index/_bulk?refresh=true
+{"index":{}}
+{"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+{"index":{}}
+{"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+{"index":{}}
+{"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+{"index":{}}
+{"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+{"index":{}}
+{"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+{"index":{}}
+{"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+----
+// TEST[continued]
+
+After talking to a few site engineers, you realize that the sensors should
+be reporting at least _double_ the current values, but potentially higher.
+You create a runtime field named `voltage_reading` that retrieves the current
+voltage and multiplies it by `2`:
+
+[source,console]
+----
+PUT my-index/_mapping
+{
+  "runtime": {
+    "voltage_reading": {
+      "type": "long",
+      "script": {
+        "source": """
+          for (double v : doc['voltage'])
+          emit((long)(v * params['multiplier']))
+          """,
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+You retrieve the calculated values using the <<search-fields,`fields`>>
+parameter on the `_search` API:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "fields": [
+    "voltage_reading",
+    "node"
+    ]
+}
+----
+// TEST[continued]
+
+After reviewing the sensor data and running some tests, you determine that the
+multiplier for reported sensor data should be `4`. To gain greater performance,
+you decide to update your script and index the `voltage_reading` runtime field
+with the new `multiplier` parameter.
+
+In a new index named `my-index-00001`, copy the `voltage_reading` runtime field
+definition into the mappings of the new index. It's that simple!
+
+[source,console]
+----
+PUT my-index-00001/
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "temperature": {
+        "type": "long"
+      },
+      "voltage": {
+        "type": "double"
+      },
+      "node": {
+        "type": "keyword"
+      },
+      "voltage_reading": {
+        "type": "long",
+        "script": {
+          "source": """
+            for (double v : doc['voltage'])
+            emit((long)(v * params['multiplier']))
+            """,
+          "params": {
+            "multiplier": 4
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+Bulk index some sample data into the `my-index-00001` index:
+
+[source,console]
+----
+POST my-index-00001/_bulk?refresh=true
+{"index":{}}
+{"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+{"index":{}}
+{"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+{"index":{}}
+{"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+{"index":{}}
+{"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+{"index":{}}
+{"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+{"index":{}}
+{"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+----
+// TEST[continued]
+
+You can now retrieve calculated values in a search query, and find documents
+based on precise values. The following range query returns all documents where
+the calculated `voltage_reading` is greater than or equal to `10`, but less
+than or equal to `16`:
+
+[source,console]
+----
+GET my-index-00001/_search
+{
+  "query": {
+    "range": {
+      "voltage_reading": {
+        "gte": 16,
+        "lte": 20,
+        "boost": 1.0
+      }
+    }
+  }
+  , "size": 2
+}
+----
+// TEST[continued]
+
+Even though `voltage_reading` isn't included in the response, the documents
+that match the range query are returned based on the calculated value of the
+included script:
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 4,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index-00001",
+        "_type" : "_doc",
+        "_id" : "fYR4qHgBdg9xpPrUEz-q",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516729294000,
+          "temperature" : 200,
+          "voltage" : 5.2,
+          "node" : "a"
+        }
+      },
+      {
+        "_index" : "my-index-00001",
+        "_type" : "_doc",
+        "_id" : "f4R4qHgBdg9xpPrUEz-q",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516556494000,
+          "temperature" : 202,
+          "voltage" : 5.1,
+          "node" : "a"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 [[runtime-examples]]
 === Explore your data with runtime fields

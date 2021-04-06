@@ -1027,4 +1027,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected String generateRandomInputValue(MappedFieldType ft) {
         return randomAlphaOfLengthBetween(1, 100);
     }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
 }

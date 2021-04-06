@@ -111,7 +111,7 @@ GET my-data-stream/_search
     "source.ip": {
       "type": "ip",
       "script": """
-        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "event.original" ].value)?.sourceip;
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "message" ].value)?.sourceip;
         if (sourceip != null) emit(sourceip);
       """
     }
@@ -168,7 +168,7 @@ POST my-data-stream/_async_search
     "source.ip": {
       "type": "ip",
       "script": """
-        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "event.original" ].value)?.sourceip;
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "message" ].value)?.sourceip;
         if (sourceip != null) emit(sourceip);
       """
     }

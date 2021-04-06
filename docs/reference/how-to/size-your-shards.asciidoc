@@ -136,7 +136,7 @@ When a node fails, {es} rebalances the node's shards across the data tier's
 remaining nodes. Larger shards can be harder to move across a network and may
 tax node resources.
 
-To see the current size of your shards, use the <<cat-shards,_cat shards API>>.
+To see the current size of your shards, use the <<cat-shards,cat shards API>>.
 
 [source,console]
 ----

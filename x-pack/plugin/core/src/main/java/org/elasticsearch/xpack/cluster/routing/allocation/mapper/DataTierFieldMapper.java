@@ -12,6 +12,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -20,6 +21,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Collections;
+
+import static java.util.Collections.singletonList;
 
 public class DataTierFieldMapper extends MetadataFieldMapper {
 
@@ -52,19 +55,16 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             if (caseInsensitive) {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
-            String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(context.getIndexSettings().getSettings());
+            String tierPreference = getTierPreference(context);
             if (tierPreference == null) {
                 return false;
             }
-            // Tier preference can be a comma-delimited list of tiers, ordered by preference
-            // It was decided we should only test the first of these potentially multiple preferences.
-            String firstPreference = tierPreference.split(",")[0].trim();
-            return Regex.simpleMatch(pattern, firstPreference);
+            return Regex.simpleMatch(pattern, tierPreference);
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(context.getIndexSettings().getSettings());
+            String tierPreference = getTierPreference(context);
             if (tierPreference == null) {
                 return new MatchNoDocsQuery();
             }
@@ -73,7 +73,21 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            String tierPreference = getTierPreference(context);
+            return lookup -> singletonList(tierPreference);
+        }
+
+        private String getTierPreference(SearchExecutionContext context) {
+            Settings settings = context.getIndexSettings().getSettings();
+            String value = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(context.getIndexSettings().getSettings());
+
+            if (value == null) {
+                return null;
+            }
+
+            // Tier preference can be a comma-delimited list of tiers, ordered by preference
+            // It was decided we should only test the first of these potentially multiple preferences.
+            return value.split(",")[0].trim();
         }
     }
 

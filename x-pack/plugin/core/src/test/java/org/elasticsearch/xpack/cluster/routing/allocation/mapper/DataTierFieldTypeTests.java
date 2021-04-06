@@ -14,10 +14,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
@@ -64,6 +69,15 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+    }
+
+    public void testFetchValue() throws IOException {
+        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        SearchExecutionContext context = createContext();
+        SourceLookup lookup = new SourceLookup();
+
+        ValueFetcher valueFetcher = ft.valueFetcher(context, null);
+        assertEquals(Arrays.asList("data_warm"), valueFetcher.fetchValues(lookup));
     }
 
     private SearchExecutionContext createContext() {

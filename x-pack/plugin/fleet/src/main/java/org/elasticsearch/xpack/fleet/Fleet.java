@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -183,6 +184,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     private String loadTemplateSource(String resource) {
-        return TemplateUtils.loadTemplate(resource, VERSION_KEY, MAPPING_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), MAPPING_VERSION_VARIABLE);
     }
 }

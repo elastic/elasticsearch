@@ -17,8 +17,7 @@
       "type": "string",
       "examples": [
         "@timestamp"
-      ],
-      "pattern": "^.*$"
+      ]
     },
     "max_age": {
       "$id": "#root/retention_policy/time/max_age",
@@ -27,8 +26,7 @@
       "default": "60s",
       "examples": [
         "10s"
-      ],
-      "pattern": "^.*$"
+      ]
     }
   }
 }

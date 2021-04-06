@@ -1,7 +1,7 @@
 {
   "definitions": {},
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_stats.schema.json",
+  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_indexer_stats.schema.json",
   "description": "schema definition for a transform indexer stats",
   "additionalProperties": false,
   "title": "Root",
@@ -27,55 +27,72 @@
   ],
   "properties": {
     "pages_processed": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "documents_processed": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "documents_indexed": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "documents_deleted": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "trigger_count": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "index_time_in_ms": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "search_time_in_ms": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "processing_time_in_ms": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "delete_time_in_ms": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "index_total": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "search_total": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "processing_total": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "search_failures": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "index_failures": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "exponential_avg_checkpoint_duration_ms": {
-      "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "exponential_avg_documents_indexed": {
-      "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "exponential_avg_documents_processed": {
-      "type": "number"
+      "type": "number",
+      "minimum": 0
     }
   }
 }

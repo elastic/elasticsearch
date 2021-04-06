@@ -22,9 +22,9 @@
               "description":"Watch ID"
             }
           },
-          "deprecated" : {
-            "version" : "7.0.0",
-            "description" : "all _xpack prefix have been deprecated"
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
           }
         }
       ]

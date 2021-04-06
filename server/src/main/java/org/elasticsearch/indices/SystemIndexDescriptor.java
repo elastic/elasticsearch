@@ -103,7 +103,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
         this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL_MANAGED, List.of(), List.of());
+            Type.INTERNAL_UNMANAGED, List.of(), List.of());
     }
 
     /**

@@ -12,32 +12,32 @@
         "identifier": {
           "type": "keyword"
         },
-        "compressionAlgorithm": {
+        "compression_algorithm": {
           "type": "keyword",
           "index": false
         },
-        "encryptionAlgorithm": {
+        "encryption_algorithm": {
           "type": "keyword",
           "index": false
         },
-        "encodedSha256": {
+        "encoded_sha256": {
           "type": "keyword"
         },
-        "encodedSize": {
+        "encoded_size": {
           "type": "long",
           "index": false
         },
-        "decodedSha256": {
+        "decoded_sha256": {
           "type": "keyword"
         },
-        "decodedSize": {
+        "decoded_size": {
           "type": "long",
           "index": false
         },
         "created": {
           "type": "date"
         },
-        "packageName": {
+        "package_name": {
           "type": "keyword"
         },
         "type": {

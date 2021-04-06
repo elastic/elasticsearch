@@ -83,6 +83,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("type", type());
             b.field("index", false);
             b.field("doc_values", false);
+            b.field("script", "serializer_test");
         })));
         assertThat(e.getMessage(), containsString("Cannot define script on field with index:false and doc_values:false"));
     }

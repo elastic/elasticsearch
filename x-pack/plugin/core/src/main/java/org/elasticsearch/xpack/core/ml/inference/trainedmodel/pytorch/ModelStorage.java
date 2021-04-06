@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -197,13 +198,18 @@ public class ModelStorage implements ToXContentObject, Writeable {
             Objects.equals(fieldName, that.fieldName) &&
             Objects.equals(getIndex(), that.getIndex()) &&
             Objects.equals(description, that.description) &&
-            modelDocCount == that.modelDocCount &&
-            modelSizeInBytes == that.modelSizeInBytes;
+            Objects.equals(modelSizeInBytes, modelSizeInBytes) &&
+            modelDocCount == that.modelDocCount;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, documentPrefix, createTime, description, getIndex(),
-            fieldName, modelDocCount, modelSizeInBytes);
+        return Objects.hash(modelId, documentPrefix, createTime, fieldName, getIndex(),
+            description, modelDocCount, modelSizeInBytes);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

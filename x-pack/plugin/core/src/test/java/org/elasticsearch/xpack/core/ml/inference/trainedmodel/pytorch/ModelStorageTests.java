@@ -35,6 +35,6 @@ public class ModelStorageTests extends AbstractSerializingTestCase<ModelStorage>
     @Override
     protected ModelStorage createTestInstance() {
         return new ModelStorage(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInstant(),
-            randomAlphaOfLength(5),  randomBoolean() ? null : randomAlphaOfLength(5), randomInt(), randomLong());
+            randomAlphaOfLength(5),  randomBoolean() ? null : randomAlphaOfLength(5), randomInt(), randomNonNegativeLong());
     }
 }

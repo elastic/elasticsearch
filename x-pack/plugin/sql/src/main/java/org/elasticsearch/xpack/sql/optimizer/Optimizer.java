@@ -152,6 +152,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BinaryComparisonSimplification(),
                 // needs to occur before BinaryComparison combinations (see class)
                 new PropagateEquals(),
+                new PropagateNullable(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
@@ -683,8 +684,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                     return Literal.of(e, null);
                 }
-
             return e;
+        }
+    }
+
+    /**
+     * Extend null propagation in SQL to null conditionals
+     */
+    static class PropagateNullable extends OptimizerRules.PropagateNullable {
+
+        @Override
+        protected Expression nullify(Expression exp, Expression nullExp) {
+            // remove all nullified expressions from coalesce
+            if (exp instanceof Coalesce) {
+                List<Expression> newChildren = new ArrayList<>(exp.children());
+                newChildren.removeIf(e -> e.semanticEquals(nullExp));
+                if (newChildren.size() != exp.children().size()) {
+                    return exp.replaceChildren(newChildren);
+                }
+            }
+            return super.nullify(exp, nullExp);
+        }
+
+        @Override
+        protected Expression nonNullify(Expression exp, Expression nonNullExp) {
+            // remove all expressions that occur after the non-null exp
+            if (exp instanceof Coalesce) {
+                List<Expression> children = exp.children();
+                for (int i = 0; i < children.size(); i++) {
+                    if (nonNullExp.semanticEquals(children.get(i))) {
+                        return exp.replaceChildren(children.subList(0, i + 1));
+                    }
+                }
+            }
+            return super.nonNullify(exp, nonNullExp);
         }
     }
 
@@ -708,22 +741,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (e instanceof ArbitraryConditionalFunction) {
                     ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                    // there's no need for a conditional if all the children are the same (this includes the case of just one value)
-                    if (c instanceof Coalesce && children.size() > 0) {
-                        Expression firstChild = children.get(0);
-                        boolean sameChild = true;
-                        for (int i = 1; i < children.size(); i++) {
-                            Expression child =  children.get(i);
-                            if (firstChild.semanticEquals(child) == false) {
-                                sameChild = false;
-                                break;
-                            }
-                        }
-                        if (sameChild) {
-                            return firstChild;
-                        }
-                    }
-
                     // exclude any nulls found
                     List<Expression> newChildren = new ArrayList<>();
                     for (Expression child : children) {
@@ -737,8 +754,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         }
                     }
 
+                    // update expression
                     if (newChildren.size() < children.size()) {
-                        return c.replaceChildren(newChildren);
+                        e = c.replaceChildren(newChildren);
+                    }
+
+                    // there's no need for a conditional if all the children are the same (this includes the case of just one value)
+                    if (e instanceof Coalesce && children.size() > 0) {
+                        Expression firstChild = children.get(0);
+                        boolean sameChild = true;
+                        for (int i = 1; i < children.size(); i++) {
+                            Expression child = children.get(i);
+                            if (firstChild.semanticEquals(child) == false) {
+                                sameChild = false;
+                                break;
+                            }
+                        }
+                        if (sameChild) {
+                            return firstChild;
+                        }
                     }
                 }
             }

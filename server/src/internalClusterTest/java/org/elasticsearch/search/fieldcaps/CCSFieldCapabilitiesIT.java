@@ -41,6 +41,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         return plugins;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71349")
     public void testFailuresFromRemote() {
         final Client localClient = client(LOCAL_CLUSTER);
         final Client remoteClient = client("remote_cluster");

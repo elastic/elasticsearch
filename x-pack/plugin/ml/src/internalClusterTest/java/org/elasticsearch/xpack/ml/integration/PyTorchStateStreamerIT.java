@@ -20,13 +20,11 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.stream.IntStream;
 
 public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
 
@@ -52,7 +50,7 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream(modelSize);
         PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client());
-        stateStreamer.writeStateToStream(SOURCE_INDEX, storageInfo, outputStream);
+        stateStreamer.writeStateToStream(storageInfo, outputStream);
 
         byte[] writtenData = outputStream.toByteArray();
 

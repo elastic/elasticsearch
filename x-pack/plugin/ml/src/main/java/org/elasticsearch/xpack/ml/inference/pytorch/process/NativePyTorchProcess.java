@@ -9,18 +9,16 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
-import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,13 +54,8 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
     }
 
     @Override
-    public void loadModel(String modelBase64, int modelSizeAfterUnbase64) throws IOException {
-        byte[] modelBytes = Base64.getDecoder().decode(modelBase64.getBytes(StandardCharsets.UTF_8));
-        try (OutputStream restoreStream = processRestoreStream()) {
-            LengthEncodedWriter lengthEncodedWriter = new LengthEncodedWriter(restoreStream);
-            lengthEncodedWriter.writeNumFields(modelSizeAfterUnbase64);
-            restoreStream.write(modelBytes);
-        }
+    public void loadModel(PyTorchStateStreamer stateStreamer, ModelStorage storage) throws IOException {
+        stateStreamer.writeStateToStream(storage, processRestoreStream());
     }
 
     @Override

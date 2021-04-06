@@ -12,9 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
 
 import java.io.IOException;
@@ -59,12 +57,11 @@ public class PyTorchStateStreamer {
      * Firsts writes the size of the model so the native process can
      * allocated memory then writes the chunks of binary state.
      *
-     * @param index The index to read from
      * @param modelStorage  Metadata for the model state
      * @param restoreStream The stream to write to
      * @throws IOException
      */
-    public void writeStateToStream(String index, ModelStorage modelStorage, OutputStream restoreStream) throws IOException {
+    public void writeStateToStream(ModelStorage modelStorage, OutputStream restoreStream) throws IOException {
 
         writeModelSize(modelStorage.getModelId(), modelStorage.getModelSize(), restoreStream);
 
@@ -74,7 +71,7 @@ public class PyTorchStateStreamer {
                 return;
             }
 
-            GetResponse got = client.prepareGet(index, docId)
+            GetResponse got = client.prepareGet(modelStorage.getIndex(), docId)
                 .setFetchSource(true)
                 .setStoredFields(modelStorage.getFieldName())
                 .get();
@@ -85,9 +82,6 @@ public class PyTorchStateStreamer {
                 logger.error(message);
                 throw new IllegalStateException(message);
             }
-
-            logger.info("doc field: " + got.getField(modelStorage.getFieldName()));
-            logger.info("response: " + got);
 
             writeBinaryData((String)got.getSource().get(modelStorage.getFieldName()), restoreStream);
         }

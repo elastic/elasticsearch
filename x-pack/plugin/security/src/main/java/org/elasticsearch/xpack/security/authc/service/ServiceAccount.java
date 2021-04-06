@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public interface ServiceAccount {
@@ -23,6 +26,16 @@ public interface ServiceAccount {
     RoleDescriptor roleDescriptor();
 
     User asUser();
+
+    default User asUser(Map<String, Object> additionalMetadata) {
+        final User user = asUser();
+        assert false == user.isRunAs() : "cannot run-as a service account user";
+        final Map<String, Object> metadata = new HashMap<>(user.metadata());
+        assert Sets.haveEmptyIntersection(metadata.keySet(), additionalMetadata.keySet())
+            : "additional metadata must not override existing ones";
+        metadata.putAll(additionalMetadata);
+        return new User(user.principal(), user.roles(), user.fullName(), user.email(), Map.copyOf(metadata), user.enabled());
+    }
 
     final class ServiceAccountId {
 

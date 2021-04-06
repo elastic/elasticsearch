@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
@@ -134,13 +133,9 @@ public class ServiceAccountService {
     }
 
     private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {
-        final User user = account.asUser();
-        final Map<String, Object> metadata = new HashMap<>(user.metadata());
-        metadata.put("_token_name", token.getTokenName());
+        final User user = account.asUser(Map.of("_token_name", token.getTokenName()));
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(REALM_NAME, REALM_TYPE, nodeName);
-        return new Authentication(
-            new User(user.principal(), user.roles(), user.fullName(), user.email(), Map.copyOf(metadata), user.enabled()),
-            authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of());
+        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of());
     }
 
     private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {

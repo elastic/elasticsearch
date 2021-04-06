@@ -48,11 +48,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         );
     }
 
-    @Override protected void masterOperation(
-        PutShutdownNodeAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
-        clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(),
+    @Override
+    protected void masterOperation(PutShutdownNodeAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
+        clusterService.submitStateUpdateTask(
+            "put-node-shutdown-" + request.getNodeId(),
             new AckedClusterStateUpdateTask(request, listener) {
-                @Override public ClusterState execute(ClusterState currentState) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
                     NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
                     if (currentShutdownMetadata == null) {
                         currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
@@ -63,21 +66,22 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                         throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
                     }
 
-                    SingleNodeShutdownMetadata
-                        newNodeMetadata =
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(request.getNodeId())
-                            .setType(request.getType())
-                            .setReason(request.getReason())
-                            .setStartedAtMillis(System.currentTimeMillis())
-                            .build();
+                    SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
+                        .setNodeId(request.getNodeId())
+                        .setType(request.getType())
+                        .setReason(request.getReason())
+                        .setStartedAtMillis(System.currentTimeMillis())
+                        .build();
 
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata())
-                            .putCustom(NodesShutdownMetadata.TYPE, currentShutdownMetadata.putSingleNodeMetadata(newNodeMetadata)))
+                        .metadata(
+                            Metadata.builder(currentState.metadata())
+                                .putCustom(NodesShutdownMetadata.TYPE, currentShutdownMetadata.putSingleNodeMetadata(newNodeMetadata))
+                        )
                         .build();
                 }
-            });
+            }
+        );
     }
 
     @Override

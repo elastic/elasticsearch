@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.builder;
@@ -470,13 +459,45 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
-    public void testNegativeSizeErrors() {
-        int randomSize = randomIntBetween(-100000, -2);
+    public void testNegativeSizeErrors() throws IOException {
+        int randomSize = randomIntBetween(-100000, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
                 () -> new SearchSourceBuilder().size(randomSize));
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
+
+        String restContent = "{\"size\" : " + randomSize + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(ex.getMessage(), containsString(Integer.toString(randomSize)));
+        }
+    }
+
+    public void testNegativeTerminateAfter() throws IOException {
+        int randomNegativeValue = randomIntBetween(-100000, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().terminateAfter(randomNegativeValue));
+        assertEquals("terminateAfter must be > 0", expected.getMessage());
+
+        String restContent = "{\"terminate_after\" :" + randomNegativeValue + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(ex.getMessage(), containsString("terminateAfter must be > 0"));
+        }
+    }
+
+    public void testNegativeTrackTotalHits() throws IOException {
+        int randomNegativeValue = randomIntBetween(-100000, -2);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().trackTotalHitsUpTo(randomNegativeValue));
+        assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, expected.getMessage());
+
+        String restContent = "{\"track_total_hits\" :" + randomNegativeValue + "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

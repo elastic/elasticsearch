@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -164,6 +165,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
+            LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,

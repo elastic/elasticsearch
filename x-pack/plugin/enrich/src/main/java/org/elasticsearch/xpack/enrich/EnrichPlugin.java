@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
@@ -238,5 +239,15 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "enrich";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages data related to Enrich policies";
     }
 }

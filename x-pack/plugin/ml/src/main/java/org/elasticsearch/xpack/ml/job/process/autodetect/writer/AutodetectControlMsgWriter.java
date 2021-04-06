@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
@@ -81,7 +82,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
      * An number to uniquely identify each flush so that subsequent code can
      * wait for acknowledgement of the correct flush.
      */
-    private static AtomicLong ms_FlushNumber = new AtomicLong(1);
+    private static AtomicLong flushIdCounter = new AtomicLong(1);
 
     /**
      * This field name must match that in the api::CAnomalyJobConfig C++ class.
@@ -154,7 +155,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
      * autodetect process once it is complete.
      */
     public String writeFlushMessage() throws IOException {
-        String flushId = Long.toString(ms_FlushNumber.getAndIncrement());
+        String flushId = Long.toString(flushIdCounter.getAndIncrement());
         writeMessage(FLUSH_MESSAGE_CODE + flushId);
 
         fillCommandBuffer();

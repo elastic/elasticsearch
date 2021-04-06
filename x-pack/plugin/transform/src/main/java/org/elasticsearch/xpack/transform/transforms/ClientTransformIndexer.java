@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -11,6 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -23,6 +27,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -196,6 +203,32 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
+    protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            DeleteByQueryAction.INSTANCE,
+            deleteByQueryRequest,
+            responseListener
+        );
+    }
+
+    @Override
+    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+        // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
+        // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
+        // called for the transform destination index
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.TRANSFORM_ORIGIN,
+            RefreshAction.INSTANCE,
+            new RefreshRequest(transformConfig.getDestination().getIndex()),
+            responseListener
+        );
+    }
+
+    @Override
     void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
@@ -331,8 +364,12 @@ class ClientTransformIndexer extends TransformIndexer {
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(nil -> {
-                        logger.trace("[{}] deleted old transform stats and state document", getJobId());
+                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(deletedDocs -> {
+                        logger.trace(
+                            "[{}] deleted old transform stats and state document, deleted: [{}] documents",
+                            getJobId(),
+                            deletedDocs
+                        );
                         listener.onResponse(null);
                     }, e -> {
                         String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", getJobId());
@@ -349,7 +386,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
                     // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    //   seqNoPrimaryTermAndIndex
+                    // seqNoPrimaryTermAndIndex
                     // - for tests fail(assert), so we can debug the problem
                     logger.error(
                         new ParameterizedMessage(

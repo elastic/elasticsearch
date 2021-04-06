@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal;
@@ -28,6 +17,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
@@ -50,6 +41,7 @@ import static java.util.Arrays.stream;
  */
 public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
 
+    private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
     private ProviderFactory providerFactory;
 
     @Inject
@@ -60,19 +52,26 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        Provider<BwcTaskThrottle> bwcTaskThrottleProvider = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent(BWC_TASK_THROTTLE_SERVICE, BwcTaskThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
         BuildParams.getBwcVersions()
             .forPreviousUnreleased(
                 (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion);
+                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, bwcTaskThrottleProvider);
                 }
             );
     }
 
-    private void configureBwcProject(Project project, BwcVersions.UnreleasedVersionInfo versionInfo) {
+    private void configureBwcProject(
+        Project project,
+        BwcVersions.UnreleasedVersionInfo versionInfo,
+        Provider<BwcTaskThrottle> bwcTaskThrottleProvider
+    ) {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
         Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, checkoutDir);
+            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, bwcTaskThrottleProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version);
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version));
@@ -170,18 +169,12 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
 
         if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(
-                asList(
-                    "oss-windows-zip",
-                    "windows-zip",
-                    "oss-darwin-tar",
-                    "oss-darwin-aarch64-tar",
-                    "darwin-tar",
-                    "darwin-aarch64-tar",
-                    "oss-linux-tar",
-                    "linux-tar"
-                )
-            );
+            projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
+
+            // We support aarch64 for linux and mac starting from 7.12
+            if (bwcVersion.onOrAfter("7.12.0")) {
+                projects.addAll(asList("oss-darwin-aarch64-tar", "oss-linux-aarch64-tar", "darwin-aarch64-tar", "linux-aarch64-tar"));
+            }
         } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
             projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
         }
@@ -269,7 +262,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         /**
          * can be removed once we don't build 7.10 anymore
          * from source for bwc tests.
-         * */
+         */
         @Deprecated
         final boolean expandedDistDirSupport;
         final DistributionProjectArtifact expectedBuildArtifact;
@@ -303,7 +296,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         /**
          * Newer elasticsearch branches allow building extracted bwc elasticsearch versions
          * from source without the overhead of creating an archive by using assembleExtracted instead of assemble.
-         * */
+         */
         public String getAssembleTaskName() {
             return extractedAssembleSupported ? "extractedAssemble" : "assemble";
         }
@@ -318,4 +311,6 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             this.expandedDistDir = expandedDistDir;
         }
     }
+
+    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {}
 }

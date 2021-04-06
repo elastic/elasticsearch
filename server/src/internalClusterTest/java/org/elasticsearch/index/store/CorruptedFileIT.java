@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.store;
 
@@ -112,11 +101,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             // we really need local GW here since this also checks for corruption etc.
             // and we need to make sure primaries are not just trashed if we don't have replicas
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // speed up recoveries
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
@@ -334,7 +323,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -394,7 +383,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }

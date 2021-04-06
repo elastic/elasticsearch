@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -55,7 +44,7 @@ public class AggregationPhase {
                 }
                 context.aggregations().aggregators(aggregators);
                 if (collectors.isEmpty() == false) {
-                    Collector collector = MultiBucketCollector.wrap(collectors);
+                    Collector collector = MultiBucketCollector.wrap(true, collectors);
                     ((BucketCollector)collector).preCollection();
                     if (context.getProfilers() != null) {
                         collector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION,
@@ -91,7 +80,7 @@ public class AggregationPhase {
 
         // optimize the global collector based execution
         if (globals.isEmpty() == false) {
-            BucketCollector globalsCollector = MultiBucketCollector.wrap(globals);
+            BucketCollector globalsCollector = MultiBucketCollector.wrap(false, globals);
             Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 
             try {
@@ -121,6 +110,7 @@ public class AggregationPhase {
         }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
+                aggregator.postCollection();
                 aggregations.add(aggregator.buildTopLevel());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);

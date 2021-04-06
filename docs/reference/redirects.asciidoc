@@ -3,6 +3,107 @@
 
 The following pages have moved or been deleted.
 
+// [START] Security redirects
+
+[role="exclude",id="get-started-users"]
+=== Create users
+
+See <<security-create-builtin-users,Create passwords for built-in users>>.
+
+[role="exclude",id="encrypting-communications-certificates"]
+=== Generate certificates
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode-communications"]
+=== Tutorial: Encrypting communications
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode"]
+=== Encrypting internode communication
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="security-getting-started"]
+=== Tutorial: Getting started with security
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+[role="exclude",id="saml-guide"]
+=== Configure SAML single-sign on
+
+See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-guide-authentication"]
+=== Configure {es} for SAML authentication
+
+See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
+
+[role="exclude",id="saml-attribute-mapping"]
+==== Attribute mapping
+
+See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="active-directory-ssl"]
+=== Setting up SSL between {es} and Active Directory
+
+See <<tls-active-directory,Encrypting communications between {es} and Active Directory>>.
+
+[role="exclude",id="elasticsearch-security"]
+=== Security overview
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
+[role="exclude",id="get-started-enable-security"]
+=== Enable {es} {security-features}
+
+See <<security-minimal-setup,Set up minimal security for {es}>>.
+
+[role="exclude",id="ssl-tls"]
+=== Set up TLS on a cluster
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+// [START] Configuring TLS
+[role="exclude",id="configuring-tls"]
+=== Configure TLS
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+[role="exclude",id="tls-http"]
+==== Encrypt HTTP client communications
+
+See <<encrypt-http-communication,Encrypt HTTP client communications>>.
+
+[role="exclude",id="tls-transport"]
+==== Encrypt internode communication
+
+See <<encrypt-internode-communication,Encrypt internode communications>>.
+
+[role="exclude",id="node-certificates"]
+==== Generating node certificates
+
+See <<generate-certificates,Generate the certificate authority>>.
+
+[role="exclude",id="configuring-security"]
+=== Configure security in {es}
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+// [END] Configuring TLS
+
+[role="exclude",id="encrypting-communications"]
+=== Encrypting communications
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+// [END] Security redirects
+
+[roles="exclude",id="modules-scripting-stored-scripts"]
+=== Stored scripts
+
+See <<script-stored-scripts,Store and retrieve scripts>>
+
 [role="exclude",id="node.name"]
 === Node name setting
 
@@ -46,7 +147,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed.  Instead, see
+The `_upgrade` API is no longer useful and will be removed. Instead, see
 <<reindex-upgrade>>.
 
 [role="exclude",id="mapping-parent-field"]
@@ -401,7 +502,7 @@ See <<ref-native-settings>>.
 [role="exclude",id="configuring-saml-realm"]
 === Configuring a SAML realm
 
-See <<saml-guide>>.
+See <<saml-guide-stack>>.
 
 [role="exclude",id="saml-settings"]
 ==== SAML realm settings
@@ -493,7 +594,7 @@ See <<ad-realm-configuration>>.
 [role="exclude",id="how-security-works"]
 === How security works
 
-See <<elasticsearch-security>>.
+See <<configuring-stack-security>>.
 
 [role="exclude",id="rollup-job-config"]
 === Rollup job configuration
@@ -706,7 +807,7 @@ See:
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[#55257]) from the {es} Reference
+({es-issue}55257[#55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -716,7 +817,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+({es-issue}55257[55257]) from the {es} Guide because it was out of date and
 erroneously implied that it should be used by application developers.
 
 There is an issue ({es-issue}55258[#55258]) for providing general testing
@@ -728,7 +829,7 @@ guidance for applications that communicate with {es}.
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -739,7 +840,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -750,7 +851,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -761,7 +862,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -933,7 +1034,6 @@ See <<settings,Configuring Elasticsearch>> for settings information:
 * <<modules-cluster>>
 * <<modules-discovery-settings>>
 * <<modules-fielddata>>
-* <<modules-http>>
 * <<recovery>>
 * <<indexing-buffer>>
 * <<modules-gateway>>
@@ -944,11 +1044,20 @@ See <<settings,Configuring Elasticsearch>> for settings information:
 
 For other information, see:
 
-* <<modules-transport>>
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
 * <<modules-remote-clusters>>
+
+[role="exclude",id="modules-http"]
+=== HTTP
+
+See <<modules-network,Networking>>.
+
+[role="exclude",id="modules-transport"]
+=== Transport
+
+See <<modules-network,Networking>>.
 
 [role="exclude",id="modules-discovery-adding-removing-nodes"]
 === Adding and removing nodes
@@ -1015,7 +1124,7 @@ See <<ilm-gs-apply-policy>>.
 [role="exclude",id="indices-status"]
 === Index status API
 
-The  index `_status` API has been replaced with the <<indices-stats,index
+The index `_status` API has been replaced with the <<indices-stats,index
 stats>> and <<indices-recovery,index recovery>> APIs.
 
 [role="exclude",id="search-facets"]
@@ -1348,3 +1457,59 @@ instead.
 === `fielddata` mapping parameter
 
 See <<fielddata-mapping-param>>.
+
+[role="exclude",id="pipeline"]
+=== Pipeline definition
+
+See <<ingest>>.
+
+[role="exclude",id="accessing-data-in-pipelines"]
+=== Accessing data in pipelines
+
+See <<access-source-fields>>, <<access-metadata-fields>>, and
+<<access-ingest-metadata>>.
+
+[role="exclude",id="ingest-conditionals"]
+=== Conditional execution in pipelines
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-nullcheck"]
+=== Handling nested fields in conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="ingest-conditional-complex"]
+=== Complex conditionals
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="conditionals-with-multiple-pipelines"]
+=== Conditionals with the pipeline processor
+
+See <<conditionally-apply-pipelines>>.
+
+[role="exclude",id="conditionals-with-regex"]
+=== Conditionals with the regular expressions
+
+See <<conditionally-run-processor>>.
+
+[role="exclude",id="handling-failure-in-pipelines"]
+=== Handling failures in pipelines
+
+See <<handling-pipeline-failures>>.
+
+[role="exclude",id="ingest-processors"]
+=== Ingest processors
+
+See <<processors>>.
+
+[role="exclude",id="enrich-policy-definition"]
+=== Enrich policy definition
+
+See <<put-enrich-policy-api>>.
+
+[role="exclude",id="rollup-api"]
+=== Rollup API
+
+See <<rollup-apis>>.

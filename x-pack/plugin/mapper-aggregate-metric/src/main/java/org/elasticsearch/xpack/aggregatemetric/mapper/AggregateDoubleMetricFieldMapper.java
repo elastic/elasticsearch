@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
@@ -183,9 +184,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                 if (m == Metric.value_count) {
                     // value_count metric can only be an integer and not a double
-                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, false);
+                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, null, false, false);
                 } else {
-                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true);
+                    builder = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, null, false, true);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);

@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
@@ -177,26 +165,18 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
-        String classifier = ":" + (Architecture.current() == Architecture.AARCH64 ? "aarch64" : "x86_64");
+        String classifier = ":" + Architecture.current().classifier;
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             if (distroVersion.onOrAfter("7.0.0")) {
-                classifier = ":"
-                    + distribution.getPlatform()
-                    + "-"
-                    + (Architecture.current() == Architecture.AARCH64 ? "aarch64" : "x86_64");
+                classifier = ":" + distribution.getPlatform() + "-" + Architecture.current().classifier;
             } else {
                 classifier = "";
             }
         } else if (distribution.getType() == Type.DEB) {
             classifier = ":amd64";
         }
-        String flavor = "";
-        if (distribution.getFlavor() == Flavor.OSS && distroVersion.onOrAfter("6.3.0")) {
-            flavor = "-oss";
-        }
-
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
+        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 }

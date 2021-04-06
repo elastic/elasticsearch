@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -95,7 +84,7 @@ public class RepositoryMetadata implements Writeable {
     /**
      * Return the repository UUID, if set and known. The repository UUID is stored in the repository and typically populated here when the
      * repository is registered or when we write to it. It may not be set if the repository is maintaining support for versions before
-     * {@link SnapshotsService#REPOSITORY_UUID_IN_REPO_DATA_VERSION}. It may not be known if the repository was registered with {@code
+     * {@link SnapshotsService#UUIDS_IN_REPO_DATA_VERSION}. It may not be known if the repository was registered with {@code
      * ?verify=false} and has had no subsequent writes. Consumers may, if desired, try and fill in a missing value themselves by retrieving
      * the {@link RepositoryData} and calling {@link org.elasticsearch.repositories.RepositoriesService#updateRepositoryUuidInMetadata}.
      *
@@ -140,7 +129,7 @@ public class RepositoryMetadata implements Writeable {
 
     public RepositoryMetadata(StreamInput in) throws IOException {
         name = in.readString();
-        if (in.getVersion().onOrAfter(SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION)) {
+        if (in.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
             uuid = in.readString();
         } else {
             uuid = RepositoryData.MISSING_UUID;
@@ -159,7 +148,7 @@ public class RepositoryMetadata implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getVersion().onOrAfter(SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION)) {
+        if (out.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
             out.writeString(uuid);
         }
         out.writeString(type);

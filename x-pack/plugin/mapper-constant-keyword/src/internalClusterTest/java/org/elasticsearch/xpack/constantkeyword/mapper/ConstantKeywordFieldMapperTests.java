@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
@@ -160,5 +161,15 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                 b.field("type", "constant_keyword");
                 b.field("value", "bar");
             }));
+    }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return ((ConstantKeywordFieldType) ft).value();
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "constant_keyword").field("value", randomAlphaOfLengthBetween(1, 10));
     }
 }

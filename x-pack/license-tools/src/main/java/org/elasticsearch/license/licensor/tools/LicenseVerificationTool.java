@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license.licensor.tools;
 
@@ -75,7 +76,7 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
         }
 
         // verify
-        if (!LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath))) {
+        if (LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath)) == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid License!");
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

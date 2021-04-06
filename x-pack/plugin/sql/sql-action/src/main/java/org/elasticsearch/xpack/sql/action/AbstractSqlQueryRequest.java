@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Nullable;
@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
@@ -142,27 +143,27 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         this.params = params;
         return this;
     }
-    
+
     private static List<SqlTypedParamValue> parseParams(XContentParser p) throws IOException {
         List<SqlTypedParamValue> result = new ArrayList<>();
         Token token = p.currentToken();
-        
+
         if (token == Token.START_ARRAY) {
             Object value = null;
             String type = null;
             SqlTypedParamValue previousParam = null;
             SqlTypedParamValue currentParam = null;
-            
+
             while ((token = p.nextToken()) != Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
-                
+
                 if (token == Token.START_OBJECT) {
                     // we are at the start of a value/type pair... hopefully
                     currentParam = SqlTypedParamValue.fromXContent(p);
                     /*
                      * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
                      * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to 
+                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
                      * its type being explicitly set or inferred.
                      */
                     if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
@@ -196,7 +197,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                     } else {
                         throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
                     }
-                    
+
                     currentParam = new SqlTypedParamValue(type, value, false);
                     if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
                         currentParam.tokenLocation(loc);
@@ -207,12 +208,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                 previousParam = currentParam;
             }
         }
-        
+
         return result;
     }
-    
+
     protected static void validateParams(List<SqlTypedParamValue> params, Mode mode) {
-        for(SqlTypedParamValue param : params) {            
+        for(SqlTypedParamValue param : params) {
             if (Mode.isDriver(mode) && param.hasExplicitType() == false) {
                 throw new XContentParseException(param.tokenLocation(), "[params] must be an array where each entry is an object with a "
                         + "value/type pair");
@@ -235,9 +236,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                     validationException = addValidationError("[version] is required for the [" + mode.toString() + "] client",
                         validationException);
                 }
-            } else if (SqlVersion.isClientCompatible(requestInfo().version()) == false) {
+            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(CURRENT.id), requestInfo().version()) == false) {
                 validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
-                        mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",
+                        mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + CURRENT + "]",
                     validationException);
             }
         }
@@ -360,7 +361,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         AbstractSqlQueryRequest that = (AbstractSqlQueryRequest) o;

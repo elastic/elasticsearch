@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.frozen.action;
 
@@ -15,20 +16,20 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedMap;
 
 public final class TransportFreezeIndexAction extends
     TransportMasterNodeAction<FreezeRequest, FreezeResponse> {
@@ -90,8 +92,7 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, FreezeRequest request, ClusterState state,
-                                   ActionListener<FreezeResponse> listener) throws Exception {
+    protected void masterOperation(Task task, FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
         final Index[] concreteIndices = resolveIndices(request, state);
         if (concreteIndices.length == 0) {
             listener.onResponse(new FreezeResponse(true, true));
@@ -125,33 +126,30 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
-                        .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                        .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
-                    indexStateService.openIndex(updateRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ShardsAcknowledgedResponse openIndexClusterStateUpdateResponse) {
-                            listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
-                                openIndexClusterStateUpdateResponse.isShardsAcknowledged()));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }) {
+                            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+                            .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
+                    indexStateService.openIndex(updateRequest, delegate.delegateFailure((l, openIndexClusterStateUpdateResponse) ->
+                            l.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
+                                    openIndexClusterStateUpdateResponse.isShardsAcknowledged()))));
+                })) {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                List<String> writeIndices = new ArrayList<>();
+                SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
+                for (Index index : concreteIndices) {
+                    IndexAbstraction ia = lookup.get(index.getName());
+                    if (ia != null && ia.getParentDataStream() != null &&
+                        ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
+                        writeIndices.add(index.getName());
+                    }
+                }
+                if (writeIndices.size() > 0) {
+                    throw new IllegalArgumentException("cannot freeze the following data stream write indices [" +
+                        Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+                }
+
                 final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {

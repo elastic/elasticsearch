@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -145,7 +146,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
-                    originHeaders, taskHeaders, searchId, store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
+                    originHeaders, taskHeaders, searchId, store.getClientWithOrigin(), nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
         searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), submitTask.getId()));

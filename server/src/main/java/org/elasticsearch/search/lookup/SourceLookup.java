@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.lookup;
 
@@ -61,7 +50,13 @@ public class SourceLookup implements Map<String, Object> {
 
     /**
      * Return the source as a map that will be unchanged when the lookup
-     * moves to a different document
+     * moves to a different document.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      */
     public Map<String, Object> source() {
         if (source != null) {
@@ -95,6 +90,15 @@ public class SourceLookup implements Map<String, Object> {
         return XContentHelper.convertToMap(source, false);
     }
 
+    /**
+     * Get the source as a {@link Map} of java objects.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
         return sourceAsMapAndType(source).v2();
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -58,11 +59,11 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Enable http so we can test JDBC licensing because only exists on the REST layer.
         String httpPlugin = randomBoolean() ? Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME : NioTransportPlugin.NIO_TRANSPORT_NAME;
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(NetworkModule.HTTP_TYPE_KEY, httpPlugin)
                 .build();
     }

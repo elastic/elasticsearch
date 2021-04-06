@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.planner;
@@ -83,7 +84,7 @@ final class QueryTranslator {
 
         public static Query doTranslate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {
             checkInsensitiveComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
         }
 
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
@@ -162,7 +163,7 @@ final class QueryTranslator {
                 }
             }
 
-            return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
         }
     }
 

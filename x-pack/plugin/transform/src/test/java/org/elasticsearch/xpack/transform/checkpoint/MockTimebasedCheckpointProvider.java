@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
@@ -36,8 +37,9 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         final long timestamp = System.currentTimeMillis();
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
 
-        if (lastCheckpoint == null) {
-            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, 0, Collections.emptyMap(), timeUpperBound));
+        if (TransformCheckpoint.isNullOrEmpty(lastCheckpoint)) {
+            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, 1, Collections.emptyMap(), timeUpperBound));
+            return;
         }
 
         listener.onResponse(

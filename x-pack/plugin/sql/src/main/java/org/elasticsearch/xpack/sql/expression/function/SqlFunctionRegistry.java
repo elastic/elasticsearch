@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
@@ -182,7 +183,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Case.class, Case::new, "CASE"),
                 def(Coalesce.class, Coalesce::new, "COALESCE"),
                 def(Iif.class, Iif::new, "IIF"),
-                def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
+                def(IfNull.class, (BinaryBuilder<IfNull>) IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
                 def(Least.class, Least::new, "LEAST")

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.qa;
@@ -303,7 +304,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         if (randomBoolean()) {
             request.addParameter("pretty", "true");
         }
-        if (!"json".equals(format) || randomBoolean()) {
+        if ("json".equals(format) == false || randomBoolean()) {
             // since we default to JSON if a format is not specified, randomize setting it or not, explicitly;
             // for any other format, just set the format explicitly
             request.addParameter("format", format);

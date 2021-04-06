@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,7 +48,7 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return List.of(DiscoveryNodeRole.DATA_ROLE, DataTier.DATA_HOT_NODE_ROLE);
+        return List.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
     }
 
     @Override

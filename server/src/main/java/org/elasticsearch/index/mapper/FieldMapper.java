@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -28,6 +18,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -35,6 +26,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -179,6 +173,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * @return whether this field mapper uses a script to generate its values
+     */
+    public boolean hasScript() {
+        return false;
+    }
+
+    /**
+     * Execute the index-time script associated with this field mapper.
+     *
+     * This method should only be called if {@link #hasScript()} has returned {@code true}
+     * @param searchLookup  a SearchLookup to be passed the script
+     * @param ctx           a LeafReaderContext exposing values from an incoming document
+     * @param pc            the ParseContext over the incoming document
+     */
+    public void executeScript(SearchLookup searchLookup, LeafReaderContext ctx, int doc, ParseContext pc) {
+        throw new UnsupportedOperationException("FieldMapper " + name() + " does not have an index-time script");
+    }
+
+    /**
      * Parse the field value and populate the fields on {@link ParseContext#doc()}.
      *
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
@@ -299,14 +312,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        doXContentBody(builder, includeDefaults, params);
+        doXContentBody(builder, params);
         return builder.endObject();
     }
 
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
-        getMergeBuilder().toXContent(builder, includeDefaults);
+        getMergeBuilder().toXContent(builder, params);
         multiFields.toXContent(builder, params);
         copyTo.toXContent(builder, params);
     }
@@ -520,6 +532,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
+        private List<Parameter<?>> requires = new ArrayList<>();
+        private List<Parameter<?>> precludes = new ArrayList<>();
 
         /**
          * Creates a new Parameter
@@ -650,9 +664,31 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
+        public Parameter<T> requiresParameters(Parameter<?>... ps) {
+            this.requires.addAll(Arrays.asList(ps));
+            return this;
+        }
+
+        public Parameter<T> precludesParameters(Parameter<?>... ps) {
+            this.precludes.addAll(Arrays.asList(ps));
+            return this;
+        }
+
         private void validate() {
             if (validator != null) {
                 validator.accept(getValue());
+            }
+            if (this.isConfigured()) {
+                for (Parameter<?> p : requires) {
+                    if (p.isConfigured() == false) {
+                        throw new IllegalArgumentException("Field [" + name + "] requires field [" + p.name + "] to be configured");
+                    }
+                }
+                for (Parameter<?> p : precludes) {
+                    if (p.isConfigured()) {
+                        throw new IllegalArgumentException("Field [" + p.name + "] cannot be set in conjunction with field [" + name + "]");
+                    }
+                }
             }
         }
 
@@ -834,6 +870,32 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
 
+        /**
+         * Defines a script parameter
+         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
+         * @return a script parameter
+         */
+        public static FieldMapper.Parameter<Script> scriptParam(
+            Function<FieldMapper, Script> initializer
+        ) {
+            return new FieldMapper.Parameter<>(
+                "script",
+                false,
+                () -> null,
+                (n, c, o) -> {
+                    if (o == null) {
+                        return null;
+                    }
+                    Script script = Script.parse(o);
+                    if (script.getType() == ScriptType.STORED) {
+                        throw new IllegalArgumentException("stored scripts are not supported on field [" + n + "]");
+                    }
+                    return script;
+                },
+                initializer
+            ).acceptsNull();
+        }
+
     }
 
     public static final class Conflicts {
@@ -867,7 +929,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * A Builder for a ParametrizedFieldMapper
      */
-    public abstract static class Builder extends Mapper.Builder {
+    public abstract static class Builder extends Mapper.Builder implements ToXContentFragment {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
@@ -927,10 +989,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * Writes the current builder parameter values as XContent
          */
-        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
+            return builder;
         }
 
         /**

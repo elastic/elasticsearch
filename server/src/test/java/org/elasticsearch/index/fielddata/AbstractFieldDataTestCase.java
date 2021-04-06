@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -103,22 +92,22 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
                     .fielddata(true).build(contentPath).fieldType();
             }
         } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, false, true)
+            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, null, false, true)
                     .docValues(docValues).build(contentPath).fieldType();
         } else if (type.equals("geo_point")) {
             fieldType = new GeoPointFieldMapper.Builder(fieldName, false).docValues(docValues).build(contentPath).fieldType();

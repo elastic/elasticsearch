@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -288,10 +276,6 @@ public class SearchTransportService {
         }
     }
 
-    static boolean keepStatesInContext(Version version) {
-        return version.before(Version.V_7_10_0);
-    }
-
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ScrollFreeContextRequest::new,
             (request, channel, task) -> {
@@ -316,17 +300,17 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
             (request, channel, task) ->
-                searchService.executeDfsPhase(request, keepStatesInContext(channel.getVersion()), (SearchShardTask) task,
+                searchService.executeDfsPhase(request, (SearchShardTask) task,
                     new ChannelActionListener<>(channel, DFS_ACTION_NAME, request))
         );
 
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeQueryPhase(request, keepStatesInContext(channel.getVersion()), (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request));
-            });
+            (request, channel, task) ->
+                searchService.executeQueryPhase(request, (SearchShardTask) task,
+                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request))
+        );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME, true,
             (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 

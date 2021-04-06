@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -39,13 +39,13 @@ import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
@@ -77,9 +77,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
             .build();
     }
@@ -547,7 +547,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         internalCluster().startNodes(2, Settings.builder().setSecureSettings(secureSettingsWithPassword).build());
         ensureStableCluster(2);
         createRepository(repositoryName, repositorySettings, true);
-        // create empty smapshot
         final String snapshotName = randomName();
         logger.info("-->  create empty snapshot {}:{}", repositoryName, snapshotName);
         CreateSnapshotResponse createSnapshotResponse = client().admin()
@@ -573,14 +572,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
             wrongPassword
         );
-        Set<String> nodesWithWrongPassword = new HashSet<>();
-        do {
-            String masterNodeName = internalCluster().getMasterName();
-            logger.info("-->  restart master node {}", masterNodeName);
-            internalCluster().restartNode(masterNodeName, new InternalTestCluster.RestartCallback());
-            nodesWithWrongPassword.add(masterNodeName);
-            ensureStableCluster(2);
-        } while (false == nodesWithWrongPassword.contains(internalCluster().getMasterName()));
+
+        internalCluster().fullRestart();
+        ensureGreen();
         // maybe recreate the repository
         if (randomBoolean()) {
             deleteRepository(repositoryName);
@@ -592,9 +586,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         ).repository(repositoryName);
         RepositoryException e = expectThrows(
             RepositoryException.class,
-            () -> PlainActionFuture.<RepositoryData, Exception>get(
-                f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.wrap(f, blobStoreRepository::getRepositoryData))
-            )
+            () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
@@ -624,13 +616,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
             goodPassword
         );
-        do {
-            String masterNodeName = internalCluster().getMasterName();
-            logger.info("-->  restart master node {}", masterNodeName);
-            internalCluster().restartNode(masterNodeName, new InternalTestCluster.RestartCallback());
-            nodesWithWrongPassword.remove(masterNodeName);
-            ensureStableCluster(2);
-        } while (nodesWithWrongPassword.contains(internalCluster().getMasterName()));
+        internalCluster().fullRestart();
+        ensureGreen();
         // ensure get snapshot works
         getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());
@@ -746,7 +733,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
             assertThat(repositories.repository(name), instanceOf(BlobStoreRepository.class));
-            assertThat(repositories.repository(name).isReadOnly(), is(settings.getAsBoolean("readonly", false)));
+            assertThat(repositories.repository(name).isReadOnly(), is(settings.getAsBoolean(READONLY_SETTING_KEY, false)));
         });
 
         return name;

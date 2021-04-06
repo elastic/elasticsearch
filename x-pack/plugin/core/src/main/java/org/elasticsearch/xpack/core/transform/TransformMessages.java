@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform;
@@ -29,6 +30,8 @@ public class TransformMessages {
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
     public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
+    public static final String REST_WARN_NO_TRANSFORM_NODES =
+        "Transform requires the transform node role for at least 1 node, found no transform nodes";
 
     public static final String CANNOT_STOP_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state with reason [{1}]."
         + " Use force stop to stop the transform.";

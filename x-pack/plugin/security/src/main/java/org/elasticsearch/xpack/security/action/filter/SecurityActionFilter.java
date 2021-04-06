@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.filter;
 
@@ -155,15 +156,12 @@ public class SecurityActionFilter implements ActionFilter {
                     if (authc != null) {
                         final String requestId = AuditUtil.extractRequestId(threadContext);
                         assert Strings.hasText(requestId);
-                        authorizeRequest(authc, securityAction, request, ActionListener.delegateFailure(listener,
-                                (ignore, aVoid) -> {
-                                    chain.proceed(task, action, request, ActionListener.delegateFailure(listener,
-                                            (ignore2, response) -> {
-                                                auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
-                                                        response);
-                                                listener.onResponse(response);
-                                            }));
-                                }));
+                        authorizeRequest(authc, securityAction, request, listener.delegateFailure(
+                                (ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
+                                    auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
+                                            response);
+                                    l.onResponse(response);
+                                }))));
                     } else if (licenseState.isSecurityEnabled() == false) {
                         listener.onResponse(null);
                     } else {

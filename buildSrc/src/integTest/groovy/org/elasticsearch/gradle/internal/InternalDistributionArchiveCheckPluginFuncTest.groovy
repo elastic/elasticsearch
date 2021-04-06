@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal
@@ -38,7 +27,7 @@ class InternalDistributionArchiveCheckPluginFuncTest extends AbstractGradleFuncT
                 }"""
         }
         file("SomeFile.txt") << """
-            some dummy txt file 
+            some dummy txt file
         """
 
         buildFile << """
@@ -59,7 +48,7 @@ class InternalDistributionArchiveCheckPluginFuncTest extends AbstractGradleFuncT
     def "plain class files in distribution #archiveType archives are detected"() {
         given:
         file("SomeFile.class") << """
-            some dummy class file 
+            some dummy class file
         """
         buildFile << """
             tasks.withType(AbstractArchiveTask).configureEach {
@@ -123,7 +112,7 @@ Copyright 2009-2018 Acme Coorp"""
         result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
         normalized(result.output).contains("> expected line [2] in " +
                 "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/NOTICE.txt] " +
-                "to be [Copyright 2009-2018 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
+                "to be [Copyright 2009-2021 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
     }
 
     def "fails on unexpected ml notice content"() {
@@ -131,7 +120,7 @@ Copyright 2009-2018 Acme Coorp"""
         elasticLicense()
         elasticLicense(file("LICENSE.txt"))
         file("NOTICE.txt").text = """Elasticsearch
-Copyright 2009-2018 Elasticsearch"""
+Copyright 2009-2021 Elasticsearch"""
 
         file("ml/NOTICE.txt").text = "Boost Software License - Version 1.0 - August 17th, 2003"
         file('darwin-tar/build.gradle') << """
@@ -163,7 +152,7 @@ Copyright 2009-2018 Elasticsearch"""
                         "to contain [foo license] but it did not")
     }
 
-    void elasticLicense(File file = file("licenses/ELASTIC-LICENSE.txt")) {
+    void elasticLicense(File file = file("licenses/ELASTIC-LICENSE-2.0.txt")) {
         file << """elastic license coorp stuff line 1
 elastic license coorp stuff line 2
 elastic license coorp stuff line 3

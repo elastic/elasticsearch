@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -37,6 +38,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Override
     protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
         return true;
     }
 
@@ -85,6 +91,12 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected Settings restClientSettings() {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+
+                // increase the timeout here to 90 seconds to handle long waits for a green
+                // cluster health. the waits for green need to be longer than a minute to
+                // account for delayed shards
+                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+
                 .build();
     }
 

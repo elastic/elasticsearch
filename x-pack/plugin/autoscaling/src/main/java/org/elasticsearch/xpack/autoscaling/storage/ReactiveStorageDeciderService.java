@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -88,10 +87,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public List<DiscoveryNodeRole> roles() {
         return List.of(
             DiscoveryNodeRole.DATA_ROLE,
-            DataTier.DATA_CONTENT_NODE_ROLE,
-            DataTier.DATA_HOT_NODE_ROLE,
-            DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
         );
     }
 
@@ -509,7 +509,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                dataStream = dataStream.rollover(uuid, Version.CURRENT);
+                dataStream = dataStream.rollover(state.metadata(), uuid);
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
                     .index(dataStream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))

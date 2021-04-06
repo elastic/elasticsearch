@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -24,10 +24,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -141,8 +141,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
-        jobResultsProvider = new JobResultsProvider(client(), builder.build(),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
@@ -181,8 +180,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // A a result they must create the index as part of the test setup. Do not
         // copy this setup to tests that run jobs in the way they are run in production.
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), future);
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, TestIndexNameExpressionResolver.newInstance(), future);
         future.get();
     }
 

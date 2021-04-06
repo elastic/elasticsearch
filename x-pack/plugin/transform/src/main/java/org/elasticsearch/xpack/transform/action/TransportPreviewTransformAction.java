@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.action;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
@@ -117,16 +120,16 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, PreviewTransformAction.Request request, ActionListener<PreviewTransformAction.Response> listener) {
-        ClusterState clusterState = clusterService.state();
+        final ClusterState clusterState = clusterService.state();
+        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         final TransformConfig config = request.getConfig();
-
         sourceDestValidator.validate(
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.PREVIEW_VALIDATIONS,
+            SourceDestValidations.getValidationsForPreview(config.getAdditionalValidations()),
             ActionListener.wrap(r -> {
                 // create the function for validation
                 final Function function = FunctionFactory.create(config);
@@ -137,6 +140,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                         config.getSource(),
                         config.getDestination().getPipeline(),
                         config.getDestination().getIndex(),
+                        config.getSyncConfig(),
                         listener
                     );
                 }, listener::onFailure));
@@ -151,6 +155,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         SourceConfig source,
         String pipeline,
         String dest,
+        SyncConfig syncConfig,
         ActionListener<PreviewTransformAction.Response> listener
     ) {
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
@@ -170,6 +175,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                 Clock.systemUTC()
             );
 
+            List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
+            warnings.forEach(HeaderWarning::addWarning);
             listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
         function.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
@@ -187,7 +194,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                             transformId,
                             Clock.systemUTC()
                         );
-
+                        List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
+                        warnings.forEach(HeaderWarning::addWarning);
                         listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
                     } else {
                         List<Map<String, Object>> results = docs.stream().map(doc -> {

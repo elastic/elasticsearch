@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
@@ -51,11 +41,41 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (offset() >= bytesReference.length()) {
-            throw new EOFException();
-        }
         maybeNextSlice();
         return slice.bytes[slice.offset + (sliceIndex++)];
+    }
+
+    @Override
+    public short readShort() throws IOException {
+        if (slice.length - sliceIndex >= 2) {
+            sliceIndex += 2;
+            return Numbers.bytesToShort(slice.bytes, slice.offset + sliceIndex - 2);
+        } else {
+            // slow path
+            return super.readShort();
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        if (slice.length - sliceIndex >= 4) {
+            sliceIndex += 4;
+            return Numbers.bytesToInt(slice.bytes, slice.offset + sliceIndex - 4);
+        } else {
+            // slow path
+            return super.readInt();
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        if (slice.length - sliceIndex >= 8) {
+            sliceIndex += 8;
+            return Numbers.bytesToLong(slice.bytes, slice.offset + sliceIndex - 8);
+        } else {
+            // slow path
+            return super.readLong();
+        }
     }
 
     protected int offset() {
@@ -63,14 +83,23 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     private void maybeNextSlice() throws IOException {
-        while (sliceIndex == slice.length) {
-            sliceStartOffset += sliceIndex;
-            slice = iterator.next();
-            sliceIndex = 0;
-            if (slice == null) {
-                throw new EOFException();
-            }
+        if (sliceIndex == slice.length) {
+            // moveToNextSlice is intentionally extracted to another method since it's the assumed cold-path
+            moveToNextSlice();
         }
+    }
+
+    private void moveToNextSlice() throws IOException {
+        slice = iterator.next();
+        while (slice != null && slice.length == 0) {
+            // rare corner case of a bytes reference that has a 0-length component
+            slice = iterator.next();
+        }
+        if (slice == null) {
+            throw new EOFException();
+        }
+        sliceStartOffset += sliceIndex;
+        sliceIndex = 0;
     }
 
     @Override

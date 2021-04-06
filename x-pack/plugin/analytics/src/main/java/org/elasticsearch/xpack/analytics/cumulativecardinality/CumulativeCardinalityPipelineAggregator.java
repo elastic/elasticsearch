@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
@@ -37,9 +38,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-            histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
         List<Bucket> newBuckets = new ArrayList<>(buckets.size());

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.rollup.v2;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -45,9 +46,9 @@ class FieldValueFetcher {
         this.valueFunc = valueFunc;
     }
 
-    DocValueFetcher.Leaf getLeaf(LeafReaderContext context) {
-        final DocValueFetcher.Leaf delegate = fieldData.load(context).getLeafValueFetcher(DocValueFormat.RAW);
-        return new DocValueFetcher.Leaf() {
+    FormattedDocValues getLeaf(LeafReaderContext context) {
+        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
+        return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {
                 return delegate.advanceExact(docId);

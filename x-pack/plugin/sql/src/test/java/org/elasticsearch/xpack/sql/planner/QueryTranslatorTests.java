@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -711,7 +712,9 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation qt = translate(condition);
         assertTrue(qt.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex("
+                +
                 "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
             sc.script().toString());
         assertEquals("[{v=keyword}, {v=^.*a.*$}]", sc.script().params().toString());
@@ -726,7 +729,9 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation qt = translate(condition);
         assertTrue(qt.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex("
+                +
                 "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
             sc.script().toString());
         assertEquals("[{v=keyword}, {v=.*a.*}]", sc.script().params().toString());
@@ -799,8 +804,10 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v0)," +
-                "params.v1)) ? params.v2 : InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalQlScriptUtils." +
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v0),"
+                + "params.v1)) ? params.v2 : InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalQlScriptUtils."
+                +
                 "docValue(doc,params.v3),params.v4)) ? params.v5 : params.v6",
                 scriptTemplate.toString());
         assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",
@@ -1018,7 +1025,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
 
     public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
+        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(int, 2) AS c, COALESCE(max(date), '2020-01-01'::date) as m FROM test " +
                                          "WHERE c > 10 GROUP BY c HAVING m > '2020-01-01'::date");
         assertTrue(p instanceof EsQueryExec);
         EsQueryExec esQExec = (EsQueryExec) p;
@@ -1029,19 +1036,20 @@ public class QueryTranslatorTests extends ESTestCase {
         String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
         String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
         assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
-                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
-                ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])\",\"lang\":\"painless\"" +
+                ",\"params\":{\"v0\":\"int\",\"v1\":2}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
                 "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
                 "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
                 "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
-                "[InternalSqlScriptUtils.asDateTime(params.a0)]),InternalSqlScriptUtils.asDateTime(params.v0)))\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+                "[InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)])," +
+                "InternalSqlScriptUtils.asDateTime(params.v1)))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\",\"v1\":\"2020-01-01T00:00:00.000Z"));
         assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
-                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1]),params.v2))",
                 sq.script().toString());
-        assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
+        assertEquals("[{v=int}, {v=2}, {v=10}]", sq.script().params().toString());
     }
 
     public void testTranslateInExpression_WhereClause() {
@@ -1213,7 +1221,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
-                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
+                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=null}]", scriptTemplate.params().toString());
@@ -1238,7 +1246,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
-                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
+                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=-2}]", scriptTemplate.params().toString());
@@ -1327,6 +1335,10 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(20.0, gq.lat(), 0.00001);
         assertEquals(10.0, gq.lon(), 0.00001);
         assertEquals(25.0, gq.distance(), 0.00001);
+        EsQueryExec eqe = (EsQueryExec) optimizeAndPlan(p);
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""),
+            containsString("{\"geo_distance\":{\"point\":[10.0,20.0],\"distance\":25.0," +
+                "\"distance_type\":\"arc\",\"validation_method\":\"STRICT\","));
     }
 
     public void testTranslateStXY() {
@@ -1577,7 +1589,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""),
                 endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeSortNumeric("
                         +
-                        "InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0)," +
+                        "InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0)," +
                         "params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"Z\"," +
                         "\"v2\":\"YEAR\"}},\"type\":\"number\",\"order\":\"asc\"}}]}"));
     }
@@ -1725,7 +1737,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1742,7 +1754,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1759,7 +1771,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1778,7 +1790,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                             "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1794,7 +1806,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeExtract(" +
                             "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"HOUR_OF_DAY\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1813,7 +1825,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                             "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1828,7 +1840,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeExtract(" +
                             "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1846,7 +1858,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -2003,7 +2015,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(DATETIME, eqe.output().get(0).dataType());
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"strict_date_optional_time_nanos\"}]," +
                     "\"sort\":[{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
         {
@@ -2044,7 +2056,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(DATETIME, eqe.output().get(0).dataType());
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"strict_date_optional_time_nanos\"}]," +
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
                     "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
@@ -2128,15 +2140,15 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testZonedDateTimeInScripts() {
         PhysicalPlan p = optimizeAndPlan(
-                "SELECT date FROM test WHERE date + INTERVAL 1 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
+                "SELECT date FROM test WHERE date - INTERVAL 999999999 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "\"script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
-                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),"
                         + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))\","
                 + "\"lang\":\"painless\","
-                + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
+                + "\"params\":{\"v0\":\"date\",\"v1\":\"P999999999Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
     }
 
     public void testChronoFieldBasedDateTimeFunctionsWithMathIntervalAndGroupBy() {
@@ -2148,11 +2160,11 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils.dateTimeChrono("
+                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils.dateTimeExtract("
                         + "InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
                         + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\","
-                + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.chronoField().name() + "\"}},\"missing_bucket\":true,"
+                + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.name() + "\"}},\"missing_bucket\":true,"
                 + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}}"));
     }
 
@@ -2589,7 +2601,6 @@ public class QueryTranslatorTests extends ESTestCase {
             "ORDER BY i");
     }
 
-    @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
     public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
@@ -2646,5 +2657,49 @@ public class QueryTranslatorTests extends ESTestCase {
         PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) AS s " +
             "ORDER BY s.i > 10");
+    }
+
+    public void testMultiLevelSubqueriesOrderByByAlias() {
+        optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) ORDER BY j");
+        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) ORDER BY k");
+    }
+
+    public void testSubqueryGroupByOrderByAliasedExpression() {
+        optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
+            "FROM (" +
+            "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
+            "    FROM test WHERE date > '1970-01-01'::datetime " +
+            "    GROUP BY int_group" +
+            ") " +
+            "ORDER BY d DESC");
+    }
+
+    public void testSubqueryGroupByOrderByAliasedAggFunction() {
+        optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
+            "FROM (" +
+            "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
+            "    FROM test WHERE date > '1970-01-01'::datetime " +
+            "    GROUP BY int_group " +
+            ")" +
+            "ORDER BY g DESC");
+    }
+
+    public void testMultiLevelSubquerySelectStar() {
+        optimizeAndPlan("SELECT * FROM (SELECT * FROM ( SELECT * FROM test ))");
+        optimizeAndPlan("SELECT * FROM (SELECT * FROM ( SELECT * FROM test ) b) c");
+    }
+
+    public void testMultiLevelSubqueryGroupBy() {
+        optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j");
+        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) GROUP BY k");
+    }
+
+    public void testSubqueryGroupByFilterAndOrderByByRealiased() {
+        optimizeAndPlan("SELECT g as h FROM (SELECT date AS f, int AS g FROM test) WHERE h IS NOT NULL GROUP BY h ORDER BY h ASC");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
+    public void testFilterAfterGroupBy() {
+        optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j) WHERE j < 5");
     }
 }

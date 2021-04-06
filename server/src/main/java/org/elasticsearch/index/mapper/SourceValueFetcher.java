@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -45,7 +34,6 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     /**
-     * @param fieldName The name of the field.
      * @param context The query shard context
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
@@ -70,11 +58,22 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             while (queue.isEmpty() == false) {
                 Object value = queue.poll();
                 if (value instanceof List) {
-                    queue.addAll((List<?>) value);
+                    for (Object o : (List<?>) value) {
+                        if (o != null) {
+                            queue.add(o);
+                        }
+                    }
                 } else {
-                    Object parsedValue = parseSourceValue(value);
-                    if (parsedValue != null) {
-                        values.add(parsedValue);
+                    try {
+                        Object parsedValue = parseSourceValue(value);
+                        if (parsedValue != null) {
+                            values.add(parsedValue);
+                        }
+                    } catch (Exception e) {
+                        // if we get a parsing exception here, that means that the
+                        // value in _source would have also caused a parsing
+                        // exception at index time and the value ignored.
+                        // so ignore it here as well
                     }
                 }
             }

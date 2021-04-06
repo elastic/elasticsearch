@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package fixture.gcs;
 
@@ -87,7 +76,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
+            if (request.equals("GET /") &&
+                "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
+                // the SDK checks this endpoint to determine if it's running within Google Compute Engine
+                exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+            } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final BytesReference blob = blobs.get(key);
                 if (blob == null) {

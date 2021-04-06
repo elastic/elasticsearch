@@ -1,30 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -48,6 +31,13 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
@@ -90,8 +80,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         final Settings requestSettings = request.settings();
 
-
-        final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, requestSettings);
+        final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, request);
         if (systemIndexViolations.isEmpty() == false) {
             final String message = "Cannot override settings on system indices: "
                 + systemIndexViolations.entrySet()
@@ -99,7 +88,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                     .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
                     .collect(Collectors.joining(", "));
             logger.warn(message);
-            listener.onFailure(new IllegalArgumentException(message));
+            listener.onFailure(new IllegalStateException(message));
             return;
         }
 
@@ -110,18 +99,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), t);
-                listener.onFailure(t);
-            }
-        });
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), e);
+            l.onFailure(e);
+        }));
     }
 
     /**
@@ -129,11 +110,18 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
      * that the system index's descriptor expects.
      *
      * @param concreteIndices the indices being updated
-     * @param requestSettings the settings to be applied
+     * @param request the update request
      * @return a mapping from system index pattern to the settings whose values would be overridden. Empty if there are no violations.
      */
-    private Map<String, List<String>> checkForSystemIndexViolations(Index[] concreteIndices, Settings requestSettings) {
-        final Map<String, List<String>> violations = new HashMap<>();
+    private Map<String, List<String>> checkForSystemIndexViolations(Index[] concreteIndices, UpdateSettingsRequest request) {
+        // Requests that a cluster generates itself are permitted to have a difference in settings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return Map.of();
+        }
+
+        final Map<String, List<String>> violationsByIndex = new HashMap<>();
+        final Settings requestSettings = request.settings();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
@@ -150,10 +138,11 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 }
 
                 if (failedKeys.isEmpty() == false) {
-                    violations.put(descriptor.getIndexPattern(), failedKeys);
+                    violationsByIndex.put(descriptor.getIndexPattern(), failedKeys);
                 }
             }
         }
-        return violations;
+
+        return violationsByIndex;
     }
 }

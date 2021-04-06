@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -29,14 +30,17 @@ import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction;
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -52,11 +56,10 @@ public class Pivot extends AbstractCompositeAggFunction {
     /**
      * Create a new Pivot function
      * @param config A {@link PivotConfig} describing the function parameters
-     * @param transformId The referenced transform
      * @param settings Any miscellaneous settings for the function
      * @param version The version of the transform
      */
-    public Pivot(PivotConfig config, String transformId, SettingsConfig settings, Version version) {
+    public Pivot(PivotConfig config, SettingsConfig settings, Version version) {
         super(createCompositeAggregation(config));
         this.config = config;
         this.settings = settings;
@@ -78,8 +81,13 @@ public class Pivot extends AbstractCompositeAggFunction {
     }
 
     @Override
+    public List<String> getPerformanceCriticalFields() {
+        return config.getGroupConfig().getGroups().values().stream().map(SingleGroupSource::getField).collect(toList());
+    }
+
+    @Override
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
-        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), listener);
+        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
     }
 
     /**

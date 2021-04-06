@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle
@@ -28,8 +17,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
         """
 
         String api = "foo.json"
@@ -47,8 +36,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-           apply plugin: 'elasticsearch.rest-resources'
            apply plugin: 'elasticsearch.java'
+           apply plugin: 'elasticsearch.rest-resources'
         """
         String api = "foo.json"
         setupRestResources([api])
@@ -60,15 +49,15 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
-        file("/build/resources/test/rest-api-spec/api/" + api).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + api).exists()
     }
 
-    def "restResources copies all core API (but not x-pack) by default for projects with copied tests"() {
+    def "restResources copies all API by default for projects with copied tests"() {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
 
             restResources {
                 restTests {
@@ -82,7 +71,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String apiXpack = "xpack.json"
         String coreTest = "foo/10_basic.yml"
         String xpackTest = "bar/10_basic.yml"
-        setupRestResources([apiCore1, apiCore2], [coreTest], [apiXpack], [xpackTest])
+        setupRestResources([apiCore1, apiCore2, apiXpack], [coreTest], [xpackTest])
         // intentionally not adding tests to project, they will be copied over via the plugin
         // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
 
@@ -92,24 +81,23 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
-        file("/build/resources/test/rest-api-spec/api/" + apiCore1).exists()
-        file("/build/resources/test/rest-api-spec/api/" + apiCore2).exists()
-        file("/build/resources/test/rest-api-spec/api/" + apiXpack).exists() == false //x-pack specs must be explicitly configured
-        file("/build/resources/test/rest-api-spec/test/" + coreTest).exists()
-        file("/build/resources/test/rest-api-spec/test/" + xpackTest).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiCore1).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiCore2).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpack).exists()
+        file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).exists()
+        file("/build/restResources/yamlTests/rest-api-spec/test/" + xpackTest).exists()
     }
 
     def "restResources copies API by configuration"() {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
 
             restResources {
                 restApi {
-                    includeCore 'foo'
-                    includeXpack 'xpackfoo'
+                    include 'foo', 'xpackfoo'
                 }
             }
         """
@@ -117,7 +105,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String apiXpackFoo = "xpackfoo.json"
         String apiBar = "bar.json"
         String apiXpackBar = "xpackbar.json"
-        setupRestResources([apiFoo, apiBar], [], [apiXpackFoo, apiXpackBar])
+        setupRestResources([apiFoo, apiBar, apiXpackFoo, apiXpackBar])
         addRestTestsToProject(["10_basic.yml"])
 
         when:
@@ -126,23 +114,22 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
-        file("/build/resources/test/rest-api-spec/api/" + apiFoo).exists()
-        file("/build/resources/test/rest-api-spec/api/" + apiXpackFoo).exists()
-        file("/build/resources/test/rest-api-spec/api/" + apiBar).exists() ==false
-        file("/build/resources/test/rest-api-spec/api/" + apiXpackBar).exists() == false
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiFoo).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpackFoo).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiBar).exists() ==false
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpackBar).exists() == false
     }
 
     def "restResources copies Tests and API by configuration"() {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
 
             restResources {
                 restApi {
-                    includeCore '*'
-                    includeXpack '*'
+                    include '*'
                 }
                 restTests {
                     includeCore 'foo'
@@ -155,7 +142,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         String apiXpack = "xpack.json"
         String coreTest = "foo/10_basic.yml"
         String xpackTest = "bar/10_basic.yml"
-        setupRestResources([apiCore1, apiCore2], [coreTest], [apiXpack], [xpackTest])
+        setupRestResources([apiCore1, apiCore2, apiXpack], [coreTest], [xpackTest])
         // intentionally not adding tests to project, they will be copied over via the plugin
         // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
 
@@ -165,11 +152,11 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
-        file("/build/resources/test/rest-api-spec/api/" + apiCore1).exists()
-        file("/build/resources/test/rest-api-spec/api/" + apiCore2).exists()
-        file("/build/resources/test/rest-api-spec/api/" + apiXpack).exists()
-        file("/build/resources/test/rest-api-spec/test/" + coreTest).exists()
-        file("/build/resources/test/rest-api-spec/test/" + xpackTest).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiCore1).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiCore2).exists()
+        file("/build/restResources/yamlSpecs/rest-api-spec/api/" + apiXpack).exists()
+        file("/build/restResources/yamlTests/rest-api-spec/test/" + coreTest).exists()
+        file("/build/restResources/yamlTests/rest-api-spec/test/" + xpackTest).exists()
 
         when:
         result = gradleRunner("copyRestApiSpecsTask").build()

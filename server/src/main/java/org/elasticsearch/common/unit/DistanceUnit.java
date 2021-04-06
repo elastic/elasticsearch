@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.unit;
@@ -27,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * The DistanceUnit enumerates several units for measuring distances. These units 
+ * The DistanceUnit enumerates several units for measuring distances. These units
  * provide methods for converting strings and methods to convert units among each
  * others. Some methods like {@link DistanceUnit#getEarthCircumference} refer to
  * the earth ellipsoid defined in {@link GeoUtils}. The default unit used within
@@ -53,7 +42,7 @@ public enum DistanceUnit implements Writeable {
 
     public static final DistanceUnit DEFAULT = METERS;
 
-    private double meters; 
+    private double meters;
     private final String[] names;
 
     DistanceUnit(double meters, String...names) {
@@ -63,7 +52,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Measures the circumference of earth in this unit
-     * 
+     *
      * @return length of earth circumference in this unit
      */
     public double getEarthCircumference() {
@@ -72,7 +61,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Measures the radius of earth in this unit
-     * 
+     *
      * @return length of earth radius in this unit
      */
     public double getEarthRadius() {
@@ -81,7 +70,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Measures a longitude in this unit
-     * 
+     *
      * @return length of a longitude degree in this unit
      */
     public double getDistancePerDegree() {
@@ -90,7 +79,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Convert a value into meters
-     * 
+     *
      * @param distance distance in this unit
      * @return value in meters
      */
@@ -100,7 +89,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Convert a value given in meters to a value of this unit
-     * 
+     *
      * @param distance distance in meters
      * @return value in this unit
      */
@@ -108,9 +97,9 @@ public enum DistanceUnit implements Writeable {
         return convert(distance, DistanceUnit.METERS, this);
     }
 
-    /** 
+    /**
      * Convert a given value into another unit
-     * 
+     *
      * @param distance value in this unit
      * @param unit source unit
      * @return value in this unit
@@ -121,9 +110,9 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Convert a value to a distance string
-     * 
+     *
      * @param distance value to convert
-     * @return String representation of the distance 
+     * @return String representation of the distance
      */
     public String toString(double distance) {
         return distance + toString();
@@ -152,7 +141,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Parses a given distance and converts it to the specified unit.
-     * 
+     *
      * @param distance String defining a distance (value and unit)
      * @param defaultUnit unit assumed if none is defined
      * @param to unit of result
@@ -165,7 +154,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Parses a given distance and converts it to this unit.
-     * 
+     *
      * @param distance String defining a distance (value and unit)
      * @param defaultUnit unit to expect if none if provided
      * @return parsed distance
@@ -176,7 +165,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Convert a String to a {@link DistanceUnit}
-     * 
+     *
      * @param unit name of the unit
      * @return unit matching the given name
      * @throws IllegalArgumentException if no unit matches the given name
@@ -194,7 +183,7 @@ public enum DistanceUnit implements Writeable {
 
     /**
      * Parses the suffix of a given distance string and return the corresponding {@link DistanceUnit}
-     * 
+     *
      * @param distance string representing a distance
      * @param defaultUnit default unit to use, if no unit is provided by the string
      * @return unit of the given distance
@@ -226,7 +215,7 @@ public enum DistanceUnit implements Writeable {
         /**
          * Converts a {@link Distance} value given in a specific {@link DistanceUnit} into
          * a value equal to the specified value but in a other {@link DistanceUnit}.
-         * 
+         *
          * @param unit unit of the result
          * @return converted distance
          */
@@ -267,9 +256,9 @@ public enum DistanceUnit implements Writeable {
 
         /**
          * Parse a {@link Distance} from a given String. If no unit is given
-         * <code>DistanceUnit.DEFAULT</code> will be used 
-         * 
-         * @param distance String defining a {@link Distance} 
+         * <code>DistanceUnit.DEFAULT</code> will be used
+         *
+         * @param distance String defining a {@link Distance}
          * @return parsed {@link Distance}
          */
         public static Distance parseDistance(String distance) {
@@ -278,10 +267,10 @@ public enum DistanceUnit implements Writeable {
 
         /**
          * Parse a {@link Distance} from a given String
-         * 
-         * @param distance String defining a {@link Distance} 
+         *
+         * @param distance String defining a {@link Distance}
          * @param defaultUnit {@link DistanceUnit} to be assumed
-         *          if not unit is provided in the first argument  
+         *          if not unit is provided in the first argument
          * @return parsed {@link Distance}
          */
         private static Distance parseDistance(String distance, DistanceUnit defaultUnit) {

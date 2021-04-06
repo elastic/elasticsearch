@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.bytes;
@@ -23,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,22 +27,29 @@ import java.io.OutputStream;
 public final class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
 
     public static final Releasable NO_OP = () -> {};
+
+    private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, NO_OP);
+
     private final BytesReference delegate;
     private final AbstractRefCounted refCounted;
 
-    public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-        this.delegate = delegate;
-        this.refCounted = new RefCountedReleasable(releasable);
+    public static ReleasableBytesReference empty() {
+        EMPTY.incRef();
+        return EMPTY;
     }
 
-    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
+        this(delegate, new RefCountedReleasable(releasable));
+    }
+
+    public ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
-        refCounted.incRef();
+        assert refCounted.refCount() > 0;
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
-        return new ReleasableBytesReference(reference, NO_OP);
+        return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
     }
 
     public int refCount() {
@@ -83,7 +80,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         if (from == 0 && length() == length) {
             return retain();
         }
-        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
+        final BytesReference slice = delegate.slice(from, length);
+        refCounted.incRef();
+        return new ReleasableBytesReference(slice, refCounted);
     }
 
     @Override
@@ -93,16 +92,19 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public byte get(int index) {
+        assert refCount() > 0;
         return delegate.get(index);
     }
 
     @Override
     public int getInt(int index) {
+        assert refCount() > 0;
         return delegate.getInt(index);
     }
 
     @Override
     public int indexOf(byte marker, int from) {
+        assert refCount() > 0;
         return delegate.indexOf(marker, from);
     }
 
@@ -164,6 +166,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public int compareTo(BytesReference o) {
+        assert refCount() > 0;
         return delegate.compareTo(o);
     }
 
@@ -190,6 +193,24 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return delegate.hashCode();
     }
 
+    @Override
+    public boolean hasArray() {
+        assert refCount() > 0;
+        return delegate.hasArray();
+    }
+
+    @Override
+    public byte[] array() {
+        assert refCount() > 0;
+        return delegate.array();
+    }
+
+    @Override
+    public int arrayOffset() {
+        assert refCount() > 0;
+        return delegate.arrayOffset();
+    }
+
     private static final class RefCountedReleasable extends AbstractRefCounted {
 
         private final Releasable releasable;
@@ -201,7 +222,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
         @Override
         protected void closeInternal() {
-            releasable.close();
+            Releasables.closeExpectNoException(releasable);
         }
     }
 }

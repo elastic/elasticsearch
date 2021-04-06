@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -127,7 +128,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
         final DiscoveryNode node = selectLeastLoadedNode(
             clusterState,
-            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+            ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );
         if (node == null) {
             return NO_ASSIGNMENT;

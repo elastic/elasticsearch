@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -54,7 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -69,6 +58,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -296,6 +287,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
+    public List<ObjectMapper> nestedMappings() {
+        return mappingLookup.getNestedMappers();
+    }
+
     /**
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
@@ -328,6 +323,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
+    }
+
+    /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> getFieldTypes() {
+        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
+        fields.addAll(runtimeMappings.values());
+        return fields;
     }
 
     /**
@@ -605,10 +609,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+        if (runtimeMappings.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false);
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        if (runtimeMappings.isEmpty() == false) {
-            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
-                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
+        for (RuntimeField runtimeField : runtimeFields.values()) {
+            MappedFieldType fieldType = runtimeField.asMappedFieldType();
+            runtimeFieldTypes.put(fieldType.name(), fieldType);
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);
     }
@@ -618,6 +627,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
+    }
+
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String nestedPath) {
+        return mappingLookup.getNestedParent(nestedPath);
     }
 
     public NestedDocuments getNestedDocuments() {

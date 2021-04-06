@@ -1,13 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.latest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -44,7 +43,6 @@ public class Latest extends AbstractCompositeAggFunction {
     public static final int DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = 5000;
 
     private static final String TOP_HITS_AGGREGATION_NAME = "_top_hits";
-    private static final Logger logger = LogManager.getLogger(Latest.class);
 
     private final LatestConfig config;
 
@@ -100,6 +98,11 @@ public class Latest extends AbstractCompositeAggFunction {
     @Override
     public void validateConfig(ActionListener<Boolean> listener) {
         listener.onResponse(true);
+    }
+
+    @Override
+    public List<String> getPerformanceCriticalFields() {
+        return config.getUniqueKey();
     }
 
     @Override

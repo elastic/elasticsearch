@@ -1,31 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -33,19 +25,29 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numClientNodes = 0)
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
@@ -58,20 +60,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        if (randomBoolean()) {
-            builder.put(
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                        : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
-            );
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings settings;
+        {
+            final Settings initialSettings = super.nodeSettings(nodeOrdinal, otherSettings);
+            if (DiscoveryNode.canContainData(otherSettings)) {
+                settings = addRoles(initialSettings, Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
+            } else {
+                settings = initialSettings;
+            }
         }
+        final Settings.Builder builder = Settings.builder().put(settings).put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (randomBoolean()) {
             builder.put(
                 CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
@@ -80,7 +79,44 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }
+        if (DiscoveryNode.canContainData(otherSettings)) {
+            builder.put(
+                FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? randomBoolean()
+                        ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
+                        : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
+                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+            );
+        }
+        builder.put(
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            rarely()
+                ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+        );
+        if (randomBoolean()) {
+            builder.put(
+                FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+                    : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
+            );
+        }
+        if (randomBoolean()) {
+            builder.put(
+                FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+            );
+        }
         return builder.build();
+    }
+
+    @After
+    public void waitForBlobCacheFillsToComplete() {
+        for (BlobStoreCacheService blobStoreCacheService : internalCluster().getDataNodeInstances(BlobStoreCacheService.class)) {
+            assertTrue(blobStoreCacheService.waitForInFlightCacheFillsToComplete(30L, TimeUnit.SECONDS));
+        }
     }
 
     protected String mountSnapshot(String repositoryName, String snapshotName, String indexName, Settings restoredIndexSettings)
@@ -97,6 +133,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         String restoredIndexName,
         Settings restoredIndexSettings
     ) throws Exception {
+        mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, restoredIndexSettings, Storage.FULL_COPY);
+    }
+
+    protected void mountSnapshot(
+        String repositoryName,
+        String snapshotName,
+        String indexName,
+        String restoredIndexName,
+        Settings restoredIndexSettings,
+        final Storage storage
+    ) throws Exception {
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             restoredIndexName,
             repositoryName,
@@ -107,10 +154,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 .put(restoredIndexSettings)
                 .build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            storage
         );
 
-        final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();
+        final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(getNumShards(restoredIndexName).numPrimaries));
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
     }
@@ -130,9 +178,11 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        if (randomBoolean()) {
+            assertThat(
+                client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+                equalTo(0)
+            );
+        }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -101,7 +102,7 @@ public class TransportExplainDataFrameAnalyticsAction
         // added.  We know the ML plugin is enabled on the current node, because this code is in it!
         DiscoveryNode localNode = clusterService.localNode();
         boolean isMlNode = MachineLearning.isMlNode(localNode);
-        if (isMlNode || localNode.isMasterNode() || localNode.isDataNode() || localNode.isIngestNode()) {
+        if (isMlNode || localNode.isMasterNode() || localNode.canContainData() || localNode.isIngestNode()) {
             if (isMlNode == false) {
                 logger.debug("estimating data frame analytics memory on non-ML node");
             }

@@ -82,7 +82,7 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return List.of(DataTier.DATA_FROZEN_NODE_ROLE);
+        return List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
     }
 
     public static class FrozenShardsReason implements AutoscalingDeciderResult.Reason {

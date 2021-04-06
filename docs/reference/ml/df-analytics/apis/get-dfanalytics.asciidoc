@@ -28,7 +28,7 @@ Retrieves configuration information for {dfanalytics-jobs}.
 If the {es} {security-features} are enabled, you must have the following
 privileges:
 
-* cluster: `monitor_ml`
+* cluster: `monitor_ml` or `monitor`, `manage_ml` or `manage`
 
 For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 

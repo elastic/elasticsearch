@@ -23,6 +23,7 @@ If the {es} {security-features} are enabled, you must have the following
 built-in roles or equivalent privileges:
 
 * `machine_learning_admin`
+* cluster: `manage_ml` or `manage`
 
 For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
 

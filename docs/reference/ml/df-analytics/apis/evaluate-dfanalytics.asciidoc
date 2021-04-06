@@ -23,7 +23,8 @@ Evaluates the {dfanalytics} for an annotated index.
 If the {es} {security-features} are enabled, you must have the following 
 privileges:
 
-* cluster: `monitor_ml`
+* cluster: `monitor_ml` or `monitor`
+* index: `read`, `write`
   
 For more information, see <<security-privileges>> and 
 {ml-docs-setup-privileges}.

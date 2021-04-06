@@ -145,6 +145,17 @@ instead.
 [%collapsible%open]
 ====
 include::{es-repo-dir}/ilm/actions/ilm-rollover.asciidoc[tag=rollover-conditions]
+
+`max_primary_shard_size`::
+(Optional, <<byte-units, byte units>>)
+Triggers rollover when the largest primary shard in the index reaches a certain size.
+This is the maximum size of the primary shards in the index. As with `max_size`,
+replicas are ignored.
++
+TIP: To see the current shard size, use the <<cat-shards, _cat shards>> API.
+The `store` value shows the size each shard, and `prirep` indicates whether a
+shard is a primary (`p`) or a replica (`r`).
+// end::rollover-conditions[]
 ====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
@@ -224,7 +235,7 @@ meets one or more of the following conditions:
 
 * The index was created 7 or more days ago.
 * The index contains 1,000 or more documents.
-* The total size of the index's primary shards is 50GB or larger.
+* The index’s largest primary shard is 50GB or larger.
 // end::rollover-conditions-ex[]
 
 [source,console]
@@ -234,7 +245,7 @@ POST my-data-stream/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "50gb"
+    "max_primary_shard_size": "50gb"
   }
 }
 ----
@@ -256,7 +267,7 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false
   }
 }
 ----
@@ -303,7 +314,7 @@ POST my-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "50gb"
+    "max_primary_shard_size": "50gb"
   }
 }
 ----
@@ -325,7 +336,7 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false
   }
 }
 ----
@@ -372,7 +383,7 @@ POST my-write-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "50gb"
+    "max_primary_shard_size": "50gb"
   }
 }
 ----
@@ -394,7 +405,7 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false
   }
 }
 ----

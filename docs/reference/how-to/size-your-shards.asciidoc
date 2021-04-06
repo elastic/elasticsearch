@@ -138,7 +138,7 @@ tax node resources.
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
 `max_primary_shard_size` threshold to `65gb` to avoid larger shards.
 
-To see the current size of your shards, use the <<cat-shards,_cat shards API>>.
+To see the current size of your shards, use the <<cat-shards,cat shards API>>.
 
 [source,console]
 ----

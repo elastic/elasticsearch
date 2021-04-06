@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
 
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class PyTorchStateStreamer {
     }
 
     /**
-     * Firsts writes the size of the model so the native process can
+     * First writes the size of the model so the native process can
      * allocated memory then writes the chunks of binary state.
      *
      * @param modelStorage  Metadata for the model state
@@ -71,19 +72,20 @@ public class PyTorchStateStreamer {
                 return;
             }
 
-            GetResponse got = client.prepareGet(modelStorage.getIndex(), docId)
-                .setFetchSource(true)
-                .setStoredFields(modelStorage.getFieldName())
-                .get();
+            SearchResponse stateResponse = client.prepareSearch(modelStorage.getIndex())
+                .setSize(1)
+                .setFetchSource(modelStorage.getFieldName(), null)
+                .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
 
-            if (got.isExists() == false) {
+            if (stateResponse.getHits().getHits().length == 0) {
                 String message = String.format(Locale.ROOT,
                     "missing state document [%s] for model [%s]", docId, modelStorage.getModelId());
                 logger.error(message);
                 throw new IllegalStateException(message);
             }
 
-            writeBinaryData((String)got.getSource().get(modelStorage.getFieldName()), restoreStream);
+            writeBinaryData((String) stateResponse.getHits().getAt(0)
+                .getSourceAsMap().get(modelStorage.getFieldName()), restoreStream);
         }
 
         logger.debug("model [{}] state restored from [{}] documents", modelStorage.getModelId(), docIds.size());

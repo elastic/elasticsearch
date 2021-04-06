@@ -132,6 +132,8 @@ public class ModelStorage implements ToXContentObject, Writeable {
      * @return The index the model is stored in
      */
     public String getIndex() {
+        // TODO Should this be configurable?
+        // This hard-coded value will break when LATEST_INDEX_NAME changes
         return InferenceIndexConstants.LATEST_INDEX_NAME;
     }
 

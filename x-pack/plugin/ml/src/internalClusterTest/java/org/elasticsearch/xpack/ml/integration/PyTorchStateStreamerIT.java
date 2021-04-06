@@ -28,7 +28,6 @@ import java.util.List;
 
 public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
 
-    private static final String SOURCE_INDEX = "model_source";
     private static final String SOURCE_FIELD = "model_data";
     private static final String DOC_PREFIX = "model_chunk";
 
@@ -37,16 +36,16 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         int chunkSize = 100;
         int modelSize = numChunks * chunkSize;
 
+        String modelId = "test-state-streamer-restore";
+        ModelStorage storageInfo = new ModelStorage(modelId, DOC_PREFIX, Instant.now(),
+            SOURCE_FIELD, null, numChunks, modelSize);
+
         List<byte[]> chunks = new ArrayList<>(numChunks);
         for (int i=0; i<numChunks; i++) {
             chunks.add(randomByteArrayOfLength(chunkSize));
         }
 
-        putState(chunks);
-
-        String modelId = "test-state-streamer-restore";
-        ModelStorage storageInfo = new ModelStorage(modelId, DOC_PREFIX, Instant.now(),
-            SOURCE_FIELD, null, numChunks, modelSize);
+        putState(chunks, storageInfo.getIndex());
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream(modelSize);
         PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client());
@@ -65,12 +64,12 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void putState(List<byte[]> stateChunks) {
-        client().admin().indices().prepareCreate(SOURCE_INDEX).setMapping(SOURCE_FIELD, "type=binary").get();
+    private void putState(List<byte[]> stateChunks, String indexName) {
+        client().admin().indices().prepareCreate(indexName).setMapping(SOURCE_FIELD, "type=binary").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < stateChunks.size(); i++) {
-            IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX);
+            IndexRequest indexRequest = new IndexRequest(indexName);
 
             String encodedData = new String(Base64.getEncoder().encode(stateChunks.get(i)), StandardCharsets.UTF_8);
 

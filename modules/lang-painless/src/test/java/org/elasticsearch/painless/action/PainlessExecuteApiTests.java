@@ -26,7 +26,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -131,7 +130,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 new BytesArray("{\"test_date\":\"2015-01-01T12:10:30Z\"}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
-                "emit(doc['test_date'].value.getMillis())", emptyMap()), "date_script_field",
+                "emit(doc['test_date'].value.toInstant().toEpochMilli())", emptyMap()), "date_script_field",
                 contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
         long[] result = new long[1];

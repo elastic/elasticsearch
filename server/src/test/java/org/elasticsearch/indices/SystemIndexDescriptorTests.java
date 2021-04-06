@@ -212,7 +212,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .build());
         assertThat(iae.getMessage(), containsString("index pattern must be the same"));
 
-        // different index patterns
+        // different primary index
         iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
@@ -227,7 +227,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .build());
         assertThat(iae.getMessage(), containsString("primary index must be the same"));
 
-        // different index patterns
+        // different alias
         iae = expectThrows(IllegalArgumentException.class, () -> SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")

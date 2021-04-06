@@ -231,7 +231,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         /*
          * The method reference looks wrong here, but it's just counter-intuitive. It expands to:
          *
-         *     mappingVersion -> Version.CURRENT.onOrBefore(mappingVersion)
+         *     mappingVersion -> descriptor.getMappingVersion().onOrBefore(mappingVersion)
          *
          * ...which is true if the mappings have been updated.
          */

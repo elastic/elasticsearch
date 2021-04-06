@@ -68,7 +68,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
         VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<String>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
-        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope) {
+        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR,
+        Setting.Property.Dynamic, Setting.Property.IndexScope) {
         @Override
         public String get(Settings settings) {
             final Version idxVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);

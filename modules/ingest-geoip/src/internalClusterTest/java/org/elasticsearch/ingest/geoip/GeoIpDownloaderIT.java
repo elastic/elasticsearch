@@ -31,6 +31,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 
@@ -59,6 +60,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     private static final String ENDPOINT = System.getProperty("geoip_endpoint");
@@ -72,7 +74,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (ENDPOINT != null) {
-            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
+            String endpoint = getTestName().endsWith("Cli") ? ENDPOINT + "cli/overview.json" : ENDPOINT;
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), endpoint);
         }
         return settings.build();
     }
@@ -84,6 +87,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
+    }
+
+    public void testGeoIpDatabasesDownloadCli() throws Exception {
+        assumeTrue("cli endpoint only available through fixture", ENDPOINT != null);
+        testGeoIpDatabasesDownload();
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
@@ -247,8 +255,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
                     List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
                     assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
-                        "GeoLite2-City.mmdb_COPYRIGHT.txt","GeoLite2-Country.mmdb_COPYRIGHT.txt","GeoLite2-ASN.mmdb_COPYRIGHT.txt",
-                        "GeoLite2-City.mmdb_LICENSE.txt","GeoLite2-Country.mmdb_LICENSE.txt","GeoLite2-ASN.mmdb_LICENSE.txt",
+                        "GeoLite2-City.mmdb_COPYRIGHT.txt", "GeoLite2-Country.mmdb_COPYRIGHT.txt", "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                        "GeoLite2-City.mmdb_LICENSE.txt", "GeoLite2-Country.mmdb_LICENSE.txt", "GeoLite2-ASN.mmdb_LICENSE.txt",
                         "GeoLite2-ASN.mmdb_README.txt"));
                 }
             }

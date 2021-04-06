@@ -156,7 +156,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     public void testCreateReadDeleteCheckPoint() throws InterruptedException {
-        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoints();
+        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoint();
 
         // create
         assertAsync(listener -> transformConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);

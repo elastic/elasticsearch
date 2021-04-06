@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.shards;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -51,11 +52,13 @@ public class FrozenShardsDeciderIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB))
-            .build();
+            .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        if (DiscoveryNode.canContainData(otherSettings)) {
+            builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
+        }
+        return builder.build();
     }
 
     @Override

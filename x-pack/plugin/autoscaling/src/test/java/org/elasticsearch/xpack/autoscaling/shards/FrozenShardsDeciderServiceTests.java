@@ -36,10 +36,7 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
     public void testIsFrozenIndex() {
         assertThat(FrozenShardsDeciderService.isFrozenIndex(indexSettings(DataTier.DATA_FROZEN)), is(true));
         assertThat(FrozenShardsDeciderService.isFrozenIndex(indexSettings(null)), is(false));
-        String notFrozenAlone = randomValueOtherThanMany(
-            tiers -> tiers.contains(DataTier.DATA_FROZEN),
-            () -> Strings.join(randomSubsetOf(DataTier.ALL_DATA_TIERS), ",")
-        );
+        String notFrozenAlone = randomNonFrozenTierPreference();
         assertThat(FrozenShardsDeciderService.isFrozenIndex(indexSettings(notFrozenAlone)), is(false));
     }
 
@@ -49,9 +46,9 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
         for (int i = 0; i < randomInt(20); ++i) {
             int shards = between(1, 3);
             int replicas = between(0, 2);
-            String tierPreference = randomBoolean() ? DataTier.DATA_FROZEN : Strings.join(randomSubsetOf(DataTier.ALL_DATA_TIERS), ",");
+            String tierPreference = randomBoolean() ? DataTier.DATA_FROZEN : randomNonFrozenTierPreference();
             if (Objects.equals(tierPreference, DataTier.DATA_FROZEN)) {
-                count += shards * (replicas + 1);
+                count += (long) shards * (replicas + 1);
             }
             builder.put(
                 IndexMetadata.builder("index" + i).settings(indexSettings(tierPreference)).numberOfShards(shards).numberOfReplicas(replicas)
@@ -94,6 +91,14 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
         assertThat(
             overrideSettingsResult.requiredCapacity().total().memory(),
             equalTo(ByteSizeValue.ofBytes(memoryPerShard.getBytes() * shards * (replicas + 1)))
+        );
+    }
+
+
+    private String randomNonFrozenTierPreference() {
+        return randomValueOtherThanMany(
+            tiers -> tiers.contains(DataTier.DATA_FROZEN),
+            () -> Strings.join(randomSubsetOf(DataTier.ALL_DATA_TIERS), ",")
         );
     }
 

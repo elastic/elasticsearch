@@ -288,10 +288,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(future5.get(), equalTo(
             new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
-                    Map.of("_elastic_service_account", true), true),
+                    Map.of("_elastic_service_account", true, "_token_name", "token1"), true),
                 new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
-                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                Map.of("_token_name", "token1")
+                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of()
             )
         ));
     }
@@ -365,11 +364,11 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final Authentication authentication = future3.get();
             assertThat(authentication, equalTo(new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY,
-                    "Service account - elastic/fleet-server", null, Map.of("_elastic_service_account", true),
+                    "Service account - elastic/fleet-server", null,
+                    Map.of("_elastic_service_account", true, "_token_name", token3.getTokenName()),
                     true),
                 new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
-                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                Map.of("_token_name", token3.getTokenName())
+                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of()
             )));
 
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
@@ -397,14 +396,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 Strings.EMPTY_ARRAY,
                 "Service account - elastic/fleet-server",
                 null,
-                Map.of("_elastic_service_account", true),
+                Map.of("_elastic_service_account", true, "_token_name", randomAlphaOfLengthBetween(3, 8)),
                 true),
             new Authentication.RealmRef(
                 ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8)));
+            Map.of());
 
         final PlainActionFuture<RoleDescriptor> future1 = new PlainActionFuture<>();
         serviceAccountService.getRoleDescriptor(auth1, future1);
@@ -416,13 +415,13 @@ public class ServiceAccountServiceTests extends ESTestCase {
             randomValueOtherThan("elastic/fleet-server", () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
         final Authentication auth2 = new Authentication(
             new User(username, Strings.EMPTY_ARRAY, "Service account - " + username, null,
-                Map.of("_elastic_service_account", true), true),
+                Map.of("_elastic_service_account", true, "_token_name", randomAlphaOfLengthBetween(3, 8)), true),
             new Authentication.RealmRef(
                 ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8)));
+            Map.of());
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         serviceAccountService.getRoleDescriptor(auth2, future2);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);

@@ -61,9 +61,9 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(authenticateResponse.authentication(), equalTo(
             new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
-                    Map.of("_elastic_service_account", true), true),
+                    Map.of("_elastic_service_account", true, "_token_name", "token1"), true),
                 new Authentication.RealmRef("service_account", "service_account", nodeName),
-                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", "token1")
+                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of()
             )
         ));
     }

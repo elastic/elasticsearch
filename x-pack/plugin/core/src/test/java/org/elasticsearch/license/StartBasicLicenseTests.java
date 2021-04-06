@@ -37,9 +37,9 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
     }
 

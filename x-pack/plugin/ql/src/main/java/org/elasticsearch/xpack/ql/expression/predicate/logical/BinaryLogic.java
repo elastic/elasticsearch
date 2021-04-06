@@ -44,4 +44,9 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
         // Cannot fold null due to 3vl, constant folding will do any possible folding.
         return Nullability.UNKNOWN;
     }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
+    }
 }

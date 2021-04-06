@@ -100,12 +100,12 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         request = new Request("GET", ".fleet-artifacts/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("encryptionAlgorithm"));
+        assertThat(responseBody, containsString("encryption_algorithm"));
 
         request = new Request("GET", ".fleet-artifacts-7/_mapping");
         response = client().performRequest(request);
         responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("encryptionAlgorithm"));
+        assertThat(responseBody, containsString("encryption_algorithm"));
     }
 
     public void testCreationOfFleetEnrollmentApiKeys() throws Exception {

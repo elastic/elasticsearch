@@ -129,12 +129,33 @@ Every new backing index is an opportunity to further tune your strategy.
 
 [discrete]
 [[shard-size-recommendation]]
-==== Aim for shard sizes between 10GB and 50GB
+==== Aim for shard sizes between 10GB and 65GB
 
-Shards larger than 50GB may make a cluster less likely to recover from failure.
+Shards larger than 65GB may make a cluster less likely to recover from failure.
 When a node fails, {es} rebalances the node's shards across the data tier's
-remaining nodes. Shards larger than 50GB can be harder to move across a network
-and may tax node resources.
+remaining nodes. Larger shards can be harder to move across a network and may
+tax node resources.
+
+To see the current size of your shards, use the <<cat-shards,_cat shards API>>.
+
+[source,console]
+----
+GET _cat/shards?v=true&h=index,prirep,shard,store&s=prirep,store&bytes=gb
+----
+// TEST[setup:my_index]
+
+The `pri.store.size` value shows the combined size of all primary shards for
+the index.
+
+[source,txt]
+----
+index                                 prirep shard store
+.ds-my-data-stream-2099.05.06-000001  p      0      65gb
+...
+----
+// TESTRESPONSE[non_json]
+// TESTRESPONSE[s/\.ds-my-data-stream-2099\.05\.06-000001/my-index-000001/]
+// TESTRESPONSE[s/65gb/.*/]
 
 [discrete]
 [[shard-count-recommendation]]

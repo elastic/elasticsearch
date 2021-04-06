@@ -67,7 +67,7 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
         String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
         String[] preferredTiers = DataTierAllocationDecider.parseTierList(tierPreference);
         if (preferredTiers.length >= 1 && preferredTiers[0].equals(DataTier.DATA_FROZEN)) {
-             assert preferredTiers.length == 1 : "frozen tier preference must be frozen only";
+            assert preferredTiers.length == 1 : "frozen tier preference must be frozen only";
             return true;
         } else {
             return false;

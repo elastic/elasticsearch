@@ -94,7 +94,6 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
         );
     }
 
-
     private String randomNonFrozenTierPreference() {
         return randomValueOtherThanMany(
             tiers -> tiers.contains(DataTier.DATA_FROZEN),

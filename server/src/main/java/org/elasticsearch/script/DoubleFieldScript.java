@@ -13,7 +13,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
@@ -21,25 +20,6 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
-
-    public static DoubleFieldScript.Factory factory(Consumer<DoubleFieldScript> executor) {
-        return new DoubleFieldScript.Factory() {
-            @Override
-            public DoubleFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
-                return new DoubleFieldScript.LeafFactory() {
-                    @Override
-                    public DoubleFieldScript newInstance(LeafReaderContext ctx) {
-                        return new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
-                            @Override
-                            public void execute() {
-                                executor.accept(this);
-                            }
-                        };
-                    }
-                };
-            }
-        };
-    }
 
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);

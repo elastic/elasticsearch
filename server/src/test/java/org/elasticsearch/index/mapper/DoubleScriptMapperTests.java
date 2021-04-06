@@ -9,11 +9,34 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.function.Consumer;
 
 public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScript.Factory> {
+
+    private static DoubleFieldScript.Factory factory(Consumer<DoubleFieldScript> executor) {
+        return new DoubleFieldScript.Factory() {
+            @Override
+            public DoubleFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                return new DoubleFieldScript.LeafFactory() {
+                    @Override
+                    public DoubleFieldScript newInstance(LeafReaderContext ctx) {
+                        return new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+                            @Override
+                            public void execute() {
+                                executor.accept(this);
+                            }
+                        };
+                    }
+                };
+            }
+        };
+    }
 
     @Override
     protected String type() {
@@ -22,12 +45,12 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
 
     @Override
     protected DoubleFieldScript.Factory serializableScript() {
-        return DoubleFieldScript.factory(s -> {});
+        return factory(s -> {});
     }
 
     @Override
     protected DoubleFieldScript.Factory errorThrowingScript() {
-        return DoubleFieldScript.factory(s -> {
+        return factory(s -> {
             throw new UnsupportedOperationException("Oops");
         });
     }
@@ -35,10 +58,10 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
     @Override
     protected DoubleFieldScript.Factory compileScript(String name) {
         if ("single-valued".equals(name)) {
-            return DoubleFieldScript.factory(s -> s.emit(3.14));
+            return factory(s -> s.emit(3.14));
         }
         if ("multi-valued".equals(name)) {
-            return DoubleFieldScript.factory(s -> {
+            return factory(s -> {
                 s.emit(3.14);
                 s.emit(2.78);
             });

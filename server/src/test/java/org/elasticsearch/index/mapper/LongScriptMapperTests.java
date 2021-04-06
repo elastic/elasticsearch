@@ -9,11 +9,34 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.function.Consumer;
 
 public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.Factory> {
+
+    private static LongFieldScript.Factory factory(Consumer<LongFieldScript> executor) {
+        return new LongFieldScript.Factory() {
+            @Override
+            public LongFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                return new LongFieldScript.LeafFactory() {
+                    @Override
+                    public LongFieldScript newInstance(LeafReaderContext ctx) {
+                        return new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                            @Override
+                            public void execute() {
+                                executor.accept(this);
+                            }
+                        };
+                    }
+                };
+            }
+        };
+    }
 
     @Override
     protected String type() {
@@ -22,12 +45,12 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
 
     @Override
     protected LongFieldScript.Factory serializableScript() {
-        return LongFieldScript.factory(s -> {});
+        return factory(s -> {});
     }
 
     @Override
     protected LongFieldScript.Factory errorThrowingScript() {
-        return LongFieldScript.factory(s -> {
+        return factory(s -> {
             throw new UnsupportedOperationException("Oops");
         });
     }
@@ -35,10 +58,10 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
     @Override
     protected LongFieldScript.Factory compileScript(String name) {
         if ("single-valued".equals(name)) {
-            return LongFieldScript.factory(s -> s.emit(4));
+            return factory(s -> s.emit(4));
         }
         if ("multi-valued".equals(name)) {
-            return LongFieldScript.factory(s -> {
+            return factory(s -> {
                 s.emit(1);
                 s.emit(2);
             });

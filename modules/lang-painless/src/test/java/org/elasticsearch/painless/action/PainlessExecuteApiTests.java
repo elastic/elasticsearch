@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.action.PainlessExecuteAction.Request;
@@ -23,11 +24,15 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
 import static org.hamcrest.Matchers.equalTo;
@@ -98,6 +103,56 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
             contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(0.93D));
+    }
+
+    public void testBooleanFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit(doc['rank'].value < params.max_rank)", singletonMap("max_rank", 5.0)), "boolean_script_field_script_field",
+                contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        Map<String, Object> result = new HashMap<>();
+        result.put("trues", 1);
+        result.put("falses", 0);
+        assertEquals(response.getResult(), result);
+    }
+
+    public void testDateFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_date", "type=date");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"test_date\":\"2015-01-01T12:10:30Z\"}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit(doc['test_date'].value.getMillis())", emptyMap()), "date_script_field",
+                contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        long[] result = new long[1];
+        result[0] = 1420114230000L;
+        assertArrayEquals((long[])response.getResult(), result);
+    }
+
+    public void testDoubleFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+                new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+                "emit(doc['rank'].value); emit(Math.log(doc['rank'].value))", emptyMap()), "double_script_field_script_field",
+                contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        double[] result = new double[2];
+        result[0] = 4.0;
+        result[1] = Math.log(4.0);
+        assertArrayEquals((double[])response.getResult(), result, 0.00001);
     }
 
     public void testContextWhitelists() throws IOException {

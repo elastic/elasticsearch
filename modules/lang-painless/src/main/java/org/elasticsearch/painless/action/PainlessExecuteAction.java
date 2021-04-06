@@ -40,7 +40,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -79,8 +79,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -117,13 +115,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 "painless_test", PainlessTestScript.CONTEXT,
                 "filter", FilterScript.CONTEXT,
                 "score", ScoreScript.CONTEXT,
-                "boolean_field", LongFieldScript.CONTEXT,
-                "date_field", LongFieldScript.CONTEXT,
-                "double_field", LongFieldScript.CONTEXT,
-                "geo_point_field", LongFieldScript.CONTEXT,
-                "ip_field", LongFieldScript.CONTEXT,
-                "long_field", LongFieldScript.CONTEXT,
-                "string_field", LongFieldScript.CONTEXT)
+                "boolean_script_field_script_field", BooleanFieldScript.CONTEXT,
+                "date_script_field", DateFieldScript.CONTEXT,
+                "double_script_field_script_field", DoubleFieldScript.CONTEXT,
+                "geo_point_script_field_script_field", GeoPointFieldScript.CONTEXT,
+                "ip_script_field_script_field", IpFieldScript.CONTEXT,
+                "long_script_field_script_field", LongFieldScript.CONTEXT,
+                "string_script_field_script_field", StringFieldScript.CONTEXT)
         ;
 
         static ScriptContext<?> fromScriptContextName(String name) {
@@ -550,16 +548,16 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     booleanFieldScript.execute();
                     return new Response(Map.of("trues", booleanFieldScript.trues(), "falses", booleanFieldScript.falses()));
                 }, indexService);
-            /*} else if (scriptContext == DateFieldScript.CONTEXT) {
+            } else if (scriptContext == DateFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DateFieldScript.Factory factory = scriptService.compile(request.script, DateFieldScript.CONTEXT);
-                    DateFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("date_runtime_field", request.getScript().getParams(), context.lookup(), DateFormatter.);
+                    DateFieldScript.LeafFactory leafFactory = factory.newFactory("date_runtime_field",
+                            request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
                     dateFieldScript.setDocument(0);
                     dateFieldScript.execute();
                     return new Response(Arrays.copyOf(dateFieldScript.values(), dateFieldScript.count()));
-                }, indexService);*/
+                }, indexService);
             } else if (scriptContext == DoubleFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DoubleFieldScript.Factory factory = scriptService.compile(request.script, DoubleFieldScript.CONTEXT);

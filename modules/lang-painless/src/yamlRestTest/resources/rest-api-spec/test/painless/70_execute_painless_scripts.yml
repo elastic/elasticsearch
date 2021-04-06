@@ -68,3 +68,4 @@ setup:
               rank: 4
             index: "my-index"
   - match: { result: 0.8 }
+

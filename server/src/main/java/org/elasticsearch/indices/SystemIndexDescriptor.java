@@ -194,10 +194,13 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
         Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
 
-        if (mappings != null || settings != null) {
-            Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex if mappings or settings are defined");
-            Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey if mappings or settings are defined");
-            Strings.requireNonEmpty(origin, "Must supply origin if mappings or settings are defined");
+        Objects.requireNonNull(type, "type must not be null");
+        if (type.isManaged()) {
+            Objects.requireNonNull(settings, "Must supply settings for a managed system index");
+            Strings.requireNonEmpty(mappings, "Must supply mappings for a managed system index");
+            Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
+            Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
+            Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
             Version mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
             if (mappingVersion == null) {
                 throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
@@ -207,13 +210,13 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             this.mappingVersion = null;
         }
 
-        Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
         if (type.isInternal() && allowedElasticProductOrigins.isEmpty() == false) {
             throw new IllegalArgumentException("Allowed origins are not valid for internal system indices");
         } else if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
         }
+
         Objects.requireNonNull(minimumNodeVersion, "minimumNodeVersion must be provided!");
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         if (priorSystemIndexDescriptors.isEmpty() == false) {

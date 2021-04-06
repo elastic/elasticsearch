@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -87,13 +86,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true) {
-            @Override
-            public Setting<Boolean> legacySetting() {
-                return null;
-            }
-
-        };
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true);
 
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
             Collections.singleton(customRole), Version.CURRENT);

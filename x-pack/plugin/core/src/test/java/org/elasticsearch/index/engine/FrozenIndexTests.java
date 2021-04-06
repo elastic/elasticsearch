@@ -121,18 +121,22 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         // now scroll
         SearchResponse searchResponse = client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
             .setScroll(TimeValue.timeValueMinutes(1)).setSize(1).get();
-        do {
-            assertHitCount(searchResponse, 3);
-            assertEquals(1, searchResponse.getHits().getHits().length);
-            SearchService searchService = getInstanceFromNode(SearchService.class);
-            assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
-            for (int i = 0; i < 2; i++) {
-                shard = indexService.getShard(i);
-                engine = IndexShardTestCase.getEngine(shard);
-                assertFalse(((FrozenEngine) engine).isReaderOpen());
-            }
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
-        } while (searchResponse.getHits().getHits().length > 0);
+        try {
+            do {
+                assertHitCount(searchResponse, 3);
+                assertEquals(1, searchResponse.getHits().getHits().length);
+                SearchService searchService = getInstanceFromNode(SearchService.class);
+                assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+                for (int i = 0; i < 2; i++) {
+                    shard = indexService.getShard(i);
+                    engine = IndexShardTestCase.getEngine(shard);
+                    assertFalse(((FrozenEngine) engine).isReaderOpen());
+                }
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+            } while (searchResponse.getHits().getHits().length > 0);
+        } finally {
+            client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+        }
     }
 
     public void testSearchAndGetAPIsAreThrottled() throws InterruptedException, IOException, ExecutionException {

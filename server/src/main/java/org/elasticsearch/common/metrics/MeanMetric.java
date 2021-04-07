@@ -10,7 +10,7 @@ package org.elasticsearch.common.metrics;
 
 import java.util.concurrent.atomic.LongAdder;
 
-public class MeanMetric implements Metric {
+public final class MeanMetric {
 
     private final LongAdder counter = new LongAdder();
     private final LongAdder sum = new LongAdder();
@@ -20,13 +20,10 @@ public class MeanMetric implements Metric {
         sum.add(n);
     }
 
-    public void dec(long n) {
-        counter.decrement();
-        sum.add(-n);
-    }
-
     public long count() {
-        return counter.sum();
+        final long count = counter.sum();
+        assert count >= 0 : "Count of MeanMetric must always be non-negative; got " + count;
+        return count;
     }
 
     public long sum() {

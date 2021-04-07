@@ -8,29 +8,42 @@
 
 package org.elasticsearch.common.metrics;
 
+import org.elasticsearch.Assertions;
+
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
-public class CounterMetric implements Metric {
-
+public final class CounterMetric {
     private final LongAdder counter = new LongAdder();
+    private final AtomicLong assertingCounter = Assertions.ENABLED ? new AtomicLong() : null;
+
+    private boolean assertNonNegative(long n) {
+        assert n >= 0 : "CounterMetric value must always be non-negative; got: " + n;
+        return true;
+    }
 
     public void inc() {
         counter.increment();
+        assert assertNonNegative(assertingCounter.incrementAndGet());
     }
 
     public void inc(long n) {
         counter.add(n);
+        assert assertNonNegative(assertingCounter.addAndGet(n));
     }
 
     public void dec() {
         counter.decrement();
+        assert assertNonNegative(assertingCounter.decrementAndGet());
     }
 
     public void dec(long n) {
         counter.add(-n);
+        assert assertNonNegative(assertingCounter.addAndGet(-n));
     }
 
     public long count() {
-        return counter.sum();
+        // The returned value of LongAdder#sum is NOT an atomic snapshot.
+        return Math.max(counter.sum(), 0L);
     }
 }

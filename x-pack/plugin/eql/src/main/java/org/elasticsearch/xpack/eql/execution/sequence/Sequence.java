@@ -28,12 +28,12 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class Sequence implements Comparable<Sequence> {
 
     private final SequenceKey key;
-    private final int stages;
+    private final byte stages;
     private final Match[] matches;
 
-    private int currentStage = 0;
+    private byte currentStage = 0;
 
-    public Sequence(SequenceKey key, int stages, Ordinal ordinal, HitReference firstHit) {
+    public Sequence(SequenceKey key, byte stages, Ordinal ordinal, HitReference firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
         this.stages = stages;
@@ -41,7 +41,7 @@ public class Sequence implements Comparable<Sequence> {
         this.matches[0] = new Match(ordinal, firstHit);
     }
 
-    public void putMatch(int stage, Ordinal ordinal, HitReference hit) {
+    public void putMatch(byte stage, Ordinal ordinal, HitReference hit) {
         if (stage == currentStage + 1) {
             currentStage = stage;
             matches[currentStage] = new Match(ordinal, hit);

@@ -57,8 +57,8 @@ public class SequenceMatcher {
     // Current keys on each stage
     private final StageToKeys stageToKeys;
 
-    private final int numberOfStages;
-    private final int completionStage;
+    private final byte numberOfStages;
+    private final byte completionStage;
 
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
@@ -73,9 +73,9 @@ public class SequenceMatcher {
     private final Stats stats = new Stats();
 
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(byte stages, boolean descending, TimeValue maxSpan, Limit limit) {
         this.numberOfStages = stages;
-        this.completionStage = stages - 1;
+        this.completionStage = (byte) (stages - 1);
 
         this.descending = descending;
         this.stageToKeys = new StageToKeys(completionStage);
@@ -101,7 +101,7 @@ public class SequenceMatcher {
      * Match hits for the given stage.
      * Returns false if the process needs to be stopped.
      */
-    boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+    boolean match(byte stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
         for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
@@ -138,7 +138,7 @@ public class SequenceMatcher {
      * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
+    private void match(byte stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
 
         int previousStage = stage - 1;

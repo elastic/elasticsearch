@@ -66,7 +66,7 @@ public class ExecutionManager {
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
 
         // build a criterion for each query
-        for (int i = 0; i < plans.size(); i++) {
+        for (byte i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
             List<String> keyFields = new ArrayList<>(keyExtractors.size());
@@ -105,7 +105,7 @@ public class ExecutionManager {
             }
         }
 
-        int completionStage = criteria.size() - 1;
+        byte completionStage = (byte) (criteria.size() - 1);
         SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
 
         TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),

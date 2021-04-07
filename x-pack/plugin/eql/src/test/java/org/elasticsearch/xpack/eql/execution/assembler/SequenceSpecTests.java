@@ -94,10 +94,10 @@ public class SequenceSpecTests extends ESTestCase {
     }
 
     class TestCriterion extends Criterion<BoxedQueryRequest> {
-        private final int ordinal;
+        private final byte ordinal;
         private boolean unused = true;
 
-        TestCriterion(final int ordinal) {
+        TestCriterion(final byte ordinal) {
             super(ordinal,
                   new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
                       // set a non-negative size
@@ -110,7 +110,7 @@ public class SequenceSpecTests extends ESTestCase {
             this.ordinal = ordinal;
         }
 
-        int ordinal() {
+        byte ordinal() {
             return ordinal;
         }
 
@@ -220,10 +220,10 @@ public class SequenceSpecTests extends ESTestCase {
     }
 
     public void test() throws Exception {
-        int stages = events.size();
+        byte stages = (byte) events.size();
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
         // pass the items for each query through the Criterion
-        for (int i = 0; i < stages; i++) {
+        for (byte i = 0; i < stages; i++) {
             // set the index as size in the search source
             criteria.add(new TestCriterion(i));
         }

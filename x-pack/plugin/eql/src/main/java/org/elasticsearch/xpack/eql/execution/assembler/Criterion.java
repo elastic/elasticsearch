@@ -17,7 +17,7 @@ import java.util.List;
 
 public class Criterion<Q extends QueryRequest> {
 
-    private final int stage;
+    private final byte stage;
     private final Q queryRequest;
     private final List<HitExtractor> keys;
     private final HitExtractor timestamp;
@@ -26,7 +26,7 @@ public class Criterion<Q extends QueryRequest> {
     private final boolean descending;
     private final int keySize;
 
-    public Criterion(int stage,
+    public Criterion(byte stage,
               Q queryRequest,
               List<HitExtractor> keys,
               HitExtractor timestamp,
@@ -47,7 +47,7 @@ public class Criterion<Q extends QueryRequest> {
         return keySize;
     }
 
-    public int stage() {
+    public byte stage() {
         return stage;
     }
 

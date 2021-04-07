@@ -86,11 +86,11 @@ public class TumblingWindow implements Executable {
     private long startTime;
 
     private static class WindowInfo {
-        private final int baseStage;
+        private final byte baseStage;
         private final Ordinal begin;
         private final Ordinal end;
 
-        WindowInfo(int baseStage, Ordinal begin, Ordinal end) {
+        WindowInfo(byte baseStage, Ordinal begin, Ordinal end) {
             this.baseStage = baseStage;
             this.begin = begin;
             this.end = end;
@@ -118,13 +118,13 @@ public class TumblingWindow implements Executable {
     public void execute(ActionListener<Payload> listener) {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
-        tumbleWindow(0, listener);
+        tumbleWindow((byte) 0, listener);
     }
 
     /**
      * Move the window while preserving the same base.
      */
-    private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
+    private void tumbleWindow(byte currentStage, ActionListener<Payload> listener) {
         if (currentStage > 0 && matcher.hasCandidates() == false) {
             if (restartWindowFromTailQuery) {
                 currentStage = 0;
@@ -162,12 +162,12 @@ public class TumblingWindow implements Executable {
     /**
      * Move the window while advancing the query base.
      */
-    private void rebaseWindow(int nextStage, ActionListener<Payload> listener) {
+    private void rebaseWindow(byte nextStage, ActionListener<Payload> listener) {
         log.trace("Rebasing window...");
         advance(nextStage, listener);
     }
 
-    private void advance(int stage, ActionListener<Payload> listener) {
+    private void advance(byte stage, ActionListener<Payload> listener) {
         // initialize
         Criterion<BoxedQueryRequest> base = criteria.get(stage);
         // remove any potential upper limit (if a criteria has been promoted)
@@ -187,7 +187,7 @@ public class TumblingWindow implements Executable {
     /**
      * Execute the base query.
      */
-    private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
+    private void baseCriterion(byte baseStage, SearchResponse r, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
         List<SearchHit> hits = searchHits(r);
 
@@ -228,7 +228,7 @@ public class TumblingWindow implements Executable {
         completeBaseCriterion(baseStage, hits, info, listener);
     }
 
-    private void completeBaseCriterion(int baseStage, List<SearchHit> hits, WindowInfo info, ActionListener<Payload> listener) {
+    private void completeBaseCriterion(byte baseStage, List<SearchHit> hits, WindowInfo info, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
 
         // check for matches - if the limit has been reached, abort
@@ -237,7 +237,7 @@ public class TumblingWindow implements Executable {
             return;
         }
 
-        int nextStage = baseStage + 1;
+        byte nextStage = (byte) (baseStage + 1);
         boolean windowCompleted = hits.size() < windowSize;
 
         // there are still queries
@@ -264,7 +264,7 @@ public class TumblingWindow implements Executable {
                     if (info != null) {
                         // DESC means starting the window
                         restartWindowFromTailQuery = false;
-                        next = () -> advance(1, listener);
+                        next = () -> advance((byte) 1, listener);
                     }
                     // if there are no new results, no need to check the window
                     else {
@@ -282,7 +282,7 @@ public class TumblingWindow implements Executable {
                         if (restartWindowFromTailQuery == false) {
                             shouldTerminate = true;
                         } else {
-                            next = () -> tumbleWindow(0, listener);
+                            next = () -> tumbleWindow((byte) 0, listener);
                         }
                     }
                 }
@@ -296,7 +296,7 @@ public class TumblingWindow implements Executable {
             else {
                 // DESC means starting the window
                 if (descendingQuery) {
-                    next = () -> advance(1, listener);
+                    next = () -> advance((byte) 1, listener);
                 }
                 // ASC to continue
                 else {
@@ -316,7 +316,7 @@ public class TumblingWindow implements Executable {
             // no more results either
             if (windowCompleted) {
                 if (restartWindowFromTailQuery) {
-                    tumbleWindow(0, listener);
+                    tumbleWindow((byte) 0, listener);
                 } else {
                     payload(listener);
                 }

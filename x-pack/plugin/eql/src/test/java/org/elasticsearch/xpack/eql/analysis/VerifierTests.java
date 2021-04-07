@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.Map;
+import java.util.StringJoiner;
 
 public class VerifierTests extends ESTestCase {
 
@@ -370,4 +371,18 @@ public class VerifierTests extends ESTestCase {
                 "[process where true] by opcode"));
     }
 
+    public void testSequenceWithManyStages() throws Exception {
+        StringJoiner sj = new StringJoiner("\n", "sequence ", "");
+        for (int i = 0; i < 127; i++) {
+            sj.add("[process where true] by pid");
+        }
+        accept(index, sj.toString());
+
+        int extraStages = randomIntBetween(1, 100);
+        for (int i = 0; i < extraStages; i++) {
+            sj.add("[process where true] by pid");
+        }
+        assertEquals("1:1: Sequence queries with more than [127] stages are not allowed, contains [" + (127 + extraStages) + "] stages",
+                error(index, sj.toString()));
+    }
 }

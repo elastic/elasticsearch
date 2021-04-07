@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -29,10 +28,8 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -63,15 +60,11 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
  */
 public class Verifier {
 
+    private static final int MAX_NUMBER_OF_STAGES = 127;
     private final Metrics metrics;
 
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
-    }
-
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     Collection<Failure> verify(LogicalPlan plan) {
@@ -157,6 +150,7 @@ public class Verifier {
 
                 checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
+                checkNumberOfSequenceStages(p, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
@@ -276,6 +270,18 @@ public class Verifier {
                 currentKey.name(), currentKey.dataType().esType(),
                 expectedKey.name(), expectedKey.dataType().esType()
             ));
+        }
+    }
+
+    private void checkNumberOfSequenceStages(LogicalPlan plan, Set<Failure> localFailures) {
+        if (plan instanceof Join) {
+            Join join = (Join) plan;
+            List<KeyedFilter> queries = join.queries();
+            if (queries.size() > MAX_NUMBER_OF_STAGES) {
+                localFailures.add(fail(plan, "Sequence queries with more than [{}] stages are not allowed, contains [{}] stages",
+                        MAX_NUMBER_OF_STAGES,
+                        queries.size()));
+            }
         }
     }
 }

@@ -1168,6 +1168,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return this.activeReaders.size();
     }
 
+    /**
+     * Returns the number of scroll contexts opened on the node
+     */
+    public int getOpenScrollContexts() {
+        return openScrollContexts.get();
+    }
+
     public ResponseCollectorService getResponseCollectorService() {
         return this.responseCollectorService;
     }

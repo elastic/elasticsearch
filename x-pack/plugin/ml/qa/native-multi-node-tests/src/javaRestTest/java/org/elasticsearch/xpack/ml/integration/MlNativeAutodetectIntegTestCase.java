@@ -98,31 +98,39 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     private void cleanUpDatafeeds() {
         for (DatafeedConfig datafeed : datafeeds) {
-            try {
-                stopDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
+            cleanupDatafeed(datafeed.getId());
+        }
+    }
+
+    void cleanupDatafeed(String datafeedId) {
+        try {
+            stopDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
         }
     }
 
     private void cleanUpJobs() {
         for (Job.Builder job : jobs) {
-            try {
-                closeJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
+            cleanupJob(job.getId());
+        }
+    }
+
+    void cleanupJob(String jobId) {
+        try {
+            closeJob(jobId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteJob(jobId);
+        } catch (Exception e) {
+            // ignore
         }
     }
 

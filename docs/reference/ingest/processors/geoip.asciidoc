@@ -393,9 +393,9 @@ Note that these settings are node settings and apply to all `geoip` processors, 
 [[ingest-geoip-downloader-enabled]]
 `ingest.geoip.downloader.enabled`::
 (<<dynamic-cluster-setting,Dynamic>>, Boolean)
-If `true`, {es} downloads automatic updates for GeoIP2 databases from the
-`ingest.geoip.downloader.endpoint`. If `false`, {es} does not download updates
-and deletes all downloaded databases. Defaults to `true`.
+If `true`, {es} automatically downloads and manages updates for GeoIP2 databases
+from the `ingest.geoip.downloader.endpoint`. If `false`, {es} does not download
+updates and deletes all downloaded databases. Defaults to `true`.
 
 [[ingest-geoip-downloader-endpoint]]
 `ingest.geoip.downloader.endpoint`::

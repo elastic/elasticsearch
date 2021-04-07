@@ -240,6 +240,16 @@ Total size of all shards assigned to selected nodes.
 (integer)
 Total size, in bytes, of all shards assigned to selected nodes.
 
+`total_data_set_size`::
+(<<byte-units, byte units>>)
+Total data set size of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes (shared cache searchable snapshots).
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to selected nodes.
+This includes the size of shards not stored fully on the nodes (shared cache searchable snapshots).
+
 `reserved`::
 (<<byte-units,byte value>>)
 A prediction of how much larger the shard stores will eventually grow due to
@@ -1238,6 +1248,8 @@ The API returns the following response:
       "store": {
          "size": "16.2kb",
          "size_in_bytes": 16684,
+         "total_data_set_size": "16.2kb",
+         "total_data_set_size_in_bytes": 16684,
          "reserved": "0b",
          "reserved_in_bytes": 0
       },

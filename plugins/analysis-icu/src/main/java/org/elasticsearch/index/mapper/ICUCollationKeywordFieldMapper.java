@@ -136,7 +136,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
-        public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
+        public static final DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
             @Override
             public String getWriteableName() {
                 return "collate";

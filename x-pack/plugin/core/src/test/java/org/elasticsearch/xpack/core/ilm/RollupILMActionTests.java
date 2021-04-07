@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.RollupILMAction.GENERATE_ROLLUP_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction> {
@@ -59,8 +60,8 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
         assertThat(steps.get(0).getNextStepKey().getName(), equalTo(ReadOnlyStep.NAME));
         assertThat(steps.get(1).getKey().getName(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(1).getNextStepKey().getName(), equalTo(GenerateRollupIndexNameStep.NAME));
-        assertThat(steps.get(2).getKey().getName(), equalTo(GenerateRollupIndexNameStep.NAME));
+        assertThat(steps.get(1).getNextStepKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
+        assertThat(steps.get(2).getKey().getName(), equalTo(GENERATE_ROLLUP_STEP_NAME));
         assertThat(steps.get(2).getNextStepKey().getName(), equalTo(RollupStep.NAME));
         assertThat(steps.get(3).getKey().getName(), equalTo(RollupStep.NAME));
         assertThat(steps.get(3).getNextStepKey(), equalTo(nextStepKey));

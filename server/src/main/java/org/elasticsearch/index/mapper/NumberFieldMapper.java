@@ -44,7 +44,6 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -81,17 +80,11 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Number> nullValue;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
-        private final Parameter<String> onScriptError = Parameter.restrictedStringParam(
-            "on_script_error",
-            true,
-            m -> toType(m).onScriptError,
-            "reject", "ignore"
-        );
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
-        private final ScriptCompiler compiler;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
             this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
@@ -104,9 +97,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
-            super(name);
+            super(name, compiler);
             this.type = type;
-            this.compiler = compiler;
 
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
@@ -115,7 +107,6 @@ public class NumberFieldMapper extends FieldMapper {
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
 
-            this.onScriptError.requiresParameters(this.script);
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
         }
 
@@ -133,8 +124,8 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.script.get() == null) {
                 return null;
             }
-            assert compiler != null;
-            return type.compile(name, script.get(), compiler);
+            assert scriptCompiler != null;
+            return type.compile(name, script.get(), scriptCompiler);
         }
 
         @Override
@@ -1028,28 +1019,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
-                return new ValueFetcher() {
-                    LeafReaderContext ctx;
-
-                    @Override
-                    public void setNextReader(LeafReaderContext context) {
-                        this.ctx = context;
-                    }
-
-                    @Override
-                    public List<Object> fetchValues(SourceLookup lookup) {
-                        List<Object> values = new ArrayList<>();
-                        try {
-                            scriptValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), values::add);
-                        } catch (Exception e) {
-                            // ignore errors - if they exist here then they existed at index time
-                            // and so on_script_error must have been set to `ignore`
-                        }
-                        return values;
-                    }
-                };
+                return FieldValues.valueFetcher(this.scriptValues, context);
             }
-
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
@@ -1094,8 +1065,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
     private final FieldValues<Number> scriptValues;
-    private final String onScriptError;
-
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
 
@@ -1105,7 +1074,7 @@ public class NumberFieldMapper extends FieldMapper {
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1116,7 +1085,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
-        this.onScriptError = builder.onScriptError.get();
         this.builder = builder;
     }
 
@@ -1126,10 +1094,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     boolean ignoreMalformed() {
         return ignoreMalformed.value();
-    }
-
-    String onScriptError() {
-        return onScriptError;
     }
 
     @Override
@@ -1144,11 +1108,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-
-        if (this.scriptValues != null) {
-            throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
-        }
-
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -1199,26 +1158,12 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean hasScript() {
-        return this.scriptValues != null;
-    }
-
-    @Override
-    public void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        assert this.scriptValues != null;
-        try {
-            this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
-        } catch (Exception e) {
-            if ("ignore".equals(onScriptError)) {
-                parseContext.addIgnoredField(name());
-            } else {
-                throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
-            }
-        }
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, builder.compiler, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 }

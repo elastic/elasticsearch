@@ -160,7 +160,9 @@ public class ClusterStateTests extends ESTestCase {
             "        \"data_warm\",\n" +
             "        \"ingest\",\n" +
             "        \"master\",\n" +
-            "        \"remote_cluster_client\"\n" +
+            "        \"ml\",\n" +
+            "        \"remote_cluster_client\",\n" +
+            "        \"transform\"\n" +
             "      ]\n" +
             "    }\n" +
             "  },\n" +
@@ -364,7 +366,9 @@ public class ClusterStateTests extends ESTestCase {
             "        \"data_warm\",\n" +
             "        \"ingest\",\n" +
             "        \"master\",\n" +
-            "        \"remote_cluster_client\"\n" +
+            "        \"ml\",\n" +
+            "        \"remote_cluster_client\",\n" +
+            "        \"transform\"\n" +
             "      ]\n" +
             "    }\n" +
             "  },\n" +
@@ -561,7 +565,9 @@ public class ClusterStateTests extends ESTestCase {
             "        \"data_warm\",\n" +
             "        \"ingest\",\n" +
             "        \"master\",\n" +
-            "        \"remote_cluster_client\"\n" +
+            "        \"ml\",\n" +
+            "        \"remote_cluster_client\",\n" +
+            "        \"transform\"\n" +
             "      ]\n" +
             "    }\n" +
             "  },\n" +

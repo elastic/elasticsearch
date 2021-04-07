@@ -74,7 +74,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh')) {
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
             build()
         }
 

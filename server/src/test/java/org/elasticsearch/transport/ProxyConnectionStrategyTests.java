@@ -100,6 +100,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         }
     }
 
+    // This test has failed once or twice in the past. This is enabled in case it were to fail again.
     @TestLogging(
         value = "org.elasticsearch.transport.ClusterConnectionManager:TRACE,org.elasticsearch.transport.ProxyConnectionStrategy:TRACE",
         reason = "to ensure that connections are logged")

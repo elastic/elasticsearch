@@ -53,11 +53,12 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     private final PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportStopTrainedModelDeploymentAction(String actionName, ClusterService clusterService, TransportService transportService,
+    public TransportStopTrainedModelDeploymentAction(ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, Client client, ThreadPool threadPool,
                                                      PersistentTasksService persistentTasksService) {
-        super(actionName, clusterService, transportService, actionFilters, StopTrainedModelDeploymentAction.Request::new,
-            StopTrainedModelDeploymentAction.Response::new, StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
+        super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
+            StopTrainedModelDeploymentAction.Request::new, StopTrainedModelDeploymentAction.Response::new,
+            StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
@@ -90,7 +91,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 ClusterState clusterState = clusterService.state();
                 PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 PersistentTasksCustomMetadata.PersistentTask<?> deployTrainedModelTask =
-                    MlTasks.getDeployTrainedModelTask(request.getId(), tasks);
+                    MlTasks.getTrainedModelDeploymentTask(request.getId(), tasks);
                 if (deployTrainedModelTask == null) {
                     listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
                     return;

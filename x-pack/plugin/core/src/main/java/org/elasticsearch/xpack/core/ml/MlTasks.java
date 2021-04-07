@@ -107,8 +107,8 @@ public final class MlTasks {
     }
 
     @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> getDeployTrainedModelTask(String modelId,
-                                                                                            @Nullable PersistentTasksCustomMetadata tasks) {
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getTrainedModelDeploymentTask(
+            String modelId, @Nullable PersistentTasksCustomMetadata tasks) {
         return tasks == null ? null : tasks.getTask(trainedModelDeploymentTaskId(modelId));
     }
 

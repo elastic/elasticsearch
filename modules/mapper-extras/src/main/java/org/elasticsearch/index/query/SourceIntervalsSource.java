@@ -24,7 +24,6 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.CheckedIntFunction;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -105,17 +104,13 @@ public final class SourceIntervalsSource extends IntervalsSource {
                 return doc;
             }
 
-            private boolean setIterator(int doc) {
-                try {
-                    final List<Object> values = valueFetcher.apply(doc);
-                    final LeafReaderContext singleDocContext = createSingleDocLeafReaderContext(field, values);
-                    in = SourceIntervalsSource.this.in.intervals(field, singleDocContext);
-                    final boolean isSet = in != null && in.nextDoc() != NO_MORE_DOCS;
-                    assert isSet == false || in.docID() == 0;
-                    return isSet;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+            private boolean setIterator(int doc) throws IOException {
+                final List<Object> values = valueFetcher.apply(doc);
+                final LeafReaderContext singleDocContext = createSingleDocLeafReaderContext(field, values);
+                in = SourceIntervalsSource.this.in.intervals(field, singleDocContext);
+                final boolean isSet = in != null && in.nextDoc() != NO_MORE_DOCS;
+                assert isSet == false || in.docID() == 0;
+                return isSet;
             }
 
             @Override

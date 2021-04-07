@@ -390,14 +390,6 @@ public class RootObjectMapper extends ObjectMapper {
             return;
         }
 
-        if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-            if (template.pathMatch() == null && template.match() == null && template.getXContentFieldTypes().length == 0) {
-                throw new MapperParsingException("dynamic template [" + template.name() + "] of index " +
-                    parserContext.getIndexSettings().getIndex() + " created before [" + Version.V_8_0_0 + "]" +
-                    " must have [match] or [path_match] or [match_mapping_type] defined");
-            }
-        }
-
         final XContentFieldType[] types = template.getXContentFieldTypes();
 
         Exception lastError = null;

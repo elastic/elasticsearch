@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -705,13 +704,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        Version notAllowedVersion = randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
-        MapperParsingException error = expectThrows(MapperParsingException.class, () -> createMapperService(notAllowedVersion, mapping));
-        assertThat(error.getMessage(),
-            containsString("dynamic template [geo_point] of index [index] created before " +
-                "[" + Version.V_8_0_0 + "] must have [match] or [path_match] or [match_mapping_type] defined"));
-        Version allowedVersion = randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-        MapperService mapperService = createMapperService(allowedVersion, mapping);
+        MapperService mapperService = createMapperService(mapping);
         ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"), XContentType.JSON, null, Map.of("foo", "geo_point")));
         assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));

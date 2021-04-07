@@ -213,7 +213,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
-            this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);;
+            this.mappingVersion = extractVersionFromMappings(mappings, indexType, versionMetaKey);;
         } else {
             this.mappingVersion = null;
         }
@@ -688,9 +688,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return false;
     }
 
-    private static Version extractVersionFromMappings(String mappings, String versionMetaKey) {
+    private static Version extractVersionFromMappings(String mappings, String indexType, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
-        final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get("_doc");
+        final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get(indexType);
         final Map<String, Object> meta;
         if (doc == null) {
             meta = (Map<String, Object>) mappingsMap.get("_meta");

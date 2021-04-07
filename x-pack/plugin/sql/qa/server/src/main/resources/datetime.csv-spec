@@ -131,6 +131,36 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 44             |1961-11-02T00:00:00.000Z
 ;
 
+isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) AS d, SUM(salary) s FROM test_emp GROUP BY d ORDER BY d DESC;
+
+      d:i      |      s:i       
+---------------+---------------
+7              |386466       
+6              |643304       
+5              |653130       
+4              |740669       
+3              |655169       
+2              |888011       
+1              |428067       
+null           |430039
+;
+
+runtimeFieldDayOfWeek
+SELECT birth_date_day_of_week, SUM(salary) s FROM test_emp GROUP BY birth_date_day_of_week ORDER BY birth_date_day_of_week DESC;
+
+birth_date_day_of_week:s|      s:i       
+------------------------+---------------
+Wednesday               |655169       
+Tuesday                 |888011       
+Thursday                |740669       
+Sunday                  |386466       
+Saturday                |643304       
+Monday                  |428067       
+Friday                  |653130       
+null                    |430039
+;              
+
 isoWeekOfYear
 schema::birth_date:ts|iso_week:i|week:i
 SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >2 ORDER BY iso_week;

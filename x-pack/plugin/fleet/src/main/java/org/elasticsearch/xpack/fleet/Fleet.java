@@ -38,15 +38,17 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.unmodifiableList(Arrays.asList(
-            fleetActionsSystemIndexDescriptor(),
-            fleetAgentsSystemIndexDescriptor(),
-            fleetEnrollmentApiKeysSystemIndexDescriptor(),
-            fleetPoliciesSystemIndexDescriptor(),
-            fleetPoliciesLeaderSystemIndexDescriptor(),
-            fleetServersSystemIndexDescriptors(),
-            fleetArtifactsSystemIndexDescriptors()
-        ));
+        return Collections.unmodifiableList(
+            Arrays.asList(
+                fleetActionsSystemIndexDescriptor(),
+                fleetAgentsSystemIndexDescriptor(),
+                fleetEnrollmentApiKeysSystemIndexDescriptor(),
+                fleetPoliciesSystemIndexDescriptor(),
+                fleetPoliciesLeaderSystemIndexDescriptor(),
+                fleetServersSystemIndexDescriptors(),
+                fleetArtifactsSystemIndexDescriptors()
+            )
+        );
     }
 
     @Override

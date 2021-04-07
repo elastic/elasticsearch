@@ -758,8 +758,9 @@ runtime field definition (including the script) to the context of an index
 mapping. This capability means you can write a script only once, and apply
 it to any context that supports runtime fields.
 
-IMPORTANT: Currently, you can only index runtime fields of type `long` and
-`double`.
+IMPORTANT: After indexing a runtime field, you cannot update the included
+script. If you need to change the script, create a new field with the updated
+script.
 
 For example, let's say your company wants to replace some old pressure
 valves. The connected sensors are only capable of reporting a fraction of
@@ -920,7 +921,10 @@ you decide to index the `voltage_corrected` runtime field with the new
 `multiplier` parameter.
 
 In a new index named `my-index-00001`, copy the `voltage_corrected` runtime
-field definition into the mappings of the new index. It's that simple!
+field definition into the mappings of the new index. It's that simple! You can
+add an optional parameter named `on_script_error` that determines whether to
+reject the entire document if the script throws an error at index time
+(default).
 
 [source,console]
 ----
@@ -942,6 +946,7 @@ PUT my-index-00001/
       },
       "voltage_corrected": {
         "type": "double",
+        "on_script_error": "reject", <1>
         "script": {
           "source": """
         emit(doc['voltage'].value * params['multiplier'])
@@ -955,6 +960,9 @@ PUT my-index-00001/
   }
 }
 ----
+<1> Causes the entire document to be rejected if the script throws an error at
+index time. Setting the value to `ignore` will register the field in the
+document’s `_ignored` metadata field and continue indexing.
 
 Bulk index some sample data from your sensors into the `my-index-00001` index:
 

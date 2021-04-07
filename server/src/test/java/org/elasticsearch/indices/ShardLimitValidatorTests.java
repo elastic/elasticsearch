@@ -50,8 +50,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
             group);
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), nodesInCluster
-            , group);
+        Optional<String> errorMessage =
+            ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), nodesInCluster, group);
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
@@ -72,8 +72,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), nodesInCluster
-            , group);
+        Optional<String> errorMessage =
+            ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), nodesInCluster, group);
 
         assertFalse(errorMessage.isPresent());
     }

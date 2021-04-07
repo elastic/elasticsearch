@@ -880,6 +880,7 @@ GET my-index/_search
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "z4TCrHgBdg9xpPrU6z9k",
         "_score" : 1.0,
         "_source" : {
@@ -899,6 +900,7 @@ GET my-index/_search
       },
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "0ITCrHgBdg9xpPrU6z9k",
         "_score" : 1.0,
         "_source" : {
@@ -1035,6 +1037,7 @@ match the range query, based on the calculated value of the included script:
     "hits" : [
       {
         "_index" : "my-index-00001",
+        "_type" : "_doc",
         "_id" : "yoSLrHgBdg9xpPrUZz_P",
         "_score" : 1.0,
         "_source" : {
@@ -1054,6 +1057,7 @@ match the range query, based on the calculated value of the included script:
       },
       {
         "_index" : "my-index-00001",
+        "_type" : "_doc",
         "_id" : "y4SLrHgBdg9xpPrUZz_P",
         "_score" : 1.0,
         "_source" : {

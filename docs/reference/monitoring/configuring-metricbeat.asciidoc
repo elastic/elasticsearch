@@ -95,7 +95,7 @@ communications, you must access it via HTTPS. For example, use a `hosts` setting
 like `https://localhost:9200`.
 <2> By default, `scope` is set to `node` and each entry in the `hosts` list
 indicates a distinct node in an {es} cluster. If you set `scope` to `cluster`
-ithen each entry in the `hosts` list indicates a single endpoint for a distinct
+then each entry in the `hosts` list indicates a single endpoint for a distinct
 {es} cluster (for example, a load-balancing proxy fronting the cluster). You
 should use `scope: cluster` if the cluster has dedicated master nodes, and
 configure the endpoint in the `hosts` list not to direct requests to the

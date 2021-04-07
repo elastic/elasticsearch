@@ -35,6 +35,9 @@ setup:
         id:    2
         body:  { "department": "math", "staff": 20, "courses": [ { "name": "Precalculus", "credits": 1, "sessions": [ { "semester": "spr2021", "students": 100 }, { "semester": "fall2020", "students": 134 } ] }, { "name": "Linear Algebra", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 29 }, { "semester": "fall2020", "students": 23 } ] } ] }
 
+  - do:
+      indices.refresh:
+        index: [test]
 
 ---
 "Single Level Nested with Terms":
@@ -43,10 +46,10 @@ setup:
         rest_total_hits_as_int: true
         index: test
         body:
-          "aggs": {
+          "aggregations": {
               "courses": {
                   "nested": { "path": "courses" },
-                  "aggs": {
+                  "aggregations": {
                       "names": {
                           "terms": { "field": "courses.name" }
                       }
@@ -73,10 +76,10 @@ setup:
         rest_total_hits_as_int: true
         index: test
         body:
-          "aggs": {
+          "aggregations": {
               "sessions": {
                   "nested": { "path": "courses.sessions" },
-                  "aggs": {
+                  "aggregations": {
                       "names": {
                           "terms": { "field": "courses.sessions.semester" }
                       }
@@ -98,13 +101,13 @@ setup:
         rest_total_hits_as_int: true
         index: test
         body:
-          "aggs": {
+          "aggregations": {
               "courses": {
                   "nested": { "path": "courses" },
-                  "aggs": {
+                  "aggregations": {
                       "sessions": {
                           "nested": { "path": "courses.sessions" },
-                          "aggs": {
+                          "aggregations": {
                               "names": {
                                   "terms": { "field": "courses.sessions.semester" }
                               }
@@ -128,16 +131,16 @@ setup:
         rest_total_hits_as_int: true
         index: test
         body:
-          "aggs": {
+          "aggregations": {
               "courses": {
                   "nested": { "path": "courses" },
-                  "aggs": {
+                  "aggregations": {
                       "highpass_filter": {
                           "filter": { "range": {"courses.credits": { "gt": 1 }}},
-                          "aggs": {
+                          "aggregations": {
                               "sessions": {
                                   "nested": { "path": "courses.sessions" },
-                                  "aggs": {
+                                  "aggregations": {
                                       "names": {
                                           "terms": { "field": "courses.sessions.semester" }
                                       }

@@ -13,24 +13,15 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
@@ -39,7 +30,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcess
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -51,13 +41,16 @@ public class DeploymentManager {
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
 
     private final Client client;
+    private final NamedXContentRegistry xContentRegistry;
     private final PyTorchProcessFactory pyTorchProcessFactory;
     private final ExecutorService executorServiceForDeployment;
     private final ExecutorService executorServiceForProcess;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
 
-    public DeploymentManager(Client client, ThreadPool threadPool, PyTorchProcessFactory pyTorchProcessFactory) {
+    public DeploymentManager(Client client, NamedXContentRegistry xContentRegistry,
+                             ThreadPool threadPool, PyTorchProcessFactory pyTorchProcessFactory) {
         this.client = Objects.requireNonNull(client);
+        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
         this.executorServiceForDeployment = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
@@ -75,28 +68,25 @@ public class DeploymentManager {
         if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
             throw ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId());
         }
-
-        loadModelStorage(task.getModelId(), ActionListener.wrap(
-            modelStorage -> {
-                processContext.startProcess();
-                try {
-                    processContext.loadModel(modelStorage);
-                } catch (Exception e) {
-                    failTask(task, e);
-                    return;
-                }
-
+        
+        ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(
+            success -> {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.process(processContext.process.get()));
 
                 TrainedModelDeploymentTaskState startedState = new TrainedModelDeploymentTaskState(
                     TrainedModelDeploymentState.STARTED, task.getAllocationId(), null);
                 task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                    response -> logger.info("[{}] trained model deployment started", task.getModelId()),
+                    response -> logger.info("[{}] trained model loaded", task.getModelId()),
                     task::markAsFailed
                 ));
             },
-            e -> failTask(task, e)
-        ));
+            e -> {
+                failTask(task, e);
+            }
+        );
+
+        processContext.startProcess();
+        processContext.loadModel(modelLoadedListener);
     }
 
     public void stopDeployment(TrainedModelDeploymentTask task) {
@@ -154,37 +144,6 @@ public class DeploymentManager {
         task.markAsFailed(e);
     }
 
-    private void loadModelStorage(String modelId, ActionListener<ModelStorage> listener) {
-
-        String docId = ModelStorage.docIdFromModelId(modelId);
-
-        client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-            .setSize(1)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(docId))
-            .execute(ActionListener.wrap(
-                searchResponse -> {
-                    if (searchResponse.getHits().getHits().length == 0) {
-                        logger.error("found no model storage for model [{}]", modelId);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    ModelStorage ms = parseModelStorageLenientlyFromSource(
-                        searchResponse.getHits().getHits()[0].getSourceRef());
-                    listener.onResponse(ms);
-                },
-                listener::onFailure
-            ));
-    }
-
-    private ModelStorage parseModelStorageLenientlyFromSource(BytesReference source) throws IOException {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return ModelStorage.LENIENT_PARSER.apply(parser, null);
-        }
-    }
-
     class ProcessContext {
 
         private final String modelId;
@@ -195,7 +154,7 @@ public class DeploymentManager {
         ProcessContext(String modelId) {
             this.modelId = Objects.requireNonNull(modelId);
             resultProcessor = new PyTorchResultProcessor(modelId);
-            this.stateStreamer = new PyTorchStateStreamer(client);
+            this.stateStreamer = new PyTorchStateStreamer(client, xContentRegistry);
         }
 
         synchronized void startProcess() {
@@ -221,8 +180,8 @@ public class DeploymentManager {
             };
         }
 
-        void loadModel(ModelStorage storage) throws IOException {
-            process.get().loadModel(stateStreamer, storage);
+        void loadModel(ActionListener<Boolean> listener) {
+            process.get().loadModel(modelId, new PyTorchStateStreamer(client, xContentRegistry), listener);
         }
     }
 

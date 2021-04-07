@@ -64,11 +64,12 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return NAME + "-" + modelId + "-" + docNum;
     }
 
+    public static final long UNKNOWN_TOTAL_SIZE_VALUE = -1L;
+
     private final String compressedString;
     private final String modelId;
     private final int docNum;
-    // for BWC
-    private final Long totalDefinitionLength;
+    private final long totalDefinitionLength;
     private final long definitionLength;
     private final int compressionVersion;
     private final boolean eos;
@@ -89,7 +90,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         if (totalDefinitionLength != null && totalDefinitionLength <= 0L) {
             throw new IllegalArgumentException("[total_definition_length] must be greater than 0");
         }
-        this.totalDefinitionLength = totalDefinitionLength;
+        this.totalDefinitionLength = totalDefinitionLength == null ? UNKNOWN_TOTAL_SIZE_VALUE : totalDefinitionLength;
         if (definitionLength <= 0L) {
             throw new IllegalArgumentException("[definition_length] must be greater than 0");
         }
@@ -110,7 +111,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return docNum;
     }
 
-    public Long getTotalDefinitionLength() {
+    public long getTotalDefinitionLength() {
         return totalDefinitionLength;
     }
 

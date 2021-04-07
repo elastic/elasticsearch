@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;
@@ -23,5 +23,5 @@ public interface PyTorchProcess extends NativeProcess {
      */
     String writeInferenceRequest(double[] inputs) throws IOException;
 
-    void loadModel(PyTorchStateStreamer stateStreamer, ModelStorage storage) throws IOException;
+    void loadModel(String modelId, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener);
 }

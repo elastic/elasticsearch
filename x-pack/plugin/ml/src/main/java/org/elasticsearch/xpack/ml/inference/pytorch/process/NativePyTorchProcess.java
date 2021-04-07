@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -54,8 +54,8 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
     }
 
     @Override
-    public void loadModel(PyTorchStateStreamer stateStreamer, ModelStorage storage) throws IOException {
-        stateStreamer.writeStateToStream(storage, processRestoreStream());
+    public void loadModel(String modelId, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener) {
+        stateStreamer.writeStateToStream(modelId, processRestoreStream(), listener);
     }
 
     @Override

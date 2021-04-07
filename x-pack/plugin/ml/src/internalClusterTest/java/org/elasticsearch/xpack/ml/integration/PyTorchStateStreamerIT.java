@@ -7,49 +7,53 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
 
-    private static final String SOURCE_FIELD = "model_data";
-    private static final String DOC_PREFIX = "model_chunk";
-
-    public void testRestoreState() throws IOException {
+    public void testRestoreState() throws IOException, InterruptedException {
         int numChunks = 5;
         int chunkSize = 100;
         int modelSize = numChunks * chunkSize;
 
         String modelId = "test-state-streamer-restore";
-        ModelStorage storageInfo = new ModelStorage(modelId, DOC_PREFIX, Instant.now(),
-            SOURCE_FIELD, null, numChunks, modelSize);
 
         List<byte[]> chunks = new ArrayList<>(numChunks);
         for (int i=0; i<numChunks; i++) {
             chunks.add(randomByteArrayOfLength(chunkSize));
         }
 
-        putState(chunks, storageInfo.getIndex());
+        List<TrainedModelDefinitionDoc> docs = createModelDefinitionDocs(chunks, modelId);
+        putModelDefinition(docs);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream(modelSize);
-        PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client());
-        stateStreamer.writeStateToStream(storageInfo, outputStream);
+        PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client(),xContentRegistry());
+
+        AtomicReference<Boolean> onSuccess = new AtomicReference<>();
+        AtomicReference<Exception> onFailure = new AtomicReference<>();
+        blockingCall(listener -> stateStreamer.writeStateToStream(modelId, outputStream, listener),
+            onSuccess, onFailure);
 
         byte[] writtenData = outputStream.toByteArray();
 
@@ -64,19 +68,40 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void putState(List<byte[]> stateChunks, String indexName) {
-        client().admin().indices().prepareCreate(indexName).setMapping(SOURCE_FIELD, "type=binary").get();
 
+    private List<TrainedModelDefinitionDoc> createModelDefinitionDocs(List<byte[]> binaryChunks, String modelId) {
+
+        int totalLength = binaryChunks.stream().map(arr -> arr.length).reduce(0, Integer::sum);
+
+        List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
+        for (int i = 0; i < binaryChunks.size(); i++) {
+            String encodedData = new String(Base64.getEncoder().encode(binaryChunks.get(i)), StandardCharsets.UTF_8);
+
+            docs.add(new TrainedModelDefinitionDoc.Builder()
+                .setDocNum(i)
+                .setCompressedString(encodedData)
+                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                .setTotalDefinitionLength(totalLength)
+                .setDefinitionLength(encodedData.length())
+                .setEos(i == binaryChunks.size() - 1)
+                .setModelId(modelId)
+                .build());
+        }
+        return docs;
+    }
+
+
+    private void putModelDefinition(List<TrainedModelDefinitionDoc> docs) throws IOException {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < stateChunks.size(); i++) {
-            IndexRequest indexRequest = new IndexRequest(indexName);
+        for (int i = 0; i < docs.size(); i++) {
+            TrainedModelDefinitionDoc doc = docs.get(i);
+            try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+                    .setSource(xContentBuilder)
+                    .setId(TrainedModelDefinitionDoc.docId(doc.getModelId(), i));
 
-            String encodedData = new String(Base64.getEncoder().encode(stateChunks.get(i)), StandardCharsets.UTF_8);
-
-            indexRequest.source(SOURCE_FIELD, encodedData)
-                .id(DOC_PREFIX + i)
-                .opType(DocWriteRequest.OpType.CREATE);
-            bulkRequestBuilder.add(indexRequest);
+                bulkRequestBuilder.add(indexRequestBuilder);
+            }
         }
 
         BulkResponse bulkResponse = bulkRequestBuilder
@@ -92,6 +117,6 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
             }
             fail("Bulk response contained " + failures + " failures");
         }
-        logger.debug("Indexed [{}] documents", stateChunks.size());
+        logger.debug("Indexed [{}] documents", docs.size());
     }
 }

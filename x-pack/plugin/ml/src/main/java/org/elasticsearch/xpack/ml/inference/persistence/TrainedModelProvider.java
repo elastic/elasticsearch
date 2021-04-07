@@ -404,33 +404,13 @@ public class TrainedModelProvider {
             }
         }
 
-        SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
-                .boolQuery()
-                .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
-                    TrainedModelDefinitionDoc.NAME))))
-            .setSize(MAX_NUM_DEFINITION_DOCS)
-            // First find the latest index
-            .addSort("_index", SortOrder.DESC)
-            // Then, sort by doc_num
-            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
-                .order(SortOrder.ASC)
-                .unmappedType("long"))
-            .request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            // TODO how could we stream in the model definition WHILE parsing it?
-            // This would reduce the overall memory usage as we won't have to load the whole compressed string
-            // XContentParser supports streams.
-            searchResponse -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    listener.onFailure(new ResourceNotFoundException(
-                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                    return;
-                }
-                List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
-                    modelId,
-                    this::parseModelDefinitionDocLenientlyFromSource);
+        List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
+        ChunkedTrainedModelRestorer modelRestorer = new ChunkedTrainedModelRestorer(modelId, client, xContentRegistry);
+        // TODO how could we stream in the model definition WHILE parsing it?
+        // This would reduce the overall memory usage as we won't have to load the whole compressed string
+        // XContentParser supports streams.
+        modelRestorer.restoreModelDefinition(docs::add,
+            success -> {
                 try {
                     String compressedString = getDefinitionFromDocs(docs, modelId);
                     InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
@@ -439,19 +419,17 @@ public class TrainedModelProvider {
                         xContentRegistry);
 
                     listener.onResponse(inferenceDefinition);
-                } catch (ElasticsearchException elasticsearchException) {
-                    listener.onFailure(elasticsearchException);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             },
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException(
                         Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                    return;
                 }
                 listener.onFailure(e);
-            }
-        ));
+            });
     }
 
     public void getTrainedModel(final String modelId,
@@ -526,23 +504,7 @@ public class TrainedModelProvider {
                 .request());
 
         if (includes.isIncludeModelDefinition()) {
-            multiSearchRequestBuilder.add(client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
-                    .boolQuery()
-                    .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                    .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME))))
-                // There should be AT MOST these many docs. There might be more if definitions have been reindex to newer indices
-                // If this ends up getting duplicate groups of definition documents, the parsing logic will throw away any doc that
-                // is in a different index than the first index seen.
-                .setSize(MAX_NUM_DEFINITION_DOCS)
-                // First find the latest index
-                .addSort("_index", SortOrder.DESC)
-                // Then, sort by doc_num
-                .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
-                    .order(SortOrder.ASC)
-                    // We need this for the search not to fail when there are no mappings yet in the index
-                    .unmappedType("long"))
-                .request());
+            multiSearchRequestBuilder.add(ChunkedTrainedModelRestorer.buildSearch(client, modelId, MAX_NUM_DEFINITION_DOCS));
         }
 
         ActionListener<MultiSearchResponse> multiSearchResponseActionListener = ActionListener.wrap(
@@ -563,7 +525,9 @@ public class TrainedModelProvider {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleSearchItems(multiSearchResponse.getResponses()[1],
                             modelId,
-                            this::parseModelDefinitionDocLenientlyFromSource);
+                            (bytes, resourceId) ->
+                                ChunkedTrainedModelRestorer.parseModelDefinitionDocLenientlyFromSource(
+                                    bytes, resourceId, xContentRegistry));
                         try {
                             String compressedString = getDefinitionFromDocs(docs, modelId);
                             builder.setDefinitionFromString(compressedString);
@@ -1123,7 +1087,7 @@ public class TrainedModelProvider {
             .collect(Collectors.joining());
         // BWC for when we tracked the total definition length
         // TODO: remove in 9
-        if (docs.get(0).getTotalDefinitionLength() != null) {
+        if (docs.get(0).getTotalDefinitionLength() != TrainedModelDefinitionDoc.UNKNOWN_TOTAL_SIZE_VALUE) {
             if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
                 throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
             }
@@ -1161,17 +1125,6 @@ public class TrainedModelProvider {
             return builder;
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] failed to parse model", modelId), e);
-            throw e;
-        }
-    }
-
-    private TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(BytesReference source, String modelId) throws IOException {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
-        } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
             throw e;
         }
     }

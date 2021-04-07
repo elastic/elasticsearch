@@ -9,19 +9,18 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.ModelStorage;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -39,12 +38,13 @@ public class PyTorchStateStreamer {
     private static final Logger logger = LogManager.getLogger(PyTorchStateStreamer.class);
 
     private final OriginSettingClient client;
-    private final ByteBuffer lengthBuffer;
+    private final NamedXContentRegistry xContentRegistry;
     private volatile boolean isCancelled;
+    private boolean modelSizeWritten = false;
 
-    public PyTorchStateStreamer(Client client) {
+    public PyTorchStateStreamer(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
-        lengthBuffer = ByteBuffer.allocate(4);
+        this.xContentRegistry = xContentRegistry;
     }
 
     /**
@@ -58,69 +58,50 @@ public class PyTorchStateStreamer {
      * First writes the size of the model so the native process can
      * allocated memory then writes the chunks of binary state.
      *
-     * @param modelStorage  Metadata for the model state
+     * @param modelId  The model to write
      * @param restoreStream The stream to write to
-     * @throws IOException
+     * @param listener  error and success listener
      */
-    public void writeStateToStream(ModelStorage modelStorage, OutputStream restoreStream) throws IOException {
+    public void writeStateToStream(String modelId, OutputStream restoreStream, ActionListener<Boolean> listener) {
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, xContentRegistry);
+        // TODO cancel loading
+        restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
 
-        writeModelSize(modelStorage.getModelId(), modelStorage.getModelSize(), restoreStream);
-
-        List<String> docIds = modelStorage.documentIds();
-        for (String docId : docIds) {
-            if (isCancelled) {
-                return;
-            }
-
-            SearchResponse stateResponse = client.prepareSearch(modelStorage.getIndex())
-                .setSize(1)
-                .setFetchSource(modelStorage.getFieldName(), null)
-                .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
-
-            if (stateResponse.getHits().getHits().length == 0) {
-                String message = String.format(Locale.ROOT,
-                    "missing state document [%s] for model [%s]", docId, modelStorage.getModelId());
-                logger.error(message);
-                throw new IllegalStateException(message);
-            }
-
-            writeBinaryData((String) stateResponse.getHits().getAt(0)
-                .getSourceAsMap().get(modelStorage.getFieldName()), restoreStream);
-        }
-
-        logger.debug("model [{}] state restored from [{}] documents", modelStorage.getModelId(), docIds.size());
+        logger.debug("model [{}] state restored from [{}] documents", modelId, restorer.getNumDocsWritten());
     }
 
-    private void writeModelSize(String modelId, ByteSizeValue modelSize, OutputStream outputStream) throws IOException {
-        if (modelSize.getBytes() <= 0) {
+
+    private void writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {
+        if (modelSizeWritten == false) {
+            writeModelSize(doc.getModelId(), doc.getTotalDefinitionLength(), outputStream);
+            modelSizeWritten = true;
+        }
+
+        byte[] rawBytes = Base64.getDecoder().decode(doc.getCompressedString().getBytes(StandardCharsets.UTF_8));
+        outputStream.write(rawBytes);
+    }
+
+    private void writeModelSize(String modelId, long modelSizeBytes, OutputStream outputStream) throws IOException {
+        if (modelSizeBytes <= 0) {
             // The other end expects an unsigned 32 bit int a -ve value is invalid.
             // ByteSizeValue allows -1 bytes as a valid value so this check is still required
             String message = String.format(Locale.ROOT,
-                "The storage definition for model [%s] has a negative model size [%s]", modelId, modelSize.getBytes());
+                "The storage definition for model [%s] has a negative model size [%s]", modelId, modelSizeBytes);
             logger.error(message);
             throw new IllegalStateException(message);
         }
 
-        if (modelSize.getBytes() > Integer.MAX_VALUE) {
+        if (modelSizeBytes > Integer.MAX_VALUE) {
             // TODO use a long in case models are larger than 2^31 bytes
             String message = String.format(Locale.ROOT,
                 "model [%s] has a size [%s] larger than the max size [%s]",
-                modelId, modelSize.getBytes(), Integer.MAX_VALUE);
+                modelId, modelSizeBytes, Integer.MAX_VALUE);
             logger.error(message);
             throw new IllegalStateException(message);
         }
 
-        lengthBuffer.clear();
-        lengthBuffer.putInt((int)modelSize.getBytes());
+        ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
+        lengthBuffer.putInt((int)modelSizeBytes);
         outputStream.write(lengthBuffer.array());
-    }
-
-    private void writeBinaryData(String base64Encoded, OutputStream outputStream) throws IOException {
-        assert base64Encoded != null;
-        logger.info("encoded string: " + base64Encoded);
-
-        byte[] rawBytes = Base64.getDecoder().decode(base64Encoded.getBytes(StandardCharsets.UTF_8));
-        logger.info("bytes " + rawBytes[0]);
-        outputStream.write(rawBytes);
     }
 }

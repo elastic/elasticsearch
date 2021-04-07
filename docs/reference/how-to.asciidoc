@@ -19,6 +19,8 @@ include::how-to/general.asciidoc[]
 
 include::how-to/recipes.asciidoc[]
 
+include::how-to/map-time-series-data.asciidoc[]
+
 include::how-to/indexing-speed.asciidoc[]
 
 include::how-to/search-speed.asciidoc[]

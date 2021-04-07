@@ -1,0 +1,301 @@
+[[map-time-series-data]]
+== Map time series data
+
+TIP: If you use {fleet} or {agent}, skip this guide. {fleet} and {agent} use
+built-in templates to map your data for you.
+
+<<mapping,Mapping>> your data can be challenging, even for experienced users.
+Follow these best practices when mapping time series data, such as logs, for a
+custom application.
+
+[discrete]
+[[use-ecs]]
+=== Use the Elastic Common Schema
+
+The {ecs-ref}[Elastic Common Schema (ECS)] is our field specification for time
+series data. ECS fields integrate with several {es} and {stack} features by
+default. ECS also supports custom fields.
+
+We provide several https://github.com/elastic/ecs/blob/master/USAGE.md[free
+tools] to help you convert to ECS. For more information, see
+{ecs-ref}/ecs-guidelines.html[ECS guidelines and best practices].
+
+[discrete]
+[[map-timestamp-field]]
+=== Start with the `@timestamp` and `message` fields
+
+If you aren't sure how to map your fields or what fields your data may contain,
+start with just the `@timestamp` and `message` fields.
+
+`message` is designed for unstructured content, such as log and event messages.
+You can use <<runtime,runtime fields>> to parse and extract other fields from
+`message` at search time without defining a full schema in advance.
+
+[discrete]
+[[map-message-as-wildcard]]
+=== Map `message` as a `wildcard` or `keyword` field
+
+If `message` contains machine-generated unstructured content, map it as a
+<<wildcard-field-type,`wildcard`>> field. Otherwise, map `message` as a
+<<keyword-field-type,`keyword`>> field.
+
+Avoid using the <<text,`text`>> field type. {es} changes `text` field values
+during <<analysis,analysis>>. `text` fields don't preserve the original field
+value. `text` fields also don't support runtime fields.
+
+To better understand when to use the `text`, `keyword`, and `wildcard` field
+types, see <<mapping-unstructured-content>>.
+
+[source,console]
+----
+PUT _component_template/my-mappings
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "message": {
+          "type": "wildcard"                                    <1>
+        }
+      }
+    }
+  }
+}
+----
+<1> Maps the `message` field as a `wildcard` field.
+
+[discrete]
+[[map-timestamp-as-date-or-date-nanos-field]]
+=== Map `@timestamp` as a `date` or `date_nanos` field
+
+Documents indexed to a <<data-streams,data stream>> must contain a `@timestamp`.
+This `@timestamp` must be a <<date,`date`>> or <<date_nanos,`date_nanos`>>
+field. If you don't explicitly map the `@timestamp` field, {es} uses the `date`
+field type with default options.
+
+We recommend explicitly mapping `@timestamp` to ensure it uses your preferred
+<<mapping-date-format,date `format`>>.
+
+[source,console]
+----
+PUT _component_template/my-mappings
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"   <1>
+        },
+        "message": {
+          "type": "wildcard"
+        }
+      }
+    }
+  }
+}
+----
+<1> Specifies a date format for the `@timestamp` field.
+
+[discrete]
+[[turn-off-dynamic-date-detection]]
+=== Turn off dynamic date detection
+
+By default, {es} dynamically maps strings that match <<date-detection,specific
+patterns>> as <<date,`date`>> fields. In some cases, this produces incorrect
+mappings that require a <<docs-reindex,reindex>> to fix.
+
+To avoid this, disable <<date-detection,`date_detection`>> and explicitly map
+any dates in your data.
+
+[source,console]
+----
+PUT _component_template/my-mappings
+{
+  "template": {
+    "mappings": {
+      "date_detection": false,                                  <1>
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "message": {
+          "type": "wildcard"
+        }
+      }
+    }
+  }
+}
+----
+<1> Disables dynamic date detection.
+
+[discrete]
+[[map-most-strings-as-keyword-fields]]
+=== Map most strings as `keyword` fields
+
+If {es}'s dynamic mapping doesn't detect a date or <<numeric-detection,number>>
+in a string, it maps the string as a `text` field with a `keyword` sub-field.
+This can create unneeded fields, leading to memory issues and increased storage
+costs.
+
+Use a <<dynamic-templates,dynamic mapping template>> to automatically map
+strings without an explicit mapping as `keyword` fields. This reduces your field
+count and preserves the field's original value.
+
+[source,console]
+----
+PUT _component_template/my-mappings
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "strings_as_keyword": {                               <1>
+            "mapping": {
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
+          }
+        }
+      ],
+      "date_detection": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "message": {
+          "type": "wildcard"
+        }
+      }
+    }
+  }
+}
+----
+<1> Map strings without an explicit mapping as `keyword` fields.
+
+[discrete]
+[[limit-long-keyword-values]]
+=== Limit long `keyword` values
+
+Extremely long `keyword` values can increase cardinality, leading to performance
+and memory issues.
+
+Use the <<ignore-above,`ignore_above`>> mapping parameter in your dynamic
+mapping template to avoid indexing long strings as `keyword` field values. The
+best `ignore_above` value varies based on your dataset, but `1024` is often a
+good starting point.
+
+[source,console]
+----
+PUT _component_template/my-mappings
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "strings_as_keyword": {
+            "mapping": {
+              "ignore_above": 1024,                             <1>
+              "type": "keyword"
+            },
+            "match_mapping_type": "string"
+          }
+        }
+      ],
+      "date_detection": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "message": {
+          "type": "wildcard"
+        }
+      }
+    }
+  }
+}
+----
+<1> Ignores unmapped strings longer than 1,024 characters.
+
+[discrete]
+[[test-your-mapping]]
+=== Test your mappings
+
+We recommend you test any new or updated mappings before using them in
+production. To test your mappings, create an index with the mappings and add
+some sample documents to it.
+
+[source,console]
+----
+# Create a test index with the mappings.
+PUT my-test-index
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings_as_keyword": {
+          "mapping": {
+            "ignore_above": 1024,
+            "type": "keyword"
+          },
+          "match_mapping_type": "string"
+        }
+      }
+    ],
+    "date_detection": false,
+    "properties": {
+      "@timestamp": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "message": {
+        "type": "wildcard"
+      }
+    }
+  }
+}
+
+# Add some sample data with explicit document IDs.
+PUT my-test-index/_bulk
+{ "create":{ "_id": 0 } }
+{ "@timestamp": "2099-05-06T16:21:15.000Z", "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736" }
+{ "create":{ "_id": 1 } }
+{ "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
+----
+
+Use the <<indices-get-field-mapping,get field mapping>> or
+<<indices-get-mapping,get mapping API>> to check the final mappings.
+
+[source,console]
+----
+# Get the complete index mapping.
+GET my-test-index/_mapping
+
+# Get individual field mappings, such as `message`.
+GET my-test-index/_mapping/field/message
+----
+// TEST[continued]
+
+Use the <<search-search,search>> or <<docs-get,get document API>> to check the
+indexed sample documents.
+
+[source,console]
+----
+# Get all documents.
+GET my-test-index/_search
+
+# Get individual documents by document ID.
+GET my-test-index/_doc/0
+----
+// TEST[continued]
+
+To make adjustments, <<indices-delete-index,delete the index>> and start over
+with updated mappings. You can also delete the index when you're done testing.
+
+[source,console]
+----
+DELETE my-test-index
+----
+// TEST[continued]

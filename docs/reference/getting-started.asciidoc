@@ -283,7 +283,7 @@ GET logs-my_app-default/_search
 // TEST[continued]
 
 Use <<date-math,date math>> to define relative time ranges. The following
-search will not any documents in `logs-my_app-default`.
+search will match not any documents in `logs-my_app-default`.
 
 [source,console]
 ----

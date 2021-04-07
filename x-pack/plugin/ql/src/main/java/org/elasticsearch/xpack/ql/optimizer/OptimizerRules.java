@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
@@ -40,10 +41,12 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEq
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.StringPattern;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -63,6 +66,7 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -1136,6 +1140,51 @@ public final class OptimizerRules {
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values, zoneId);
+        }
+    }
+
+    public static class PushDownAndCombineFilters extends OptimizerRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter filter) {
+            LogicalPlan plan = filter;
+            LogicalPlan child = filter.child();
+            Expression condition = filter.condition();
+
+            if (child instanceof Filter) {
+                Filter f = (Filter) child;
+                plan = f.with(new And(f.source(), f.condition(), condition));
+            }
+            // as it stands, all other unary plans should allow filters to be pushed down
+            else if (child instanceof UnaryPlan) {
+                UnaryPlan unary = (UnaryPlan) child;
+                // in case of aggregates, worry about filters that contain aggregations
+                if (unary instanceof Aggregate && condition.anyMatch(Functions::isAggregate)) {
+                    Aggregate agg = (Aggregate) unary;
+                    List<Expression> conjunctions = new ArrayList<>(splitAnd(condition));
+                    List<Expression> inPlace = new ArrayList<>();
+                    // extract all conjunctions containing aggregates
+                    for (Iterator<Expression> iterator = conjunctions.iterator(); iterator.hasNext();) {
+                        Expression conjunction = iterator.next();
+                        if (conjunction.anyMatch(Functions::isAggregate)) {
+                            inPlace.add(conjunction);
+                            iterator.remove();
+                        }
+                    }
+                    // if at least one expression can be pushed down, update the tree
+                    if (conjunctions.size() > 0) {
+                        child = child.replaceChildrenSameSize(
+                            singletonList(filter.with(unary.child(), Predicates.combineAnd(conjunctions)))
+                        );
+                        plan = filter.with(child, Predicates.combineAnd(inPlace));
+                    }
+                } else {
+                    // push down filter
+                    plan = child.replaceChildrenSameSize(singletonList(filter.with(unary.child(), condition)));
+                }
+            }
+
+            return plan;
         }
     }
 

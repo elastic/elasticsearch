@@ -671,11 +671,10 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            LogicalPlan filterChild = filter.child();
-            if (filterChild instanceof Aggregate == false) {
+            if (filter.anyMatch(Aggregate.class::isInstance) == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
                     if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
-                        if (filterChild instanceof Project) {
+                        if (filter.child() instanceof Project) {
                             filter.condition().forEachDown(FieldAttribute.class,
                                 f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
                                         Expressions.name(f)))

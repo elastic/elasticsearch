@@ -8,7 +8,11 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -33,6 +38,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDo
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -263,34 +269,39 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(putConfigHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
 
-        List<String> chunks = chunkStringWithSize(config.getCompressedDefinition(), config.getCompressedDefinition().length()/3);
+        // The model definition has been put with the config above but it
+        // is not large enough to be split into chunk. Chunks are required
+        // for this test so overwrite the definition with multiple chunks
+        List<TrainedModelDefinitionDoc.Builder> docBuilders = createModelDefinitionDocs(config.getCompressedDefinition(), modelId);
 
-        List<TrainedModelDefinitionDoc.Builder> docBuilders = IntStream.range(0, chunks.size())
-            .mapToObj(i -> new TrainedModelDefinitionDoc.Builder()
-                .setDocNum(i)
-                .setCompressedString(chunks.get(i))
-                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                .setDefinitionLength(chunks.get(i).length())
-                .setEos(i == chunks.size() - 1)
-                .setModelId(modelId))
-            .collect(Collectors.toList());
         boolean missingEos = randomBoolean();
-        docBuilders.get(docBuilders.size() - 1).setEos(missingEos == false);
-        for (int i = missingEos ? 0 : 1 ; i < docBuilders.size(); ++i) {
+        if (missingEos) {
+            // Set the wrong end of stream value
+            docBuilders.get(docBuilders.size() - 1).setEos(false);
+        } else {
+            // else write fewer than the expected number of docs
+            docBuilders.remove(docBuilders.size() -1);
+        }
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i = 0; i < docBuilders.size(); ++i) {
             TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
-            try(XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(),
-                new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true")))) {
-                AtomicReference<IndexResponse> putDocHolder = new AtomicReference<>();
-                blockingCall(listener -> client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .setSource(xContentBuilder)
-                        .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
-                        .execute(listener),
-                    putDocHolder,
-                    exceptionHolder);
-                assertThat(exceptionHolder.get(), is(nullValue()));
+            try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+                    .setSource(xContentBuilder)
+                    .setId(TrainedModelDefinitionDoc.docId(modelId, i));
+
+                bulkRequestBuilder.add(indexRequestBuilder);
             }
         }
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        AtomicReference<BulkResponse> putDocsHolder = new AtomicReference<>();
+        blockingCall(bulkRequestBuilder::execute, putDocsHolder, exceptionHolder);
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertFalse(putDocsHolder.get().hasFailures());
+
+
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
             listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
@@ -299,6 +310,60 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(getConfigHolder.get(), is(nullValue()));
         assertThat(exceptionHolder.get(), is(not(nullValue())));
         assertThat(exceptionHolder.get().getMessage(), equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+    }
+
+    public void testGetTrainedModelForInference() throws InterruptedException, IOException {
+        String modelId = "test-model-for-inference";
+        TrainedModelConfig config = buildTrainedModelConfig(modelId);
+        AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
+        assertThat(putConfigHolder.get(), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        List<TrainedModelDefinitionDoc.Builder> docBuilders = createModelDefinitionDocs(config.getCompressedDefinition(), modelId);
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i = 0; i < docBuilders.size(); i++) {
+            TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
+            try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
+                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+                    .setSource(xContentBuilder)
+                    .setId(TrainedModelDefinitionDoc.docId(modelId, i));
+
+                bulkRequestBuilder.add(indexRequestBuilder);
+            }
+        }
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        AtomicReference<BulkResponse> putDocsHolder = new AtomicReference<>();
+        blockingCall(bulkRequestBuilder::execute, putDocsHolder, exceptionHolder);
+
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertFalse(putDocsHolder.get().hasFailures());
+
+        AtomicReference<InferenceDefinition> definitionHolder = new AtomicReference<>();
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModelForInference(modelId, listener),
+            definitionHolder,
+            exceptionHolder);
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertThat(definitionHolder.get(), is(not(nullValue())));
+    }
+
+    private List<TrainedModelDefinitionDoc.Builder> createModelDefinitionDocs(String compressedDefinition, String modelId) {
+        List<String> chunks = chunkStringWithSize(compressedDefinition, compressedDefinition.length()/3);
+
+        return IntStream.range(0, chunks.size())
+            .mapToObj(i -> new TrainedModelDefinitionDoc.Builder()
+                .setDocNum(i)
+                .setCompressedString(chunks.get(i))
+                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                .setDefinitionLength(chunks.get(i).length())
+                .setEos(i == chunks.size() - 1)
+                .setModelId(modelId))
+            .collect(Collectors.toList());
     }
 
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {

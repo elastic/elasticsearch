@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -550,16 +551,28 @@ public class EncryptedRepository extends BlobStoreRepository {
         });
     }
 
-    void copyDek(String dekId, SecureString fromPassword, SecureString toPassword, ActionListener<Void> listener) {
-        // TODO list all DEKs and use the grouped listener
+    void copyAllDeks(SecureString fromPassword, SecureString toPassword, boolean ignoreMissing, ActionListener<Void> listener) {
         final EncryptedBlobStore encryptedBlobStore = ((EncryptedBlobStore) blobStore());
-        encryptedBlobStore.copyDek(
-            dekId,
-            (dekIdArg) -> getDekUnwrapperUsingPassword(dekIdArg, () -> fromPassword),
-            (dekIdArg) -> getDekWrapperUsingPasswords(dekIdArg, () -> List.of(toPassword)),
-            true,
-            listener
+        final Set<String> allDeksId;
+        try {
+            allDeksId = encryptedBlobStore.listAllDekIds();
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+        GroupedActionListener<Tuple<String, Boolean>> groupListener = new GroupedActionListener<>(
+            listener.map(movedList -> null),
+            allDeksId.size()
         );
+        for (String dekId : allDeksId) {
+            encryptedBlobStore.copyDek(
+                dekId,
+                (dekIdArg) -> getDekUnwrapperUsingPassword(dekIdArg, () -> fromPassword),
+                (dekIdArg) -> getDekWrapperUsingPasswords(dekIdArg, () -> List.of(toPassword)),
+                ignoreMissing,
+                groupListener.map(copied -> new Tuple<>(dekId, copied))
+            );
+        }
     }
 
     @Override
@@ -755,15 +768,16 @@ public class EncryptedRepository extends BlobStoreRepository {
             Function<String, Tuple<String, Function<byte[], SecretKey>>> getDekUnwrapper,
             Function<String, Function<SecretKey, Map<String, byte[]>>> getDekWrapper,
             boolean ignoreMissing,
-            ActionListener<Void> listener
+            ActionListener<Boolean> listener
         ) {
             StepListener<SecretKey> dekStep = new StepListener<>();
             loadDek(dekId, getDekUnwrapper, dekStep);
-            dekStep.whenComplete((dek) -> storeDek(dekId, dek, getDekWrapper, listener), e -> {
+            dekStep.whenComplete((dek) -> storeDek(dekId, dek, getDekWrapper, listener.map(aVoid -> true)), e -> {
                 NoSuchFileException nsfe = (NoSuchFileException) ExceptionsHelper.unwrap(e, NoSuchFileException.class);
                 if (ignoreMissing && nsfe != null) {
-                    logger.debug(() -> new ParameterizedMessage("Missing DEK [{}] to copy", new Object[] { dekId }, e));
-                    listener.onResponse(null);
+                    // might be missing because the DEK is using a different password
+                    logger.debug(() -> new ParameterizedMessage("Ignoring DEK [{}] missing for copy", new Object[] { dekId }, e));
+                    listener.onResponse(false);
                 } else {
                     listener.onFailure(e);
                 }

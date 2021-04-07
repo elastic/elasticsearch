@@ -275,7 +275,11 @@ public final class RepositoryPasswords {
         return FutureUtils.get(future);
     }
 
-    private void verifyPasswordsHash(Map<String, String> passwordsHash, ExecutorService executor, ActionListener<Boolean> listener) {
+    private void verifyPasswordsHash(
+        Map<String, String> passwordsHash,
+        ExecutorService listenerExecutor,
+        ActionListener<Boolean> listener
+    ) {
         if (passwordsHash == null || passwordsHash.isEmpty()) {
             listener.onFailure(new IllegalArgumentException("No passwords hash to verify"));
             return;
@@ -309,18 +313,20 @@ public final class RepositoryPasswords {
                 k -> AESKeyUtils.verifySaltedPasswordHash(
                     password,
                     passwordNameAndHash.getValue(),
-                    threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME)
+                    isCryptoThread()
+                        ? EsExecutors.newDirectExecutorService()
+                        : threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME)
                 )
             ).addListener(ActionListener.wrap(hashVerify -> {
                 if (false == hashVerify && done.compareAndSet(false, true)) {
                     if (isCryptoThread()) {
-                        executor.execute(() -> listener.onResponse(false));
+                        listenerExecutor.execute(() -> listener.onResponse(false));
                     } else {
                         listener.onResponse(false);
                     }
                 } else if (hashVerify && hashesToVerifyCount.decrementAndGet() == 0 && done.compareAndSet(false, true)) {
                     if (isCryptoThread()) {
-                        executor.execute(() -> listener.onResponse(true));
+                        listenerExecutor.execute(() -> listener.onResponse(true));
                     } else {
                         listener.onResponse(true);
                     }
@@ -328,7 +334,7 @@ public final class RepositoryPasswords {
             }, e -> {
                 if (done.compareAndSet(false, true)) {
                     if (isCryptoThread()) {
-                        executor.execute(() -> listener.onFailure(e));
+                        listenerExecutor.execute(() -> listener.onFailure(e));
                     } else {
                         listener.onFailure(e);
                     }
@@ -395,7 +401,11 @@ public final class RepositoryPasswords {
         return localPasswordsSubset;
     }
 
-    private void computePasswordsHash(Set<String> passwordsName, ExecutorService executor, ActionListener<Map<String, String>> listener) {
+    private void computePasswordsHash(
+        Set<String> passwordsName,
+        ExecutorService listenerExecutor,
+        ActionListener<Map<String, String>> listener
+    ) {
         if (passwordsName == null || passwordsName.isEmpty()) {
             listener.onFailure(new IllegalArgumentException("Null or empty passwords set to compute hashes for"));
             return;
@@ -407,7 +417,7 @@ public final class RepositoryPasswords {
                 computedHashes.put(passwordName, computedHash);
                 if (computedHashes.size() == passwordsName.size() && done.compareAndSet(false, true)) {
                     if (isCryptoThread()) {
-                        executor.execute(() -> listener.onResponse(computedHashes));
+                        listenerExecutor.execute(() -> listener.onResponse(computedHashes));
                     } else {
                         listener.onResponse(computedHashes);
                     }
@@ -415,7 +425,7 @@ public final class RepositoryPasswords {
             }, e -> {
                 if (done.compareAndSet(false, true)) {
                     if (isCryptoThread()) {
-                        executor.execute(() -> listener.onFailure(e));
+                        listenerExecutor.execute(() -> listener.onFailure(e));
                     } else {
                         listener.onFailure(e);
                     }
@@ -438,7 +448,12 @@ public final class RepositoryPasswords {
         }
         this.localRepositoryPasswordsHashMap.computeIfAbsent(
             passwordName,
-            k -> AESKeyUtils.computeSaltedPasswordHash(password, threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME))
+            k -> AESKeyUtils.computeSaltedPasswordHash(
+                password,
+                isCryptoThread()
+                    ? EsExecutors.newDirectExecutorService()
+                    : threadPool.executor(SecurityField.SECURITY_CRYPTO_THREAD_POOL_NAME)
+            )
         ).addListener(listener, executor);
     }
 

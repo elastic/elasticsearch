@@ -94,7 +94,7 @@ public class XContentBuilderWrapper {
             if (value instanceof Character) {
                 builder.field(name, ((Character) value).charValue());
             } else if (value instanceof Pattern) {
-                // TODO(stu): flags?
+                // This does not serialize the flags
                 builder.field(name, ((Pattern) value).pattern());
             } else {
                 builder.field(name, value);

@@ -43,7 +43,6 @@ public class EAssignment extends AExpression {
         return rightNode;
     }
 
-    // TODO(stu): what does this mean?
     public boolean postIfRead() {
         return postIfRead;
     }

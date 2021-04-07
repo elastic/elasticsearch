@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
  * Serialize user tree decorations from org.elasticsearch.painless.symbol.Decorations
  */
 public class DecorationToXContent {
+
     static final class Fields {
         static final String DECORATION = "decoration";
         static final String TYPE = "type";

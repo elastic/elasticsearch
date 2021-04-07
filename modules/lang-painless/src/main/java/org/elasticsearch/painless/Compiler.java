@@ -245,7 +245,23 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
-        return compile(name, source, settings, debugStream, null, null, null);
+        String scriptName = Location.computeSourceName(name);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
+        SClass root = Walker.buildPainlessTree(scriptName, source, settings);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
+        new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
+        new DocFieldsPhase().visitClass(root, scriptScope);
+        new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
+        new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
+        classNode.setDebugStream(debugStream);
+        WriteScope writeScope = WriteScope.newScriptScope();
+        new DefaultIRTreeToASMBytesPhase().visitClass(classNode, writeScope);
+
+        return classNode.getBytes();
     }
 
     /**

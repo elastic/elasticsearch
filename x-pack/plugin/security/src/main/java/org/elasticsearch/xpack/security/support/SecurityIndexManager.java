@@ -348,7 +348,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 // system indices, we nonetheless specify them here so that the values from `this.systemIndexDescriptor` are used.
                 CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName)
                     .origin(systemIndexDescriptor.getOrigin())
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, getIndexMappings(indexState), XContentType.JSON)
+                    .mapping(MapperService.SINGLE_MAPPING_NAME, systemIndexDescriptor.getMappings(), XContentType.JSON)
                     .settings(systemIndexDescriptor.getSettings())
                     .alias(new Alias(systemIndexDescriptor.getAliasName()))
                     .waitForActiveShards(ActiveShardCount.ALL);
@@ -386,8 +386,16 @@ public class SecurityIndexManager implements ClusterStateListener {
                         indexState.concreteIndexName,
                         systemIndexDescriptor.getAliasName()
                     );
+                    final String mappings;
+                    // Flattened field is available since 7.3.0 and it is used by API key metadata in 7.13.0.
+                    // Therefore if the minimum node version is before 7.3.0, we fallback to use the mapping from 7.12.0.
+                    if (indexState.minimumNodeVersion.before(Version.V_7_3_0)) {
+                        mappings = Strings.toString(Security.getIndexMappings(Version.V_7_12_0));
+                    } else {
+                        mappings = systemIndexDescriptor.getMappings();
+                    }
                     PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName).source(
-                        getIndexMappings(indexState),
+                        mappings,
                         XContentType.JSON
                     ).type(MapperService.SINGLE_MAPPING_NAME).origin(systemIndexDescriptor.getOrigin());
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), systemIndexDescriptor.getOrigin(), request,
@@ -405,18 +413,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         } catch (Exception e) {
             consumer.accept(e);
         }
-    }
-
-    private String getIndexMappings(State indexState) {
-        final String mappings;
-        // Flattened field is available since 7.3.0 and it is used by API key metadata in 7.13.0.
-        // Therefore if the minimum node version is before 7.3.0, we fallback to use the mapping from 7.12.0.
-        if (indexState.minimumNodeVersion.before(Version.V_7_3_0)) {
-            mappings = Strings.toString(Security.getIndexMappings(Version.V_7_12_0));
-        } else {
-            mappings = systemIndexDescriptor.getMappings();
-        }
-        return mappings;
     }
 
     /**

@@ -33,8 +33,10 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * A specialized high-level REST client with support for SQL-related functions.
@@ -64,7 +66,7 @@ public class HttpClient {
     public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), Protocol.TIME_ZONE,
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, emptyList(), Protocol.TIME_ZONE,
                 fetchSize,
                 TimeValue.timeValueMillis(cfg.queryTimeout()),
                 TimeValue.timeValueMillis(cfg.pageTimeout()),
@@ -75,7 +77,7 @@ public class HttpClient {
                 false,
                 false,
                 cfg.binaryCommunication(),
-                Collections.emptyMap());
+                emptyMap());
         return query(sqlRequest);
     }
 

@@ -117,7 +117,7 @@ public class Querier {
         }
 
         // set runtime mappings
-        if (this.cfg.runtimeMappings() != null && this.cfg.runtimeMappings().isEmpty() == false) {
+        if (this.cfg.runtimeMappings() != null) {
             sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
         }
 

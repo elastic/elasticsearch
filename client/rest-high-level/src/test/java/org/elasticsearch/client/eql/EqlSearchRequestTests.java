@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequest, org.elasticsearch.xpack.eql.action.EqlSearchRequest> {
@@ -56,20 +57,6 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
             eqlSearchRequest.runtimeMappings(randomRuntimeMappings());
         }
         return eqlSearchRequest;
-    }
-
-    private Map<String, Object> randomRuntimeMappings() {
-        int count = between(1, 100);
-        Map<String, Object> runtimeFields = new HashMap<>(count);
-        while (runtimeFields.size() < count) {
-            int size = between(1, 10);
-            Map<String, Object> config = new HashMap<>(size);
-            while (config.size() < size) {
-                config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
-            }
-            runtimeFields.put(randomAlphaOfLength(5), config);
-        }
-        return runtimeFields;
     }
 
     @Override

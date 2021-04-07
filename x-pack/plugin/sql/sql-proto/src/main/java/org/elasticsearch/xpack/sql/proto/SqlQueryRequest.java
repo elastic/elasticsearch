@@ -14,11 +14,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
@@ -79,9 +80,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
                            boolean binaryCommunication) {
-        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication,
-                Collections.emptyMap());
+        this("", emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, false,
+                cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication, emptyMap());
     }
 
     /**

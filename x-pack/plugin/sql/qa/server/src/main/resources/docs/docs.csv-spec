@@ -489,7 +489,7 @@ SELECT * FROM emp LIMIT 1;
 
      birth_date     |birth_date_day_of_week|    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
 --------------------+----------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|Wednesday             |10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305          
+1953-09-02T00:00:00Z|Wednesday             |10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305
 
 // end::wildcardWithOrder
 ;
@@ -500,7 +500,7 @@ SELECT * FROM emp LIMIT 1;
 
      birth_date     |birth_date_day_of_week|    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
 --------------------+----------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|Wednesday             |10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305          
+1953-09-02T00:00:00Z|Wednesday             |10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305
   
 
 // end::fromTable
@@ -512,7 +512,7 @@ SELECT * FROM "emp" LIMIT 1;
 
      birth_date     |birth_date_day_of_week|    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
 --------------------+----------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
-1953-09-02T00:00:00Z|Wednesday             |10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305          
+1953-09-02T00:00:00Z|Wednesday             |10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305
 
 // end::fromTableQuoted
 ;

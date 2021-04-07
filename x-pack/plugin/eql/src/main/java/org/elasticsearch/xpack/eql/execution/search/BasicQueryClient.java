@@ -143,7 +143,7 @@ public class BasicQueryClient implements QueryClient {
             if (fetchFields != null) {
                 fetchFields.forEach(builder::fetchField);
             }
-            if (cfg.runtimeMappings() != null && cfg.runtimeMappings().isEmpty() == false) {
+            if (cfg.runtimeMappings() != null) {
                 builder.runtimeMappings(cfg.runtimeMappings());
             }
 

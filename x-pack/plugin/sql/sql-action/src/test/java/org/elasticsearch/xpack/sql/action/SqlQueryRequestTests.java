@@ -34,6 +34,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
@@ -177,20 +178,6 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
     }
 
-    public static Map<String, Object> randomRuntimeMappings() {
-        int count = between(1, 100);
-        Map<String, Object> runtimeFields = new HashMap<>(count);
-        while (runtimeFields.size() < count) {
-            int size = between(1, 10);
-            Map<String, Object> config = new HashMap<>(size);
-            while (config.size() < size) {
-                config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
-            }
-            runtimeFields.put(randomAlphaOfLength(5), config);
-        }
-        return runtimeFields;
-    }
-
     private SqlQueryRequest doParseInstance(XContentParser parser) {
         return SqlQueryRequest.fromXContent(parser);
     }
@@ -259,7 +246,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         if (request.cursor() != null) {
             builder.field(CURSOR_NAME, request.cursor());
         }
-        if (request.runtimeMappings() != null && request.runtimeMappings().isEmpty() == false) {
+        if (request.runtimeMappings() != null) {
             builder.field(RUNTIME_MAPPINGS_NAME, request.runtimeMappings());
         }
         builder.endObject();

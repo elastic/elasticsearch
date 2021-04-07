@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -28,6 +27,7 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 public class ShowColumns extends Command {
 
@@ -68,7 +68,7 @@ public class ShowColumns extends Command {
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
-        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, Collections.emptyMap(), ActionListener.wrap(
+        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, emptyMap(), ActionListener.wrap(
                 indexResult -> {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {

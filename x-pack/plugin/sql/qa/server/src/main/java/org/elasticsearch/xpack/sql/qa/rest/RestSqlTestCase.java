@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -482,7 +483,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
     }
 
@@ -494,7 +495,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.setEntity(new StringEntity(query("SELECT * FROM test").mode(mode).columnar(true).toString(), ContentType.APPLICATION_JSON));
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("unknown field [columnar]"));
     }
 
@@ -566,7 +567,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("No type specified for runtime field [address]"));
 
         runtimeMappings = "{\"address\": [{\"script\": \"return\"}]}";
@@ -578,7 +579,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("Expected map for runtime field [address] definition but got [String]"));
     }
 
@@ -1001,7 +1002,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(badRequest);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("request [/_sql] contains unrecognized parameter: [delimiter]"));
 
         Request csvRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT + "?format=csv&delimiter=%3B");

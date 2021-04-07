@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * The builder to build sql request
@@ -26,7 +28,7 @@ import java.util.Map;
 public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse> {
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
-        this(client, action, "", Collections.emptyList(), null, Collections.emptyMap(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
+        this(client, action, "", emptyList(), null, emptyMap(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY,
             Protocol.INDEX_INCLUDE_FROZEN);
     }

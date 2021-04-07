@@ -10,4 +10,4 @@ CREATE TABLE "test_emp" (
                     "last_name" VARCHAR(50),
                     "salary" INT
                    )
-   AS SELECT * FROM CSVREAD('classpath:/employees.csv');
+   AS SELECT birth_date, DAYNAME(birth_date) AS birth_date_day_of_week, emp_no, first_name, gender, hire_date, languages, last_name, salary FROM CSVREAD('classpath:/employees.csv');

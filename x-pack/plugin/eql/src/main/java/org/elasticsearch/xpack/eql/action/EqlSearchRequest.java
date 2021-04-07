@@ -32,13 +32,12 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
@@ -60,7 +59,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String query;
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
-    private Map<String, Object> runtimeMappings = Collections.emptyMap();
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -185,9 +184,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             String fieldName = entry.getKey();
             if (entry.getValue() instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
-                Object typeNode = propNode.get("type");
-                if (typeNode == null) {
+                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                if (propNode.get("type") == null) {
                     return addValidationError("No type specified for runtime field [" + fieldName + "]", validationException);
                 }
             } else {

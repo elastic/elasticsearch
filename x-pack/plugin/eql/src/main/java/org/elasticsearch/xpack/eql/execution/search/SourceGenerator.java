@@ -72,7 +72,7 @@ public abstract class SourceGenerator {
         }
 
         // add the runtime fields
-        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
+        if (runtimeMappings != null) {
             source.runtimeMappings(runtimeMappings);
         }
 

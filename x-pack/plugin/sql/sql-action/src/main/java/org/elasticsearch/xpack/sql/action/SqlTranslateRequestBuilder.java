@@ -16,16 +16,18 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * Builder for the request for the sql action for translating SQL queries into ES requests
  */
 public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse> {
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
-        this(client, action, null, null, Collections.emptyMap(), Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
+        this(client, action, null, null, emptyMap(), emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, new RequestInfo(Mode.PLAIN));
     }
 

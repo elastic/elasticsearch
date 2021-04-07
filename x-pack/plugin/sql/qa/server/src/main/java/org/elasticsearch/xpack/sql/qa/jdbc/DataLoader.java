@@ -198,7 +198,7 @@ public class DataLoader {
         csvToLines(fileName, (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
             bulk.append('{');
-            String emp_no = fields.get(2);
+            String emp_no = fields.get(1);
 
             boolean hadLastItem = false;
 
@@ -206,9 +206,7 @@ public class DataLoader {
             boolean setWildcardName = true;
             for (int f = 0; f < fields.size(); f++) {
                 // an empty value in the csv file is treated as 'null', thus skipping it in the bulk request
-                // also, skip the runtime field from bulk as it gets populated automatically
-                // even if employees.csv has a value for this field in it, that one will only be used in *.sql-spec tests
-                if (titles.get(f).equals("birth_date_day_of_week") == false && fields.get(f).trim().length() > 0) {
+                if (fields.get(f).trim().length() > 0) {
                     if (hadLastItem) {
                         bulk.append(",");
                     }

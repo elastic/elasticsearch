@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
@@ -69,7 +69,7 @@ class JdbcHttpClient {
                 conCfg.fieldMultiValueLeniency(),
                 conCfg.indexIncludeFrozen(),
                 conCfg.binaryCommunication(),
-                Collections.emptyMap());
+                emptyMap());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }

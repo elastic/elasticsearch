@@ -34,13 +34,13 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
@@ -67,8 +67,8 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     private TimeValue pageTimeout = Protocol.PAGE_TIMEOUT;
     @Nullable
     private QueryBuilder filter = null;
-    private List<SqlTypedParamValue> params = Collections.emptyList();
-    private Map<String, Object> runtimeMappings = Collections.emptyMap();
+    private List<SqlTypedParamValue> params = emptyList();
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     static final ParseField QUERY = new ParseField(QUERY_NAME);
     static final ParseField CURSOR = new ParseField(CURSOR_NAME);
@@ -262,9 +262,8 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             String fieldName = entry.getKey();
             if (entry.getValue() instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
-                Object typeNode = propNode.get("type");
-                if (typeNode == null) {
+                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                if (propNode.get("type") == null) {
                     return addValidationError("No type specified for runtime field [" + fieldName + "]", validationException);
                 }
             } else {

@@ -20,10 +20,10 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.sql.action.SqlQueryRequestTests.randomRuntimeMappings;
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 
@@ -38,7 +38,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(randomAlphaOfLength(10), Collections.emptyList(), randomFilterOrNull(random()),
+        return new SqlTranslateRequest(randomAlphaOfLength(10), emptyList(), randomFilterOrNull(random()),
                 randomRuntimeMappings(),randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
     }
 
@@ -53,13 +53,13 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 

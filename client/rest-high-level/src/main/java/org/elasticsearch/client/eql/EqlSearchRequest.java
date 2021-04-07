@@ -19,10 +19,11 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.emptyMap;
 
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
@@ -34,7 +35,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String eventCategoryField = "event.category";
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
-    private Map<String, Object> runtimeMappings = Collections.emptyMap();
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     private int size = 10;
     private int fetchSize = 1000;

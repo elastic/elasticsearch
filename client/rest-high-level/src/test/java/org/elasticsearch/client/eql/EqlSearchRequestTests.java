@@ -16,9 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.hamcrest.Matchers.equalTo;

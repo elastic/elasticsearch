@@ -134,6 +134,7 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.Security.FLATTENED_FIELD_TYPE_INTRODUCED;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
 public class ApiKeyService {
@@ -334,9 +335,18 @@ public class ApiKeyService {
         builder.endObject();
 
         builder.field("name", name)
-            .field("version", version.id)
-            .field("metadata_flattened", metadata)
-            .startObject("creator")
+            .field("version", version.id);
+
+        final Version smallestNonClientNodeVersion = clusterService.state().nodes().getSmallestNonClientNodeVersion();
+        if (smallestNonClientNodeVersion.onOrAfter(FLATTENED_FIELD_TYPE_INTRODUCED)) {
+            builder.field("metadata_flattened", metadata);
+        } else {
+            // The assertion should not trip because ApiKeyGenerator should prevent it
+            assert metadata == null || metadata.isEmpty()
+                : "API key metadata requires all nodes to be at least [" + FLATTENED_FIELD_TYPE_INTRODUCED + "]";
+        }
+
+        builder.startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("full_name", authentication.getUser().fullName())
             .field("email", authentication.getUser().email())

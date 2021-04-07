@@ -8,7 +8,8 @@
       security.create_api_key:
         body:  >
           {
-            "name": "my-old-api-key"
+            "name": "my-old-api-key",
+            "role_descriptors": {}
           }
   - match: { name: "my-old-api-key" }
   - is_true: id

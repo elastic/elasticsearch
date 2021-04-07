@@ -1,0 +1,11 @@
+---
+"Get the mixed API key in the upgraded cluster":
+
+  - do:
+      security.get_api_key:
+        name: "my-mixed-api-key-2"
+
+  - length: { api_keys: 1 }
+
+  - match: { api_keys.0.name: "my-mixed-api-key-2" }
+  - match: { api_keys.0.metadata: {"foo": "bar"} }

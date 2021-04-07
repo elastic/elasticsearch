@@ -154,5 +154,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
         if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeMap(metadata);
         }
+        // It's ok to not having an else branch to handle the metadata because this request is always
+        // sent to the local node, if the local node does not support metadata, it will be rejected by
+        // the rest handler
     }
 }

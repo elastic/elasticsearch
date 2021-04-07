@@ -14,10 +14,12 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1040,8 +1042,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getSmallestNonClientNodeVersion()).thenReturn(Version.CURRENT);
+        when(clusterState.nodes()).thenReturn(nodes);
+        when(clusterService.state()).thenReturn(clusterState);
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), mock(ClusterService.class),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), clusterService,
                 mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
@@ -1093,8 +1101,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
 
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getSmallestNonClientNodeVersion()).thenReturn(Version.CURRENT);
+        when(clusterState.nodes()).thenReturn(nodes);
+        when(clusterService.state()).thenReturn(clusterState);
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), mock(ClusterService.class),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), clusterService,
                 mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {

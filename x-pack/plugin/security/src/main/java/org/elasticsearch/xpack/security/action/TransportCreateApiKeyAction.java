@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -19,9 +18,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 /**
  * Implementation of the action needed to create an API key
@@ -32,10 +29,10 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
-                                       SecurityContext context, CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
+    public TransportCreateApiKeyAction(TransportService transportService, ActionFilters actionFilters,
+                                       SecurityContext context, ApiKeyGenerator apiKeyGenerator) {
         super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new);
-        this.generator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
+        this.generator = apiKeyGenerator;
         this.securityContext = context;
     }
 
@@ -48,5 +45,4 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
             generator.generateApiKey(authentication, request, listener);
         }
     }
-
 }

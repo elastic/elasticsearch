@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -23,11 +22,9 @@ import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 /**
  * Implementation of the action needed to create an API key on behalf of another user (using an OAuth style "grant")
@@ -41,10 +38,10 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
 
     @Inject
     public TransportGrantApiKeyAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
-                                      ApiKeyService apiKeyService, AuthenticationService authenticationService, TokenService tokenService,
-                                      CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
+                                      AuthenticationService authenticationService, TokenService tokenService,
+                                      ApiKeyGenerator apiKeyGenerator) {
         this(transportService, actionFilters, threadPool.getThreadContext(),
-            new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry), authenticationService, tokenService
+            apiKeyGenerator, authenticationService, tokenService
         );
     }
 

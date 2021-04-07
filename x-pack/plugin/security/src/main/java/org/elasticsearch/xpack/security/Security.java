@@ -200,6 +200,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -312,6 +313,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+    public static final Version FLATTENED_FIELD_TYPE_INTRODUCED = Version.V_7_3_0;
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -529,6 +531,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
             dlsBitsetCache.get(), new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
+
+        components.add(new ApiKeyGenerator(apiKeyService, allRolesStore, clusterService, xContentRegistry));
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
@@ -1228,6 +1232,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
      private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
          return SystemIndexDescriptor.builder()
+             .setMinimumNodeVersion(FLATTENED_FIELD_TYPE_INTRODUCED)
              // This can't just be `.security-*` because that would overlap with the tokens index pattern
              .setIndexPattern(".security-[0-9]+")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
@@ -1238,6 +1243,19 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
              .setVersionMetaKey("security-version")
              .setOrigin(SECURITY_ORIGIN)
+             .setPriorSystemIndexDescriptors(org.elasticsearch.common.collect.List.of(
+                 SystemIndexDescriptor.builder()
+                     .setIndexPattern(".security-[0-9]+")
+                     .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+                     .setDescription("Contains Security configuration")
+                     .setMappings(getIndexMappings(Version.V_7_13_0.getPreviousVersion()))
+                     .setSettings(getIndexSettings())
+                     .setAliasName(SECURITY_MAIN_ALIAS)
+                     .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+                     .setVersionMetaKey("security-version")
+                     .setOrigin(SECURITY_ORIGIN)
+                     .build()
+             ))
              .build();
      }
 
@@ -1277,12 +1295,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private static XContentBuilder getIndexMappings() {
+         return getIndexMappings(Version.CURRENT);
+    }
+
+    private static XContentBuilder getIndexMappings(Version mappingVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SECURITY_VERSION_STRING, mappingVersion.toString());
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -1332,9 +1354,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     builder.field("dynamic", false);
                     builder.endObject();
 
-                    builder.startObject("metadata_flattened");
-                    builder.field("type", "flattened");
-                    builder.endObject();
+                    if (Version.V_7_13_0.onOrBefore(mappingVersion)) {
+                        builder.startObject("metadata_flattened");
+                        builder.field("type", "flattened");
+                        builder.endObject();
+                    }
 
                     builder.startObject("enabled");
                     builder.field("type", "boolean");

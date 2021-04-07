@@ -47,7 +47,7 @@ GET my-index-000001/_search
 {
   "sort": { "date": "asc"}, <5>
   "runtime_mappings": {
-    "date.has_nanos": {
+    "date_has_nanos": {
       "type": "boolean",
       "script": "emit(doc['date'].value.nano != 0)" <6>
     }
@@ -58,7 +58,7 @@ GET my-index-000001/_search
       "format": "strict_date_optional_time_nanos" <7>
     },
     {
-      "field": "date.has_nanos"
+      "field": "date_has_nanos"
     }
   ]
 }
@@ -87,7 +87,7 @@ it includes `nanos` or you'll get a rounded result.
         "_source": {"date": "2015-01-01"},
         "fields": {
           "date": ["2015-01-01T00:00:00.000Z"],
-          "date.has_nanos": [false]
+          "date_has_nanos": [false]
         },
         "sort": [1420070400000000000]
       },
@@ -98,7 +98,7 @@ it includes `nanos` or you'll get a rounded result.
         "_source": {"date": 1420070400000},
         "fields": {
           "date": ["2015-01-01T00:00:00.000Z"],
-          "date.has_nanos": [false]
+          "date_has_nanos": [false]
         },
         "sort": [1420070400000000000]
       },
@@ -109,7 +109,7 @@ it includes `nanos` or you'll get a rounded result.
         "_source": {"date": "2015-01-01T12:10:30.123456789Z"},
         "fields": {
           "date": ["2015-01-01T12:10:30.123456789Z"],
-          "date.has_nanos": [true]
+          "date_has_nanos": [true]
         },
         "sort": [1420114230123456789]
       }

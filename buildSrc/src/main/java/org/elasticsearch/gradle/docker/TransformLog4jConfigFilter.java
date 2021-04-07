@@ -6,32 +6,26 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.transform.log4j;
+package org.elasticsearch.gradle.docker;
 
+import org.apache.commons.io.IOUtils;
+
+import java.io.FilterReader;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * This class takes in a log4j configuration file, and transform it into a config that
- * writes everything to the console. This is useful when running Elasticsearch in a Docker
- * container, where the Docker convention is to log to stdout / stderr and let the
- * orchestration layer direct the output.
- */
-public class TransformLog4jConfig {
+public class TransformLog4jConfigFilter extends FilterReader {
+    public TransformLog4jConfigFilter(Reader in) throws IOException {
+        super(new StringReader(transform(in)));
+    }
 
-    public static void main(String[] args) throws IOException {
-        validateArguments(args);
-
-        final Path inputPath = Path.of(args[0]);
-        final Path outputPath = Path.of(args[1]);
-
-        final List<String> inputLines = Files.readAllLines(inputPath);
+    private static String transform(Reader reader) throws IOException {
+        final List<String> inputLines = IOUtils.readLines(reader);
         final List<String> outputLines = skipBlanks(transformConfig(inputLines));
-
-        Files.write(outputPath, outputLines);
+        return String.join("\n", outputLines);
     }
 
     /** Squeeze multiple empty lines into a single line. */
@@ -134,31 +128,5 @@ public class TransformLog4jConfig {
         }
 
         return output;
-    }
-
-    private static void validateArguments(String[] args) {
-        if (args.length != 2) {
-            System.err.println("ERROR: Must supply two arguments, the input file and the output file");
-            System.exit(1);
-        }
-
-        Path configPath = Path.of(args[0]);
-
-        if (Files.exists(configPath) == false) {
-            System.err.println("ERROR: Input path [" + configPath + "] does not exist");
-            System.exit(1);
-        }
-
-        if (Files.isReadable(configPath) == false) {
-            System.err.println("ERROR: Input path [" + configPath + "] exists but is not readable");
-            System.exit(1);
-        }
-
-        Path outputPath = Path.of(args[1]);
-
-        if (Files.isWritable(outputPath.getParent()) == false) {
-            System.err.println("ERROR: Output directory [" + outputPath.getParent() + "] is not writable");
-            System.exit(1);
-        }
     }
 }

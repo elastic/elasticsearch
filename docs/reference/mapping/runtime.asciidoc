@@ -758,7 +758,7 @@ runtime field definition (including the script) to the context of an index
 mapping. This capability means you can write a script only once, and apply
 it to any context that supports runtime fields.
 
-NOTE: Currently, you can only index runtime fields of type `long` and
+IMPORTANT: Currently, you can only index runtime fields of type `long` and
 `double`.
 
 For example, let's say your company wants to replace some old pressure
@@ -814,7 +814,7 @@ POST my-index/_bulk?refresh=true
 
 After talking to a few site engineers, you realize that the sensors should
 be reporting at least _double_ the current values, but potentially higher.
-You create a runtime field named `voltage_reading` that retrieves the current
+You create a runtime field named `voltage_corrected` that retrieves the current
 voltage and multiplies it by `2`:
 
 [source,console]
@@ -822,13 +822,12 @@ voltage and multiplies it by `2`:
 PUT my-index/_mapping
 {
   "runtime": {
-    "voltage_reading": {
-      "type": "long",
+    "voltage_corrected": {
+      "type": "double",
       "script": {
         "source": """
-          for (double v : doc['voltage'])
-          emit((long)(v * params['multiplier']))
-          """,
+        emit(doc['voltage'].value * params['multiplier'])
+        """,
         "params": {
           "multiplier": 2
         }
@@ -847,20 +846,81 @@ parameter on the `_search` API:
 GET my-index/_search
 {
   "fields": [
-    "voltage_reading",
+    "voltage_corrected",
     "node"
-    ]
+  ],
+  "size": 2
 }
 ----
 // TEST[continued]
+// TEST[s/_search/_search\?filter_path=hits/]
+
+//
+////
+[source,console-result]
+----
+{
+  "hits" : {
+    "total" : {
+      "value" : 6,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "z4TCrHgBdg9xpPrU6z9k",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516729294000,
+          "temperature" : 200,
+          "voltage" : 5.2,
+          "node" : "a"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            10.4
+          ],
+          "node" : [
+            "a"
+          ]
+        }
+      },
+      {
+        "_index" : "my-index",
+        "_id" : "0ITCrHgBdg9xpPrU6z9k",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516642894000,
+          "temperature" : 201,
+          "voltage" : 5.8,
+          "node" : "b"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            11.6
+          ],
+          "node" : [
+            "b"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"_id" : "z4TCrHgBdg9xpPrU6z9k"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "0ITCrHgBdg9xpPrU6z9k"/"_id": $body.hits.hits.1._id/]
+////
+//
 
 After reviewing the sensor data and running some tests, you determine that the
 multiplier for reported sensor data should be `4`. To gain greater performance,
-you decide to index the `voltage_reading` runtime field with the new
+you decide to index the `voltage_corrected` runtime field with the new
 `multiplier` parameter.
 
-In a new index named `my-index-00001`, copy the `voltage_reading` runtime field
-definition into the mappings of the new index. It's that simple!
+In a new index named `my-index-00001`, copy the `voltage_corrected` runtime
+field definition into the mappings of the new index. It's that simple!
 
 [source,console]
 ----
@@ -880,13 +940,12 @@ PUT my-index-00001/
       "node": {
         "type": "keyword"
       },
-      "voltage_reading": {
-        "type": "long",
+      "voltage_corrected": {
+        "type": "double",
         "script": {
           "source": """
-            for (double v : doc['voltage'])
-            emit((long)(v * params['multiplier']))
-            """,
+        emit(doc['voltage'].value * params['multiplier'])
+        """,
           "params": {
             "multiplier": 4
           }
@@ -919,71 +978,87 @@ POST my-index-00001/_bulk?refresh=true
 
 You can now retrieve calculated values in a search query, and find documents
 based on precise values. The following range query returns all documents where
-the calculated `voltage_reading` is greater than or equal to `10`, but less
-than or equal to `16`:
+the calculated `voltage_corrected` is greater than or equal to `10`, but less
+than or equal to `16`. Again, use the <<search-fields,`fields`>> parameter on
+the `_search` API to retrieve the fields you want:
 
 [source,console]
 ----
-GET my-index-00001/_search
+POST my-index-00001/_search
 {
   "query": {
     "range": {
-      "voltage_reading": {
+      "voltage_corrected": {
         "gte": 16,
         "lte": 20,
         "boost": 1.0
       }
     }
-  }
-  , "size": 2
+  },
+  "fields": [
+    "voltage_corrected", "node"]
 }
 ----
 // TEST[continued]
+// TEST[s/_search/_search\?filter_path=hits/]
 
-Even though `voltage_reading` isn't included in the response, the documents
-that match the range query are returned based on the calculated value of the
-included script:
+The response includes the `voltage_corrected` field for the documents that
+match the range query, based on the calculated value of the included script:
 
 [source,console-result]
 ----
 {
-  ...
   "hits" : {
     "total" : {
-      "value" : 4,
+      "value" : 2,
       "relation" : "eq"
     },
     "max_score" : 1.0,
     "hits" : [
       {
         "_index" : "my-index-00001",
-        "_id" : "fYR4qHgBdg9xpPrUEz-q",
+        "_id" : "yoSLrHgBdg9xpPrUZz_P",
         "_score" : 1.0,
         "_source" : {
-          "timestamp" : 1516729294000,
+          "timestamp" : 1516383694000,
           "temperature" : 200,
-          "voltage" : 5.2,
-          "node" : "a"
+          "voltage" : 4.2,
+          "node" : "c"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            16.8
+          ],
+          "node" : [
+            "c"
+          ]
         }
       },
       {
         "_index" : "my-index-00001",
-        "_id" : "f4R4qHgBdg9xpPrUEz-q",
+        "_id" : "y4SLrHgBdg9xpPrUZz_P",
         "_score" : 1.0,
         "_source" : {
-          "timestamp" : 1516556494000,
+          "timestamp" : 1516297294000,
           "temperature" : 202,
-          "voltage" : 5.1,
-          "node" : "a"
+          "voltage" : 4.0,
+          "node" : "c"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            16.0
+          ],
+          "node" : [
+            "c"
+          ]
         }
       }
     ]
   }
 }
 ----
-// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/"_id" : "fYR4qHgBdg9xpPrUEz-q"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/"_id" : "f4R4qHgBdg9xpPrUEz-q"/"_id": $body.hits.hits.1._id/]
+// TESTRESPONSE[s/"_id" : "yoSLrHgBdg9xpPrUZz_P"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "y4SLrHgBdg9xpPrUZz_P"/"_id": $body.hits.hits.1._id/]
 
 [[runtime-examples]]
 === Explore your data with runtime fields

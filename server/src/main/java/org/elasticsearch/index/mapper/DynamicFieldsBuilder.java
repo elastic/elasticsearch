@@ -271,7 +271,12 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicLongField(ParseContext context, String name) throws IOException {
             createDynamicField(
-                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, context.indexSettings().getSettings()), context);
+                new NumberFieldMapper.Builder(
+                    name,
+                    NumberFieldMapper.NumberType.LONG,
+                    null,
+                    context.indexSettings().getSettings()
+                ), context);
         }
 
         @Override
@@ -279,8 +284,11 @@ final class DynamicFieldsBuilder {
             // no templates are defined, we use float by default instead of double
             // since this is much more space-efficient and should be enough most of
             // the time
-            createDynamicField(new NumberFieldMapper.Builder(name,
-                NumberFieldMapper.NumberType.FLOAT, context.indexSettings().getSettings()), context);
+            createDynamicField(new NumberFieldMapper.Builder(
+                name,
+                NumberFieldMapper.NumberType.FLOAT,
+                null,
+                context.indexSettings().getSettings()), context);
         }
 
         @Override

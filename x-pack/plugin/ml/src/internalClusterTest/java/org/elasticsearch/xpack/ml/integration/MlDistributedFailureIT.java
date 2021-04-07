@@ -38,7 +38,6 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -85,13 +84,15 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), 4)
             .build();
     }
@@ -397,10 +398,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         assertTrue(closeJobResponse.isClosed());
     }
 
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/68685",
-        value = "org.elasticsearch.xpack.ml.process:TRACE,"
-            + "org.elasticsearch.xpack.ml.job:TRACE,"
-            + "org.elasticsearch.persistent.PersistentTasksClusterService:TRACE")
     public void testJobRelocationIsMemoryAware() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
@@ -467,7 +464,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67756")
     public void testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -513,18 +509,24 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
-        startDatafeedRequest.getParams().setEndTime("now");
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
 
         waitForJobToHaveProcessedAtLeast(jobId, 1000);
 
         internalCluster().stopNode(nodeRunningJob.getName());
 
-        waitForJobClosed(jobId);
+        // Wait for job and datafeed to get reassigned
+        assertBusy(() -> {
+            assertThat(getJobStats(jobId).getNode(), is(not(nullValue())));
+            assertThat(getDatafeedStats(datafeedId).getNode(), is(not(nullValue())));
+        }, 30, TimeUnit.SECONDS);
 
-        DataCounts dataCounts = getJobStats(jobId).getDataCounts();
-        assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
-        assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        assertBusy(() -> {
+            DataCounts dataCounts = getJobStats(jobId).getDataCounts();
+            assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        });
+
     }
 
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {

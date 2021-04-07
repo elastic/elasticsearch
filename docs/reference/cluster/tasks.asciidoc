@@ -75,7 +75,7 @@ GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 // TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
-<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
+<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`. See <<cluster-nodes>> for more info about how to select individual nodes.
 <3> Retrieves all cluster-related tasks running on nodes `nodeId1` and `nodeId2`.
 
 The API returns the following result:

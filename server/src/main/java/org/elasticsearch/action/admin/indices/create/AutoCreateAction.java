@@ -141,17 +141,16 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             return currentState;
                         }
 
-                        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-                        final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
+                        final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
+                        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
 
                         final CreateIndexClusterStateUpdateRequest updateRequest;
 
                         if (isSystemIndex) {
-                            final String message = descriptor.checkMinimumNodeVersion(
-                                "auto-create index",
-                                state.nodes().getMinNodeVersion()
-                            );
-                            if (message != null) {
+                            final SystemIndexDescriptor descriptor =
+                                mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
+                            if (descriptor == null) {
+                                final String message = mainDescriptor.getMinimumNodeVersionMessage("auto-create index");
                                 logger.warn(message);
                                 throw new IllegalStateException(message);
                             }

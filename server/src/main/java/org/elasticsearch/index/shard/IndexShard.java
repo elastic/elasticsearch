@@ -597,7 +597,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                         if (state == IndexShardState.CLOSED) {
                                             // ignore, shutting down
                                         } else {
-                                            failShard("exception during primary-replica resync", e);
+                                            try {
+                                                failShard("exception during primary-replica resync", e);
+                                            } catch (AlreadyClosedException ace) {
+                                                // okay, the index was deleted
+                                            }
                                         }
                                     }
                                 });

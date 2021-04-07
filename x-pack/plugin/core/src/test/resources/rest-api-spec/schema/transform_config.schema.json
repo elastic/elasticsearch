@@ -190,40 +190,17 @@
     },
     "retention_policy": {
       "$id": "#root/retention_policy",
-      "title": "Retention Policy",
-      "type": "object",
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "time"
+          ]
+        }
+      ],
       "properties": {
         "time": {
-          "$id": "#root/retention_policy/time",
-          "title": "Time",
-          "type": "object",
-          "required": [
-            "field",
-            "max_age"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "field": {
-              "$id": "#root/retention_policy/time/field",
-              "title": "Field",
-              "type": "string",
-              "examples": [
-                "@timestamp"
-              ],
-              "pattern": "^.*$"
-            },
-            "max_age": {
-              "$id": "#root/retention_policy/time/max_age",
-              "title": "Max age",
-              "type": "string",
-              "default": "60s",
-              "examples": [
-                "10s"
-              ],
-              "pattern": "^.*$"
-            }
-          }
+          "$ref": "file:transform_time_retention_policy_config.schema.json"
         }
       }
     },

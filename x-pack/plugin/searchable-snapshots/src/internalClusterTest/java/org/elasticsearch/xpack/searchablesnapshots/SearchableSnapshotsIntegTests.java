@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
@@ -72,7 +71,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardS
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
-import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -82,11 +80,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -107,7 +103,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.ge
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -500,12 +495,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             expectedReplicas = 0;
         }
         final String expectedDataTiersPreference;
-        if (randomBoolean()) {
-            expectedDataTiersPreference = String.join(",", randomSubsetOf(DataTier.ALL_DATA_TIERS));
-            indexSettingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, expectedDataTiersPreference);
-        } else {
-            expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
-        }
+        expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 
         indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO);
         final AtomicBoolean statsWatcherRunning = new AtomicBoolean(true);
@@ -554,6 +544,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getIndices()
             .get(indexName)
             .getShards();
+
+        ensureGreen(restoredIndexName);
 
         final IndicesStatsResponse indicesStatsResponse = client().admin()
             .indices()
@@ -1451,23 +1443,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
             for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
                 for (RecoveryState recoveryState : recoveryStates) {
-                    ByteSizeValue cacheSize = getCacheSizeForNode(recoveryState.getTargetNode().getName());
-                    boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
                     RecoveryState.Index index = recoveryState.getIndex();
                     assertThat(
                         Strings.toString(recoveryState, true, true),
                         index.recoveredFileCount(),
-                        preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
+                        preWarmEnabled ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
                     );
-
-                    // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
-                    // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
-                    assertThat(
-                        recoveryState.getStage(),
-                        unboundedCache
-                            ? equalTo(RecoveryState.Stage.DONE)
-                            : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE))
-                    );
+                    assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
                 }
             }
         }, 30L, TimeUnit.SECONDS);
@@ -1486,22 +1468,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .flatMap(s -> s.getStats().stream())
             .mapToLong(stat -> stat.getTotalSize().getBytes())
             .sum();
-        final Set<String> nodeIdsWithLargeEnoughCache = new HashSet<>();
-        for (ObjectCursor<DiscoveryNode> nodeCursor : client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setNodes(true)
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes()
-            .values()) {
-            final Settings nodeSettings = internalCluster().getInstance(Environment.class, nodeCursor.value.getName()).settings();
-            if (totalSize <= CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(nodeSettings).getBytes()) {
-                nodeIdsWithLargeEnoughCache.add(nodeCursor.value.getId());
-            }
-        }
         assertThat("Expecting stats to exist for at least one Lucene file", totalSize, greaterThan(0L));
 
         for (SearchableSnapshotShardStats stats : statsResponse.getStats()) {
@@ -1557,7 +1523,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                             max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
                             equalTo(0L)
                         );
-                    } else if (nodeIdsWithLargeEnoughCache.contains(stats.getShardRouting().currentNodeId())) {
+                    } else {
                         assertThat(
                             "Expected at least 1 cache read or write for " + fileExt + " of shard " + shardRouting,
                             max(
@@ -1577,18 +1543,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                             indexInputStats.getDirectBytesRead().getCount(),
                             equalTo(0L)
                         );
-                    } else {
-                        assertThat(
-                            "Expected at least 1 read or write of any kind for " + fileExt + " of shard " + shardRouting,
-                            max(
-                                indexInputStats.getCachedBytesRead().getCount(),
-                                indexInputStats.getCachedBytesWritten().getCount(),
-                                indexInputStats.getOptimizedBytesRead().getCount(),
-                                indexInputStats.getDirectBytesRead().getCount(),
-                                indexInputStats.getIndexCacheBytesRead().getCount()
-                            ),
-                            greaterThan(0L)
-                        );
                     }
                 }
             }
@@ -1597,9 +1551,5 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
     private static long max(long... values) {
         return Arrays.stream(values).max().orElseThrow(() -> new AssertionError("no values"));
-    }
-
-    private ByteSizeValue getCacheSizeForNode(String nodeName) {
-        return CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(internalCluster().getInstance(Environment.class, nodeName).settings());
     }
 }

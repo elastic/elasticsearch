@@ -92,7 +92,7 @@ GET logs/_search
 // TEST[continued]
 
 The filtered buckets are returned in the same order as provided in the
-request.  The response for this example would be:
+request. The response for this example would be:
 
 [source,console-result]
 --------------------------------------------------

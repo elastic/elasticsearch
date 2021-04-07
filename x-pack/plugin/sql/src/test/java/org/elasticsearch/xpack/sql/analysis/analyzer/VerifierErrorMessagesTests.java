@@ -523,11 +523,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
     }
 
-    public void testGroupByWhereSubselect() {
-        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
-        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
-    }
-
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 error("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
@@ -1319,5 +1314,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testShapeInSelect() {
         accept("SELECT ST_X(shape) FROM test");
+    }
+
+    public void testSubselectWhereOnGroupBy() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
+    }
+
+    public void testSubselectWhereOnAggregate() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 10");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 10 AND b = FALSE");
+    }
+
+    public void testSubselectWithOrderWhereOnAggregate() {
+        accept("SELECT * FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool ORDER BY bool) WHERE a > 10");
     }
 }

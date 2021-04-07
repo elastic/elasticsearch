@@ -4,18 +4,17 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.ml.action;
+package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.SetResetModeAction.Request;
 
-public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<SetResetModeActionRequest> {
 
     @Override
-    protected Request createTestInstance() {
-        return new Request(randomBoolean());
+    protected SetResetModeActionRequest createTestInstance() {
+        return new SetResetModeActionRequest(randomBoolean());
     }
 
     @Override
@@ -24,12 +23,12 @@ public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected Writeable.Reader<Request> instanceReader() {
-        return Request::new;
+    protected Writeable.Reader<SetResetModeActionRequest> instanceReader() {
+        return SetResetModeActionRequest::new;
     }
 
     @Override
-    protected Request doParseInstance(XContentParser parser) {
-        return Request.PARSER.apply(parser, null);
+    protected SetResetModeActionRequest doParseInstance(XContentParser parser) {
+        return SetResetModeActionRequest.PARSER.apply(parser, null);
     }
 }

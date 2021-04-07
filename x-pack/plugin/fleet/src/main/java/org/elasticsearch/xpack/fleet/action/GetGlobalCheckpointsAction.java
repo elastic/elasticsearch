@@ -89,9 +89,8 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            if (timedOut) {
-                builder.field("timed_out", true);
-            } else {
+            builder.field("timed_out", timedOut);
+            if (timedOut == false) {
                 builder.array("global_checkpoints", globalCheckpoints);
             }
             return builder.endObject();

@@ -2,7 +2,7 @@
   "fleet.global_checkpoints":{
     "documentation":{
       "url": null,
-      "description": "Returns the current global checkpoints for an index."
+      "description": "Returns the current global checkpoints for an index. This API is design for internal use by the fleet server project."
     },
     "stability":"experimental",
     "visibility":"public",

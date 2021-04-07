@@ -184,7 +184,7 @@ WHERE (lan - 1) > 2
 
 filterOnAggregateInFunction
 SELECT * FROM (
-    SELECT gender, (MAX(salary)/1) AS max FROM test_emp WHERE languages > 1 GROUP BY gender
+    SELECT gender, MAX(salary) / 100 AS max FROM test_emp WHERE languages > 1 GROUP BY gender
 )
 WHERE max > 746 AND gender IS NOT NULL ORDER BY gender
 ;

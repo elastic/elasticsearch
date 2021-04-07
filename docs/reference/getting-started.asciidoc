@@ -99,9 +99,9 @@ a newline character (`\n`), including the last line.
 ----
 PUT logs-my_app-default/_bulk
 { "create": { } }
-{ "@timestamp": "2099-05-06T16:24:32.000Z", "event": { "original": "192.0.2.242 - - [06/May/2020:16:24:32 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0" } }
+{ "@timestamp": "2099-05-07T16:24:32.000Z", "event": { "original": "192.0.2.242 - - [07/May/2020:16:24:32 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0" } }
 { "create": { } }
-{ "@timestamp": "2099-05-06T16:25:42.000Z", "event": { "original": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" } }
+{ "@timestamp": "2099-05-08T16:25:42.000Z", "event": { "original": "192.0.2.255 - - [08/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" } }
 ----
 // TEST[continued]
 // TEST[s/_bulk/_bulk?refresh=wait_for/]
@@ -159,13 +159,13 @@ JSON object submitted during indexing.
         "_id": "PdjWongB9KPnaVm2IyaL",
         "_score": null,
         "_source": {
-          "@timestamp": "2099-05-06T16:25:42.000Z",
+          "@timestamp": "2099-05-08T16:25:42.000Z",
           "event": {
-            "original": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638"
+            "original": "192.0.2.255 - - [08/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638"
           }
         },
         "sort": [
-          4081767942000
+          4081940742000
         ]
       },
       ...
@@ -232,11 +232,11 @@ The response contains each hit's `fields` values as a flat array.
         "_score": null,
         "fields": {
           "@timestamp": [
-            "2099-05-06T16:25:42.000Z"
+            "2099-05-08T16:25:42.000Z"
           ]
         },
         "sort": [
-          4081767942000
+          4081940742000
         ]
       },
       ...
@@ -265,7 +265,7 @@ GET logs-my_app-default/_search
     "range": {
       "@timestamp": {
         "gte": "2099-05-05",
-        "lt": "2099-05-07"
+        "lt": "2099-05-08"
       }
     }
   },
@@ -339,7 +339,7 @@ GET logs-my_app-default/_search
     "range": {
       "@timestamp": {
         "gte": "2099-05-05",
-        "lt": "2099-05-07"
+        "lt": "2099-05-08"
       }
     }
   },
@@ -386,7 +386,7 @@ GET logs-my_app-default/_search
           "range": {
             "@timestamp": {
               "gte": "2099-05-05",
-              "lt": "2099-05-07"
+              "lt": "2099-05-08"
             }
           }
         },
@@ -394,7 +394,7 @@ GET logs-my_app-default/_search
           "range": {
             "source.ip": {
               "gte": "192.0.2.0",
-              "lte": "192.0.2.255"
+              "lte": "192.0.2.240"
             }
           }
         }
@@ -438,7 +438,7 @@ DELETE _data_stream/logs-my_app-default
 TIP: If you're using {ess}, skip this step.
 
 If you're using Docker to run {es} or {kib}, run the following command in a new
-terminal session to stop the containers:
+terminal session to stop the containers.
 
 [source,sh]
 ----

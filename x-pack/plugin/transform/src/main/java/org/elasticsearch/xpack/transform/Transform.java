@@ -18,7 +18,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -48,7 +47,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -148,16 +146,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
-
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            // don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            return (DiscoveryNode.hasDataRole(settings) || DataTier.isExplicitDataTier(settings));
-        }
-
-    };
 
     public Transform(Settings settings) {
         this.settings = settings;
@@ -310,7 +298,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(TRANSFORM_ROLE);
+        return Collections.singleton(DiscoveryNodeRole.TRANSFORM_ROLE);
     }
 
     @Override

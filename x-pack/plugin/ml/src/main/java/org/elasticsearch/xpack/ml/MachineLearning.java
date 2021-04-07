@@ -403,8 +403,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
-    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {};
-
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {
@@ -420,7 +418,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(ML_ROLE);
+        return Collections.singleton(DiscoveryNodeRole.ML_ROLE);
     }
 
     // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -578,7 +576,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         Settings.Builder additionalSettings = Settings.builder();
-        Boolean allocationEnabled = DiscoveryNode.hasRole(settings, MachineLearning.ML_ROLE);
+        Boolean allocationEnabled = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE);
         if (allocationEnabled != null && allocationEnabled) {
             // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
             // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done

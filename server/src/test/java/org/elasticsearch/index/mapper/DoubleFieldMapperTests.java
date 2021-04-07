@@ -38,6 +38,11 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected boolean allowsIndexTimeScript() {
+        return true;
+    }
+
+    @Override
     protected Number randomNumber() {
         /*
          * The source parser and doc values round trip will both increase

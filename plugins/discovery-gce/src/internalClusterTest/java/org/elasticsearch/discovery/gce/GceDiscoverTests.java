@@ -49,9 +49,9 @@ public class GceDiscoverTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                        .put(super.nodeSettings(nodeOrdinal))
+                        .put(super.nodeSettings(nodeOrdinal, otherSettings))
                         .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
                         .put("cloud.gce.project_id", "test")
                         .put("cloud.gce.zone", "test")

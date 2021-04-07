@@ -22,10 +22,7 @@ public interface AutoscalingDeciderService {
      * A marker role to use to also match policies having an empty set of roles.
      */
     DiscoveryNodeRole EMPTY_ROLES = new DiscoveryNodeRole("_empty", "_empty") {
-        @Override
-        public Setting<Boolean> legacySetting() {
-            return null;
-        }
+
     };
 
     /**

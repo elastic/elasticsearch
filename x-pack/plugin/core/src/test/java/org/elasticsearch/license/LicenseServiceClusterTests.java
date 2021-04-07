@@ -32,8 +32,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return nodeSettingsBuilder(nodeOrdinal).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return nodeSettingsBuilder(nodeOrdinal, otherSettings).build();
     }
 
     @Override
@@ -41,9 +41,9 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         return false; // enable http
     }
 
-    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
+    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(addRoles(super.nodeSettings(nodeOrdinal), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
             .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 

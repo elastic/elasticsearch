@@ -201,7 +201,7 @@ PUT _cluster/settings
 ----------------------------------
 
 If {es} {security-features} are enabled, you must have `monitor` cluster
-privileges to  view the cluster settings and `manage` cluster privileges
+privileges to view the cluster settings and `manage` cluster privileges
 to change them.
 --
 

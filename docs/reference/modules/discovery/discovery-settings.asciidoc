@@ -113,7 +113,7 @@ to elect a master node.
 `cluster.election.duration`::
 (<<static-cluster-setting,Static>>)
 Sets how long each election is allowed to take before a node considers it to
-have failed and schedules a retry. This defaults to `500ms`.  Changing this
+have failed and schedules a retry. This defaults to `500ms`. Changing this
 setting from the default may cause your cluster to fail to elect a master node.
 
 `cluster.election.initial_timeout`::

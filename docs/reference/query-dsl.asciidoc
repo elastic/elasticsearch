@@ -12,7 +12,7 @@ Leaf query clauses::
 
 Leaf query clauses look for a particular value in a particular field, such as the
 <<query-dsl-match-query,`match`>>, <<query-dsl-term-query,`term`>> or
-<<query-dsl-range-query,`range`>> queries.  These queries can be used
+<<query-dsl-range-query,`range`>> queries. These queries can be used
 by themselves.
 
 Compound query clauses::

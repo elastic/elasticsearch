@@ -14,11 +14,20 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -51,8 +60,23 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<GetShutdownStatusAction.Response> listener
     ) throws Exception {
-        // TODO: implement me!
-        listener.onResponse(new GetShutdownStatusAction.Response(null));
+        NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
+
+        GetShutdownStatusAction.Response response;
+        if (nodesShutdownMetadata == null) {
+            response = new GetShutdownStatusAction.Response(new ArrayList<>());
+        } else if (request.getNodeIds().length == 0) {
+            response = new GetShutdownStatusAction.Response(new ArrayList<>(nodesShutdownMetadata.getAllNodeMetdataMap().values()));
+        } else {
+            Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetdataMap();
+            final List<SingleNodeShutdownMetadata> shutdownStatuses = Arrays.stream(request.getNodeIds())
+                .map(nodeShutdownMetadataMap::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            response = new GetShutdownStatusAction.Response(shutdownStatuses);
+        }
+
+        listener.onResponse(response);
     }
 
     @Override

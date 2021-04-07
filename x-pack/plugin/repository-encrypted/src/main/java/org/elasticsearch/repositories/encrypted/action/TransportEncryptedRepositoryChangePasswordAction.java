@@ -73,10 +73,15 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
             request.fromPasswordName(),
             request.toPasswordName(),
             ActionListener.wrap(changePasswords -> {
-                encryptedRepository.copyAllDeks(changePasswords.v1(), changePasswords.v2(), true, true,
-                        ActionListener.wrap(movedDeksName -> {
+                encryptedRepository.copyAllDeks(
+                    changePasswords.v1(),
+                    changePasswords.v2(),
+                    true,
+                    true,
+                    ActionListener.wrap(movedDeksName -> {
 
-                }, listener::onFailure));
+                    }, listener::onFailure)
+                );
                 // TODO
                 // update cluster state to decommission the old password
                 // remove the now old DEKs

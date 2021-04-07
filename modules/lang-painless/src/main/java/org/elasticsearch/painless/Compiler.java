@@ -258,8 +258,7 @@ final class Compiler {
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         classNode.setDebugStream(debugStream);
-        WriteScope writeScope = WriteScope.newScriptScope();
-        new DefaultIRTreeToASMBytesPhase().visitClass(classNode, writeScope);
+        new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
 
         return classNode.getBytes();
     }

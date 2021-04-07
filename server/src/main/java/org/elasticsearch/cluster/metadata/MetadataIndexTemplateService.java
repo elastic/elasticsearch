@@ -919,13 +919,12 @@ public class MetadataIndexTemplateService {
                     matchedTemplates.removeIf(current -> current.patterns().stream().anyMatch(Regex::isMatchAllPattern));
                 }
                 // validate that hidden didn't change
-                final Optional<IndexTemplateMetadata>
-                    templateWithHiddenSettingPostRemoval =
-                    matchedTemplates.stream().filter(template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings())).findFirst();
-                if (templateWithHiddenSettingPostRemoval.isEmpty() || templateWithHiddenSetting.get() != templateWithHiddenSettingPostRemoval
-                    .get()) {
-                    throw new IllegalStateException("A global index template [" + templateWithHiddenSetting.get()
-                        .name() + "] defined the index hidden setting, which is not allowed");
+                final Optional<IndexTemplateMetadata> templateWithHiddenSettingPostRemoval = matchedTemplates.stream()
+                    .filter(template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings())).findFirst();
+                if (templateWithHiddenSettingPostRemoval.isEmpty() ||
+                    templateWithHiddenSetting.get() != templateWithHiddenSettingPostRemoval.get()) {
+                    throw new IllegalStateException("A global index template [" + templateWithHiddenSetting.get().name() +
+                        "] defined the index hidden setting, which is not allowed");
                 }
             }
         }

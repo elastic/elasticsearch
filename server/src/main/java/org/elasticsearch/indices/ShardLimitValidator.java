@@ -152,7 +152,6 @@ public class ShardLimitValidator {
             ex.addValidationError(error.get());
             throw ex;
         }
-
     }
 
     private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
@@ -167,13 +166,16 @@ public class ShardLimitValidator {
      * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit.
      * Returns an error message if appropriate, or an empty {@link Optional} otherwise.
      *
-     * @param newShards         The number of shards to be added by this operation
-     * @param newFrozenShards
+     * @param newShards         The number of normal shards to be added by this operation
+     * @param newFrozenShards   The number of frozen shards to be added by this operation
      * @param state             The current cluster state
      * @return If present, an error message to be given as the reason for failing
      * an operation. If empty, a sign that the operation is valid.
      */
     private Optional<String> checkShardLimit(int newShards, int newFrozenShards, ClusterState state) {
+        // we verify the two limits independently. This also means that if they have mixed frozen and other data-roles nodes, such a mixed
+        // node can have both 1000 normal and 3000 frozen shards. This is the trade-off to keep the simplicity of the counts. We advocate
+        // against such mixed nodes for production use anyway.
         int frozenNodeCount = nodeCount(state, ShardLimitValidator::hasFrozen);
         int normalNodeCount = nodeCount(state, ShardLimitValidator::hasNonFrozen);
         return checkShardLimit(newShards, state, getShardLimitPerNode(), normalNodeCount, "normal")

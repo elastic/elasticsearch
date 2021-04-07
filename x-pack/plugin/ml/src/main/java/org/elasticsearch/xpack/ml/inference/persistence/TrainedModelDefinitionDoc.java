@@ -44,6 +44,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         ObjectParser<TrainedModelDefinitionDoc.Builder, Void> parser = new ObjectParser<>(NAME,
             ignoreUnknownFields,
             TrainedModelDefinitionDoc.Builder::new);
+        parser.declareString((a, b) -> {}, InferenceIndexConstants.DOC_TYPE);  // type is hard coded but must be parsed
         parser.declareString(TrainedModelDefinitionDoc.Builder::setModelId, TrainedModelConfig.MODEL_ID);
         parser.declareString(TrainedModelDefinitionDoc.Builder::setCompressedString, DEFINITION);
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setDocNum, DOC_NUM);
@@ -136,6 +137,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         builder.field(DOC_NUM.getPreferredName(), docNum);
         builder.field(DEFINITION_LENGTH.getPreferredName(), definitionLength);
+        builder.field(TOTAL_DEFINITION_LENGTH.getPreferredName(), totalDefinitionLength);
         builder.field(COMPRESSION_VERSION.getPreferredName(), compressionVersion);
         builder.field(DEFINITION.getPreferredName(), compressedString);
         builder.field(EOS.getPreferredName(), eos);

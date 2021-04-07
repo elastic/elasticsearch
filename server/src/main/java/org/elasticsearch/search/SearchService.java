@@ -1029,7 +1029,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns the number of opening scroll contexts.
+     * Returns the number of scroll contexts opened on the node
      */
     public int getOpenScrollContexts() {
         return openScrollContexts.get();

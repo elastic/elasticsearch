@@ -796,5 +796,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
         assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
         assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
+        assertThat(service.getOpenScrollContexts(), equalTo(0));
     }
 }

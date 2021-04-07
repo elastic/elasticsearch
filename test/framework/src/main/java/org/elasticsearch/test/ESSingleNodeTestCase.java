@@ -50,6 +50,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -121,6 +122,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getOpenScrollContexts(), equalTo(0));
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();

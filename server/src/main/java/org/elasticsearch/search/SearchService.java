@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -574,6 +575,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
+        final Releasable decreaseScrollContexts;
         if (request.scroll() != null) {
             if (maxOpenScrollContext == Integer.MAX_VALUE && openScrollContexts.get() > 500) {
                 /**
@@ -593,14 +595,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
                         + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
             }
+            decreaseScrollContexts = openScrollContexts::decrementAndGet;
+        } else {
+            decreaseScrollContexts = () -> {};
         }
         SearchContext context = null;
         try {
             context = createContext(request);
-            context.addReleasable(openScrollContexts::decrementAndGet, Lifetime.CONTEXT);
+            context.addReleasable(decreaseScrollContexts, Lifetime.CONTEXT);
         } finally {
             if (context == null) {
-                openScrollContexts.decrementAndGet();
+                decreaseScrollContexts.close();
             }
         }
         onNewContext(context);
@@ -1021,6 +1026,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getActiveContexts() {
         return this.activeContexts.size();
+    }
+
+    /**
+     * Returns the number of scroll contexts opened on the node
+     */
+    public int getOpenScrollContexts() {
+        return openScrollContexts.get();
     }
 
     public ResponseCollectorService getResponseCollectorService() {

@@ -140,6 +140,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertEquals(Collections.singleton("test_1"), indices.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71424")
     public void testDoesNotSubmitRerouteTaskTooFrequently() {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();

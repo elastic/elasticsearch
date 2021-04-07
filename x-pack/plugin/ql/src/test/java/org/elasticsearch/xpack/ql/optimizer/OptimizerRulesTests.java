@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
@@ -45,6 +46,10 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -56,6 +61,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
@@ -68,11 +74,13 @@ import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
 import static org.elasticsearch.xpack.ql.TestUtils.rangeOf;
+import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -1609,7 +1617,48 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(and, new PropagateNullable().rule(and));
     }
 
-    public void testSkipNull() throws Exception {
+    public void testCombineFilters() throws Exception {
+        EsRelation relation = relation();
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        Filter fb = new Filter(EMPTY, fa, conditionB);
+
+        assertEquals(new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)), new PushDownAndCombineFilters().apply(fb));
+    }
+
+    public void testPushDownFilter() throws Exception {
+        EsRelation relation = relation();
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
+        Project project = new Project(EMPTY, fa, projections);
+        Filter fb = new Filter(EMPTY, project, conditionB);
+
+        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
+        assertEquals(new Project(EMPTY, combinedFilter, projections), new PushDownAndCombineFilters().apply(fb));
+    }
+
+    public void testPushDownFilterThroughAgg() throws Exception {
+        EsRelation relation = relation();
+        GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
+        LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE, false), THREE);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
+        // invalid aggregate but that's fine cause its properties are not used by this rule
+        Aggregate aggregate = new Aggregate(EMPTY, fa, emptyList(), emptyList());
+        Filter fb = new Filter(EMPTY, aggregate, new And(EMPTY, aggregateCondition, conditionB));
+
+        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
+
+        // expected
+        Filter expected = new Filter(EMPTY, new Aggregate(EMPTY, combinedFilter, emptyList(), emptyList()), aggregateCondition);
+        assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
 
     }
 }

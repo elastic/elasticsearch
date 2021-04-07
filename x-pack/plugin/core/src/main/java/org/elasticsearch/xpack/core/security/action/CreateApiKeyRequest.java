@@ -151,17 +151,8 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
-        if (metadata != null && false == metadata.isEmpty()) {
-            if (out.getVersion().before(Version.V_7_13_0)) {
-                throw new IllegalArgumentException(
-                    "api key metadata requires minimum node version to be [7.13.0], got: [" + out.getVersion() + "]");
-            } else {
-                out.writeMap(metadata);
-            }
-        } else {
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-                out.writeMap(metadata);
-            }
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeMap(metadata);
         }
     }
 }

@@ -119,6 +119,64 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         inputProperty << ["distributionClasspath", "distributionFiles"]
     }
 
+    @Unroll
+    def "test cluster modules #propertyName change is detected"() {
+        given:
+        addSubProject("test-module") << """
+            plugins {
+                id 'elasticsearch.esplugin'
+            }
+            // do not hassle with resolving predefined dependencies
+            configurations.compileOnly.dependencies.clear()
+            configurations.testImplementation.dependencies.clear()
+            
+            esplugin {
+                name = 'test-module'
+                classname 'org.acme.TestModule'
+                description = "test module description"
+            }
+            
+            licenseFile = file('license.txt')
+            noticeFile = file('notice.txt')
+            version = "1.0"
+            group = 'org.acme'
+        """
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+                module ':test-module'
+              }
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh')) {
+            build()
+        }
+        fileChange.delegate = this
+        fileChange.call(this)
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', 'guh')) {
+            build()
+        }
+
+        then:
+        normalized(result.output).contains("Task ':myTask' is not up-to-date because:\n" +
+                "  Input property 'clusters.myCluster\$0.nodes.\$0.$propertyName'")
+        result.output.contains("elasticsearch-keystore script executed!")
+        assertEsLogContains("myCluster", "Starting Elasticsearch process")
+        assertEsLogContains("myCluster", "Stopping node")
+
+        where:
+        propertyName         | fileChange
+        "installedFiles"     | { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        "installedClasspath" | { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
+    }
+
     def "can declare test cluster in lazy evaluated task configuration block"() {
         given:
         buildFile << """

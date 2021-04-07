@@ -21,6 +21,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class SearchableSnapshotsShardLimitIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
+    private static final int MAX_NORMAL = 3;
     private static final int MAX_FROZEN = 20;
 
     private final String fsRepoName = randomAlphaOfLength(10);
@@ -31,7 +32,7 @@ public class SearchableSnapshotsShardLimitIntegTests extends BaseSearchableSnaps
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 3)
+            .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), MAX_NORMAL)
             .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), MAX_FROZEN)
             .build();
     }

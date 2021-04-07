@@ -202,7 +202,6 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
-            .setMinimumNodeVersion(Version.V_7_0_0)
             .build();
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
@@ -214,15 +213,16 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(mappings)
             .setVersionMetaKey("version")
             .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0)
             .setPriorSystemIndexDescriptors(singletonList(prior))
             .build();
 
         SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT);
         assertSame(descriptor, compat);
 
-        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0")));
+        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.7.0")));
 
-        compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT.minimumCompatibilityVersion());
+        compat = descriptor.getDescriptorCompatibleWith(Version.V_7_0_0);
         assertSame(descriptor, compat);
 
         Version priorToMin = VersionUtils.getPreviousVersion(descriptor.getMinimumNodeVersion());

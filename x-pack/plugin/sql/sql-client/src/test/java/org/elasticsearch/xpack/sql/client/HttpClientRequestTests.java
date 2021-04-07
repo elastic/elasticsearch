@@ -42,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -171,7 +172,8 @@ public class HttpClientRequestTests extends ESTestCase {
                 new RequestInfo(mode, ClientVersion.CURRENT),
                 randomBoolean(),
                 randomBoolean(),
-                isBinary);
+                isBinary,
+                Collections.emptyMap());
 
         prepareMockResponse();
         try {

@@ -295,12 +295,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public List<Setting<?>> getSettings() {
         return List.of(NUM_FAILURE_RETRIES_SETTING);
     }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(DiscoveryNodeRole.TRANSFORM_ROLE);
-    }
-
+    
     @Override
     public void close() {
         if (transformServices.get() != null) {

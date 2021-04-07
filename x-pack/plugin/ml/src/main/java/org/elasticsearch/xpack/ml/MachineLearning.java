@@ -416,11 +416,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
 
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(DiscoveryNodeRole.ML_ROLE);
-    }
-
     // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
     private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";

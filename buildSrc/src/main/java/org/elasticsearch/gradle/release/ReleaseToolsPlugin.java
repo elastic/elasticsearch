@@ -49,35 +49,34 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
-        project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(action -> {
+        project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(task -> {
             final Version version = VersionProperties.getElasticsearchVersion();
 
-            action.setGroup("Documentation");
-            action.setDescription("Generates release notes from changelog files held in this checkout");
+            task.setGroup("Documentation");
+            task.setDescription("Generates release notes from changelog files held in this checkout");
 
-            action.setChangelogs(
+            task.setChangelogs(
                 projectLayout.getProjectDirectory()
                     .dir("docs/changelog")
                     .getAsFileTree()
                     .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                    .getFiles()
             );
 
-            action.setReleaseNotesIndexFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes.asciidoc"));
+            task.setReleaseNotesIndexFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes.asciidoc"));
 
-            action.setReleaseNotesFile(
+            task.setReleaseNotesFile(
                 projectLayout.getProjectDirectory()
                     .file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
             );
 
-            action.setReleaseHighlightsFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes/highlights.asciidoc"));
+            task.setReleaseHighlightsFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes/highlights.asciidoc"));
 
-            action.setBreakingChangesFile(
+            task.setBreakingChangesFile(
                 projectLayout.getProjectDirectory()
                     .file(String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor()))
             );
 
-            action.dependsOn(validateChangelogs);
+            task.dependsOn(validateChangelogs);
         });
 
         project.getTasks().named("check").configure(task -> task.dependsOn(validateChangelogs));

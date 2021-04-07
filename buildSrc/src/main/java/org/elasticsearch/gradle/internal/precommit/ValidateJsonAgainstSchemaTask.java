@@ -101,7 +101,6 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             .map(FileChange::getFile)
             .filter(file -> file.isDirectory() == false)
             .forEach(file -> {
-                getLogger().debug("Validating {} [{}]", getFileType(), file.getName());
                 try {
                     Set<ValidationMessage> validationMessages = jsonSchema.validate(mapper.readTree(file));
                     maybeLogAndCollectError(validationMessages, errors, file);
@@ -130,7 +129,6 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
 
     private JsonSchema buildSchemaObject(File jsonSchemaOnDisk) throws IOException {
         final ObjectMapper jsonMapper = new ObjectMapper();
-        getLogger().debug("JSON schema : [{}]", jsonSchemaOnDisk.getAbsolutePath());
         final SchemaValidatorsConfig config = new SchemaValidatorsConfig();
         final JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
         return factory.getSchema(jsonMapper.readTree(jsonSchemaOnDisk), config);

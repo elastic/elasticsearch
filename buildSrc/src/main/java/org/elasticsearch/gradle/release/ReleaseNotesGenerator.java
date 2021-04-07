@@ -135,7 +135,7 @@ public class ReleaseNotesGenerator implements Closeable {
         out.println("[[release-notes-" + version + "]]");
         out.println("== {es} version " + version);
 
-        if (version.getLabels().contains("SNAPSHOT")) {
+        if (version.getQualifiers().contains("SNAPSHOT")) {
             out.println();
             out.println("coming[" + version + "]");
         }

@@ -29,7 +29,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -125,7 +124,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         return changelogs;
     }
 
-    public void setChangelogs(Set<File> files) {
+    public void setChangelogs(FileCollection files) {
         this.changelogs.setFrom(files);
     }
 

@@ -22,7 +22,7 @@ public final class Version implements Comparable<Version> {
     private final int minor;
     private final int revision;
     private final int id;
-    private final List<String> labels;
+    private final List<String> qualifiers;
 
     /**
      * Specifies how a version string should be parsed.
@@ -48,7 +48,7 @@ public final class Version implements Comparable<Version> {
         this(major, minor, revision, List.of());
     }
 
-    public Version(int major, int minor, int revision, List<String> labels) {
+    public Version(int major, int minor, int revision, List<String> qualifiers) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
@@ -59,7 +59,7 @@ public final class Version implements Comparable<Version> {
         // currently snapshot is not taken into account
         this.id = major * 10000000 + minor * 100000 + revision * 1000;
 
-        this.labels = new ArrayList<>(labels);
+        this.qualifiers = new ArrayList<>(qualifiers);
     }
 
     public static Version fromString(final String s) {
@@ -162,8 +162,8 @@ public final class Version implements Comparable<Version> {
         return id;
     }
 
-    public List<String> getLabels() {
-        return labels;
+    public List<String> getQualifiers() {
+        return qualifiers;
     }
 
     @Override

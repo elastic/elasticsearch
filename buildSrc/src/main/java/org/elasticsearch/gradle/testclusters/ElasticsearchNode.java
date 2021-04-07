@@ -1333,12 +1333,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Classpath
     public FileCollection getInstalledClasspath() {
+        pluginAndModuleConfiguration.getFiles().forEach(f -> System.out.println("f = " + f));
+        FileCollection filter = pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar"));
+        for (File file : filter) {
+            System.err.println("classpath files= " + file);
+        }
         return pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getInstalledFiles() {
+        pluginAndModuleConfiguration.getFiles().forEach(f -> System.out.println("f = " + f));
+        FileCollection filter = pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar") == false);
+        for (File file : filter) {
+            System.err.println("installed files= " + file);
+        }
         return pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar") == false);
     }
 

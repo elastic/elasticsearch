@@ -9,8 +9,12 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
+import spock.lang.Unroll
 
+import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedClasspathMockedDistributionDownload
+import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedConfigMockedDistributionDownload
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
 /**
@@ -22,14 +26,34 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         buildFile << """
-            import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
+            import org.elasticsearch.gradle.testclusters.TestClustersAware
+            import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
             plugins {
                 id 'elasticsearch.testclusters'
             }
 
-            class SomeClusterAwareTask extends DefaultTestClustersTask {
+            class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
+
+                private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+            
+                @Override
+                @Nested
+                public Collection<ElasticsearchCluster> getClusters() {
+                    return clusters;
+                }
+                
+                @OutputFile
+                Provider<RegularFile> outputFile
+             
+                @Inject
+                SomeClusterAwareTask(ProjectLayout projectLayout) {
+                    outputFile = projectLayout.getBuildDirectory().file("someclusteraware.txt")
+                }
+   
                 @TaskAction void doSomething() {
+                    outputFile.get().getAsFile().text = "done"
                     println 'SomeClusterAwareTask executed'
+                    
                 }
             }
         """
@@ -50,7 +74,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh')) {
             build()
         }
 
@@ -59,6 +83,40 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertEsLogContains("myCluster", "Starting Elasticsearch process")
         assertEsLogContains("myCluster", "Stopping node")
         assertNoCustomDistro('myCluster')
+    }
+
+    @Unroll
+    def "test cluster #inputProperty change is detected"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+              }
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def runner = gradleRunner("myTask", '-i', '-g', 'guh')
+        def runningClosure = { GradleRunner r -> r.build() }
+        withMockedDistributionDownload(runner, runningClosure)
+        def result = inputProperty == "distributionClasspath" ?
+                withChangedClasspathMockedDistributionDownload(runner, runningClosure) :
+                withChangedConfigMockedDistributionDownload(runner, runningClosure)
+
+        then:
+        normalized(result.output).contains("Task ':myTask' is not up-to-date because:\n  Input property 'clusters.myCluster\$0.nodes.\$0.$inputProperty'")
+        result.output.contains("elasticsearch-keystore script executed!")
+        assertEsLogContains("myCluster", "Starting Elasticsearch process")
+        assertEsLogContains("myCluster", "Stopping node")
+        assertNoCustomDistro('myCluster')
+
+        where:
+        inputProperty << ["distributionClasspath", "distributionFiles"]
     }
 
     def "can declare test cluster in lazy evaluated task configuration block"() {

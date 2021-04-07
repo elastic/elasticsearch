@@ -163,7 +163,7 @@ The API returns the following response:
               "ephemeral_id": "9NlXRFGCT1m8tkvYCMK-8A",
               "transport_address": "local[1]",
               "attributes": {},
-	      "roles": [...]
+              "roles": [...]
             },
             "allocation_id": "2iNySv_OQVePRX-yaRH_lQ",  <4>
             "allocation": "primary|replica|unused"      <5>

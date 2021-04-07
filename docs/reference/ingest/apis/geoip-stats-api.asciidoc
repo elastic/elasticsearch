@@ -60,7 +60,7 @@ Total number of database updates skipped.
 
 `nodes`::
 (object)
-Downloaded GeoIP2 databases and related files for each node.
+Downloaded GeoIP2 databases for each node.
 +
 .Properties of `nodes`
 [%collapsible%open]

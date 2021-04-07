@@ -126,10 +126,10 @@ public class DocValueFormatTests extends ESTestCase {
 
     public void testBinaryFormat() {
         assertEquals("", DocValueFormat.BINARY.format(new BytesRef()));
-        assertEquals("KmQ", DocValueFormat.BINARY.format(new BytesRef(new byte[] {42, 100})));
+        assertEquals("KmQ=", DocValueFormat.BINARY.format(new BytesRef(new byte[] {42, 100})));
 
         assertEquals(new BytesRef(), DocValueFormat.BINARY.parseBytesRef(""));
-        assertEquals(new BytesRef(new byte[] {42, 100}), DocValueFormat.BINARY.parseBytesRef("KmQ"));
+        assertEquals(new BytesRef(new byte[] {42, 100}), DocValueFormat.BINARY.parseBytesRef("KmQ="));
     }
 
     public void testBooleanFormat() {

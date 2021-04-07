@@ -322,21 +322,17 @@ public class WildcardFieldMapper extends FieldMapper {
                 addClause(string, rewritten, Occur.MUST);
                 clauseCount++;
             }
-            Supplier<Automaton> deferredAutomatonSupplier = () -> {
-                if(caseInsensitive) {
-                    return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE);
-                } else {
-                    return WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-                }
-            };
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, deferredAutomatonSupplier);
+            Automaton automaton = caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE)
+                : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton);
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
                 BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
                 verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
                 verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return verifyingBuilder.build();
+                return new ConstantScoreQuery(verifyingBuilder.build());
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
@@ -362,12 +358,9 @@ public class WildcardFieldMapper extends FieldMapper {
             if (approxNgramQuery instanceof MatchAllDocsQuery) {
                 return existsQuery(context);
             }
-            Supplier<Automaton> deferredAutomatonSupplier = ()-> {
-                RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
-                return regex.toAutomaton(maxDeterminizedStates);
-            };
-
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, deferredAutomatonSupplier);
+            RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
+            Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
+            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, automaton);
 
             // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
             // clause which we can't accelerate at all and needs verification. Example would be ".."
@@ -746,9 +739,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     }
                 }
             }
-            Supplier <Automaton> deferredAutomatonSupplier
-                = () -> TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
-            AutomatonQueryOnBinaryDv slowQuery = new AutomatonQueryOnBinaryDv(name(), lower + "-" + upper, deferredAutomatonSupplier);
+            Automaton automaton =  TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
+            AutomatonQueryOnBinaryDv slowQuery = new AutomatonQueryOnBinaryDv(name(), lower + "-" + upper, automaton);
 
             if (accelerationQuery == null) {
                 return slowQuery;
@@ -831,18 +823,15 @@ public class WildcardFieldMapper extends FieldMapper {
                     bqBuilder.add(ngramQ, Occur.MUST);
                 }
 
-                Supplier <Automaton> deferredAutomatonSupplier = ()->{
-                    // Verification query
-                    FuzzyQuery fq = new FuzzyQuery(
-                        new Term(name(), searchTerm),
-                        fuzziness.asDistance(searchTerm),
-                        prefixLength,
-                        maxExpansions,
-                        transpositions
-                    );
-                    return fq.getAutomata().automaton;
-                };
-                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, deferredAutomatonSupplier), Occur.MUST);
+                // Verification query
+                FuzzyQuery fq = new FuzzyQuery(
+                    new Term(name(), searchTerm),
+                    fuzziness.asDistance(searchTerm),
+                    prefixLength,
+                    maxExpansions,
+                    transpositions
+                );
+                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, fq.getAutomata().automaton), Occur.MUST);
 
                 return bqBuilder.build();
             } catch (IOException ioe) {

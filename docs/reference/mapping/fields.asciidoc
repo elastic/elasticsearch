@@ -2,7 +2,7 @@
 == Metadata fields
 
 Each document has metadata associated with it, such as the `_index`, mapping
-<<mapping-type-field,`_type`>>, and `_id` metadata fields.  The behavior of
+<<mapping-type-field,`_type`>>, and `_id` metadata fields. The behavior of
 some of these metadata fields can be customized when a mapping type is created.
 
 [discrete]

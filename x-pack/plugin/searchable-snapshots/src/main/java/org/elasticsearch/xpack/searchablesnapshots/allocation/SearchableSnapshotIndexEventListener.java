@@ -22,7 +22,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -30,13 +29,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
 
@@ -50,7 +50,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         @Nullable CacheService cacheService,
         @Nullable FrozenCacheService frozenCacheService
     ) {
-        assert cacheService != null || DiscoveryNode.isDataNode(settings) == false;
+        assert cacheService != null || DiscoveryNode.canContainData(settings) == false;
         this.cacheService = cacheService;
         this.frozenCacheService = frozenCacheService;
     }

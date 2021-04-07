@@ -66,8 +66,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         addSSLSettingsForNodePEMFiles(settingsBuilder, "transport.profiles.client.xpack.security.", true);
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");

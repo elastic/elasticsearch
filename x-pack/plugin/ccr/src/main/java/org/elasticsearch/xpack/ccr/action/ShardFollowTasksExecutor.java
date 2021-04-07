@@ -128,13 +128,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
-        DiscoveryNode selectedNode = selectLeastLoadedNode(clusterState,
-            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+        DiscoveryNode selectedNode = selectLeastLoadedNode(
+            clusterState,
+            ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );
         if (selectedNode == null) {
             // best effort as nodes before 7.8 might not be able to connect to remote clusters
             selectedNode = selectLeastLoadedNode(clusterState,
-                node -> node.isDataNode() && node.getVersion().before(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
+                node -> node.canContainData() && node.getVersion().before(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
         }
         if (selectedNode == null) {
             return NO_ASSIGNMENT;

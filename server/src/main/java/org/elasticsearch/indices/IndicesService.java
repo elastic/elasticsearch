@@ -1579,6 +1579,20 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns the registered metadata field names for the provided compatible {@link Version}.
+     */
+    public Set<String> getMetadataFields(Version version) {
+        return mapperRegistry.getMetadataMapperParsers(version).keySet();
+    }
+
+    /**
+     * Returns the registered metadata field names for all compatible versions.
+     */
+    public Set<String> getAllMetadataFields() {
+        return mapperRegistry.getAllMetadataMapperParsers().keySet();
+    }
+
+    /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
     public boolean isIdFieldDataEnabled() {
@@ -1590,7 +1604,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private void updateDanglingIndicesInfo(Index index) {
-        assert DiscoveryNode.isDataNode(settings) : "dangling indices information should only be persisted on data nodes";
+        assert DiscoveryNode.canContainData(settings) : "dangling indices information should only be persisted on data nodes";
         assert nodeWriteDanglingIndicesInfo : "writing dangling indices info is not enabled";
         assert danglingIndicesThreadPoolExecutor != null : "executor for dangling indices info is not available";
         if (danglingIndicesToWrite.add(index)) {

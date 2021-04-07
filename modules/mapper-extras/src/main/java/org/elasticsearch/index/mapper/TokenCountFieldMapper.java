@@ -77,7 +77,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
                             boolean hasDocValues, Number nullValue, Map<String, String> meta) {
-            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta, null);
         }
 
         @Override

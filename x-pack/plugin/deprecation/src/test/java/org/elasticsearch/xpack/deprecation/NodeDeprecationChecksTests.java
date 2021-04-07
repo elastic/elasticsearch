@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -401,7 +403,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testDeprecatedBasicLicenseSettings() {
-        Collection<Setting<Boolean>> deprecatedXpackSettings = Set.of(
+        Collection<Setting<Boolean>> deprecatedXpackSettings = org.elasticsearch.common.collect.Set.of(
             XPackSettings.ENRICH_ENABLED_SETTING,
             XPackSettings.FLATTENED_ENABLED,
             XPackSettings.INDEX_LIFECYCLE_ENABLED,
@@ -427,6 +429,32 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{deprecatedSetting});
+        }
+    }
+
+    public void testLegacyRoleSettings() {
+        final Collection<Setting<Boolean>> legacyRoleSettings = DiscoveryNode.getPossibleRoles()
+            .stream()
+            .filter(s -> s.legacySetting() != null)
+            .map(DiscoveryNodeRole::legacySetting).collect(Collectors.toList());
+        for (final Setting<Boolean> legacyRoleSetting : legacyRoleSettings) {
+            final boolean value = randomBoolean();
+            final Settings settings = Settings.builder().put(legacyRoleSetting.getKey(), value).build();
+            final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+            final String roles = DiscoveryNode.getRolesFromSettings(settings)
+                .stream()
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.joining(","));
+            final DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "setting [" + legacyRoleSetting.getKey() + "] is deprecated in favor of setting [node.roles]",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes",
+                "the setting [" + legacyRoleSetting.getKey() + "] is currently set to ["
+                    + value + "], instead set [node.roles] to [" + roles + "]"
+            );
+            assertThat(issues, hasItem(expected));
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{legacyRoleSetting});
         }
     }
 
@@ -483,5 +511,27 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     private String randomRealmTypeOtherThanFileOrNative() {
         return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
             () -> randomAlphaOfLengthBetween(4, 12));
+    }
+
+    public void testMultipleDataPaths() {
+        final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(
+            issue.getMessage(),
+            equalTo("multiple [path.data] entries are deprecated, use a single data directory"));
+        assertThat(
+            issue.getDetails(),
+            equalTo("Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks."));
+        String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoMultipleDataPaths() {
+        Settings settings = Settings.builder().put("path.data", "data").build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        assertThat(issue, nullValue());
     }
 }

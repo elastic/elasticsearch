@@ -305,7 +305,7 @@ If there is the equivalent of a `match_all` query or no query criteria providing
 top-most aggregation - in this scenario the _foreground_ set is exactly the same as the _background_ set and
 so there is no difference in document frequencies to observe and from which to make sensible suggestions.
 
-Another consideration is that  the significant_terms aggregation produces many candidate results at shard level
+Another consideration is that the significant_terms aggregation produces many candidate results at shard level
 that are only later pruned on the reducing node once all statistics from all shards are merged. As a result,
 it can be inefficient and costly in terms of RAM to embed large child aggregations under a significant_terms
 aggregation that later discards many candidate terms. It is advisable in these cases to perform two searches - the first to provide a rationalized list of
@@ -374,7 +374,7 @@ Chi square behaves like mutual information and can be configured with the same p
 
 
 ===== Google normalized distance
-Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (https://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
+Google normalized distance as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (https://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
 
 [source,js]
 --------------------------------------------------
@@ -448,13 +448,13 @@ size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
 (`2 * (size * 1.5 + 10)`). To take manual control of this setting the `shard_size` parameter
-can be  used to control the volumes of candidate terms produced by each shard.
+can be used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the
 significant_terms aggregation can produce higher-quality results when the `shard_size` parameter is set to
 values significantly higher than the `size` setting. This ensures that a bigger volume of promising candidate terms are given
 a consolidated review by the reducing node before the final selection. Obviously large candidate term lists
-will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
+will cause extra network traffic and RAM usage so this is quality/cost trade off that needs to be balanced. If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will

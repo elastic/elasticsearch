@@ -114,8 +114,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
@@ -491,7 +491,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     /**
      * Sets delayed allocation to 0 to make sure we have tests are not delayed
-      */
+     */
     protected void setMlIndicesDelayedNodeLeftTimeoutToZero() {
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         originSettingClient.admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")

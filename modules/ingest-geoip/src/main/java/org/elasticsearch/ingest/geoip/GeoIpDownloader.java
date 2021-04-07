@@ -104,7 +104,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         logger.info("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
-            processDatabase(res);
+            if (res.get("name").toString().endsWith(".tgz")) {
+                processDatabase(res);
+            }
         }
     }
 
@@ -121,7 +123,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     //visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
-        String name = databaseInfo.get("name").toString().replace(".gz", "");
+        String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
         if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
             updateTimestamp(name, state.get(name));
@@ -129,6 +131,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
         logger.info("updating geoip database [" + name + "]");
         String url = databaseInfo.get("url").toString();
+        if (url.startsWith("http") == false) {
+            //relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
+            int lastSlash = endpoint.substring(8).lastIndexOf('/');
+            url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
+        }
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
@@ -234,7 +241,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     public GeoIpDownloaderStats getStatus() {
-        return isCancelled() || isCompleted() ? null: stats;
+        return isCancelled() || isCompleted() ? null : stats;
     }
 
     private void scheduleNextRun(TimeValue time) {

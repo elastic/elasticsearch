@@ -35,7 +35,7 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 This API defines a {transform}, which copies data from source indices, 
 transforms it, and persists it into an entity-centric destination index. If you
 choose to use the pivot method for your {transform}, the entities are defined by
-the set of `group_by` fields in the `pivot` object.  If you choose to use the
+the set of `group_by` fields in the `pivot` object. If you choose to use the
 latest method, the entities are defined by the `unique_key` field values in the
 `latest` object.
 

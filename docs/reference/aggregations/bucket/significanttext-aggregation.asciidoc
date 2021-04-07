@@ -367,13 +367,13 @@ size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
 (`2 * (size * 1.5 + 10)`). To take manual control of this setting the `shard_size` parameter
-can be  used to control the volumes of candidate terms produced by each shard.
+can be used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the
 significant_terms aggregation can produce higher-quality results when the `shard_size` parameter is set to
 values significantly higher than the `size` setting. This ensures that a bigger volume of promising candidate terms are given
 a consolidated review by the reducing node before the final selection. Obviously large candidate term lists
-will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
+will cause extra network traffic and RAM usage so this is quality/cost trade off that needs to be balanced. If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will

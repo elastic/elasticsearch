@@ -32,10 +32,9 @@ trial of {ess}] in the cloud.
 [[getting-started-install]]
 == Get {es} up and running
 
-To take {es} for a test drive, you can create a 
-{ess-trial}[hosted deployment]  on 
-the {ess} or set up a multi-node {es} cluster on your own
-Linux, macOS, or Windows machine.
+To take {es} for a test drive, you can create a {ess-trial}[hosted deployment]
+on {ess} or set up a multi-node {es} cluster on your own Linux, macOS, or
+Windows machine.
 
 [discrete]
 [[run-elasticsearch-hosted]]
@@ -57,10 +56,10 @@ Once you've created a deployment, you're ready to <<getting-started-index>>.
 [[run-elasticsearch-local]]
 === Run {es} locally on Linux, macOS, or Windows
 
-When you create a deployment on the {ess}, a master node and
-two data nodes are provisioned automatically. By installing from the tar or zip 
-archive, you can start multiple instances of {es} locally to see how a multi-node 
-cluster behaves.
+When you create a deployment on {ess}, a master node and two data nodes are
+provisioned automatically. By installing from the tar or zip archive, you can
+start multiple instances of {es} locally to see how a multi-node cluster
+behaves.
 
 To run a three-node {es} cluster locally:
 

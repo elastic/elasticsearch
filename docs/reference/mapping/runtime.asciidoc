@@ -189,7 +189,7 @@ Updating or removing a runtime field while a dependent query is running can retu
 inconsistent results. Each shard might have access to different versions of the
 script, depending on when the mapping change takes effect.
 
-Existing queries or visualizations in {kib} that rely on runtime fields can
+WARNING: Existing queries or visualizations in {kib} that rely on runtime fields can
 fail if you remove or update the field. For example, a bar chart visualization
 that uses a runtime field of type `ip` will fail if the type is changed
 to `boolean`, or if the runtime field is removed.
@@ -199,18 +199,17 @@ to `boolean`, or if the runtime field is removed.
 === Define runtime fields in a search request
 You can specify a `runtime_mappings` section in a search request to create
 runtime fields that exist only as part of the query. You specify a script
-as part of the `runtime_mappings` section, just as you would if adding a
-runtime field to the mappings.
+as part of the `runtime_mappings` section, just as you would if
+<<runtime-mapping-fields,adding a runtime field to the mappings>>.
 
-Fields defined in the search request take precedence over fields defined with
-the same name in the index mappings. This flexibility allows you to shadow
-existing fields and calculate a different value in the search request, without
-modifying the field itself. If you made a mistake in your index mapping, you
-can use runtime fields to calculate values that override values in the mapping
-during the search request.
+Defining a runtime field in a search request uses the same format as defining
+a runtime field in the index mapping. Just copy the field definition from
+the `runtime_mappings` in the search request to the `runtime` section of the
+index mapping.
 
-In the following request, the values for the `day_of_week` field are calculated
-dynamically, and only within the context of this search request:
+The following search request adds a `day_of_week` field to the
+`runtime_mappings` section. The field values will be calculated dynamically,
+and only within the context of this search request:
 
 [source,console]
 ----
@@ -235,11 +234,155 @@ GET my-index/_search
 ----
 //TEST[continued]
 
-Defining a runtime field in a search request uses the same format as defining
-a runtime field in the index mapping. That consistency means you can promote a
-runtime field from a search request to the index mapping by moving the field
-definition from `runtime_mappings` in the search request to the `runtime`
-section of the index mapping.
+[[runtime-search-request-examples]]
+[discrete]
+=== Create runtime fields that use other runtime fields
+You can even define runtime fields in a search request that return values from
+other runtime fields. For example, let's say you bulk index some sensor data:
+
+[source,console]
+----
+POST my-index/_bulk?refresh=true
+{"index":{}}
+{"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":"5.2","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":"5.8","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":"5.1","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":"5.6","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":"4.2","start": "400","end":"8625309"}}
+{"index":{}}
+{"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":"4.0","start": "400","end":"8625309"}}
+----
+
+You realize after indexing that your numeric data was mapped as type `text`.
+You want to aggregate on the `measures.start` and `measures.end` fields, but
+the aggregation fails because you can't aggregate on fields of type `text`.
+Runtime fields to the rescue! You can add runtime fields with the same name as
+your indexed fields and modify the data type:
+
+[source,console]
+----
+PUT my-index/_mapping
+{
+  "runtime": {
+    "measures.start": {
+      "type": "long"
+    },
+    "measures.end": {
+      "type": "long"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Runtime fields take precedence over fields defined with the same name in the
+index mappings. This flexibility allows you to shadow existing fields and
+calculate a different value, without modifying the field itself. If you made a
+mistake in your index mapping, you can use runtime fields to calculate values
+that <<runtime-override-values,override values>> in the mapping during the
+search request.
+
+Now, you can easily run an
+<<search-aggregations-metrics-avg-aggregation,average aggregation>> on the
+`measures.start` and `measures.end` fields:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "aggs": {
+    "avg_start": {
+      "avg": {
+        "field": "measures.start"
+      }
+    },
+    "avg_end": {
+      "avg": {
+        "field": "measures.end"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+The response includes the aggregation results without changing the values for
+the underlying data:
+
+[source,console-result]
+----
+{
+  "aggregations" : {
+    "avg_start" : {
+      "value" : 333.3333333333333
+    },
+    "avg_end" : {
+      "value" : 8658642.333333334
+    }
+  }
+}
+----
+
+Further, you can define a runtime field as part of a search query that
+calculates a value, and then run a
+<<search-aggregations-metrics-stats-aggregation,stats aggregation>> on that
+field _in the same query_.
+
+The `duration` runtime field doesn't exist in the index mapping, but we can
+still search and aggregate on that field. The following query returns the
+calculated value for the `duration` field and runs a stats aggregation to
+compute statistics over numeric values extracted from the aggregated documents.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "runtime_mappings": {
+    "duration": {
+      "type": "long",
+      "script": {
+        "source": """
+          emit(doc['measures.end'].value - doc['measures.start'].value);
+          """
+      }
+    }
+  },
+  "aggs": {
+    "duration_stats": {
+      "stats": {
+        "field": "duration"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+Even though the `duration` runtime field only exists in the context of a search
+query, you can search and aggregate on that field. This flexibility is
+incredibly powerful, enabling you to rectify mistakes in your index mappings
+and dynamically complete calculations all within a single search request.
+
+[source,console-result]
+----
+{
+  "aggregations" : {
+    "duration_stats" : {
+      "count" : 6,
+      "min" : 8624909.0,
+      "max" : 8675009.0,
+      "avg" : 8658309.0,
+      "sum" : 5.1949854E7
+    }
+  }
+}
+----
 
 [[runtime-override-values]]
 === Override field values at query time

@@ -4,6 +4,8 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -26,7 +28,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3PermanentAccessKey = 'sn_tool_access_key'
   s3PermanentSecretKey = 'sn_tool_secret_key'
   s3PermanentBucket = 'bucket'
-  s3PermanentBasePath = 'integration_test'
+  s3PermanentBasePath = null
 
   useS3Fixture = true
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
@@ -41,7 +43,7 @@ task s3ThirdPartyTest(type: Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath
+  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath ? s3PermanentBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
 }
 
 if (useS3Fixture) {

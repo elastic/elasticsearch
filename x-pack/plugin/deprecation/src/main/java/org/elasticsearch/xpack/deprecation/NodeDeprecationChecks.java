@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -32,6 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 class NodeDeprecationChecks {
@@ -244,12 +248,45 @@ class NodeDeprecationChecks {
         );
     }
 
+    public static DeprecationIssue checkLegacyRoleSettings(
+        final Setting<Boolean> legacyRoleSetting,
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules
+    ) {
+
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            legacyRoleSetting,
+            NodeRoleSettings.NODE_ROLES_SETTING,
+            (v, s) -> {
+                return DiscoveryNode.getRolesFromSettings(s)
+                    .stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.joining(","));
+            },
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes"
+        );
+    }
+
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
         final Setting<?> deprecatedSetting,
         final Setting<?> replacementSetting,
-        final String url) {
+        final String url
+    ) {
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, (v, s) -> v, url);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting<?> replacementSetting,
+        final BiFunction<String, Settings, String> replacementValue,
+        final String url
+    ) {
         assert deprecatedSetting.isDeprecated() : deprecatedSetting;
         if (deprecatedSetting.exists(settings) == false) {
             return null;
@@ -268,7 +305,7 @@ class NodeDeprecationChecks {
             deprecatedSettingKey,
             value,
             replacementSettingKey,
-            value);
+            replacementValue.apply(value, settings));
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 
@@ -278,7 +315,20 @@ class NodeDeprecationChecks {
         final Setting<?> deprecatedSetting,
         final Setting.AffixSetting<?> replacementSetting,
         final String star,
-        final String url) {
+        final String url
+    ) {
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, (v, s) -> v, star, url);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting.AffixSetting<?> replacementSetting,
+        final BiFunction<String, Settings, String> replacementValue,
+        final String star,
+        final String url
+    ) {
         assert deprecatedSetting.isDeprecated() : deprecatedSetting;
         if (deprecatedSetting.exists(settings) == false) {
             return null;
@@ -297,7 +347,7 @@ class NodeDeprecationChecks {
             deprecatedSettingKey,
             value,
             replacementSettingKey,
-            value,
+            replacementValue.apply(value, settings),
             star);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
@@ -325,6 +375,17 @@ class NodeDeprecationChecks {
                 "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
                     + javaVersion.toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
                     + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.");
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins) {
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
+        if (dataPaths.size() > 1) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "multiple [path.data] entries are deprecated, use a single data directory",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.");
         }
         return null;
     }

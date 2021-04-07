@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.release;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask;
+import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.ProjectLayout;
@@ -34,6 +35,8 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
+
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogs = project.getTasks()
             .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
                 task.setGroup("Documentation");
@@ -79,6 +82,6 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.dependsOn(validateChangelogs);
         });
 
-        project.getTasks().named("check").configure(task -> task.dependsOn(validateChangelogs));
+        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogs));
     }
 }

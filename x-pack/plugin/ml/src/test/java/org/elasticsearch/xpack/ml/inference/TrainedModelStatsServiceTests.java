@@ -249,8 +249,8 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         RoutingTable routingTable = routingTableBuilder.build();
 
         // cannot mock OriginSettingClient as it is final so mock the client
-        Client client = mock(Client.class);
-        OriginSettingClient originSettingClient = new OriginSettingClient(client, "modelstatsservicetests");
+        OriginSettingClient originSettingClient =
+            MockOriginSettingClient.mockOriginSettingClient(mock(Client.class), "modelstatsservicetests");
         ClusterService clusterService = mock(ClusterService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ResultsPersisterService persisterService = mock(ResultsPersisterService.class);

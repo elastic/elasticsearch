@@ -776,4 +776,5 @@ POST /_bulk
 ----
 
 The bulk request creates two new fields `work_location` and `home_location` with type `geo_point` according
-to the `dynamic_templates` parameter; however, the `raw_location` field is created with the type `text`.
+to the `dynamic_templates` parameter; however, the `raw_location` field is created using default dynamic mapping
+rules, as a `text` field in that case since it is supplied as a string in the JSON document.

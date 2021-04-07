@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
@@ -66,6 +66,7 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -89,15 +90,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new BooleanFunctionEqualsElimination(),
                 // needs to occur before BinaryComparison combinations
                 new PropagateEquals(),
+                new PropagateNullable(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
-                new PushDownAndCombineFilters(),
                 new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
                 new PruneCast(),
-                new CombineLimits());
+                new CombineLimits(),
+                new PushDownAndCombineFilters()
+            );
 
         Batch constraints = new Batch("Infer constraints", Limiter.ONCE,
                 new PropagateJoinKeyConstraints());
@@ -184,25 +187,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 return result;
             });
-        }
-    }
-
-    static class PushDownAndCombineFilters extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            LogicalPlan child = filter.child();
-            LogicalPlan plan = filter;
-
-            if (child instanceof Filter) {
-                Filter f = (Filter) child;
-                plan = new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filter.condition()));
-            } else if (child instanceof UnaryPlan) {
-                UnaryPlan up = (UnaryPlan) child;
-                plan = child.replaceChildrenSameSize(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
-            }
-
-            return plan;
         }
     }
 

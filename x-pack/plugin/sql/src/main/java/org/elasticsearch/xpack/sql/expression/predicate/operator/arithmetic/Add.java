@@ -38,4 +38,9 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     public ArithmeticOperationFactory binaryComparisonInverse() {
         return Sub::new;
     }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
+    }
 }

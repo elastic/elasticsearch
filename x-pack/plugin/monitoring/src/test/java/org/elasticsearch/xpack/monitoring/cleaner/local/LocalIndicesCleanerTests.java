@@ -30,9 +30,9 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .build();
     }

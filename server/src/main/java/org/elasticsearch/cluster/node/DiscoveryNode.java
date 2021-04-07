@@ -22,7 +22,6 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -49,8 +48,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
          */
         if (settings.hasValue("node.roles")) {
             return settings.getAsList("node.roles").contains(role.roleName());
-        } else if (role.legacySetting() != null && settings.hasValue(role.legacySetting().getKey())) {
-            return role.legacySetting().get(settings);
         } else {
             return role.isEnabledByDefault(settings);
         }
@@ -212,32 +209,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
-        // are any legacy settings in use?
-        boolean usesLegacySettings =
-            getPossibleRoles().stream().anyMatch(s -> s.legacySetting() != null && s.legacySetting().exists(settings));
-        if (NODE_ROLES_SETTING.exists(settings) || usesLegacySettings == false) {
-            validateLegacySettings(settings, roleMap);
-            return Set.copyOf(NODE_ROLES_SETTING.get(settings));
-        } else {
-            return roleMap.values()
-                .stream()
-                .filter(s -> s.legacySetting() != null && s.legacySetting().get(settings))
-                .collect(Collectors.toUnmodifiableSet());
-        }
-    }
-
-    private static void validateLegacySettings(final Settings settings, final Map<String, DiscoveryNodeRole> roleMap) {
-        for (final DiscoveryNodeRole role : roleMap.values()) {
-            if (role.legacySetting() != null && role.legacySetting().exists(settings)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "can not explicitly configure node roles and use legacy role setting [%s]=[%s]",
-                    role.legacySetting().getKey(),
-                    role.legacySetting().get(settings)
-                );
-                throw new IllegalArgumentException(message);
-            }
-        }
+        return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
     /**
@@ -450,6 +422,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         builder.endObject();
 
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : roles) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
+
         builder.endObject();
         return builder;
     }
@@ -472,7 +450,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {
-        assert additionalRoles.stream().allMatch(r -> r.legacySetting() == null || r.legacySetting().isDeprecated()) : additionalRoles;
         final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles =
             rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()));
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations

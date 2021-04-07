@@ -93,8 +93,37 @@ public final class Expressions {
         return false;
     }
 
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
     public static Nullability nullable(List<? extends Expression> exps) {
-        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+        Nullability value = Nullability.FALSE;
+        for (Expression exp : exps) {
+            switch (exp.nullable()) {
+                case UNKNOWN:
+                    return Nullability.UNKNOWN;
+                case TRUE:
+                    value = Nullability.TRUE;
+                    break;
+                default:
+                    // not nullable
+                    break;
+            }
+        }
+        return value;
+    }
+
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

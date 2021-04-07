@@ -202,3 +202,14 @@ null           |1.9161749939033146|0.1480828817161133 |74999          |28336    
 3              |1.0732551278666582|0.05483979801873433|65030          |38376          |4
 5              |1.322529094661261 |0.24501477738153868|66817          |37137          |4
 ;
+
+runtimeFieldWithQuery
+SELECT COUNT(*) AS c, birth_date_day_of_week FROM test_emp WHERE QUERY('T*','default_field=birth_date_day_of_week') OR QUERY('S*','default_field=birth_date_day_of_week') GROUP BY birth_date_day_of_week ORDER BY c;
+
+      c:l      |birth_date_day_of_week:s
+---------------+------------------------
+10             |Sunday                
+13             |Saturday              
+15             |Thursday              
+18             |Tuesday               
+;

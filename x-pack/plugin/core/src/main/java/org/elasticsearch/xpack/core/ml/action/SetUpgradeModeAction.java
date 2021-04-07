@@ -31,7 +31,7 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private boolean enabled;
+        private final boolean enabled;
 
         private static final ParseField ENABLED = new ParseField("enabled");
         public static final ConstructingObjectParser<Request, Void> PARSER =

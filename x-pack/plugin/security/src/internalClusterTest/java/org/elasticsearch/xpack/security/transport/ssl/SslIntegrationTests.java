@@ -51,8 +51,8 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", randomBoolean());
         return builder.put("xpack.security.http.ssl.enabled", true).build();
     }

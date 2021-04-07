@@ -181,12 +181,6 @@ public interface Repository extends LifecycleComponent {
      */
     boolean isReadOnly();
 
-    default void permitSnapshot() {
-        if (isReadOnly()) {
-            throw new RepositoryException(getMetadata().name(), "cannot create snapshot in a readonly repository");
-        }
-    }
-
     /**
      * Creates a snapshot of the shard based on the index commit point.
      * <p>

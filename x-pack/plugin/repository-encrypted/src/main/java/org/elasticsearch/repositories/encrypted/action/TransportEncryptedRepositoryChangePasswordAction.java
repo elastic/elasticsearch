@@ -31,6 +31,7 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
     EncryptedRepositoryChangePasswordResponse> {
 
     private final RepositoriesService repositoriesService;
+    // TODO lock for a single operation
 
     @Inject
     public TransportEncryptedRepositoryChangePasswordAction(
@@ -61,20 +62,27 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
         EncryptedRepositoryChangePasswordRequest request,
         ClusterState state,
         ActionListener<EncryptedRepositoryChangePasswordResponse> listener
-    ) throws Exception {
+    ) {
         Repository repository = repositoriesService.repository(request.repositoryName());
         if (false == (repository instanceof EncryptedRepository)) {
             listener.onFailure(new IllegalArgumentException("Repository [" + request.repositoryName() + "] is not encrypted"));
             return;
         }
         EncryptedRepository encryptedRepository = (EncryptedRepository) repository;
-        encryptedRepository.startOrResumePasswordChange(request.fromPasswordName(), request.toPasswordName(), ActionListener.wrap(aVoid -> {
-            // TODO
-            // move all existing DEKs to use the new password and the new name
-            // update cluster state to decommission the old password
-            // remove the now old DEKs
-            // update cluster state to conclude the password change
-        }, listener::onFailure));
+        encryptedRepository.startOrResumePasswordChange(
+            request.fromPasswordName(),
+            request.toPasswordName(),
+            ActionListener.wrap(changePasswords -> {
+                encryptedRepository.copyAllDeks(changePasswords.v1(), changePasswords.v2(), true, true,
+                        ActionListener.wrap(movedDeksName -> {
+
+                }, listener::onFailure));
+                // TODO
+                // update cluster state to decommission the old password
+                // remove the now old DEKs
+                // update cluster state to conclude the password change
+            }, listener::onFailure)
+        );
         listener.onResponse(new EncryptedRepositoryChangePasswordResponse(false));
     }
 

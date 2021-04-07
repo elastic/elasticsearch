@@ -10,8 +10,10 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -48,14 +50,21 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.support.AESKeyUtils;
@@ -66,6 +75,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
@@ -82,6 +92,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
@@ -157,14 +168,59 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void permitSnapshot() {
-        super.permitSnapshot();
+    public void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+    ) {
         if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
-            throw LicenseUtils.newComplianceException("encrypted snapshots");
+            listener.onFailure(LicenseUtils.newComplianceException("encrypted snapshots"));
+            return;
         }
-        // TODO prevent starting snapshot that can't finish
-        // if the master can't verify hashes it will fail to finalize the snapshots, even if the data nodes
-        // verify the hashes
+        super.snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener
+        );
+    }
+
+    @Override
+    public void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    ) {
+        if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+            listener.onFailure(LicenseUtils.newComplianceException("encrypted snapshots"));
+            return;
+        }
+        super.finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            listener
+        );
     }
 
     @Override
@@ -185,7 +241,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     public void startOrResumePasswordChange(
         @Nullable String fromPasswordName,
         @Nullable String toPasswordName,
-        ActionListener<Void> listener
+        ActionListener<Tuple<SecureString, SecureString>> listener
     ) {
         RepositoryMetadata currentMetadata = metadata;
         String changeFromPasswordName = fromPasswordName != null
@@ -194,27 +250,20 @@ public class EncryptedRepository extends BlobStoreRepository {
         String changeToPasswordName = toPasswordName != null
             ? toPasswordName
             : repositoryPasswords.currentLocalPassword(currentMetadata).v1();
-        if (repositoryPasswords.isPasswordChangeInProgress(currentMetadata)) {
-            repositoryPasswords.verifyResumePasswordChange(currentMetadata, changeFromPasswordName, changeToPasswordName, listener);
-        } else {
+        final StepListener<Void> startPasswordChangeStepListener = new StepListener<>();
+        if (false == repositoryPasswords.isPasswordChangeInProgress(currentMetadata)) {
             updateMetadata(
                 (latestRepositoryMetadata, newRepositoryMetadataListener) -> {
                     // unlikely concurrent password change
-                    if (repositoryPasswords.isPasswordChangeInProgress(latestRepositoryMetadata)) {
-                        // resume or fail, probably not important
-                        repositoryPasswords.verifyResumePasswordChange(
-                            latestRepositoryMetadata,
-                            fromPasswordName,
-                            toPasswordName,
-                            listener
-                        );
-                    } else {
+                    if (false == repositoryPasswords.isPasswordChangeInProgress(latestRepositoryMetadata)) {
                         repositoryPasswords.updateMetadataForPasswordChange(
                             latestRepositoryMetadata,
                             fromPasswordName,
                             toPasswordName,
                             newRepositoryMetadataListener
                         );
+                    } else {
+                        startPasswordChangeStepListener.onResponse(null);
                     }
                 },
                 "start encrypted repository ["
@@ -224,9 +273,15 @@ public class EncryptedRepository extends BlobStoreRepository {
                     + "] to ["
                     + toPasswordName
                     + "]",
-                listener
+                startPasswordChangeStepListener
             );
+        } else {
+            startPasswordChangeStepListener.onResponse(null);
         }
+        startPasswordChangeStepListener.whenComplete(
+            aVoid -> { repositoryPasswords.verifyForPasswordChange(metadata, changeFromPasswordName, changeToPasswordName, listener); },
+            listener::onFailure
+        );
     }
 
     // protected for tests
@@ -280,9 +335,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         final Tuple<String, Map<String, String>> seedAndHashes;
         try {
             seedAndHashes = unpackSeed(packedSeed);
-            if (false == repositoryPasswords.verifyPasswordsHash(seedAndHashes.v2())) {
-                throw new IllegalArgumentException("Repository password(s) mismatch");
-            }
+            repositoryPasswords.verifyPasswordsHash(seedAndHashes.v2());
         } catch (Exception e) {
             throw new RepositoryException(repositoryMetadata.name(), "Error verifying passwords hash", e);
         }
@@ -356,66 +409,73 @@ public class EncryptedRepository extends BlobStoreRepository {
         String source,
         ActionListener<Void> listener
     ) {
-        super.executeConsistentStateUpdate((latestRepositoryMetadata, updateTaskListener) -> {
-            updateAction.accept(latestRepositoryMetadata, ActionListener.wrap(newRepositoryMetadata -> {
-                if (false == newRepositoryMetadata.name().equals(latestRepositoryMetadata.name())) {
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "Repository name cannot be changed ["
-                                + latestRepositoryMetadata.name()
-                                + "] ["
-                                + newRepositoryMetadata.name()
-                                + "]"
-                        )
-                    );
-                    return;
-                }
-                updateTaskListener.onResponse(new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        final RepositoriesMetadata repositories = currentState.metadata()
-                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-                        final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
-                        boolean found = false;
-                        for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                            if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
-                                if (found) {
-                                    throw new IllegalStateException(
-                                        "Found multiple repositories with the same name ["
-                                            + newRepositoryMetadata.name()
-                                            + "] when updating repository metadata"
-                                    );
+        super.executeConsistentStateUpdate(
+            (latestRepositoryMetadata, updateTaskListener) -> updateAction.accept(
+                latestRepositoryMetadata,
+                ActionListener.wrap(newRepositoryMetadata -> {
+                    if (false == newRepositoryMetadata.name().equals(latestRepositoryMetadata.name())) {
+                        listener.onFailure(
+                            new IllegalArgumentException(
+                                "Repository name cannot be changed ["
+                                    + latestRepositoryMetadata.name()
+                                    + "] ["
+                                    + newRepositoryMetadata.name()
+                                    + "]"
+                            )
+                        );
+                        return;
+                    }
+                    updateTaskListener.onResponse(new ClusterStateUpdateTask() {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            final RepositoriesMetadata repositories = currentState.metadata()
+                                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                            final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
+                            boolean found = false;
+                            for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+                                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                                    if (found) {
+                                        throw new IllegalStateException(
+                                            "Found multiple repositories with the same name ["
+                                                + newRepositoryMetadata.name()
+                                                + "] when updating repository metadata"
+                                        );
+                                    }
+                                    found = true;
+                                    newRepositoriesMetadata.add(newRepositoryMetadata);
+                                } else {
+                                    newRepositoriesMetadata.add(repositoryMetadata);
                                 }
-                                found = true;
-                                newRepositoriesMetadata.add(newRepositoryMetadata);
-                            } else {
-                                newRepositoriesMetadata.add(repositoryMetadata);
                             }
+                            if (found == false) {
+                                throw new IllegalStateException(
+                                    "Missing repository with name ["
+                                        + latestRepositoryMetadata.name()
+                                        + "] when updating repository metadata"
+                                );
+                            }
+                            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                            mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
+                            return ClusterState.builder(currentState).metadata(mdBuilder).build();
                         }
-                        if (found == false) {
-                            throw new IllegalStateException(
-                                "Missing repository with name [" + latestRepositoryMetadata.name() + "] when updating repository metadata"
-                            );
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.warn("failed to update metadata from source: " + source, e);
+                            listener.onFailure(e);
                         }
-                        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-                        mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
-                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
-                    }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.warn("failed to update metadata from source: " + source, e);
-                        listener.onFailure(e);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-                        logger.info("Repository [" + newRepositoryMetadata.name() + "] metadata updated from source: " + source);
-                        listener.onResponse(null);
-                    }
-                });
-            }, listener::onFailure));
-        }, source, listener::onFailure);
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                            logger.info("Repository [" + newRepositoryMetadata.name() + "] metadata updated from source: " + source);
+                            listener.onResponse(null);
+                        }
+                    });
+                }, listener::onFailure)
+            ),
+            source,
+            listener::onFailure
+        );
     }
 
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {
@@ -440,10 +500,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             RepositoryMetadata repositoryMetadata = metadata;
             Map<String, SecureString> passwords = repositoryPasswords.passwordsForBlobStoreDekWrapping(repositoryMetadata);
             // check that the local passwords that are used to wrap the DEKs match the repository's
-            boolean verifyResult = repositoryPasswords.verifyPasswordsHash(repositoryMetadata, passwords.keySet());
-            if (false == verifyResult) {
-                throw new IllegalArgumentException("Local repository password is incorrect");
-            }
+            repositoryPasswords.verifyPasswordsHash(repositoryMetadata, passwords.keySet());
             return passwords.values();
         });
     }
@@ -551,7 +608,13 @@ public class EncryptedRepository extends BlobStoreRepository {
         });
     }
 
-    void copyAllDeks(SecureString fromPassword, SecureString toPassword, boolean ignoreMissing, ActionListener<Void> listener) {
+    public void copyAllDeks(
+        SecureString fromPassword,
+        SecureString toPassword,
+        boolean ignoreMissing,
+        boolean overwrite,
+        ActionListener<List<String>> listener
+    ) {
         final EncryptedBlobStore encryptedBlobStore = ((EncryptedBlobStore) blobStore());
         final Set<String> allDeksId;
         try {
@@ -561,7 +624,12 @@ public class EncryptedRepository extends BlobStoreRepository {
             return;
         }
         GroupedActionListener<Tuple<String, Boolean>> groupListener = new GroupedActionListener<>(
-            listener.map(movedList -> null),
+            listener.map(
+                movedList -> movedList.stream()
+                    .filter(movedDek -> movedDek.v2())
+                    .map(movedDek -> movedDek.v1())
+                    .collect(Collectors.toUnmodifiableList())
+            ),
             allDeksId.size()
         );
         for (String dekId : allDeksId) {
@@ -570,6 +638,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 (dekIdArg) -> getDekUnwrapperUsingPassword(dekIdArg, () -> fromPassword),
                 (dekIdArg) -> getDekWrapperUsingPasswords(dekIdArg, () -> List.of(toPassword)),
                 ignoreMissing,
+                overwrite,
                 groupListener.map(copied -> new Tuple<>(dekId, copied))
             );
         }
@@ -612,7 +681,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     Tuple<BytesReference, SecretKey> newDek = dekGenerator.get();
                     PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     // store and encrypt the newly generated DEK before making it available
-                    storeDek(newDek.v1().utf8ToString(), newDek.v2(), dekWrapper, future);
+                    storeDek(newDek.v1().utf8ToString(), newDek.v2(), true, dekWrapper, future);
                     FutureUtils.get(future);
                     return newDek;
                 } catch (Exception e) {
@@ -728,6 +797,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         private void storeDek(
             String dekId,
             SecretKey dek,
+            boolean failIfAlreadyExists,
             Function<String, Function<SecretKey, Map<String, byte[]>>> getDekWrapper,
             ActionListener<Void> listener
         ) {
@@ -747,7 +817,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             wrappedDekBytesStepListener.whenComplete(
                 wrappedDekBytesMap -> threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                     for (Map.Entry<String, byte[]> wrappedDek : getDekWrapper.apply(dekId).apply(dek).entrySet()) {
-                        dekBlobContainer.writeBlobAtomic(wrappedDek.getKey(), new BytesArray(wrappedDek.getValue()), true);
+                        dekBlobContainer.writeBlobAtomic(wrappedDek.getKey(), new BytesArray(wrappedDek.getValue()), failIfAlreadyExists);
                         logger.debug(
                             () -> new ParameterizedMessage(
                                 "Repository [{}] successfully stored wrapped DEK [{}] under path [{}]",
@@ -768,20 +838,43 @@ public class EncryptedRepository extends BlobStoreRepository {
             Function<String, Tuple<String, Function<byte[], SecretKey>>> getDekUnwrapper,
             Function<String, Function<SecretKey, Map<String, byte[]>>> getDekWrapper,
             boolean ignoreMissing,
+            boolean overwrite,
             ActionListener<Boolean> listener
         ) {
             StepListener<SecretKey> dekStep = new StepListener<>();
             loadDek(dekId, getDekUnwrapper, dekStep);
-            dekStep.whenComplete((dek) -> storeDek(dekId, dek, getDekWrapper, listener.map(aVoid -> true)), e -> {
-                NoSuchFileException nsfe = (NoSuchFileException) ExceptionsHelper.unwrap(e, NoSuchFileException.class);
-                if (ignoreMissing && nsfe != null) {
-                    // might be missing because the DEK is using a different password
-                    logger.debug(() -> new ParameterizedMessage("Ignoring DEK [{}] missing for copy", new Object[] { dekId }, e));
-                    listener.onResponse(false);
-                } else {
-                    listener.onFailure(e);
+            dekStep.whenComplete(
+                (dek) -> storeDek(
+                    dekId,
+                    dek,
+                    false == overwrite,
+                    getDekWrapper,
+                    ActionListener.wrap(aVoid -> { listener.onResponse(true); }, e -> {
+                        FileAlreadyExistsException faee = (FileAlreadyExistsException) ExceptionsHelper.unwrap(
+                            e,
+                            FileAlreadyExistsException.class
+                        );
+                        if (false == overwrite && faee != null) {
+                            logger.debug(
+                                () -> new ParameterizedMessage("Ignoring DEK [{}] copy: existing destination", new Object[] { dekId }, e)
+                            );
+                            listener.onResponse(false);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
+                ),
+                e -> {
+                    NoSuchFileException nsfe = (NoSuchFileException) ExceptionsHelper.unwrap(e, NoSuchFileException.class);
+                    if (ignoreMissing && nsfe != null) {
+                        // might be missing because the DEK is using a different password
+                        logger.debug(() -> new ParameterizedMessage("Ignoring DEK [{}] copy: missing source", new Object[] { dekId }, e));
+                        listener.onResponse(false);
+                    } else {
+                        listener.onFailure(e);
+                    }
                 }
-            });
+            );
         }
 
         Set<String> listAllDekIds() throws IOException {

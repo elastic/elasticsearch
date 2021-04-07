@@ -494,7 +494,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("repository password is incorrect"))
+                .allMatch(shardFailure -> shardFailure.reason().contains("Incorrect local repository password"))
         );
         final Set<String> nodesWithFailures = incompleteSnapshotResponse.getSnapshotInfo()
             .shardFailures()

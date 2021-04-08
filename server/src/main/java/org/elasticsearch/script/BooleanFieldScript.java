@@ -50,7 +50,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         runForDoc(docId);
         int count = trues + falses;
         for (int i = 0; i < count; i++) {
-            consumer.accept(i >= falses);
+            consumer.accept(i < falses ? false : true);
         }
     }
 

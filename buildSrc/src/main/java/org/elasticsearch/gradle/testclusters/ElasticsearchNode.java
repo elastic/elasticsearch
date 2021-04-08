@@ -166,7 +166,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
 
-    private Attribute<Boolean> bundleAttribute;
+    private Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
 
     ElasticsearchNode(
         String clusterName,
@@ -203,6 +203,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         pluginAndModuleConfiguration = project.getObjects().fileCollection();
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getElasticsearch());
+        configureArtifactTransforms();
     }
 
     @Input
@@ -326,26 +327,25 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
-        if (bundleAttribute == null) {
-            bundleAttribute = Attribute.of("bundle", Boolean.class);
-            project.getDependencies().getAttributesSchema().attribute(bundleAttribute);
-            project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
-            project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-                transformSpec.getFrom()
-                    .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
-                    .attribute(bundleAttribute, true);
-                transformSpec.getTo()
-                    .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
-                    .attribute(bundleAttribute, true);
-                transformSpec.getParameters().setAsFiletreeOutput(true);
-            });
-        }
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
         Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
         extractedConfig.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
         extractedConfig.getAttributes().attribute(bundleAttribute, true);
-        pluginAndModuleConfiguration.builtBy(pluginProvider);
         pluginAndModuleConfiguration.from(extractedConfig);
+    }
+
+    private void configureArtifactTransforms() {
+        project.getDependencies().getAttributesSchema().attribute(bundleAttribute);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(bundleAttribute, true);
+            transformSpec.getTo()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(bundleAttribute, true);
+            transformSpec.getParameters().setAsFiletreeOutput(true);
+        });
     }
 
     @Override

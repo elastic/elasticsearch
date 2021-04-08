@@ -43,7 +43,13 @@ public final class CounterMetric {
     }
 
     public long count() {
-        // The returned value of LongAdder#sum is NOT an atomic snapshot.
-        return Math.max(counter.sum(), 0L);
+        // Retries up to 5 times as the returned value of LongAdder#sum is NOT an atomic snapshot.
+        for (int i = 0; i < 5; i++) {
+            final long count = counter.sum();
+            if (count >= 0L) {
+                return count;
+            }
+        }
+        return 0L;
     }
 }

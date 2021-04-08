@@ -504,7 +504,8 @@ public class TrainedModelProvider {
                 .request());
 
         if (includes.isIncludeModelDefinition()) {
-            multiSearchRequestBuilder.add(ChunkedTrainedModelRestorer.buildSearch(client, modelId, MAX_NUM_DEFINITION_DOCS));
+            multiSearchRequestBuilder.add(
+                ChunkedTrainedModelRestorer.buildSearch(client, modelId, InferenceIndexConstants.INDEX_PATTERN, MAX_NUM_DEFINITION_DOCS));
         }
 
         ActionListener<MultiSearchResponse> multiSearchResponseActionListener = ActionListener.wrap(
@@ -1087,7 +1088,7 @@ public class TrainedModelProvider {
             .collect(Collectors.joining());
         // BWC for when we tracked the total definition length
         // TODO: remove in 9
-        if (docs.get(0).getTotalDefinitionLength() != TrainedModelDefinitionDoc.UNKNOWN_TOTAL_SIZE_VALUE) {
+        if (docs.get(0).getTotalDefinitionLength() != null) {
             if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
                 throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
             }

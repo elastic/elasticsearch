@@ -81,12 +81,23 @@ public class PyTorchStateStreamer {
         outputStream.write(rawBytes);
     }
 
-    private void writeModelSize(String modelId, long modelSizeBytes, OutputStream outputStream) throws IOException {
+    private void writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
+        if (modelSizeBytes == null) {
+            String message = String.format(Locale.ROOT,
+                "The definition doc for model [%s] has a null value for field [%s]",
+                modelId, TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+            logger.error(message);
+            throw new IllegalStateException(message);
+        }
         if (modelSizeBytes <= 0) {
             // The other end expects an unsigned 32 bit int a -ve value is invalid.
             // ByteSizeValue allows -1 bytes as a valid value so this check is still required
             String message = String.format(Locale.ROOT,
-                "The storage definition for model [%s] has a negative model size [%s]", modelId, modelSizeBytes);
+                "The definition doc for model [%s] has a negative value [%s] for field [%s]",
+                modelId,
+                modelSizeBytes,
+                TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName());
+
             logger.error(message);
             throw new IllegalStateException(message);
         }
@@ -101,7 +112,7 @@ public class PyTorchStateStreamer {
         }
 
         ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
-        lengthBuffer.putInt((int)modelSizeBytes);
+        lengthBuffer.putInt(modelSizeBytes.intValue());
         outputStream.write(lengthBuffer.array());
     }
 }

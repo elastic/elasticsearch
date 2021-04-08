@@ -64,12 +64,11 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return NAME + "-" + modelId + "-" + docNum;
     }
 
-    public static final long UNKNOWN_TOTAL_SIZE_VALUE = -1L;
-
     private final String compressedString;
     private final String modelId;
     private final int docNum;
-    private final long totalDefinitionLength;
+    // for bwc
+    private final Long totalDefinitionLength;
     private final long definitionLength;
     private final int compressionVersion;
     private final boolean eos;
@@ -90,7 +89,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         if (totalDefinitionLength != null && totalDefinitionLength <= 0L) {
             throw new IllegalArgumentException("[total_definition_length] must be greater than 0");
         }
-        this.totalDefinitionLength = totalDefinitionLength == null ? UNKNOWN_TOTAL_SIZE_VALUE : totalDefinitionLength;
+        this.totalDefinitionLength = totalDefinitionLength;
         if (definitionLength <= 0L) {
             throw new IllegalArgumentException("[definition_length] must be greater than 0");
         }
@@ -111,7 +110,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return docNum;
     }
 
-    public long getTotalDefinitionLength() {
+    public Long getTotalDefinitionLength() {
         return totalDefinitionLength;
     }
 
@@ -138,7 +137,9 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         builder.field(DOC_NUM.getPreferredName(), docNum);
         builder.field(DEFINITION_LENGTH.getPreferredName(), definitionLength);
-        builder.field(TOTAL_DEFINITION_LENGTH.getPreferredName(), totalDefinitionLength);
+        if (totalDefinitionLength != null) {
+            builder.field(TOTAL_DEFINITION_LENGTH.getPreferredName(), totalDefinitionLength);
+        }
         builder.field(COMPRESSION_VERSION.getPreferredName(), compressionVersion);
         builder.field(DEFINITION.getPreferredName(), compressedString);
         builder.field(EOS.getPreferredName(), eos);

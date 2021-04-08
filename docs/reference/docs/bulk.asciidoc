@@ -748,7 +748,7 @@ The API returns the following result.
 [[bulk-dynamic-templates]]
 ===== Example with dynamic templates parameter
 
-The below example creates a dynamic template, then performs a bulk request 
+The below example creates a dynamic template, then performs a bulk request
 consisting of index/create requests with the `dynamic_templates` parameter.
 
 [source,console]
@@ -759,9 +759,9 @@ PUT my-index/
     "dynamic_templates": [
       {
         "geo_point": {
-         "mapping": {
-            "mapping" : "geo_point"
-         }
+             "mapping": {
+                "type" : "geo_point"
+             }
         }
       }
     ]

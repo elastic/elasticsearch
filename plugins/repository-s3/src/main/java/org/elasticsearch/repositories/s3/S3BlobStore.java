@@ -64,35 +64,49 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
-        this.getMetricCollector = new RequestMetricCollector() {
+        this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.getCount.addAndGet(getRequestCount(request));
             }
         };
-        this.listMetricCollector = new RequestMetricCollector() {
+        this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.listCount.addAndGet(getRequestCount(request));
             }
         };
-        this.putMetricCollector = new RequestMetricCollector() {
+        this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
                 stats.putCount.addAndGet(getRequestCount(request));
             }
         };
-        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
+        this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
+            public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT")
                     || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
+    }
+
+    // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
+    // issue
+    private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+
+        @Override
+        public final void collectMetrics(Request<?> request, Response<?> response) {
+            if (response != null) {
+                collectMetrics(request);
+            }
+        }
+
+        protected abstract void collectMetrics(Request<?> request);
     }
 
     private long getRequestCount(Request<?> request) {

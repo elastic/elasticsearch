@@ -40,8 +40,8 @@ If `message` contains machine-generated unstructured content, map it as a
 <<keyword-field-type,`keyword`>> field.
 
 Avoid using the <<text,`text`>> field type. {es} changes `text` field values
-during <<analysis,analysis>>. `text` fields don't preserve the original field
-value. `text` fields also don't support runtime fields.
+during <<analysis,analysis>>, meaning `text` fields don't preserve the original
+field value. `text` fields also don't support runtime fields.
 
 To better understand when to use the `text`, `keyword`, and `wildcard` field
 types, see <<mapping-unstructured-content>>.

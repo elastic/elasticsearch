@@ -21,6 +21,7 @@ public enum LuceneFilesExtensions {
     // Compound files are tricky because they store all the information for the segment. Benchmarks
     // suggested that not mapping them hurts performance.
     CFS("cfs", "Compound Files", false, true),
+    CMP("cmp", "Completion Index", false, false),
     DII("dii", "Points Index", false, false),
     // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
     DIM("dim", "Points", false, true),
@@ -44,6 +45,7 @@ public enum LuceneFilesExtensions {
     // Lucene 8.6 point format metadata file
     KDM("kdm", "Points Metadata", true, false),
     LIV("liv", "Live Documents", false, false),
+    LKP("lkp", "Completion Dictionary", false, false),
     // Norms are typically performance-sensitive and hot in the page
     // cache, so we use mmap, which provides better performance.
     NVD("nvd", "Norms", false, true),

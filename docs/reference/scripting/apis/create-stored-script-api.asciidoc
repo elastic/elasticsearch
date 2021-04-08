@@ -48,8 +48,8 @@ within the cluster.
 
 `<context>`::
 (Optional, string)
-{painless}/painless-contexts.html[Context] used to compile the script. The API
-compiles the script immediately on storage to prevent errors later.
+{painless}/painless-contexts.html[Context] used to compile the script or search
+template. The API immediately compiles to prevent errors later.
 
 [[create-stored-script-api-query-params]]
 ==== {api-query-parms-title}
@@ -57,7 +57,7 @@ compiles the script immediately on storage to prevent errors later.
 `context`::
 (Optional, string)
 {painless}/painless-contexts.html[Context] used to compile the script. The API
-compiles the script immediately on storage to prevent errors later.
+immediately compiles to prevent errors later.
 +
 If you specify both this and the `<context>` request path parameter, the API
 uses the request path parameter.

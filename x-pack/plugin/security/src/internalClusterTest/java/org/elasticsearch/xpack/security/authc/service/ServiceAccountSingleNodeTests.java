@@ -10,9 +10,17 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -23,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
@@ -59,16 +68,52 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
             createServiceAccountClient().execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
         final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
         assertThat(authenticateResponse.authentication(), equalTo(
-            new Authentication(
-                new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
-                    Map.of("_elastic_service_account", true), true),
-                new Authentication.RealmRef("service_account", "service_account", nodeName),
-                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", "token1")
-            )
+           getExpectedAuthentication("token1")
         ));
     }
 
+    public void testApiServiceAccountToken() {
+        final IndexServiceAccountsTokenStore store = node().injector().getInstance(IndexServiceAccountsTokenStore.class);
+        final Cache<String, ListenableFuture<CachingServiceAccountsTokenStore.CachedResult>> cache = store.getCache();
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "api-token-1");
+        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+            client().execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest).actionGet();
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo("api-token-1"));
+        assertThat(cache.count(), equalTo(0));
+
+        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
+        final AuthenticateResponse authenticateResponse =
+            createServiceAccountClient(createServiceAccountTokenResponse.getValue().toString())
+                .execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
+        assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication("api-token-1")));
+        // cache is populated after authenticate
+        assertThat(cache.count(), equalTo(1));
+
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+            new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "api-token-1");
+        final DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse =
+            client().execute(DeleteServiceAccountTokenAction.INSTANCE, deleteServiceAccountTokenRequest).actionGet();
+        assertThat(deleteServiceAccountTokenResponse.found(), is(true));
+        // cache is cleared after token deletion
+        assertThat(cache.count(), equalTo(0));
+    }
+
     private Client createServiceAccountClient() {
-        return client().filterWithHeader(Map.of("Authorization", "Bearer " + BEARER_TOKEN));
+        return createServiceAccountClient(BEARER_TOKEN);
+    }
+
+    private Client createServiceAccountClient(String bearerString) {
+        return client().filterWithHeader(Map.of("Authorization", "Bearer " + bearerString));
+    }
+
+    private Authentication getExpectedAuthentication(String tokenName) {
+        final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
+        return new Authentication(
+            new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
+                Map.of("_elastic_service_account", true), true),
+            new Authentication.RealmRef("service_account", "service_account", nodeName),
+            null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", tokenName)
+        );
     }
 }

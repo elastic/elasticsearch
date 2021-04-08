@@ -668,4 +668,27 @@ public abstract class ParseContext {
      * Get dynamic runtime fields created while parsing.
      */
     public abstract List<RuntimeField> getDynamicRuntimeFields();
+
+    /**
+     * Find a dynamic mapping template for the given field and its matching type
+     *
+     * @param fieldName the name of the field
+     * @param matchType the expecting matchType of the field
+     * @return the matching template; otherwise returns null
+     * @throws MapperParsingException if the given field has a dynamic template name specified, but no template matches that name.
+     */
+    public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
+        final String pathAsString = path().pathAsText(fieldName);
+        final String matchTemplateName = sourceToParse().dynamicTemplates().get(pathAsString);
+        for (DynamicTemplate template : root().dynamicTemplates()) {
+            if (template.match(matchTemplateName, pathAsString, fieldName, matchType)) {
+                return template;
+            }
+        }
+        if (matchTemplateName != null) {
+            throw new MapperParsingException(
+                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]");
+        }
+        return null;
+    }
 }

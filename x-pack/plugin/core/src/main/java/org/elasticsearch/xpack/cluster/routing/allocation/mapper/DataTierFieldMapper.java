@@ -55,8 +55,9 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             if (caseInsensitive) {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
+
             String tierPreference = getTierPreference(context);
-            if (tierPreference == null) {
+            if (Strings.hasText(tierPreference) == false) {
                 return false;
             }
             return Regex.simpleMatch(pattern, tierPreference);
@@ -65,7 +66,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             String tierPreference = getTierPreference(context);
-            if (tierPreference == null) {
+            if (Strings.hasText(tierPreference) == false) {
                 return new MatchNoDocsQuery();
             }
             return new MatchAllDocsQuery();

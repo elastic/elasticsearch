@@ -89,6 +89,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private volatile long slowLogThresholdMs;
     protected volatile long lastClientStatsPruneTime;
+    private volatile boolean clientStatsEnabled;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -117,6 +118,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
                 slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis());
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
+        clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED, this::enableClientStats);
+        clientStatsEnabled = HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.get(settings);
     }
 
     @Override
@@ -145,7 +148,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param throttled When true, executes the prune process only if more than 60 seconds has elapsed since the last execution.
      */
     void pruneClientStats(boolean throttled) {
-        if (throttled == false || (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
+        if (clientStatsEnabled && throttled == false ||
+            (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
             long nowMillis = threadPool.absoluteTimeInMillis();
             for (Map.Entry<Integer, HttpStats.ClientStats> statsEntry : httpChannelStats.entrySet()) {
                 long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
@@ -154,6 +158,17 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 }
             }
             lastClientStatsPruneTime = threadPool.relativeTimeInMillis();
+        }
+    }
+
+    /**
+     * Enables or disables collection of HTTP client stats.
+     */
+    void enableClientStats(boolean enabled) {
+        this.clientStatsEnabled = enabled;
+        if (enabled == false) {
+            // when disabling, immediately clear client stats
+            httpChannelStats.clear();
         }
     }
 
@@ -322,27 +337,32 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private HttpStats.ClientStats addClientStats(final HttpChannel httpChannel) {
-        final HttpStats.ClientStats clientStats;
-        if (httpChannel != null) {
-            clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
-            httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
-            httpChannel.addCloseListener(ActionListener.wrap(() -> {
-                try {
-                    httpChannels.remove(httpChannel);
-                    HttpStats.ClientStats disconnectedClientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
-                    if (disconnectedClientStats != null) {
-                        disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+        if (clientStatsEnabled) {
+            final HttpStats.ClientStats clientStats;
+            if (httpChannel != null) {
+                clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
+                httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
+                httpChannel.addCloseListener(ActionListener.wrap(() -> {
+                    try {
+                        httpChannels.remove(httpChannel);
+                        HttpStats.ClientStats disconnectedClientStats =
+                            httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+                        if (disconnectedClientStats != null) {
+                            disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+                        }
+                    } catch (Exception e) {
+                        // the listener code above should never throw
+                        logger.trace("error removing HTTP channel listener", e);
                     }
-                } catch (Exception e) {
-                    // the listener code above should never throw
-                    logger.trace("error removing HTTP channel listener", e);
-                }
-            }));
+                }));
+            } else {
+                clientStats = null;
+            }
+            pruneClientStats(true);
+            return clientStats;
         } else {
-            clientStats = null;
+            return null;
         }
-        pruneClientStats(true);
-        return clientStats;
     }
 
     /**
@@ -367,7 +387,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        if (httpChannel != null) {
+        if (clientStatsEnabled && httpChannel != null) {
             HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
             if (clientStats == null) {
                 // will always return a non-null value when httpChannel is non-null

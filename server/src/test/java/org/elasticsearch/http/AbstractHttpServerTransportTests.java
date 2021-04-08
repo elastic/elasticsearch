@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -390,7 +391,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test")
-                .withHeaders(org.elasticsearch.common.collect.Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                 .build();
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
@@ -406,7 +407,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test2")
-                .withHeaders(org.elasticsearch.common.collect.Map.of(
+                .withHeaders(Map.of(
                     Task.X_OPAQUE_ID.toUpperCase(Locale.ROOT),
                     Collections.singletonList(opaqueId))
                 )
@@ -426,7 +427,91 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    public void testDisablingHttpClientStats() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
 
+                    @Override public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                clusterSettings) {
+
+                @Override protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override protected void doStart() {
+                }
+
+                @Override protected void stopInternal() {
+                }
+            }) {
+
+            InetSocketAddress remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            String opaqueId = UUIDs.randomBase64UUID(random());
+            FakeRestRequest
+                fakeRestRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
+                    .withMethod(RestRequest.Method.GET)
+                    .withPath("/internal/stats_test")
+                    .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+
+            // HTTP client stats should default to enabled
+            HttpStats httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(1));
+            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+
+            clusterSettings.applySettings(Settings.builder()
+                .put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false)
+                .build());
+
+            // After disabling, HTTP client stats should be cleared immediately
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(0));
+
+            // After disabling, HTTP client stats should not track new clients
+            remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            opaqueId = UUIDs.randomBase64UUID(random());
+            fakeRestRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
+                    .withMethod(RestRequest.Method.GET)
+                    .withPath("/internal/stats_test")
+                    .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(0));
+
+            clusterSettings.applySettings(Settings.builder()
+                .put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), true)
+                .build());
+
+            // After re-enabling, HTTP client stats should now track new clients
+            remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            opaqueId = UUIDs.randomBase64UUID(random());
+            fakeRestRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress)
+                    .withMethod(RestRequest.Method.GET)
+                    .withPath("/internal/stats_test")
+                    .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(1));
+        }
+    }
 
     private static RestResponse emptyResponse(RestStatus status) {
         return new RestResponse() {

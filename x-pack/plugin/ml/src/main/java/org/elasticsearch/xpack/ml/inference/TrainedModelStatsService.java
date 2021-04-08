@@ -142,6 +142,10 @@ public class TrainedModelStatsService {
         }
     }
 
+    private boolean shouldStop() {
+        return stopped || MlMetadata.getMlMetadata(clusterState).isResetMode() || MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
+    }
+
     void start() {
         logger.debug("About to start TrainedModelStatsService");
         stopped = false;
@@ -158,6 +162,11 @@ public class TrainedModelStatsService {
         boolean isInUpgradeMode = MlMetadata.getMlMetadata(clusterState).isUpgradeMode();
         if (isInUpgradeMode) {
             logger.debug("Model stats not persisted as ml upgrade mode is enabled");
+            return;
+        }
+
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            logger.debug("Model stats not persisted as ml reset_mode is enabled");
             return;
         }
 
@@ -195,12 +204,12 @@ public class TrainedModelStatsService {
         if (bulkRequest.requests().isEmpty()) {
             return;
         }
-        if (stopped) {
+        if (shouldStop()) {
             return;
         }
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
-            () -> stopped == false,
+            () -> shouldStop() == false,
             (msg) -> {});
     }
 

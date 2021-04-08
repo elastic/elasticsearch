@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
@@ -59,9 +60,9 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
                 .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
     }
@@ -76,4 +77,15 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
         return true;
     }
 
+    protected void awaitTaskWithPrefix(String actionPrefix) throws Exception {
+        logger.info("--> waiting for task with prefix [{}] to start", actionPrefix);
+        assertBusy(() -> {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                if (transportService.getTaskManager().getTasks().values().stream().anyMatch(t -> t.getAction().startsWith(actionPrefix))) {
+                    return;
+                }
+            }
+            fail("no task with prefix [" + actionPrefix + "] found");
+        });
+    }
 }

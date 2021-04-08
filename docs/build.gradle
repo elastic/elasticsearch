@@ -35,7 +35,7 @@ tasks.named("buildRestTests").configure {
 
 restResources {
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
@@ -43,7 +43,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
-    systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
     systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
@@ -144,6 +143,9 @@ Closure setupMyIndex = { String name, int count ->
                           type: keyword
                 message:
                   type: text
+                  fields:
+                    keyword:
+                      type: keyword
                 user:
                   properties:
                     id:
@@ -175,6 +177,38 @@ setupMyIndex('my_index_huge', 1200)
 
 tasks.named("buildRestTests").configure {buildRestTests ->
 
+setups['my_data_stream_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+'''
+
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+'''
+
+teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
 // Used for several full-text search and agg examples
 buildRestTests.setups['messages'] = '''
   - do:
@@ -190,27 +224,19 @@ buildRestTests.setups['messages'] = '''
           refresh: true
           body: |
             {"index":{"_id": "0"}}
-            {"message": "trying out Elasticsearch"}
+            {"message": "trying out Elasticsearch", "context": "foo"}
             {"index":{"_id": "1"}}
-            {"message": "some message with the number 1"}
+            {"message": "some message with the number 1", "context": "bar"}
             {"index":{"_id": "2"}}
-            {"message": "some message with the number 2"}
+            {"message": "some message with the number 2", "context": "bar"}
             {"index":{"_id": "3"}}
-            {"message": "some message with the number 3"}
+            {"message": "some message with the number 3", "context": "bar"}
             {"index":{"_id": "4"}}
-            {"message": "some message with the number 4"}'''
+            {"message": "some message with the number 4", "context": "bar"}
+'''
 
 // Used for EQL
-buildRestTests.setups['sec_logs'] = '''
-  - do:
-      indices.put_index_template:
-        name: my-data-stream-template
-        body: |
-          {
-            "index_patterns": [ "my-data-stream*" ],
-            "data_stream": { },
-            "priority": 500
-          }
+setups['sec_logs'] = setups['my_data_stream'] + '''
   - do:
         bulk:
           index: my-data-stream
@@ -508,14 +534,6 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
-  # Simple script to load a field. Not really a good example, but a simple one.
-  - do:
-      put_script:
-        id: "my_script"
-        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
-  - match: { acknowledged: true }
-'''
 
 buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
@@ -1523,16 +1541,7 @@ setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-  setups['atomic_red_regsvr32'] = '''
-  - do:
-      indices.put_index_template:
-        name: my-data-stream-template
-        body: |
-          {
-            "index_patterns": [ "my-data-stream*" ],
-            "data_stream": { },
-            "priority": 500
-          }
+  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
   - do:
         bulk:
           index: my-data-stream

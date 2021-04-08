@@ -31,7 +31,7 @@ import static org.mockito.Mockito.mock;
 public class ElasticServiceAccountsTests extends ESTestCase {
 
     public void testElasticFleetPrivileges() {
-        final Role role = Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet").roleDescriptor(), null).build();
+        final Role role = Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null).build();
         final Authentication authentication = mock(Authentication.class);
         assertThat(role.cluster().check(CreateApiKeyAction.NAME,
             new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication), is(true));
@@ -42,7 +42,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME,
             InvalidateApiKeyRequest.usingUserName(randomAlphaOfLengthBetween(3, 16)), authentication), is(false));
 
-        // TODO: more tests when role descriptor is finalised for elastic/fleet
+        // TODO: more tests when role descriptor is finalised for elastic/fleet-server
     }
 
     public void testElasticServiceAccount() {

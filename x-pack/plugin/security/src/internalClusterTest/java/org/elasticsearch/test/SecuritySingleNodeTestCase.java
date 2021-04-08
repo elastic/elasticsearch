@@ -167,7 +167,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        Settings customSettings = customSecuritySettingsSource.nodeSettings(0);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(0, Settings.EMPTY);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");
@@ -212,6 +212,10 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected String configOperatorUsers() {
         return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
+    }
+
+    protected String configServiceTokens() {
+        return SECURITY_DEFAULT_SETTINGS.configServiceTokens();
     }
 
     /**
@@ -259,6 +263,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         @Override
         protected String configOperatorUsers() {
             return SecuritySingleNodeTestCase.this.configOperatorUsers();
+        }
+
+        @Override
+        protected String configServiceTokens() {
+            return SecuritySingleNodeTestCase.this.configServiceTokens();
         }
 
         @Override

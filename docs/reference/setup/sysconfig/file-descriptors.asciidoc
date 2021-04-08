@@ -7,7 +7,7 @@ Elasticsearch on Windows. On Windows that JVM uses an
 https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx[API]
 limited only by available resources.
 
-Elasticsearch uses a lot of file descriptors or file handles.  Running out of
+Elasticsearch uses a lot of file descriptors or file handles. Running out of
 file descriptors can be disastrous and will most probably lead to data loss.
 Make sure to increase the limit on the number of open files descriptors for
 the user running Elasticsearch to 65,536 or higher.

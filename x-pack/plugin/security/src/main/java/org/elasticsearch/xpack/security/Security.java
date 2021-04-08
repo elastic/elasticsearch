@@ -312,6 +312,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+    public static final Version FLATTENED_FIELD_TYPE_INTRODUCED = Version.V_7_3_0;
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -1228,6 +1229,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
      private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
          return SystemIndexDescriptor.builder()
+             .setMinimumNodeVersion(FLATTENED_FIELD_TYPE_INTRODUCED)
              // This can't just be `.security-*` because that would overlap with the tokens index pattern
              .setIndexPattern(".security-[0-9]+")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
@@ -1238,6 +1240,19 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
              .setVersionMetaKey("security-version")
              .setOrigin(SECURITY_ORIGIN)
+             .setPriorSystemIndexDescriptors(org.elasticsearch.common.collect.List.of(
+                 SystemIndexDescriptor.builder()
+                     .setIndexPattern(".security-[0-9]+")
+                     .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+                     .setDescription("Contains Security configuration")
+                     .setMappings(getIndexMappings(Version.V_7_12_0))
+                     .setSettings(getIndexSettings())
+                     .setAliasName(SECURITY_MAIN_ALIAS)
+                     .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+                     .setVersionMetaKey("security-version")
+                     .setOrigin(SECURITY_ORIGIN)
+                     .build()
+             ))
              .build();
      }
 
@@ -1277,12 +1292,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     private static XContentBuilder getIndexMappings() {
+         return getIndexMappings(Version.CURRENT);
+    }
+
+    private static XContentBuilder getIndexMappings(Version mappingVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SECURITY_VERSION_STRING, mappingVersion.toString());
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -1331,6 +1350,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     builder.field("type", "object");
                     builder.field("dynamic", false);
                     builder.endObject();
+
+                    if (mappingVersion.onOrAfter(Version.V_7_13_0)) {
+                        builder.startObject("metadata_flattened");
+                        builder.field("type", "flattened");
+                        builder.endObject();
+                    }
 
                     builder.startObject("enabled");
                     builder.field("type", "boolean");

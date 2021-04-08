@@ -1,0 +1,18 @@
+---
+"Create API key with metadata in a mixed cluster":
+  - skip:
+      features: node_selector
+
+  - do:
+      node_selector:
+        version: " 7.13.0 - "
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-mixed-api-key-2",
+            "role_descriptors": {},
+            "metadata": {"foo": "bar"}
+          }
+  - match: { name: "my-mixed-api-key-2" }
+  - is_true: id
+  - is_true: api_key

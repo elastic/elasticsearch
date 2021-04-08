@@ -1040,8 +1040,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), mock(ClusterService.class),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), securityIndexManager, mock(ClusterService.class),
                 mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
@@ -1093,8 +1095,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
 
+        final SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), mock(SecurityIndexManager.class), mock(ClusterService.class),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS, () -> 0), securityIndexManager, mock(ClusterService.class),
                 mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {

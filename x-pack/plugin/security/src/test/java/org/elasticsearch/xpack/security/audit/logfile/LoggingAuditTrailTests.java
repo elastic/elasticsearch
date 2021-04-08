@@ -260,6 +260,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
         Client client = mock(Client.class);
         SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         Mockito.doAnswer((Answer) invocation -> {

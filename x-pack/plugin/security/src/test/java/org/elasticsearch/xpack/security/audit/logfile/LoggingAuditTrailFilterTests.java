@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,8 +94,10 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
+        final SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), new XPackLicenseState(settings, () -> 0),
-                                          mock(SecurityIndexManager.class), clusterService,
+            securityIndexManager, clusterService,
                                           mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
     }
 

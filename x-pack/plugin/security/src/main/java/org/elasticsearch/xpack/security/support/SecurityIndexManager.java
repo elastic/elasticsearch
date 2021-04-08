@@ -421,6 +421,12 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
+    public Version getInstallableMappingVersion() {
+        final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
+        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+        return descriptor == null ? Version.V_EMPTY : descriptor.getMappingVersion();
+    }
+
     /**
      * Return true if the state moves from an unhealthy ("RED") index state to a healthy ("non-RED") state.
      */

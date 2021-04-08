@@ -174,7 +174,9 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
                 config
             )
         );
-        assertThat(e.getMessage(), containsString("[internal_networks] and [internal_networks_field] cannot both be used in the same processor"));
+        assertThat(e.getMessage(), containsString(
+            "[internal_networks] and [internal_networks_field] cannot both be used in the same processor"
+        ));
     }
 
     private void testNetworkDirectionProcessor(

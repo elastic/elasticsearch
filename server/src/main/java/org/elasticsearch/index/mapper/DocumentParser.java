@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -21,14 +22,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -93,6 +100,7 @@ final class DocumentParser {
 
     private static void internalParseDocument(RootObjectMapper root, MetadataFieldMapper[] metadataFieldsMappers,
                                               ParseContext context, XContentParser parser) throws IOException {
+
         final boolean emptyDoc = isEmptyDoc(root, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -106,8 +114,43 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
+        executeIndexTimeScripts(context);
+
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
+        }
+    }
+
+    private static void executeIndexTimeScripts(ParseContext context) {
+        List<FieldMapper> indexTimeScriptMappers = context.mappingLookup().indexTimeScriptMappers();
+        if (indexTimeScriptMappers.isEmpty()) {
+            return;
+        }
+        SearchLookup searchLookup = new SearchLookup(
+            context.mappingLookup().indexTimeLookup()::get,
+            (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup).build(
+                new IndexFieldDataCache.None(),
+                new NoneCircuitBreakerService())
+        );
+        // field scripts can be called both by the loop at the end of this method and via
+        // the document reader, so to ensure that we don't run them multiple times we
+        // guard them with an 'executed' boolean
+        Map<String, Consumer<LeafReaderContext>> fieldScripts = new HashMap<>();
+        indexTimeScriptMappers.forEach(mapper -> fieldScripts.put(mapper.name(), new Consumer<>() {
+            boolean executed = false;
+            @Override
+            public void accept(LeafReaderContext leafReaderContext) {
+                if (executed == false) {
+                    mapper.executeScript(searchLookup, leafReaderContext, 0, context);
+                    executed = true;
+                }
+            }
+        }));
+
+        // call the index script on all field mappers configured with one
+        DocumentLeafReader reader = new DocumentLeafReader(context.rootDoc(), fieldScripts);
+        for (Consumer<LeafReaderContext> script : fieldScripts.values()) {
+            script.accept(reader.getContext());
         }
     }
 
@@ -546,7 +589,8 @@ final class DocumentParser {
                 // TODO: shouldn't this skip, not parse?
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             } else {
-                Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
+                Mapper objectMapperFromTemplate =
+                    dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
                 if (objectMapperFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {
@@ -714,10 +758,18 @@ final class DocumentParser {
                     return new Tuple<>(pathsAdded, parent);
                 } else {
                     //objects are created under properties even with dynamic: runtime, as the runtime section only holds leaf fields
-                    mapper = (ObjectMapper) dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, paths[i]);
+                    final Mapper fieldMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, paths[i]);
+                    if (fieldMapper instanceof ObjectMapper == false) {
+                        assert context.sourceToParse().dynamicTemplates().containsKey(currentPath) :
+                            "dynamic templates [" + context.sourceToParse().dynamicTemplates() + "]";
+                        throw new MapperParsingException("Field [" + currentPath + "] must be an object; " +
+                            "but it's configured as [" + fieldMapper.typeName() + "] in dynamic template [" +
+                            context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
+                    }
+                    mapper = (ObjectMapper) fieldMapper;
                     if (mapper.nested() != ObjectMapper.Nested.NO) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
-                            + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");
+                            + currentPath + "]) through `copy_to` or dots in field names");
                     }
                     context.addDynamicMapper(mapper);
                 }

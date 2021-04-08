@@ -171,7 +171,7 @@ All read-only {slm-init} actions, such as getting policies and checking the
 {slm-init} status.
 
 `transport_client`::
-All privileges necessary for a transport client to connect.  Required by the remote
+All privileges necessary for a transport client to connect. Required by the remote
 cluster to enable <<cross-cluster-configuring,{ccs}>>.
 
 [[privileges-list-indices]]

@@ -73,9 +73,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;
-            testClusters {
-              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
-            }
 
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
@@ -198,10 +195,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;
-            testClusters {
-              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
-            }
-
+     
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
             }

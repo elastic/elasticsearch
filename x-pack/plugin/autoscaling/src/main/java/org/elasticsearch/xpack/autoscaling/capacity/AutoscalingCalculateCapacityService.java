@@ -268,7 +268,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         private boolean nodeHasAccurateCapacity(DiscoveryNode node) {
-            if (node.isDataNode()) {
+            if (node.canContainData()) {
                 // todo: multiple data path support.
                 DiskUsage mostAvailable = clusterInfo.getNodeMostAvailableDiskUsages().get(node.getId());
                 DiskUsage leastAvailable = clusterInfo.getNodeLeastAvailableDiskUsages().get(node.getId());
@@ -296,7 +296,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         private AutoscalingCapacity.AutoscalingResources resourcesFor(DiscoveryNode node) {
-            long storage = node.isDataNode()
+            long storage = node.canContainData()
                 ? Math.max(
                     totalStorage(clusterInfo.getNodeLeastAvailableDiskUsages(), node),
                     totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node)

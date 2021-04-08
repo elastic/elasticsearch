@@ -244,8 +244,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     protected static String httpServerUrl() {
+        return "http://" + serverUrl();
+    }
+
+    protected static String serverUrl() {
         InetSocketAddress address = httpServer.getAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        return InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
     /**

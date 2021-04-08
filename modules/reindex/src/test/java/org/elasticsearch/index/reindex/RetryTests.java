@@ -69,8 +69,8 @@ public class RetryTests extends ESIntegTestCase {
      * Lower the queue sizes to be small enough that bulk will time out and have to be retried.
      */
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(nodeSettings()).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(nodeSettings()).build();
     }
 
     @Override

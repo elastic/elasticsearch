@@ -82,7 +82,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
     }
 
     private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
+        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false && uri.getHost().equals("localhost") == false) {
             String url;
             try {
                 url = uri.toURL().toString();

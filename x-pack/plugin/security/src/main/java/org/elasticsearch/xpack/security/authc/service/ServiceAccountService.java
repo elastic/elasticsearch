@@ -14,9 +14,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
 import java.util.Map;
@@ -31,9 +34,11 @@ public class ServiceAccountService {
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
     private final ServiceAccountsTokenStore serviceAccountsTokenStore;
+    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
-    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore) {
+    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         this.serviceAccountsTokenStore = serviceAccountsTokenStore;
+        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     public static boolean isServiceAccount(Authentication authentication) {
@@ -46,6 +51,10 @@ public class ServiceAccountService {
 
     public static Collection<String> getServiceAccountPrincipals() {
         return ACCOUNTS.keySet();
+    }
+
+    public static Map<String, ServiceAccount> getServiceAccounts() {
+        return Map.copyOf(ACCOUNTS);
     }
 
     /**
@@ -74,44 +83,53 @@ public class ServiceAccountService {
         }
     }
 
+    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountTokensResponse> listener) {
+        serviceAccountsTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
+            listener.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos));
+        }, listener::onFailure));
+    }
+
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
         logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
-        if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
-            logger.debug("only [{}] service accounts are supported, but received [{}]",
-                ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
-            listener.onFailure(createAuthenticationException(serviceAccountToken));
-            return;
-        }
-
-        final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
-        if (account == null) {
-            logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
-            listener.onFailure(createAuthenticationException(serviceAccountToken));
-            return;
-        }
-
-        serviceAccountsTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
-            if (success) {
-                listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
-            } else {
-                final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
-                logger.debug(e.getMessage());
-                listener.onFailure(e);
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account authentication", () -> {
+            if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
+                logger.debug("only [{}] service accounts are supported, but received [{}]",
+                    ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
             }
-        }, listener::onFailure));
+
+            final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
+            if (account == null) {
+                logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+
+            serviceAccountsTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
+                if (success) {
+                    listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
+                } else {
+                    final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
+                    logger.debug(e.getMessage());
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure));
+        });
     }
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
-
-        final String principal = authentication.getUser().principal();
-        final ServiceAccount account = ACCOUNTS.get(principal);
-        if (account == null) {
-            listener.onFailure(new ElasticsearchSecurityException(
-                "cannot load role for service account [" + principal + "] - no such service account"));
-            return;
-        }
-        listener.onResponse(account.roleDescriptor());
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account role descriptor resolving", () -> {
+            final String principal = authentication.getUser().principal();
+            final ServiceAccount account = ACCOUNTS.get(principal);
+            if (account == null) {
+                listener.onFailure(new ElasticsearchSecurityException(
+                    "cannot load role for service account [" + principal + "] - no such service account"));
+                return;
+            }
+            listener.onResponse(account.roleDescriptor());
+        });
     }
 
     private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {

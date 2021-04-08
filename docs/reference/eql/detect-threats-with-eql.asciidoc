@@ -37,7 +37,7 @@ events imitating a Squiblydoo attack. The data has been mapped to
 To get started:
 
 . Create an <<index-templates,index template>> with
-<<create-a-data-stream-template,data stream enabled>>:
+<<create-index-template,data stream enabled>>:
 +
 ////
 [source,console]

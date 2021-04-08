@@ -373,7 +373,7 @@ TRUNCATE(
 *Output*: numeric 
 
 *Description*: Returns `numeric_exp` truncated to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
-`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point.  If `integer_exp` is omitted,
+`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point. If `integer_exp` is omitted,
 the function will perform as if `integer_exp` would be 0. The returned numeric data type is the same as the data type 
 of `numeric_exp`.
 

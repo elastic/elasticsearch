@@ -357,7 +357,8 @@ settings API>> to set
 
 . Use the <<cluster-update-settings,update cluster settings API>> to set
 `ingest.geoip.downloader.enabled` to `false`. This disables automatic updates
-that may overwrite your database changes.
+that may overwrite your database changes. This also deletes all downloaded
+databases.
 
 . Download your `.mmdb` database files from the
 http://dev.maxmind.com/geoip/geoip2/geolite2[MaxMind site].

@@ -39,11 +39,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -187,10 +189,12 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             }
         }
 
+        final Predicate<DiscoveryNodeRole> notVotingOnlyRole =
+            Predicate.not(r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE));
         final Settings nodeSettings = Settings.builder()
             .put(
                 NODE_ROLES_SETTING.getKey(),
-                randomValueOtherThanMany(DiscoveryNodeRole::canContainData, () -> randomFrom(BUILT_IN_ROLES)).roleName()
+                randomValueOtherThanMany(r -> notVotingOnlyRole.test(r) || r.canContainData(), () -> randomFrom(BUILT_IN_ROLES)).roleName()
             )
             .build();
 

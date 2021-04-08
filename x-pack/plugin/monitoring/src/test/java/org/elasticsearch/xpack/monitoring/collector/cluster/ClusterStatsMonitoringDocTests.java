@@ -185,7 +185,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                   randomAlphaOfLength(5),
                                   new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                                   randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                                  singleton(randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES)),
+                                  singleton(randomValueOtherThan(
+                                      DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.BUILT_IN_ROLES))
+                                  ),
                                   Version.CURRENT));
         }
 

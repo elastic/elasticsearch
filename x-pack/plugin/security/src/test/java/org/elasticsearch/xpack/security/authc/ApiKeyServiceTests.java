@@ -348,7 +348,6 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Version.CURRENT, randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL,
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
         }
-        @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
@@ -1120,8 +1119,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         creatorMap.put("metadata", Collections.emptyMap());
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
-        //noinspection unchecked
-        sourceMap.put("metadata_flattened", ApiKeyTests.randomMetadata());
+        // We don't want an empty map here for consistency because newDocument method drops empty metadata
+        sourceMap.put("metadata_flattened", randomValueOtherThan(org.elasticsearch.common.collect.Map.of(), ApiKeyTests::randomMetadata));
         return sourceMap;
     }
 
@@ -1165,7 +1164,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkAuthApiKeyMetadata(Object metadata, AuthenticationResult authResult1) throws IOException {
-        if (metadata == null || ((Map<String, Object>)metadata).isEmpty()) {
+        if (metadata == null || ((Map<String, Object>) metadata).isEmpty()) {
             assertThat(authResult1.getMetadata().containsKey(ApiKeyService.API_KEY_METADATA_KEY), is(false));
         } else {
             //noinspection unchecked

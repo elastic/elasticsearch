@@ -197,6 +197,6 @@ public class ESIndexInputTestCase extends ESTestCase {
     }
 
     protected static String randomFileExtension() {
-        return randomFrom(LuceneFilesExtensions.values()).getExtension();
+        return '.' + randomFrom(LuceneFilesExtensions.values()).getExtension();
     }
 }

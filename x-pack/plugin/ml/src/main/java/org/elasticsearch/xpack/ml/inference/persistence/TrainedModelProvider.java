@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedMo
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 
 import java.io.IOException;
@@ -405,7 +406,10 @@ public class TrainedModelProvider {
         }
 
         List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
-        ChunkedTrainedModelRestorer modelRestorer = new ChunkedTrainedModelRestorer(modelId, client, xContentRegistry);
+        ChunkedTrainedModelRestorer modelRestorer =
+            new ChunkedTrainedModelRestorer(modelId, client,
+                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry);
+
         // TODO how could we stream in the model definition WHILE parsing it?
         // This would reduce the overall memory usage as we won't have to load the whole compressed string
         // XContentParser supports streams.

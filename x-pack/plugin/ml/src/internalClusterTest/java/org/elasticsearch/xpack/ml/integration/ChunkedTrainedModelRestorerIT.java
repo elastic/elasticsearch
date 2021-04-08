@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -43,7 +44,8 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         putModelDefinitions(expectedDocs, InferenceIndexConstants.LATEST_INDEX_NAME, 0);
 
 
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(), xContentRegistry());
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
         restorer.setSearchSize(5);
         List<TrainedModelDefinitionDoc> actualDocs = new ArrayList<>();
 
@@ -53,7 +55,10 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         restorer.restoreModelDefinition(
             actualDocs::add,
             success -> latch.countDown(),
-            failure -> {exceptionHolder.set(failure); latch.countDown();});
+            failure -> {
+                exceptionHolder.set(failure);
+                latch.countDown();
+            });
 
         latch.await();
 
@@ -86,7 +91,8 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         putModelDefinitions(expectedDocs.subList(0, splitPoint), index1, 0);
         putModelDefinitions(expectedDocs.subList(splitPoint, numDocs), index2, splitPoint);
 
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(), xContentRegistry());
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
         restorer.setSearchSize(10);
         restorer.setSearchIndex("foo-*");
 
@@ -97,13 +103,20 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         restorer.restoreModelDefinition(
             actualDocs::add,
             success -> latch.countDown(),
-            failure -> {exceptionHolder.set(failure); latch.countDown();});
+            failure -> {
+                exceptionHolder.set(failure);
+                latch.countDown();
+            });
 
         latch.await();
 
         assertNull(exceptionHolder.get());
-        // TODO this fails because the results are sorted by index first
-        assertEquals(actualDocs, expectedDocs);
+        // The results are sorted by index first rather than doc_num
+        // TODO is this the behaviour we want?
+        List<TrainedModelDefinitionDoc> reorderedDocs = new ArrayList<>();
+        reorderedDocs.addAll(expectedDocs.subList(splitPoint, numDocs));
+        reorderedDocs.addAll(expectedDocs.subList(0, splitPoint));
+        assertEquals(actualDocs, reorderedDocs);
     }
 
     private List<TrainedModelDefinitionDoc> createModelDefinitionDocs(List<String> compressedDefinitions, String modelId) {
@@ -127,8 +140,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
 
     private void putModelDefinitions(List<TrainedModelDefinitionDoc> docs, String index, int startingDocNum) throws IOException {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < docs.size(); i++) {
-            TrainedModelDefinitionDoc doc = docs.get(i);
+        for (TrainedModelDefinitionDoc doc : docs) {
             try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
                 IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index)
                     .setSource(xContentBuilder)

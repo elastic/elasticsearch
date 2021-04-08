@@ -31,17 +31,24 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * This is a use once class it has internal state to track progress
+ * Searches for and emits {@link TrainedModelDefinitionDoc}s in
+ * order based on the {@code doc_num}.
+ *
+ * This is a one-use class it has internal state to track progress
+ * and cannot be used again to load another model.
+ *
+ * Defaults to searching in {@link InferenceIndexConstants#INDEX_PATTERN}
+ * if a different index is not set.
  */
 public class ChunkedTrainedModelRestorer {
 
@@ -51,13 +58,18 @@ public class ChunkedTrainedModelRestorer {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final ExecutorService executorService;
     private final String modelId;
+    private String index = InferenceIndexConstants.INDEX_PATTERN;
     private int searchSize = 10;
     private int numDocsWritten = 0;
 
-    public ChunkedTrainedModelRestorer(String modelId, Client client,
+    public ChunkedTrainedModelRestorer(String modelId,
+                                       Client client,
+                                       ExecutorService executorService,
                                        NamedXContentRegistry xContentRegistry) {
         this.client = client;
+        this.executorService = executorService;
         this.xContentRegistry = xContentRegistry;
         this.modelId = modelId;
     }
@@ -66,7 +78,14 @@ public class ChunkedTrainedModelRestorer {
         if (searchSize > MAX_NUM_DEFINITION_DOCS) {
             throw new IllegalArgumentException("search size [" + searchSize + "] cannot be bigger than [" + MAX_NUM_DEFINITION_DOCS + "]");
         }
+        if (searchSize <=0) {
+            throw new IllegalArgumentException("search size [" + searchSize + "] must be greater than 0");
+        }
         this.searchSize = searchSize;
+    }
+
+    public void setSearchIndex(String indexNameOrPattern) {
+        this.index = indexNameOrPattern;
     }
 
     public int getNumDocsWritten() {
@@ -77,10 +96,9 @@ public class ChunkedTrainedModelRestorer {
                                        Consumer<Boolean> successConsumer,
                                        Consumer<Exception> errorConsumer) {
 
-        SearchRequest searchRequest = buildSearch(client, modelId, searchSize);
+        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize);
 
-        client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() ->
-            doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
+        executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
     }
 
     private void doSearch(SearchRequest searchRequest,
@@ -96,9 +114,18 @@ public class ChunkedTrainedModelRestorer {
                     return;
                 }
 
+                // Set lastNum to a non-zero to prevent an infinite loop
+                // search after requests in the absolute worse case where
+                // it has all gone wrong.
+                // Docs are numbered 0..N. we must have seen at least
+                // this many docs so far.
+                int lastNum = numDocsWritten -1;
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     try {
-                        modelConsumer.accept(parseModelDefinitionDocLenientlyFromSource(hit.getSourceRef(), modelId, xContentRegistry));
+                        TrainedModelDefinitionDoc doc =
+                            parseModelDefinitionDocLenientlyFromSource(hit.getSourceRef(), modelId, xContentRegistry);
+                        lastNum = doc.getDocNum();
+                        modelConsumer.accept(doc);
                     } catch (IOException e) {
                         logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
                         errorConsumer.accept(e);
@@ -114,9 +141,9 @@ public class ChunkedTrainedModelRestorer {
                 } else {
                     // search again with after
                     SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length -1);
-                    SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, searchSize);
-                    searchRequestBuilder.searchAfter(new Object[]{lastHit.getIndex(), lastHit.getId()});
-                    client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() ->
+                    SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
+                    searchRequestBuilder.searchAfter(new Object[]{lastHit.getIndex(), lastNum});
+                    executorService.execute(() ->
                         doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
                 }
             },
@@ -131,8 +158,8 @@ public class ChunkedTrainedModelRestorer {
         ));
     }
 
-    private static SearchRequestBuilder buildSearchBuilder(Client client, String modelId, int searchSize) {
-        return client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+    private static SearchRequestBuilder buildSearchBuilder(Client client, String modelId, String index, int searchSize) {
+        return client.prepareSearch(index)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
                 .boolQuery()
                 .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
@@ -148,8 +175,8 @@ public class ChunkedTrainedModelRestorer {
                 .unmappedType("long"));
     }
 
-    public static SearchRequest buildSearch(Client client, String modelId, int searchSize) {
-        return buildSearchBuilder(client, modelId, searchSize).request();
+    public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize) {
+        return buildSearchBuilder(client, modelId, index, searchSize).request();
     }
 
     public static TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(BytesReference source,

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
@@ -48,7 +49,8 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         putModelDefinition(docs);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream(modelSize);
-        PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client(),xContentRegistry());
+        PyTorchStateStreamer stateStreamer = new PyTorchStateStreamer(client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
 
         AtomicReference<Boolean> onSuccess = new AtomicReference<>();
         AtomicReference<Exception> onFailure = new AtomicReference<>();

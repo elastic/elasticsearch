@@ -63,12 +63,12 @@ public class DeploymentManager {
     private void doStartDeployment(TrainedModelDeploymentTask task) {
         logger.debug("[{}] Starting model deployment", task.getModelId());
 
-        ProcessContext processContext = new ProcessContext(task.getModelId());
+        ProcessContext processContext = new ProcessContext(task.getModelId(), executorServiceForProcess);
 
         if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
             throw ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId());
         }
-        
+
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(
             success -> {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.process(processContext.process.get()));
@@ -80,9 +80,7 @@ public class DeploymentManager {
                     task::markAsFailed
                 ));
             },
-            e -> {
-                failTask(task, e);
-            }
+            e -> failTask(task, e)
         );
 
         processContext.startProcess();
@@ -151,10 +149,10 @@ public class DeploymentManager {
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 
-        ProcessContext(String modelId) {
+        ProcessContext(String modelId, ExecutorService executorService) {
             this.modelId = Objects.requireNonNull(modelId);
             resultProcessor = new PyTorchResultProcessor(modelId);
-            this.stateStreamer = new PyTorchStateStreamer(client, xContentRegistry);
+            this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
         }
 
         synchronized void startProcess() {
@@ -181,7 +179,7 @@ public class DeploymentManager {
         }
 
         void loadModel(ActionListener<Boolean> listener) {
-            process.get().loadModel(modelId, new PyTorchStateStreamer(client, xContentRegistry), listener);
+            process.get().loadModel(modelId, stateStreamer, listener);
         }
     }
 

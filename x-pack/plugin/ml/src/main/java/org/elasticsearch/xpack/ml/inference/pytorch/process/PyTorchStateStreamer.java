@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -38,13 +39,15 @@ public class PyTorchStateStreamer {
     private static final Logger logger = LogManager.getLogger(PyTorchStateStreamer.class);
 
     private final OriginSettingClient client;
+    private final ExecutorService executorService;
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean isCancelled;
     private boolean modelSizeWritten = false;
 
-    public PyTorchStateStreamer(Client client, NamedXContentRegistry xContentRegistry) {
+    public PyTorchStateStreamer(Client client, ExecutorService executorService, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
-        this.xContentRegistry = xContentRegistry;
+        this.executorService = Objects.requireNonNull(executorService);
+        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
     /**
@@ -63,7 +66,7 @@ public class PyTorchStateStreamer {
      * @param listener  error and success listener
      */
     public void writeStateToStream(String modelId, OutputStream restoreStream, ActionListener<Boolean> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, xContentRegistry);
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
         // TODO cancel loading
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
 

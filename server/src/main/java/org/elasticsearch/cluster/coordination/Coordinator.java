@@ -1006,6 +1006,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // expose last accepted cluster state as base state upon which the master service
             // speculatively calculates the next cluster state update
             final ClusterState clusterState = coordinationState.get().getLastAcceptedState();
+            assert clusterState.nodes().getLocalNode() != null;
             if (mode != Mode.LEADER || clusterState.term() != getCurrentTerm()) {
                 // the master service checks if the local node is the master node in order to fail execution of the state update early
                 return clusterStateWithNoMasterBlock(clusterState);

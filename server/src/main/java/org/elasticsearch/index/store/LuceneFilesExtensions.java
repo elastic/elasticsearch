@@ -25,7 +25,6 @@ public enum LuceneFilesExtensions {
     DII("dii", "Points Index", false, false),
     // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
     DIM("dim", "Points", false, true),
-    DVM("dvm", "DocValues Metadata", true, false),
     // MMapDirectory has special logic to read long[] arrays in little-endian order that helps speed
     // up the decoding of postings. The same logic applies to positions (.pos) of offsets (.pay) but we
     // are not mmaping them as queries that leverage positions are more costly and the decoding of postings
@@ -34,6 +33,7 @@ public enum LuceneFilesExtensions {
     // Doc values are typically performance-sensitive and hot in the page
     // cache, so we use mmap, which provides better performance.
     DVD("dvd", "DocValues", false, true),
+    DVM("dvm", "DocValues Metadata", true, false),
     FDM("fdm", "Field Metadata", true, false),
     FDT("fdt", "Field Data", false, false),
     FDX("fdx", "Field Index", false, false),

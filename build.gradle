@@ -514,3 +514,11 @@ subprojects {
     }
   }
 }
+
+subprojects { Project subproj ->
+  plugins.withType(TestClustersPlugin).whenPluginAdded {
+    testClusters.all {
+      systemProperty "es.geoip_v2_feature_flag_enabled", "false"
+    }
+  }
+}

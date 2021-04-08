@@ -58,7 +58,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
-    public static final boolean GEOIP_V2_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.geoip_v2_feature_flag_enabled"));
+    public static final boolean GEOIP_V2_FEATURE_FLAG_ENABLED =
+        "false".equals(System.getProperty("es.geoip_v2_feature_flag_enabled")) == false;
 
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);

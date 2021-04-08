@@ -1779,7 +1779,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             // We don't estimate the cost here so these shouldn't show up
             assertThat(delegateDebug, not(hasKey("estimated_cost")));
             assertThat(delegateDebug, not(hasKey("max_cost")));
-            assertThat(delegateDebug, hasEntry("max_cost", "ADF"));
+            assertThat(delegateDebug, hasEntry("segments_counted", greaterThan(0)));
         }, new KeywordFieldType("k", true, true, Collections.emptyMap()));
     }
 

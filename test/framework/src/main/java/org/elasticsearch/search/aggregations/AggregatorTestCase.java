@@ -538,6 +538,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Execute and aggregation and collect its {@link Aggregator#collectDebugInfo debug}
+     * information. Unlike {@link #testCase} this doesn't randomly create an
+     * {@link Aggregator} per leaf and perform partial reductions. It always
+     * creates a single {@link Aggregator} so we can get consistent debug info.
+     */
     protected <R extends InternalAggregation> void debugTestCase(
         AggregationBuilder builder,
         Query query,

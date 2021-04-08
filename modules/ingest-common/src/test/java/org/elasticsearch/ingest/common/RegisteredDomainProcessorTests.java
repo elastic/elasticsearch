@@ -32,7 +32,13 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         testRegisteredDomainProcessor(buildEvent("."), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null);
-        testRegisteredDomainProcessor(buildEvent("1.www.global.ssl.fastly.net"), "1.www.global.ssl.fastly.net", "www.global.ssl.fastly.net", "global.ssl.fastly.net", "1");
+        testRegisteredDomainProcessor(
+            buildEvent("1.www.global.ssl.fastly.net"),
+            "1.www.global.ssl.fastly.net",
+            "www.global.ssl.fastly.net",
+            "global.ssl.fastly.net",
+            "1"
+        );
     }
 
     public void testError() throws Exception {
@@ -41,7 +47,17 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             () -> testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null, false)
         );
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
-        e = expectThrows(IllegalArgumentException.class, () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null, false));
+        e = expectThrows(
+                IllegalArgumentException.class,
+                () -> testRegisteredDomainProcessor(
+                    buildEvent("$"),
+                    null,
+                    null,
+                    null,
+                    null,
+                    false
+                )
+            );
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
     }
 

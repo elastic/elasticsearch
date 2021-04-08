@@ -442,6 +442,14 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * @param time instant to consider when parsing the expression
+     * @return If the specified string is data math expression then this method returns the resolved expression.
+     */
+    public String resolveDateMathExpression(String dateExpression, long time) {
+        return DateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, isSystemIndexAccessAllowed()));
+    }
+
+    /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
@@ -1081,7 +1089,7 @@ public class IndexNameExpressionResolver {
         }
 
         @SuppressWarnings("fallthrough")
-        String resolveExpression(String expression, final Context context) {
+        static String resolveExpression(String expression, final Context context) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;
             }

@@ -21,8 +21,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.util.Collections;
-
-import static java.util.Collections.singletonList;
+import java.util.List;
 
 public class DataTierFieldMapper extends MetadataFieldMapper {
 
@@ -57,7 +56,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             }
 
             String tierPreference = getTierPreference(context);
-            if (Strings.hasText(tierPreference) == false) {
+            if (tierPreference == null) {
                 return false;
             }
             return Regex.simpleMatch(pattern, tierPreference);
@@ -66,7 +65,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             String tierPreference = getTierPreference(context);
-            if (Strings.hasText(tierPreference) == false) {
+            if (tierPreference == null) {
                 return new MatchNoDocsQuery();
             }
             return new MatchAllDocsQuery();
@@ -79,14 +78,20 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             }
 
             String tierPreference = getTierPreference(context);
-            return lookup -> singletonList(tierPreference);
+            return tierPreference == null
+                ? lookup -> List.of()
+                : lookup -> List.of(tierPreference);
         }
 
+        /**
+         * Retrieve the first tier preference from the index setting. If the setting is not
+         * present, then return null.
+         */
         private String getTierPreference(SearchExecutionContext context) {
             Settings settings = context.getIndexSettings().getSettings();
             String value = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings);
 
-            if (value == null) {
+            if (Strings.hasText(value) == false) {
                 return null;
             }
 

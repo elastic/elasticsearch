@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 public class DataTierFieldTypeTests extends MapperServiceTestCase {
@@ -85,11 +86,13 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testFetchValue() throws IOException {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        SearchExecutionContext context = createContext();
         SourceLookup lookup = new SourceLookup();
 
-        ValueFetcher valueFetcher = ft.valueFetcher(context, null);
-        assertEquals(Arrays.asList("data_warm"), valueFetcher.fetchValues(lookup));
+        ValueFetcher valueFetcher = ft.valueFetcher(createContext(), null);
+        assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup));
+
+        ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
+        assertTrue(emptyValueFetcher.fetchValues(lookup).isEmpty());
     }
 
     private SearchExecutionContext createContext() {

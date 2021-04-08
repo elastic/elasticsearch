@@ -67,12 +67,10 @@ public class PyTorchStateStreamer {
      */
     public void writeStateToStream(String modelId, OutputStream restoreStream, ActionListener<Boolean> listener) {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
-        // TODO cancel loading
+        restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
-
         logger.debug("model [{}] state restored from [{}] documents", modelId, restorer.getNumDocsWritten());
     }
-
 
     private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {
         if (isCancelled) {

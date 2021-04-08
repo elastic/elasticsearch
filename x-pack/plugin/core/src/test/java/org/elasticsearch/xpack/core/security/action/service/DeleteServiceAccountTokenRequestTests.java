@@ -8,34 +8,50 @@
 package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CreateServiceAccountTokenRequestTests extends ESTestCase {
+public class DeleteServiceAccountTokenRequestTests extends AbstractWireSerializingTestCase<DeleteServiceAccountTokenRequest> {
 
-    public void testReadWrite() throws IOException {
-        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8));
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (StreamInput in = new InputStreamStreamInput(new ByteArrayInputStream(out.bytes().array()))) {
-                assertThat(new CreateServiceAccountTokenRequest(in), equalTo(request));
-            }
+    @Override
+    protected Writeable.Reader<DeleteServiceAccountTokenRequest> instanceReader() {
+        return DeleteServiceAccountTokenRequest::new;
+    }
+
+    @Override
+    protected DeleteServiceAccountTokenRequest createTestInstance() {
+        return new DeleteServiceAccountTokenRequest(
+            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+    }
+
+    @Override
+    protected DeleteServiceAccountTokenRequest mutateInstance(DeleteServiceAccountTokenRequest instance) throws IOException {
+        DeleteServiceAccountTokenRequest newInstance = instance;
+        if (randomBoolean()) {
+            newInstance = new DeleteServiceAccountTokenRequest(
+                randomValueOtherThan(newInstance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                newInstance.getServiceName(), newInstance.getTokenName());
         }
+        if (randomBoolean()) {
+            newInstance = new DeleteServiceAccountTokenRequest(
+                newInstance.getNamespace(),
+                randomValueOtherThan(newInstance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                newInstance.getTokenName());
+        }
+        if (newInstance == instance || randomBoolean()) {
+            newInstance = new DeleteServiceAccountTokenRequest(
+                newInstance.getNamespace(), newInstance.getServiceName(),
+                randomValueOtherThan(newInstance.getTokenName(), () -> randomAlphaOfLengthBetween(3, 8)));
+        }
+        return newInstance;
     }
 
     public void testValidation() {

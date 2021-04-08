@@ -70,9 +70,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final long resolvedAt = System.currentTimeMillis();
         final String indexName  = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
-        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-
-        final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
+        final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
+        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
 
         final CreateIndexClusterStateUpdateRequest updateRequest;
 
@@ -81,8 +80,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
         if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            final String message = descriptor.checkMinimumNodeVersion("create index", state.nodes().getMinNodeVersion());
-            if (message != null) {
+            final SystemIndexDescriptor descriptor =
+                mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
+            if (descriptor == null) {
+                final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;

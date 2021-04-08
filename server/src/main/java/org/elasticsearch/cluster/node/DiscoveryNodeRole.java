@@ -172,6 +172,11 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m");
 
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r");
+
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
+
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
+
     /**
      * The built-in node roles.
      */
@@ -185,7 +190,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             DATA_HOT_NODE_ROLE,
             DATA_WARM_NODE_ROLE,
             DATA_COLD_NODE_ROLE,
-            DATA_FROZEN_NODE_ROLE
+            DATA_FROZEN_NODE_ROLE,
+            ML_ROLE,
+            TRANSFORM_ROLE
         ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**

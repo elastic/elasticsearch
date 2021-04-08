@@ -64,7 +64,7 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
                 b.field("coerce", "true");
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [coerce] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [coerce] cannot be set in conjunction with field [script]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {

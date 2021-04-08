@@ -75,7 +75,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("type", type());
             b.startObject("script").field("id", "foo").endObject();
         })));
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: stored scripts are not supported on field [field]"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping [_doc]: stored scripts are not supported on field [field]"));
     }
 
     public void testIndexAndDocValuesFalseNotPermitted() {
@@ -94,7 +94,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("on_script_error", "ignore");
         })));
         assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Field [on_script_error] requires field [script] to be configured"));
+            equalTo("Failed to parse mapping [_doc]: Field [on_script_error] requires field [script] to be configured"));
     }
 
     public void testIgnoreScriptErrors() throws IOException {

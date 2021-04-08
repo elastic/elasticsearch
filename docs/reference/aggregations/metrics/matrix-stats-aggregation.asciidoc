@@ -140,7 +140,3 @@ GET /_search
 --------------------------------------------------
 
 <1> Documents without a value in the `income` field will have the default value `50000`.
-
-==== Script
-
-This aggregation family does not yet support scripting.

@@ -15,7 +15,7 @@ import java.util.Map;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
 
-    public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("boolean_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

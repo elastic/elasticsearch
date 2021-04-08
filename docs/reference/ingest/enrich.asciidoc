@@ -143,7 +143,7 @@ policy, you should include at least the following:
 include::enrich.asciidoc[tag=enrich-policy-fields]
 
 You can use this definition to create the enrich policy with the
-<<put-enrich-policy-api,create or update enrich policy API>>.
+<<put-enrich-policy-api,create enrich policy API>>.
 
 [WARNING]
 ====
@@ -343,7 +343,7 @@ PUT /postal_codes/_doc/1?refresh=wait_for
 ----
 // TEST[continued]
 
-Use the <<put-enrich-policy-api,create or update enrich policy API>> to create
+Use the <<put-enrich-policy-api,create enrich policy API>> to create
 an enrich policy with the `geo_match` policy type. This policy must include:
 
 * One or more source indices
@@ -501,7 +501,7 @@ PUT /users/_doc/1?refresh=wait_for
 }
 ----
 
-Use the create or update enrich policy API to create an enrich policy with the
+Use the create enrich policy API to create an enrich policy with the
 `match` policy type. This policy must include:
 
 * One or more source indices

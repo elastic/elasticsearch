@@ -53,7 +53,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
             String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(context.getIndexSettings().getSettings());
-            if (tierPreference == null) {
+            if (Strings.hasText(tierPreference) == false) {
                 return false;
             }
             // Tier preference can be a comma-delimited list of tiers, ordered by preference
@@ -65,7 +65,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(context.getIndexSettings().getSettings());
-            if (tierPreference == null) {
+            if (Strings.hasText(tierPreference) == false) {
                 return new MatchNoDocsQuery();
             }
             return new MatchAllDocsQuery();

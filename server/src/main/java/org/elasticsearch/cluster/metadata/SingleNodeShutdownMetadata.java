@@ -89,15 +89,26 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final NodeShutdownComponentStatus persistentTasksStatus;
     private final NodeShutdownComponentStatus pluginsStatus;
 
-
-    public SingleNodeShutdownMetadata(
+    /**
+     * @param nodeId The node ID that this shutdown metadata refers to.
+     * @param type The type of shutdown. See {@link Type}.
+     * @param reason The reason for the shutdown, per the original shutdown request.
+     * @param status The overall status of this shutdown.
+     * @param startedAtMillis The timestamp at which this shutdown was requested.
+     * @param shardMigrationStatus The status of shard migrations away from this node.
+     * @param persistentTasksStatus The status of persistent task migration away from this node.
+     * @param pluginsStatus The status of plugin shutdown on this node.
+     */
+    private SingleNodeShutdownMetadata(
         String nodeId,
         Type type,
         String reason,
         Status status,
         long startedAtMillis,
         NodeShutdownComponentStatus shardMigrationStatus,
-        NodeShutdownComponentStatus persistentTasksStatus, NodeShutdownComponentStatus pluginsStatus) {
+        NodeShutdownComponentStatus persistentTasksStatus,
+        NodeShutdownComponentStatus pluginsStatus
+    ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
@@ -143,7 +154,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     /**
      * @return The status of this node's shutdown.
      */
-    public Status isStatus() {
+    public Status getStatus() {
         return status;
     }
 
@@ -152,6 +163,27 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
      */
     public long getStartedAtMillis() {
         return startedAtMillis;
+    }
+
+    /**
+     * @return The status of shard migrations off of this node.
+     */
+    public NodeShutdownComponentStatus getShardMigrationStatus() {
+        return shardMigrationStatus;
+    }
+
+    /**
+     * @return The status of persistent task shutdown on this node.
+     */
+    public NodeShutdownComponentStatus getPersistentTasksStatus() {
+        return persistentTasksStatus;
+    }
+
+    /**
+     * @return The status of plugin shutdown on this node.
+     */
+    public NodeShutdownComponentStatus getPluginsStatus() {
+        return pluginsStatus;
     }
 
     @Override
@@ -213,11 +245,137 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         );
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(SingleNodeShutdownMetadata original) {
+        if (original == null) {
+            return builder();
+        }
+        return new Builder()
+            .setNodeId(original.getNodeId())
+            .setType(original.getType())
+            .setReason(original.getReason())
+            .setStatus(original.getStatus())
+            .setStartedAtMillis(original.getStartedAtMillis())
+            .setShardMigrationStatus(original.getShardMigrationStatus())
+            .setPersistentTasksStatus(original.getPersistentTasksStatus())
+            .setPluginsStatus(original.getPluginsStatus());
+    }
+
+    public static class Builder {
+        private String nodeId;
+        private Type type;
+        private String reason;
+        private long startedAtMillis = -1;
+        private Status status = Status.IN_PROGRESS;
+        private NodeShutdownComponentStatus shardMigrationStatus = new NodeShutdownComponentStatus();
+        private NodeShutdownComponentStatus persistentTasksStatus = new NodeShutdownComponentStatus();
+        private NodeShutdownComponentStatus pluginsStatus = new NodeShutdownComponentStatus();
+
+        private Builder() {}
+
+        /**
+         * @param nodeId The node ID this metadata refers to.
+         * @return This builder.
+         */
+        public Builder setNodeId(String nodeId) {
+            this.nodeId = nodeId;
+            return this;
+        }
+
+        /**
+         * @param type The type of shutdown.
+         * @return This builder.
+         */
+        public Builder setType(Type type) {
+            this.type = type;
+            return this;
+        }
+
+        /**
+         * @param reason The reason for the shutdown. An arbitrary string provided by the user.
+         * @return This builder.
+         */
+        public Builder setReason(String reason) {
+            this.reason = reason;
+            return this;
+        }
+
+        /**
+         * @param startedAtMillis The timestamp at which this shutdown was requested.
+         * @return This builder.
+         */
+        public Builder setStartedAtMillis(long startedAtMillis) {
+            this.startedAtMillis = startedAtMillis;
+            return this;
+        }
+
+        /**
+         * @param status The status of this shutdown.
+         * @return This builder.
+         */
+        public Builder setStatus(Status status) {
+            this.status = status;
+            return this;
+        }
+
+        /**
+         * @param shardMigrationStatus An object describing the status of shard migration away from this node.
+         * @return This builder.
+         */
+        public Builder setShardMigrationStatus(NodeShutdownComponentStatus shardMigrationStatus) {
+            this.shardMigrationStatus = shardMigrationStatus;
+            return this;
+        }
+
+        /**
+         * @param persistentTasksStatus An object describing the status of persistent task migration away from this node.
+         * @return This builder.
+         */
+        public Builder setPersistentTasksStatus(NodeShutdownComponentStatus persistentTasksStatus) {
+            this.persistentTasksStatus = persistentTasksStatus;
+            return this;
+        }
+
+        /**
+         * @param pluginsStatus An object describing the status of plugin shutdown on this node.
+         * @return
+         */
+        public Builder setPluginsStatus(NodeShutdownComponentStatus pluginsStatus) {
+            this.pluginsStatus = pluginsStatus;
+            return this;
+        }
+
+        public SingleNodeShutdownMetadata build() {
+            if (startedAtMillis == -1) {
+                throw new IllegalArgumentException("start timestamp must be set");
+            }
+            return new SingleNodeShutdownMetadata(
+                nodeId,
+                type,
+                reason,
+                status,
+                startedAtMillis,
+                shardMigrationStatus,
+                persistentTasksStatus,
+                pluginsStatus
+            );
+        }
+    }
+
+    /**
+     * Describes the type of node shutdown - permanent (REMOVE) or temporary (RESTART).
+     */
     public enum Type {
         REMOVE,
         RESTART
     }
 
+    /**
+     * Describes the status of a component of shutdown.
+     */
     public enum Status {
         NOT_STARTED,
         IN_PROGRESS,

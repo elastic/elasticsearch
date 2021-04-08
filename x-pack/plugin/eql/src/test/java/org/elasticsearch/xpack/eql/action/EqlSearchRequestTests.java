@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
@@ -73,7 +74,8 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
-                .fetchFields(randomFetchFields);
+                .fetchFields(randomFetchFields)
+                .runtimeMappings(randomRuntimeMappings());
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
@@ -117,6 +119,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
+        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : null);
 
         return mutatedInstance;
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.function.Predicate;
 
 /**
  * Represents a node role.
@@ -172,6 +173,23 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m");
 
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r");
+
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
+
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            // transform is enabled by default on any non-frozen data node
+            final Predicate<DiscoveryNodeRole> notFrozen = Predicate.not(s -> Objects.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE, s));
+            return DiscoveryNode.getPossibleRoles()
+                .stream()
+                .filter(notFrozen.and(DiscoveryNodeRole::canContainData))
+                .anyMatch(r -> DiscoveryNode.hasRole(settings, r));
+        }
+
+    };
+
     /**
      * The built-in node roles.
      */
@@ -185,7 +203,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             DATA_HOT_NODE_ROLE,
             DATA_WARM_NODE_ROLE,
             DATA_COLD_NODE_ROLE,
-            DATA_FROZEN_NODE_ROLE
+            DATA_FROZEN_NODE_ROLE,
+            ML_ROLE,
+            TRANSFORM_ROLE
         ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**

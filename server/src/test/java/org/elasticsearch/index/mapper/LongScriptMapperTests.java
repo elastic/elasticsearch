@@ -40,7 +40,11 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
 
     @Override
     protected String type() {
+<<<<<<< HEAD
         return NumberFieldMapper.NumberType.LONG.typeName();
+=======
+        return "long";
+>>>>>>> master
     }
 
     @Override

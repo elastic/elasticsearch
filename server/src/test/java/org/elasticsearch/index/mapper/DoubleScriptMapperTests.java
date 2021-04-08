@@ -40,7 +40,11 @@ public class DoubleScriptMapperTests extends MapperScriptTestCase<DoubleFieldScr
 
     @Override
     protected String type() {
+<<<<<<< HEAD
         return NumberFieldMapper.NumberType.DOUBLE.typeName();
+=======
+        return "double";
+>>>>>>> master
     }
 
     @Override

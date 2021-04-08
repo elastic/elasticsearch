@@ -487,7 +487,7 @@ public class Docker {
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",
-                    dockerShell.runIgnoreExitCode("hash " + cliBinary).isSuccess()
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
     }

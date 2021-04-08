@@ -68,7 +68,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         return falses;
     }
 
-    protected final void emit(boolean v) {
+    public final void emit(boolean v) {
         if (v) {
             trues++;
         } else {

@@ -87,6 +87,7 @@ public class BooleanFieldMapper extends FieldMapper {
         public Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
             this.scriptCompiler = scriptCompiler;
+            //TODO precludes etc.
         }
 
         @Override

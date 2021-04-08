@@ -252,7 +252,15 @@ public class ApiKeyService {
                              ActionListener<CreateApiKeyResponse> listener) {
         ensureEnabled();
         if (request.getMetadata() != null && false == request.getMetadata().isEmpty()) {
-            if (securityIndex.getInstallableMappingVersion().before(METADATA_INTRODUCED)) {
+            final Version securityMappingVersion = securityIndex.getInstallableMappingVersion() 
+            if (securityMappingVersion.before(METADATA_INTRODUCED)) {
+                logger.info("The security index [{}] mapping is for version [{}] but API Key metadata requires [{}];"
+                    + " the mapping will automatically upgrade to a supported version when the cluster no longer"
+                    + " has nodes that are [{}] or earlier", 
+                    securityIndex.aliasName(), 
+                    securityMappingVersion, 
+                    METADATA_INTRODUCED, 
+                    FLATTENED_FIELD_TYPE_INTRODUCED);
                 listener.onFailure(new IllegalArgumentException("API metadata requires all nodes to be at least ["
                     + FLATTENED_FIELD_TYPE_INTRODUCED + "]"));
                 return;

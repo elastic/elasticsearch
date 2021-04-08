@@ -16,7 +16,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -92,7 +92,26 @@ public class ChunkedTrainedModelRestorer {
         return numDocsWritten;
     }
 
-    public void restoreModelDefinition(CheckedConsumer<TrainedModelDefinitionDoc, IOException> modelConsumer,
+    /**
+     * Return the model definitions one at a time on the {@code modelConsumer}.
+     * Either {@code errorConsumer} or {@code successConsumer} will be called
+     * when the process is finished.
+     *
+     * The {@code modelConsumer} has the opportunity to cancel loading by
+     * returning false in which case the {@code successConsumer} is called
+     * with the parameter Boolean.FALSE.
+     *
+     * The docs are returned in order based on {@link TrainedModelDefinitionDoc#getDocNum()}
+     * there is no error checking for duplicate or missing docs the consumer should handle
+     * those errors.
+     *
+     * Depending on the search size multiple searches may be made.
+     *
+     * @param modelConsumer    Consumes model definition docs
+     * @param successConsumer  Called when all docs have been returned or the loading is cancelled
+     * @param errorConsumer    In the event of an error
+     */
+    public void restoreModelDefinition(CheckedFunction<TrainedModelDefinitionDoc, Boolean, IOException> modelConsumer,
                                        Consumer<Boolean> successConsumer,
                                        Consumer<Exception> errorConsumer) {
 
@@ -102,7 +121,7 @@ public class ChunkedTrainedModelRestorer {
     }
 
     private void doSearch(SearchRequest searchRequest,
-                          CheckedConsumer<TrainedModelDefinitionDoc, IOException> modelConsumer,
+                          CheckedFunction<TrainedModelDefinitionDoc, Boolean, IOException> modelConsumer,
                           Consumer<Boolean> successConsumer,
                           Consumer<Exception> errorConsumer) {
 
@@ -125,7 +144,14 @@ public class ChunkedTrainedModelRestorer {
                         TrainedModelDefinitionDoc doc =
                             parseModelDefinitionDocLenientlyFromSource(hit.getSourceRef(), modelId, xContentRegistry);
                         lastNum = doc.getDocNum();
-                        modelConsumer.accept(doc);
+
+                        boolean continueSearching = modelConsumer.apply(doc);
+                        if (continueSearching == false) {
+                            // signal we are finished
+                            successConsumer.accept(Boolean.FALSE);
+                            return;
+                        }
+
                     } catch (IOException e) {
                         logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
                         errorConsumer.accept(e);

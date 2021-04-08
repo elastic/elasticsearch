@@ -74,7 +74,11 @@ public class PyTorchStateStreamer {
     }
 
 
-    private void writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {
+    private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {
+        if (isCancelled) {
+            return false;
+        }
+
         if (modelSizeWritten == false) {
             writeModelSize(doc.getModelId(), doc.getTotalDefinitionLength(), outputStream);
             modelSizeWritten = true;
@@ -82,6 +86,8 @@ public class PyTorchStateStreamer {
 
         byte[] rawBytes = Base64.getDecoder().decode(doc.getCompressedString().getBytes(StandardCharsets.UTF_8));
         outputStream.write(rawBytes);
+
+        return true;
     }
 
     private void writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {

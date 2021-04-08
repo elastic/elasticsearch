@@ -26,7 +26,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.hasSize;
 
 public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
 
@@ -64,6 +67,50 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
 
         assertNull(exceptionHolder.get());
         assertEquals(actualDocs, expectedDocs);
+    }
+
+    public void testCancel() throws IOException, InterruptedException {
+        String modelId = "test-cancel-search";
+        int numDocs = 6;
+        List<String> modelDefs = new ArrayList<>(numDocs);
+
+        for (int i=0; i<numDocs; i++) {
+            // actual content of the model definition is not important here
+            modelDefs.add("model_def_" + i);
+        }
+
+        List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
+        putModelDefinitions(expectedDocs, InferenceIndexConstants.LATEST_INDEX_NAME, 0);
+
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client(),
+            client().threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry());
+        restorer.setSearchSize(5);
+        List<TrainedModelDefinitionDoc> actualDocs = new ArrayList<>();
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicBoolean successValue = new AtomicBoolean(Boolean.TRUE);
+        CountDownLatch latch = new CountDownLatch(1);
+
+        restorer.restoreModelDefinition(
+            doc -> {
+                actualDocs.add(doc);
+                return false;
+            },
+            success -> {
+                successValue.set(success);
+                latch.countDown();
+            },
+            failure -> {
+                exceptionHolder.set(failure);
+                latch.countDown();
+            });
+
+        latch.await();
+
+        assertNull(exceptionHolder.get());
+        assertFalse(successValue.get());
+        assertThat(actualDocs, hasSize(1));
+        assertEquals(expectedDocs.get(0), actualDocs.get(0));
     }
 
     public void testRestoreWithDocumentsInMultipleIndices() throws IOException, InterruptedException {

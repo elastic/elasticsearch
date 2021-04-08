@@ -51,7 +51,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -78,7 +77,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false;
     }
 
-        @Override
+    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,

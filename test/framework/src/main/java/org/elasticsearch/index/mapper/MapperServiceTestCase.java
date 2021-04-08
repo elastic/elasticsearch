@@ -68,6 +68,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -244,7 +245,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", "_doc", id, BytesReference.bytes(builder), XContentType.JSON, routing);
+        return new SourceToParse("test", "_doc", id, BytesReference.bytes(builder), XContentType.JSON, routing, Collections.emptyMap());
+    }
+
+    protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
+                                         @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        build.accept(builder);
+        builder.endObject();
+        return new SourceToParse("test", "_doc", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {

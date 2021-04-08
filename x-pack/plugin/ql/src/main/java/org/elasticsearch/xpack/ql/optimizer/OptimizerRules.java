@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.time.DateTimeException;
 import java.time.ZoneId;
@@ -86,7 +88,7 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
 
-    public static final class ConstantFolding extends OptimizerExpressionRule {
+    public static final class ConstantFolding extends OptimizerExpressionRule<Expression> {
 
         public ConstantFolding() {
             super(TransformDirection.DOWN);
@@ -99,41 +101,40 @@ public final class OptimizerRules {
     }
 
     /**
-     * This rule must always be placed after {@link BooleanLiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
+     * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
      * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
-    public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule {
+    public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule<BinaryComparison> {
 
         public BooleanFunctionEqualsElimination() {
             super(TransformDirection.UP);
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            if ((e instanceof Equals || e instanceof NotEquals) && ((BinaryComparison) e).left() instanceof Function)   {
+        protected Expression rule(BinaryComparison bc) {
+            if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
                 // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
-                BinaryComparison bc = (BinaryComparison) e;
 
                 if (TRUE.equals(bc.right())) {
-                    return e instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
+                    return bc instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
                 }
                 if (FALSE.equals(bc.right())) {
-                    return e instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
+                    return bc instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
                 }
             }
 
-            return e;
+            return bc;
         }
     }
 
-    public static final class BooleanSimplification extends OptimizerExpressionRule {
+    public static final class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
 
         public BooleanSimplification() {
             super(TransformDirection.UP);
         }
 
         @Override
-        public Expression rule(Expression e) {
+        public Expression rule(ScalarFunction e) {
             if (e instanceof And || e instanceof Or) {
                 return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
             }
@@ -250,19 +251,51 @@ public final class OptimizerRules {
         }
     }
 
-    // TODO: should this be renamed to just `LiteralsOnTheRight`? It swaps all literals, not just booleans. Or `MaybeLiteralsOnTheRight`?
-    public static final class BooleanLiteralsOnTheRight extends OptimizerExpressionRule {
+    public static class BinaryComparisonSimplification extends OptimizerExpressionRule<BinaryComparison> {
 
-        public BooleanLiteralsOnTheRight() {
+        public BinaryComparisonSimplification() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(BinaryComparison bc) {
+            Expression l = bc.left();
+            Expression r = bc.right();
+
+            // true for equality
+            if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
+                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            }
+            if (bc instanceof NullEquals) {
+                if (l.semanticEquals(r)) {
+                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+                if (Expressions.isNull(r)) {
+                    return new IsNull(bc.source(), l);
+                }
+            }
+
+            // false for equality
+            if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
+                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
+                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            }
+
+            return bc;
+        }
+    }
+
+    public static final class LiteralsOnTheRight extends OptimizerExpressionRule<BinaryOperator<?, ?, ?, ?>> {
+
+        public LiteralsOnTheRight() {
             super(TransformDirection.UP);
         }
 
         @Override
-        public Expression rule(Expression e) {
-            return e instanceof BinaryOperator ? literalToTheRight((BinaryOperator<?, ?, ?, ?>) e) : e;
-        }
-
-        private Expression literalToTheRight(BinaryOperator<?, ?, ?, ?> be) {
+        public BinaryOperator<?, ?, ?, ?> rule(BinaryOperator<?, ?, ?, ?> be) {
             return be.left() instanceof Literal && (be.right() instanceof Literal) == false ? be.swapLeftAndRight() : be;
         }
     }
@@ -278,14 +311,14 @@ public final class OptimizerRules {
      * {@link CombineBinaryComparisons} on purpose as the resulting Range might be foldable
      * (which is picked by the folding rule on the next run).
      */
-    public static final class PropagateEquals extends OptimizerExpressionRule {
+    public static final class PropagateEquals extends OptimizerExpressionRule<BinaryLogic> {
 
         public PropagateEquals() {
             super(TransformDirection.DOWN);
         }
 
         @Override
-        public Expression rule(Expression e) {
+        public Expression rule(BinaryLogic e) {
             if (e instanceof And) {
                 return propagate((And) e);
             } else if (e instanceof Or) {
@@ -574,14 +607,14 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class CombineBinaryComparisons extends OptimizerExpressionRule {
+    public static final class CombineBinaryComparisons extends OptimizerExpressionRule<BinaryLogic> {
 
         public CombineBinaryComparisons() {
             super(TransformDirection.DOWN);
         }
 
         @Override
-        public Expression rule(Expression e) {
+        public Expression rule(BinaryLogic e) {
             if (e instanceof And) {
                 return combine((And) e);
             } else if (e instanceof Or) {
@@ -1077,61 +1110,63 @@ public final class OptimizerRules {
      * This rule does NOT check for type compatibility as that phase has been
      * already be verified in the analyzer.
      */
-    public static class CombineDisjunctionsToIn extends OptimizerExpressionRule {
+    public static class CombineDisjunctionsToIn extends OptimizerExpressionRule<Or> {
         public CombineDisjunctionsToIn() {
             super(TransformDirection.UP);
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof Or) {
-                // look only at equals and In
-                List<Expression> exps = splitOr(e);
+        protected Expression rule(Or or) {
+            Expression e = or;
+            // look only at equals and In
+            List<Expression> exps = splitOr(e);
 
-                Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
-                ZoneId zoneId = null;
-                List<Expression> ors = new LinkedList<>();
+            Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
+            ZoneId zoneId = null;
+            List<Expression> ors = new LinkedList<>();
 
-                for (Expression exp : exps) {
-                    if (exp instanceof Equals) {
-                        Equals eq = (Equals) exp;
-                        // consider only equals against foldables
-                        if (eq.right().foldable()) {
-                            found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
-                        } else {
-                            ors.add(exp);
-                        }
-                        if (zoneId == null) {
-                            zoneId = eq.zoneId();
-                        }
-                    }
-                    else if (exp instanceof In) {
-                        In in = (In) exp;
-                        found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                        if (zoneId == null) {
-                            zoneId = in.zoneId();
-                        }
+            for (Expression exp : exps) {
+                if (exp instanceof Equals) {
+                    Equals eq = (Equals) exp;
+                    // consider only equals against foldables
+                    if (eq.right().foldable()) {
+                        found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
                     } else {
                         ors.add(exp);
                     }
-                }
-
-                if (found.isEmpty() == false) {
-                    // combine equals alongside the existing ors
-                    final ZoneId finalZoneId = zoneId;
-                    found.forEach((k, v) -> {
-                        ors.add(v.size() == 1
-                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
-                            : createIn(k, new ArrayList<>(v), finalZoneId));
-                    });
-
-                    Expression combineOr = combineOr(ors);
-                    // check the result semantically since the result might different in order
-                    // but be actually the same which can trigger a loop
-                    // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
-                    if (e.semanticEquals(combineOr) == false) {
-                        e = combineOr;
+                    if (zoneId == null) {
+                        zoneId = eq.zoneId();
                     }
+                } else if (exp instanceof In) {
+                    In in = (In) exp;
+                    found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                    if (zoneId == null) {
+                        zoneId = in.zoneId();
+                    }
+                } else {
+                    ors.add(exp);
+                }
+            }
+
+            if (found.isEmpty() == false) {
+                // combine equals alongside the existing ors
+                final ZoneId finalZoneId = zoneId;
+                found.forEach(
+                    (k, v) -> {
+                        ors.add(
+                            v.size() == 1
+                                ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                                : createIn(k, new ArrayList<>(v), finalZoneId)
+                        );
+                    }
+                );
+
+                Expression combineOr = combineOr(ors);
+                // check the result semantically since the result might different in order
+                // but be actually the same which can trigger a loop
+                // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
+                if (e.semanticEquals(combineOr) == false) {
+                    e = combineOr;
                 }
             }
 
@@ -1188,7 +1223,7 @@ public final class OptimizerRules {
         }
     }
 
-    public static class ReplaceSurrogateFunction extends OptimizerExpressionRule {
+    public static class ReplaceSurrogateFunction extends OptimizerExpressionRule<Expression> {
 
         public ReplaceSurrogateFunction() {
             super(TransformDirection.DOWN);
@@ -1204,7 +1239,7 @@ public final class OptimizerRules {
     }
 
     // Simplifies arithmetic expressions with BinaryComparisons and fixed point fields, such as: (int + 2) / 3 > 4 => int > 10
-    public static final class SimplifyComparisonsArithmetics extends OptimizerExpressionRule {
+    public static final class SimplifyComparisonsArithmetics extends OptimizerExpressionRule<BinaryComparison> {
         BiFunction<DataType, DataType, Boolean> typesCompatible;
 
         public SimplifyComparisonsArithmetics(BiFunction<DataType, DataType, Boolean> typesCompatible) {
@@ -1213,11 +1248,7 @@ public final class OptimizerRules {
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            return (e instanceof BinaryComparison) ? simplify((BinaryComparison) e) : e;
-        }
-
-        private Expression simplify(BinaryComparison bc) {
+        protected Expression rule(BinaryComparison bc) {
             // optimize only once the expression has a literal on the right side of the binary comparison
             if (bc.right() instanceof Literal) {
                 if (bc.left() instanceof ArithmeticOperation) {
@@ -1529,25 +1560,23 @@ public final class OptimizerRules {
         protected abstract LogicalPlan skipPlan(Limit limit);
     }
 
-    public static class ReplaceRegexMatch extends OptimizerExpressionRule {
+    public static class ReplaceRegexMatch extends OptimizerExpressionRule<RegexMatch<?>> {
 
         public ReplaceRegexMatch() {
             super(TransformDirection.DOWN);
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof RegexMatch) {
-                RegexMatch<?> regexMatch = (RegexMatch<?>) e;
-                StringPattern pattern = regexMatch.pattern();
-                if (pattern.matchesAll()) {
-                    e = new IsNotNull(e.source(), regexMatch.field());
-                } else {
-                    String match = pattern.exactMatch();
-                    if (match != null) {
-                        Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
-                        e = regexToEquals(regexMatch, literal);
-                    }
+        protected Expression rule(RegexMatch<?> regexMatch) {
+            Expression e = regexMatch;
+            StringPattern pattern = regexMatch.pattern();
+            if (pattern.matchesAll()) {
+                e = new IsNotNull(e.source(), regexMatch.field());
+            } else {
+                String match = pattern.exactMatch();
+                if (match != null) {
+                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                    e = regexToEquals(regexMatch, literal);
                 }
             }
             return e;
@@ -1561,51 +1590,49 @@ public final class OptimizerRules {
     // a IS NULL AND a IS NOT NULL -> FALSE
     // a IS NULL AND a > 10 -> a IS NULL and FALSE
     // can be extended to handle null conditions where available
-    public static class PropagateNullable extends OptimizerExpressionRule {
+    public static class PropagateNullable extends OptimizerExpressionRule<And> {
 
         public PropagateNullable() {
             super(TransformDirection.DOWN);
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof And) {
-                List<Expression> splits = Predicates.splitAnd(e);
+        protected Expression rule(And and) {
+            List<Expression> splits = Predicates.splitAnd(and);
 
-                Set<Expression> nullExpressions = new LinkedHashSet<>();
-                Set<Expression> notNullExpressions = new LinkedHashSet<>();
-                List<Expression> others = new LinkedList<>();
+            Set<Expression> nullExpressions = new LinkedHashSet<>();
+            Set<Expression> notNullExpressions = new LinkedHashSet<>();
+            List<Expression> others = new LinkedList<>();
 
-                // first find isNull/isNotNull
-                for (Expression ex : splits) {
-                    if (ex instanceof IsNull) {
-                        nullExpressions.add(((IsNull) ex).field());
-                    } else if (ex instanceof IsNotNull) {
-                        notNullExpressions.add(((IsNotNull) ex).field());
-                    }
-                    // the rest
-                    else {
-                        others.add(ex);
-                    }
+            // first find isNull/isNotNull
+            for (Expression ex : splits) {
+                if (ex instanceof IsNull) {
+                    nullExpressions.add(((IsNull) ex).field());
+                } else if (ex instanceof IsNotNull) {
+                    notNullExpressions.add(((IsNotNull) ex).field());
                 }
-
-                // check for is isNull and isNotNull --> FALSE
-                if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
-                    return Literal.of(e, Boolean.FALSE);
-                }
-
-                // apply nullability across relevant/matching expressions
-
-                // first against all nullable expressions
-                // followed by all not-nullable expressions
-                boolean modified = replace(nullExpressions, others, splits, this::nullify);
-                modified |= replace(notNullExpressions, others, splits, this::nonNullify);
-                if (modified) {
-                    // reconstruct the expression
-                    return Predicates.combineAnd(splits);
+                // the rest
+                else {
+                    others.add(ex);
                 }
             }
-            return e;
+
+            // check for is isNull and isNotNull --> FALSE
+            if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
+                return Literal.of(and, Boolean.FALSE);
+            }
+
+            // apply nullability across relevant/matching expressions
+
+            // first against all nullable expressions
+            // followed by all not-nullable expressions
+            boolean modified = replace(nullExpressions, others, splits, this::nullify);
+            modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+            if (modified) {
+                // reconstruct the expression
+                return Predicates.combineAnd(splits);
+            }
+            return and;
         }
 
         /**
@@ -1689,9 +1716,13 @@ public final class OptimizerRules {
         protected abstract LogicalPlan rule(SubPlan plan);
     }
 
-    public abstract static class OptimizerExpressionRule extends Rule<LogicalPlan, LogicalPlan> {
+    public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
 
         private final TransformDirection direction;
+        // overriding type token which returns the correct class but does an uncheck cast to LogicalPlan due to its generic bound
+        // a proper solution is to wrap the Expression rule into a Plan rule but that would affect the rule declaration
+        // so instead this is hacked here
+        private final Class<E> expressionTypeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
 
         public OptimizerExpressionRule(TransformDirection direction) {
             this.direction = direction;
@@ -1699,8 +1730,9 @@ public final class OptimizerRules {
 
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return direction == TransformDirection.DOWN ? plan.transformExpressionsDown(this::rule) : plan
-                    .transformExpressionsUp(this::rule);
+            return direction == TransformDirection.DOWN
+                ? plan.transformExpressionsDown(expressionTypeToken, this::rule)
+                : plan.transformExpressionsUp(expressionTypeToken, this::rule);
         }
 
         @Override
@@ -1708,7 +1740,11 @@ public final class OptimizerRules {
             return plan;
         }
 
-        protected abstract Expression rule(Expression e);
+        protected abstract Expression rule(E e);
+
+        public Class<E> expressionToken() {
+            return expressionTypeToken;
+        }
     }
 
     public enum TransformDirection {

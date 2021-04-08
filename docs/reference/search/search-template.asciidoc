@@ -115,11 +115,12 @@ The API request body must contain the search definition template and its paramet
 [[pre-registered-templates]]
 ===== Store a search template
 
-You can store a search template using the stored scripts API.
+To store a search template, use the <<create-stored-script-api,create stored
+script API>>. Specify `mustache` as the `lang`.
 
 [source,console]
 ------------------------------------------
-POST _scripts/<templateid>
+POST _scripts/my-search-template
 {
   "script": {
     "lang": "mustache",
@@ -154,7 +155,7 @@ The template can be retrieved by calling
 
 [source,console]
 ------------------------------------------
-GET _scripts/<templateid>
+GET _scripts/my-search-template
 ------------------------------------------
 // TEST[continued]
 
@@ -170,7 +171,7 @@ The API returns the following result:
       "content_type" : "application/json;charset=utf-8"
     }
   },
-  "_id": "<templateid>",
+  "_id": "my-search-template",
   "found": true
 }
 ------------------------------------------
@@ -180,7 +181,7 @@ This template can be deleted by calling
 
 [source,console]
 ------------------------------------------
-DELETE _scripts/<templateid>
+DELETE _scripts/my-search-template
 ------------------------------------------
 // TEST[continued]
 
@@ -194,14 +195,13 @@ To use a stored template at search time send the following request:
 ------------------------------------------
 GET _search/template
 {
-  "id": "<templateid>", <1>
+  "id": "my-search-template",
   "params": {
     "query_string": "search for these words"
   }
 }
 ------------------------------------------
 // TEST[catch:missing]
-<1> Name of the stored template script.
 
 
 [[_validating_templates]]

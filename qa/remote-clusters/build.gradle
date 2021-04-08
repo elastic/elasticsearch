@@ -91,6 +91,7 @@ tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
+  systemProperty "es.geoip_v2_feature_flag_enabled", "false"
 }
 
 tasks.named("check").configure { dependsOn "integTest" }

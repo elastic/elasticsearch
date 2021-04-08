@@ -6,17 +6,11 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 

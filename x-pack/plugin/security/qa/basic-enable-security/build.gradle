@@ -28,6 +28,7 @@ testClusters {
 }
 
 tasks.register("javaRestTestWithSecurityDisabled", StandaloneRestIntegTestTask) {
+  mustRunAfter("javaRestTest")
   description = "Run tests against a cluster that has security explicitly disabled"
   dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest
@@ -53,6 +54,7 @@ tasks.register("javaRestTestWithSecurityDisabled", StandaloneRestIntegTestTask) 
 tasks.named("check").configure { dependsOn("javaRestTestWithSecurityDisabled") }
 
 tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
+  mustRunAfter("javaRestTestWithSecurityDisabled")
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest

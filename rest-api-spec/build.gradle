@@ -26,7 +26,6 @@ testClusters.all {
   module ':modules:mapper-extras'
 }
 
-
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
 

@@ -694,8 +694,8 @@ JSON, and SMILE; other types will result in an error response.
 When using the `source` query string parameter, the content type must be
 specified using the `source_content_type` query string parameter.
 
-JSON request bodies must be UTF-8 encoded. {es} ignores any other encoding
-headings sent with a request. API responses are also UTF-8 encoded.
+{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
+sent with a request. API responses are also UTF-8 encoded.
 
 [[url-access-control]]
 === URL-based access control

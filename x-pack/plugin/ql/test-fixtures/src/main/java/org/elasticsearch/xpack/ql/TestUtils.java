@@ -55,12 +55,14 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -299,5 +301,19 @@ public final class TestUtils {
             }
             return builder.toString();
         }
+    }
+
+    public static Map<String, Object> randomRuntimeMappings() {
+        int count = between(1, 100);
+        Map<String, Object> runtimeFields = new HashMap<>(count);
+        while (runtimeFields.size() < count) {
+            int size = between(1, 10);
+            Map<String, Object> config = new HashMap<>(size);
+            while (config.size() < size) {
+                config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
+            runtimeFields.put(randomAlphaOfLength(5), config);
+        }
+        return runtimeFields;
     }
 }

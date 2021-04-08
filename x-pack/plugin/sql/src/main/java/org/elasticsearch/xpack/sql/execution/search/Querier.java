@@ -116,6 +116,11 @@ public class Querier {
             sourceBuilder.timeout(timeout);
         }
 
+        // set runtime mappings
+        if (this.cfg.runtimeMappings() != null) {
+            sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
+        }
+
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }

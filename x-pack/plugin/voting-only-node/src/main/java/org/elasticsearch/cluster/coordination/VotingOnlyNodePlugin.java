@@ -59,15 +59,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
 
-    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
-
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return false;
-        }
-
-    };
-
     private final Settings settings;
     private final SetOnce<ThreadPool> threadPool;
 
@@ -76,15 +67,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public VotingOnlyNodePlugin(Settings settings) {
         this.settings = settings;
         threadPool = new SetOnce<>();
-        isVotingOnlyNode = DiscoveryNode.hasRole(settings, VOTING_ONLY_NODE_ROLE);
+        isVotingOnlyNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
+        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false;
     }
 
     @Override
@@ -92,7 +83,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         if (isVotingOnlyNode && DiscoveryNode.isMasterNode(settings) == false) {
             throw new IllegalStateException("voting-only node must be master-eligible");
         }
-        return Collections.singleton(VOTING_ONLY_NODE_ROLE);
+        return Collections.singleton(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     @Override

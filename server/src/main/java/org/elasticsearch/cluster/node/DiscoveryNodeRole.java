@@ -177,6 +177,15 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
 
+    public static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return false;
+        }
+
+    };
+
     /**
      * The built-in node roles.
      */
@@ -192,7 +201,8 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             DATA_COLD_NODE_ROLE,
             DATA_FROZEN_NODE_ROLE,
             ML_ROLE,
-            TRANSFORM_ROLE
+            TRANSFORM_ROLE,
+            VOTING_ONLY_NODE_ROLE
         ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**

@@ -60,7 +60,7 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
             masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES :
                 randomBoolean() ? emptySet() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE,
-                    DiscoveryNodeRole.MASTER_ROLE, VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE), Version.CURRENT);
+                    DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE), Version.CURRENT);
     }
 
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.function.Predicate;
 
 /**
  * Represents a node role.
@@ -176,19 +175,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
 
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
-
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            // transform is enabled by default on any non-frozen data node
-            final Predicate<DiscoveryNodeRole> notFrozen = Predicate.not(s -> Objects.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE, s));
-            return DiscoveryNode.getPossibleRoles()
-                .stream()
-                .filter(notFrozen.and(DiscoveryNodeRole::canContainData))
-                .anyMatch(r -> DiscoveryNode.hasRole(settings, r));
-        }
-
-    };
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
 
     /**
      * The built-in node roles.

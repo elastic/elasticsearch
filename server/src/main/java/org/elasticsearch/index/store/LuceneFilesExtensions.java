@@ -59,6 +59,8 @@ public enum LuceneFilesExtensions {
     TIP("tip", "Term Index", false, true),
     // Lucene 8.6 terms metadata file
     TMD("tmd", "Term Dictionary Metadata", true, false),
+    // Temporary Lucene file
+    TMP("tmp", "Temporary File", false, false),
     TVD("tvd", "Term Vector Documents", false, false),
     TVF("tvf", "Term Vector Fields", false, false),
     TVM("tvm", "Term Vector Metadata", true, false),
@@ -122,7 +124,7 @@ public enum LuceneFilesExtensions {
 
     @Nullable
     public static LuceneFilesExtensions fromExtension(String ext) {
-        if (ext != null) {
+        if (ext != null && ext.isEmpty() == false) {
             final LuceneFilesExtensions extension = extensions.get(ext);
             assert extension != null: "unknown Lucene file extension [" + ext + ']';
             return extension;

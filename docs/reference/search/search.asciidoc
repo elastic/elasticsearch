@@ -452,14 +452,35 @@ script has access to the entire context of a document, including the original
 Your script must include `emit` to return calculated values. For
 example:
 +
-[source,js]
+[source,console]
 ----
-"script": {
-  "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
-        }
+"script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
 ----
-// NOTCONSOLE
+// TEST[setup:my_index]
+// TEST[s/^/POST _search?size=1&filter_path=hits.hits\n{\n  "runtime_mappings": {\n    "dow": {\n      "type": "keyword",\n      /]
+// TEST[s/toString\(\)\)"\n$/toString())"\n    }\n  },\n  "fields": [{"field": "dow"}]\n}\n/]
 ====
+
+////
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_index": $body.hits.hits.0._index,
+        "_id": $body.hits.hits.0._id,
+        "_score": $body.hits.hits.0._score,
+        "_source": $body.hits.hits.0._source,
+        "fields": {
+          "dow": ["SUNDAY"]
+        }
+      }
+    ]
+  }
+}
+----
+////
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::

@@ -150,10 +150,8 @@ setup:
 ---
 "Test filters agg with doc_count":
   - skip:
-      #version: " - 7.11.1"
-      #reason: "fixed in 7.11.2"
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71088"
+      version: " - 7.11.1"
+      reason: "fixed in 7.11.2"
   - do:
       search:
         body:
@@ -179,4 +177,7 @@ setup:
   - match: { aggregations.f.buckets.foo.doc_count: 8 }
   - match: { aggregations.f.buckets.xyz.doc_count: 5 }
   - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.FilterByFilter }
-  - gte: { profile.shards.0.aggregations.0.debug.segments_with_doc_count: 1 }
+  # We can't assert that segments_with_doc_count_field is > 0 because we might
+  # end up with two shards and all of the documents with the _doc_count field
+  # may be on one field. We have a test for this in AggregationProfilerIT
+  # and here we'd prefer to have two shards to make sure that works.

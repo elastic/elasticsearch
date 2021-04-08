@@ -158,3 +158,21 @@ SELECT count(*) AS c FROM test_emp WHERE birth_date::time IN ('00:00:00Z'::TIME,
 ---------------
 90
 ;
+
+inWithRuntimeField
+SELECT COUNT(*) AS c, birth_date_day_of_week FROM test_emp WHERE birth_date_day_of_week IN ('Saturday', 'Sunday') GROUP BY birth_date_day_of_week;
+
+       c:l     |birth_date_day_of_week:s
+---------------+------------------------
+13             |Saturday              
+10             |Sunday                
+;
+
+inWithDayName
+SELECT COUNT(*) AS c, DAY_NAME(birth_date) FROM test_emp WHERE DAY_NAME(birth_date) IN ('Saturday', 'Sunday') GROUP BY DAY_NAME(birth_date);
+
+       c:l     |DAY_NAME(birth_date):s
+---------------+----------------------
+13             |Saturday            
+10             |Sunday              
+;

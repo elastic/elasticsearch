@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -23,7 +26,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -147,30 +149,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.Dynamic
     );
 
-    /**
-     * Setting whether transform (the coordinator task) can run on this node.
-     */
-    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
-        "node.transform",
-        settings ->
-            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings)),
-        Property.Deprecated,
-        Property.NodeScope
-    );
-
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
 
         @Override
-        public Setting<Boolean> legacySetting() {
-            return TRANSFORM_ENABLED_NODE;
-        }
-
-        @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return super.isEnabledByDefault(settings) &&
-                // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
+            // don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            return (DiscoveryNode.hasDataRole(settings) || DataTier.isExplicitDataTier(settings));
         }
 
     };
@@ -321,7 +305,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(Arrays.asList(TRANSFORM_ENABLED_NODE, NUM_FAILURE_RETRIES_SETTING));
+        return List.of(NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override
@@ -352,6 +336,35 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override public Collection<String> getAssociatedIndexPatterns() {
         return List.of(AUDIT_INDEX_PATTERN);
+    }
+
+    @Override
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
+    ) {
+        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
+            if (stopTransformsResponse.isAcknowledged()
+                && stopTransformsResponse.getTaskFailures().isEmpty()
+                && stopTransformsResponse.getNodeFailures().isEmpty()) {
+
+                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+            } else {
+                String errMsg = "Failed to reset Transform: "
+                    + (stopTransformsResponse.isAcknowledged() ? "" : "not acknowledged ")
+                    + (stopTransformsResponse.getNodeFailures().isEmpty()
+                        ? ""
+                        : "node failures: " + stopTransformsResponse.getNodeFailures() + " ")
+                    + (stopTransformsResponse.getTaskFailures().isEmpty()
+                        ? ""
+                        : "task failures: " + stopTransformsResponse.getTaskFailures());
+                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(this.getFeatureName(), errMsg));
+            }
+        }, listener::onFailure);
+
+        StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(Metadata.ALL, true, true, null, true, false);
+        client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
     }
 
     @Override

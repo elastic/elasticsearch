@@ -24,42 +24,39 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
+
 public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkShardsAllocatedStep> {
 
     @Override
     public ShrunkShardsAllocatedStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrunkShardsAllocatedStep(stepKey, nextStepKey, shrunkIndexPrefix);
+        return new ShrunkShardsAllocatedStep(stepKey, nextStepKey);
     }
 
     @Override
     public ShrunkShardsAllocatedStep mutateInstance(ShrunkShardsAllocatedStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
 
-        switch (between(0, 2)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 2:
-            shrunkIndexPrefix += randomAlphaOfLength(5);
-            break;
-        default:
+        switch (between(0, 1)) {
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrunkShardsAllocatedStep(key, nextKey, shrunkIndexPrefix);
+        return new ShrunkShardsAllocatedStep(key, nextKey);
     }
 
     @Override
     public ShrunkShardsAllocatedStep copyInstance(ShrunkShardsAllocatedStep instance) {
-        return new ShrunkShardsAllocatedStep(instance.getKey(), instance.getNextStepKey(), instance.getShrunkIndexPrefix());
+        return new ShrunkShardsAllocatedStep(instance.getKey(), instance.getNextStepKey());
     }
 
     public void testConditionMet() {
@@ -71,7 +68,7 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .settings(settings(Version.CURRENT))
             .numberOfShards(originalNumberOfShards)
             .numberOfReplicas(0).build();
-        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(step.getShrunkIndexPrefix() + originalIndexName)
+        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + originalIndexName)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(shrinkNumberOfShards)
                 .numberOfReplicas(0).build();
@@ -112,7 +109,7 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .settings(settings(Version.CURRENT))
             .numberOfShards(originalNumberOfShards)
             .numberOfReplicas(0).build();
-        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(step.getShrunkIndexPrefix() + originalIndexName)
+        IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + originalIndexName)
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(shrinkNumberOfShards)
                 .numberOfReplicas(0).build();

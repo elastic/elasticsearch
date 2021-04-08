@@ -103,19 +103,19 @@ NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `alias`::
 (String)
-Comma-separated list or wildcard expression of index alias names to
-add, remove, or delete.
+Comma-separated list or wildcard expression of index alias names to add, remove,
+or delete. Supports <<date-math-index-names,date math>>.
 +
 If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
 (Array of strings)
-Array of index alias names to
-add, remove, or delete.
+Array of index alias names to add, remove, or delete. Supports
+<<date-math-index-names,date math>>.
 +
-If the `alias` parameter is not specified,
-this parameter is required for the `add` or `remove` action.
+If the `alias` parameter is not specified, this parameter is required for the
+`add` or `remove` action.
 
 `filter`::
 (Optional, query object)
@@ -189,6 +189,20 @@ POST /_aliases
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
+
+Index alias names support <<date-math-index-names,date math>>.
+
+[source,console]
+----
+POST /_aliases
+{
+  "actions" : [
+    { "add" : { "index" : "logs", "alias" : "<logs_{now/M}>" } }
+  ]
+}
+----
+// TEST[s/^/PUT logs\n/]
+// TEST[continued]
 
 [[indices-aliases-api-remove-alias-ex]]
 ===== Remove an alias

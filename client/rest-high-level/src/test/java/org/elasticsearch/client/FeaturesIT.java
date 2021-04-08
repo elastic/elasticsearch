@@ -8,8 +8,10 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.snapshots.GetFeaturesRequest;
-import org.elasticsearch.client.snapshots.GetFeaturesResponse;
+import org.elasticsearch.client.feature.GetFeaturesRequest;
+import org.elasticsearch.client.feature.GetFeaturesResponse;
+import org.elasticsearch.client.feature.ResetFeaturesRequest;
+import org.elasticsearch.client.feature.ResetFeaturesResponse;
 
 import java.io.IOException;
 
@@ -27,5 +29,18 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getFeatures(), notNullValue());
         assertThat(response.getFeatures().size(), greaterThan(1));
         assertTrue(response.getFeatures().stream().anyMatch(feature -> "tasks".equals(feature.getFeatureName())));
+    }
+
+    public void testResetFeatures() throws IOException {
+        ResetFeaturesRequest request = new ResetFeaturesRequest();
+
+        ResetFeaturesResponse response = execute(request,
+            highLevelClient().features()::resetFeatures, highLevelClient().features()::resetFeaturesAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.getFeatures(), notNullValue());
+        assertThat(response.getFeatures().size(), greaterThan(1));
+        assertTrue(response.getFeatures().stream().anyMatch(
+            feature -> "tasks".equals(feature.getFeatureName()) && "SUCCESS".equals(feature.getStatus())));
     }
 }

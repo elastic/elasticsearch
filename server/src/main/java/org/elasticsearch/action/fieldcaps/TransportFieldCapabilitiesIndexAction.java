@@ -34,7 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -108,8 +108,8 @@ public class TransportFieldCapabilitiesIndexAction
             }
 
             Set<String> fieldNames = new HashSet<>();
-            for (String field : request.fields()) {
-                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(field));
+            for (String pattern : request.fields()) {
+                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(pattern));
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
@@ -117,10 +117,10 @@ public class TransportFieldCapabilitiesIndexAction
             for (String field : fieldNames) {
                 MappedFieldType ft = searchExecutionContext.getFieldType(field);
                 if (ft != null) {
-                    if (searchExecutionContext.isMetadataField(field)
-                            || fieldPredicate.test(ft.name())) {
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
-                            ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                    boolean isMetadataField = searchExecutionContext.isMetadataField(field);
+                    if (isMetadataField || fieldPredicate.test(ft.name())) {
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field,
+                            ft.familyTypeName(), isMetadataField, ft.isSearchable(), ft.isAggregatable(), ft.meta());
                         responseMap.put(field, fieldCap);
                     } else {
                         continue;
@@ -128,7 +128,8 @@ public class TransportFieldCapabilitiesIndexAction
 
                     // Check the ancestor of the field to find nested and object fields.
                     // Runtime fields are excluded since they can override any path.
-                    if (ft instanceof RuntimeFieldType == false) {
+                    //TODO find a way to do this that does not require an instanceof check
+                    if (ft instanceof RuntimeField == false) {
                         int dotIndex = ft.name().lastIndexOf('.');
                         while (dotIndex > -1) {
                             String parentField = ft.name().substring(0, dotIndex);
@@ -142,7 +143,7 @@ public class TransportFieldCapabilitiesIndexAction
                                 ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
                                 String type = mapper.nested().isNested() ? "nested" : "object";
                                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                                    false, false, Collections.emptyMap());
+                                    false, false, false, Collections.emptyMap());
                                 responseMap.put(parentField, fieldCap);
                             }
                             dotIndex = parentField.lastIndexOf('.');
@@ -239,7 +240,12 @@ public class TransportFieldCapabilitiesIndexAction
             ShardRouting shardRouting = nextRoutingOrNull();
             if (shardRouting == null) {
                 if (canMatchShard == false) {
-                    listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                    if (lastFailure == null) {
+                        listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                    } else {
+                        logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
+                        listener.onFailure(lastFailure);
+                    }
                 } else {
                     if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
                         listener.onFailure(new NoShardAvailableActionException(null,

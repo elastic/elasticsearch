@@ -21,8 +21,8 @@ import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVE
 public class SettingsBasedSeedHostsProviderIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         // super.nodeSettings enables file-based discovery, but here we disable it again so we can test the static list:
         if (randomBoolean()) {

@@ -15,9 +15,7 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -26,9 +24,9 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class FileTokensTool extends LoggingAwareMultiCommand {
 
@@ -73,15 +71,16 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                 throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
                     + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
             }
+            if (false == ServiceAccountToken.isValidTokenName(tokenName)) {
+                throw new UserException(ExitCodes.CODE_ERROR, ServiceAccountToken.INVALID_TOKEN_NAME_MESSAGE);
+            }
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
 
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
-            final Map<String, char[]> tokenHashes = new HashMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
+            final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
 
-            try (SecureString tokenString = UUIDs.randomBase64UUIDSecureString()) {
-                final ServiceAccountToken token =
-                    new ServiceAccountToken(ServiceAccountId.fromPrincipal(principal), tokenName, tokenString);
+            try (ServiceAccountToken token = ServiceAccountToken.newToken(ServiceAccountId.fromPrincipal(principal), tokenName)) {
                 if (tokenHashes.containsKey(token.getQualifiedName())) {
                     throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + token.getQualifiedName() + "] already exists");
                 }

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.scalar.SurrogateFunction;
@@ -18,9 +20,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
@@ -344,8 +348,8 @@ public final class OptimizerRules {
             for (BinaryComparison eq : equals) {
                 Object eqValue = eq.right().fold();
 
-                for (int i = 0; i < ranges.size(); i++) {
-                    Range range = ranges.get(i);
+                for (Iterator<Range> iterator = ranges.iterator(); iterator.hasNext(); ) {
+                    Range range = iterator.next();
 
                     if (range.value().semanticEquals(eq.left())) {
                         // if equals is outside the interval, evaluate the whole expression to FALSE
@@ -373,7 +377,7 @@ public final class OptimizerRules {
                         }
 
                         // it's in the range and thus, remove it
-                        ranges.remove(i);
+                        iterator.remove();
                         changed = true;
                     }
                 }
@@ -789,8 +793,7 @@ public final class OptimizerRules {
                     if (conjunctive) {
                         // can tighten range
                         if (lower || upper) {
-                            ranges.remove(i);
-                            ranges.add(i,
+                            ranges.set(i,
                                     new Range(main.source(), main.value(),
                                             lower ? main.lower() : other.lower(),
                                             lower ? main.includeLower() : other.includeLower(),
@@ -806,13 +809,12 @@ public final class OptimizerRules {
                     else {
                         // can loosen range
                         if (lower && upper) {
-                            ranges.remove(i);
-                            ranges.add(i,
+                            ranges.set(i,
                                     new Range(main.source(), main.value(),
-                                            lower ? main.lower() : other.lower(),
-                                            lower ? main.includeLower() : other.includeLower(),
-                                            upper ? main.upper() : other.upper(),
-                                            upper ? main.includeUpper() : other.includeUpper(),
+                                            main.lower(),
+                                            main.includeLower(),
+                                            main.upper(),
+                                            main.includeUpper(),
                                             main.zoneId()));
                             return true;
                         }
@@ -844,8 +846,7 @@ public final class OptimizerRules {
                                 boolean lower = comp > 0 || lowerEq;
 
                                 if (lower) {
-                                    ranges.remove(i);
-                                    ranges.add(i,
+                                    ranges.set(i,
                                             new Range(other.source(), other.value(),
                                                     main.right(), lowerEq ? false : main instanceof GreaterThanOrEqual,
                                                     other.upper(), other.includeUpper(), other.zoneId()));
@@ -865,8 +866,7 @@ public final class OptimizerRules {
                                 boolean upper = comp < 0 || upperEq;
 
                                 if (upper) {
-                                    ranges.remove(i);
-                                    ranges.add(i, new Range(other.source(), other.value(),
+                                    ranges.set(i, new Range(other.source(), other.value(),
                                             other.lower(), other.includeLower(),
                                             main.right(), upperEq ? false : main instanceof LessThanOrEqual, other.zoneId()));
                                 }
@@ -1373,7 +1373,7 @@ public final class OptimizerRules {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
+            Expression condition = filter.condition().transformUp(BinaryLogic.class, PruneFilters::foldBinaryLogic);
 
             if (condition instanceof Literal) {
                 if (TRUE.equals(condition)) {
@@ -1392,13 +1392,13 @@ public final class OptimizerRules {
 
         protected abstract LogicalPlan skipPlan(Filter filter);
 
-        private static Expression foldBinaryLogic(Expression expression) {
-            if (expression instanceof Or) {
-                Or or = (Or) expression;
+        private static Expression foldBinaryLogic(BinaryLogic binaryLogic) {
+            if (binaryLogic instanceof Or) {
+                Or or = (Or) binaryLogic;
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return new Literal(expression.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -1407,13 +1407,13 @@ public final class OptimizerRules {
                     return or.left();
                 }
             }
-            if (expression instanceof And) {
-                And and = (And) expression;
+            if (binaryLogic instanceof And) {
+                And and = (And) binaryLogic;
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(expression.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
                 }
             }
-            return expression;
+            return binaryLogic;
         }
     }
 
@@ -1443,6 +1443,28 @@ public final class OptimizerRules {
         }
     }
 
+    // NB: it is important to start replacing casts from the bottom to properly replace aliases
+    public abstract static class PruneCast<C extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
+
+        private final Class<C> castType;
+
+        public PruneCast(Class<C> castType) {
+            this.castType = castType;
+        }
+
+        @Override
+        public final LogicalPlan apply(LogicalPlan plan) {
+            return rule(plan);
+        }
+
+        @Override
+        protected final LogicalPlan rule(LogicalPlan plan) {
+            // eliminate redundant casts
+            return plan.transformExpressionsUp(castType, this::maybePruneCast);
+        }
+
+        protected abstract Expression maybePruneCast(C cast);
+    }
 
     public abstract static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override
@@ -1484,6 +1506,97 @@ public final class OptimizerRules {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    // a IS NULL AND a IS NOT NULL -> FALSE
+    // a IS NULL AND a > 10 -> a IS NULL and FALSE
+    // can be extended to handle null conditions where available
+    public static class PropagateNullable extends OptimizerExpressionRule {
+
+        public PropagateNullable() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof And) {
+                List<Expression> splits = Predicates.splitAnd(e);
+
+                Set<Expression> nullExpressions = new LinkedHashSet<>();
+                Set<Expression> notNullExpressions = new LinkedHashSet<>();
+                List<Expression> others = new LinkedList<>();
+
+                // first find isNull/isNotNull
+                for (Expression ex : splits) {
+                    if (ex instanceof IsNull) {
+                        nullExpressions.add(((IsNull) ex).field());
+                    } else if (ex instanceof IsNotNull) {
+                        notNullExpressions.add(((IsNotNull) ex).field());
+                    }
+                    // the rest
+                    else {
+                        others.add(ex);
+                    }
+                }
+
+                // check for is isNull and isNotNull --> FALSE
+                if (Sets.haveNonEmptyIntersection(nullExpressions, notNullExpressions)) {
+                    return Literal.of(e, Boolean.FALSE);
+                }
+
+                // apply nullability across relevant/matching expressions
+
+                // first against all nullable expressions
+                // followed by all not-nullable expressions
+                boolean modified = replace(nullExpressions, others, splits, this::nullify);
+                modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+                if (modified) {
+                    // reconstruct the expression
+                    return Predicates.combineAnd(splits);
+                }
+            }
+            return e;
+        }
+
+        /**
+         * Replace the given 'pattern' expressions against the target expression.
+         * If a match is found, the matching expression will be replaced by the replacer result
+         * or removed if null is returned.
+         */
+        private static boolean replace(
+            Iterable<Expression> pattern,
+            List<Expression> target,
+            List<Expression> originalExpressions,
+            BiFunction<Expression, Expression, Expression> replacer
+        ) {
+            boolean modified = false;
+            for (Expression s : pattern) {
+                for (int i = 0; i < target.size(); i++) {
+                    Expression t = target.get(i);
+                    // identify matching expressions
+                    if (t.anyMatch(s::semanticEquals)) {
+                        Expression replacement = replacer.apply(t, s);
+                        // if the expression has changed, replace it
+                        if (replacement != t) {
+                            modified = true;
+                            target.set(i, replacement);
+                            originalExpressions.replaceAll(e -> t.semanticEquals(e) ? replacement : e);
+                        }
+                    }
+                }
+            }
+            return modified;
+        }
+
+        // default implementation nullifies all nullable expressions
+        protected Expression nullify(Expression exp, Expression nullExp) {
+            return exp.nullable() == Nullability.TRUE ? new Literal(exp.source(), null, DataTypes.NULL) : exp;
+        }
+
+        // placeholder for non-null
+        protected Expression nonNullify(Expression exp, Expression nonNullExp) {
+            return exp;
         }
     }
 

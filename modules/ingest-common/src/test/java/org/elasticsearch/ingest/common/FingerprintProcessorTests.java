@@ -243,7 +243,8 @@ public class FingerprintProcessorTests extends ESTestCase {
             "b+3QyaPYdnUF1lb5IKE+1g==",
             "SX/93t223OurJvgMUOCtSl9hcpg=",
             "zDQYTy34tBlmNedlDdn++N7NN+wBY15mCoPDINmUxXc=",
-            "xNIpYyJzRmg5R0T44ZORC2tgh8N4tVtTFzD5AdBqxmdOuRUjibQQ64lgefkbuZFl8Hv9ze9U6PAmrlgJPcRPGA=="
+            "xNIpYyJzRmg5R0T44ZORC2tgh8N4tVtTFzD5AdBqxmdOuRUjibQQ64lgefkbuZFl8Hv9ze9U6PAmrlgJPcRPGA==",
+            "yjfaOoy2UQ3EHZRAzFK9sw=="
         );
 
         var inputMap = new LinkedHashMap<String, Object>();

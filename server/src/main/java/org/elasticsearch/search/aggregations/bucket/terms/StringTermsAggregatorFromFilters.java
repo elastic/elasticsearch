@@ -154,6 +154,21 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         List<StringTerms.Bucket> buckets;
         long otherDocsCount = 0;
         BucketOrder reduceOrder = isKeyOrder(order) ? order : InternalOrder.key(true);
+        /*
+         * We default to a shardMinDocCount of 0 which means we'd keep all
+         * hits, even those that don't have live documents or those that
+         * don't match any documents in the top level query. This is correct
+         * if the minDocCount is also 0, but if it is larger than 0 then we
+         * don't need to send those buckets back to the coordinating node.
+         * GlobalOrdinalsStringTermsAggregator doesn't collect those
+         * buckets either. It's a good thing, too, because if you take them
+         * into account when you sort by, say, key, you might throw away
+         * buckets with actual docs in them.
+         */
+        long minDocCount = bucketCountThresholds.getShardMinDocCount();
+        if (minDocCount == 0 && bucketCountThresholds.getMinDocCount() > 0) {
+            minDocCount = 1;
+        }
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
             PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
                 private final Comparator<Bucket> comparator = order.comparator();
@@ -165,7 +180,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             };
             OrdBucket spare = null;
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
-                if (b.getDocCount() < bucketCountThresholds.getShardMinDocCount()) {
+                if (b.getDocCount() < minDocCount) {
                     continue;
                 }
                 if (spare == null) {
@@ -203,7 +218,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         } else {
             buckets = new ArrayList<>(filters.getBuckets().size());
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
-                if (b.getDocCount() < bucketCountThresholds.getShardMinDocCount()) {
+                if (b.getDocCount() < minDocCount) {
                     continue;
                 }
                 buckets.add(buildBucket(b));

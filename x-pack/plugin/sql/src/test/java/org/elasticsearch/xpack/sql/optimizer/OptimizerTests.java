@@ -128,6 +128,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
@@ -307,6 +308,16 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Math.E, foldFunction(new E(EMPTY)));
     }
 
+    public void testNullIfFolding() {
+        assertEquals(null, foldFunction(new NullIf(EMPTY, ONE, ONE)));
+        assertEquals(1, foldFunction(new NullIf(EMPTY, ONE, TWO)));
+        assertEquals(2, foldFunction(new NullIf(EMPTY, TWO, ONE)));
+
+        FieldAttribute fa = fieldAttribute();
+        // works even if the expressions are not foldable
+        assertEquals(null, foldFunction(new NullIf(EMPTY, fa, fa)));
+    }
+
     private static Object foldFunction(Function f) {
         return ((Literal) new ConstantFolding().rule(f)).value();
     }
@@ -432,16 +443,19 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(conditionalFunction, rule.rule(conditionalFunction));
     }
 
-    public void testSimplifyCoalesceNulls() {
-        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, asList(NULL, NULL)));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
-    }
-
     public void testSimplifyCoalesceRandomNulls() {
         Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, randomListOfNulls()));
-        assertEquals(Coalesce.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
+    }
+
+    public void testSimplifyCoalesceWithOnlyOneChild() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, singletonList(fa))));
+    }
+
+    public void testSimplifyCoalesceSameExpression() {
+        Expression fa = fieldAttribute();
+        assertSame(fa, new SimplifyConditional().rule(new Coalesce(EMPTY, randomList(2, 10, () -> fa))));
     }
 
     public void testSimplifyCoalesceRandomNullsWithValue() {
@@ -470,8 +484,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIfNullNulls() {
         Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, NULL, NULL));
-        assertEquals(IfNull.class, e.getClass());
-        assertEquals(0, e.children().size());
+        assertEquals(NULL, e);
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
@@ -492,6 +505,12 @@ public class OptimizerTests extends ESTestCase {
         Expression orig = new NullIf(EMPTY, ONE, NULL);
         Expression f = new FoldNull().rule(orig);
         assertEquals(orig, f);
+    }
+
+    public void testSimplifyNullIf() {
+        assertEquals(ONE, new SimplifyConditional().rule(new NullIf(EMPTY, ONE, NULL)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, ONE)));
+        assertEquals(NULL, new SimplifyConditional().rule(new NullIf(EMPTY, NULL, NULL)));
     }
 
     public void testSimplifyGreatestNulls() {
@@ -536,6 +555,67 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
         assertEquals(INTEGER, e.dataType());
+    }
+
+    public void testPropagateIsNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO)), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(2, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+        assertEquals(TWO, a.left().children().get(1));
+    }
+
+    public void testPropagateIsNotNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNotNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO, THREE)), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
     }
 
     public void testConcatFoldingIsNotNull() {
@@ -1042,6 +1122,18 @@ public class OptimizerTests extends ESTestCase {
         Alias alias = (Alias) p.aggregates().get(0);
         assertTrue(alias.child() instanceof InnerAggregate);
         assertEquals(sum, ((InnerAggregate) alias.child()).inner());
+    }
+
+    public void testReplaceCast() {
+        FieldAttribute a = getFieldAttribute("a");
+        Cast c = new Cast(EMPTY, a, a.dataType());
+        assertSame(a, new Optimizer.PruneCast().maybePruneCast(c));
+    }
+
+    public void testReplaceCastOnLiteral() {
+        Literal literal = literal("string");
+        Cast c = new Cast(EMPTY, literal, literal.dataType());
+        assertSame(literal, new Optimizer.PruneCast().maybePruneCast(c));
     }
 
     /**

@@ -257,4 +257,8 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             format
         );
     }
+
+    public long estimateCost(long maxEstimatedCost) throws IOException {
+        return ((FiltersAggregator.FilterByFilter) delegate()).estimateCost(maxEstimatedCost);
+    }
 }

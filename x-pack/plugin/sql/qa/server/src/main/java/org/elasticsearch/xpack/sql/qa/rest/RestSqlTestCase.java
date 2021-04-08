@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -482,7 +483,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
     }
 
@@ -494,8 +495,92 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.setEntity(new StringEntity(query("SELECT * FROM test").mode(mode).columnar(true).toString(), ContentType.APPLICATION_JSON));
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("unknown field [columnar]"));
+    }
+
+    public void testValidateRuntimeMappingsInSqlQuery() throws IOException {
+        testValidateRuntimeMappingsInQuery(SQL_QUERY_REST_ENDPOINT);
+
+        String mode = randomMode();
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        index("{\"test\":true}", "{\"test\":false}");
+        String runtimeMappings = "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);"
+            + "else emit(0);\"}}}";
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "bool_as_long", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "test", "boolean", JDBCType.BOOLEAN, 1)
+            )
+        );
+        expected.put("rows", Arrays.asList(Arrays.asList(1, true), Arrays.asList(0, false)));
+        assertResponse(
+            expected,
+            runSql(
+                new StringEntity(
+                    query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                    ContentType.APPLICATION_JSON
+                ),
+                StringUtils.EMPTY,
+                mode
+            )
+        );
+    }
+
+    public void testValidateRuntimeMappingsInTranslateQuery() throws IOException {
+        testValidateRuntimeMappingsInQuery(SQL_TRANSLATE_REST_ENDPOINT);
+
+        index("{\"test\":true}", "{\"test\":false}");
+        String runtimeMappings = "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);"
+            + "else emit(0);\"}}}";
+        Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").runtimeMappings(runtimeMappings).toString());
+        assertEquals(response.get("size"), 1000);
+        assertFalse((Boolean) response.get("_source"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(Arrays.asList(singletonMap("field", "bool_as_long"), singletonMap("field", "test")), source);
+
+        assertNull(response.get("query"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sort = (List<Map<String, Object>>) response.get("sort");
+        assertEquals(singletonList(singletonMap("_doc", singletonMap("order", "asc"))), sort);
+    }
+
+    private static void testValidateRuntimeMappingsInQuery(String queryTypeEndpoint) {
+        String mode = randomMode();
+        String runtimeMappings = "{\"address\": {\"script\": \"return\"}}";
+        Request request = new Request("POST", queryTypeEndpoint);
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(request);
+            return emptyMap();
+        }, containsString("No type specified for runtime field [address]"));
+
+        runtimeMappings = "{\"address\": [{\"script\": \"return\"}]}";
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(request);
+            return emptyMap();
+        }, containsString("Expected map for runtime field [address] definition but got [String]"));
     }
 
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
@@ -917,7 +1002,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(badRequest);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("request [/_sql] contains unrecognized parameter: [delimiter]"));
 
         Request csvRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT + "?format=csv&delimiter=%3B");

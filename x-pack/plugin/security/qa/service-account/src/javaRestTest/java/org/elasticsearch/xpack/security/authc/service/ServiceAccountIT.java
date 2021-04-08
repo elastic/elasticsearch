@@ -286,6 +286,26 @@ public class ServiceAccountIT extends ESRestTestCase {
             "api-token-1", Map.of(),
             "api-token-2", Map.of()
         )));
+
+        final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
+        final Response deleteTokenResponse1 = client().performRequest(deleteTokenRequest1);
+        assertOK(deleteTokenResponse1);
+        assertThat(responseAsMap(deleteTokenResponse1).get("found"), is(true));
+
+        final Response getTokensResponse3 = client().performRequest(getTokensRequest);
+        assertOK(getTokensResponse3);
+        final Map<String, Object> getTokensResponseMap3 = responseAsMap(getTokensResponse3);
+        assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
+        assertThat(getTokensResponseMap3.get("count"), equalTo(2));
+        assertThat(getTokensResponseMap3.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
+        assertThat(getTokensResponseMap3.get("tokens"), equalTo(Map.of(
+            "api-token-1", Map.of()
+        )));
+
+        final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
+        final Response deleteTokenResponse2 = client().performRequest(deleteTokenRequest2);
+        assertOK(deleteTokenResponse2);
+        assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
     }
 
     public void testManageOwnApiKey() throws IOException {

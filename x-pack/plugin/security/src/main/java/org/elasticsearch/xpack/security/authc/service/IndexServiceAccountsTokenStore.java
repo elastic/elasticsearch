@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
@@ -16,6 +18,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -35,8 +39,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -48,6 +55,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -81,7 +89,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
     @Override
     void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
         final GetRequest getRequest = client
-            .prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token))
+            .prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
             .request();
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
@@ -107,7 +115,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
         try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setId(docIdForToken(token))
+                    .setId(docIdForToken(token.getQualifiedName()))
                     .setSource(builder)
                     .setOpType(OpType.CREATE)
                     .setRefreshPolicy(request.getRefreshPolicy())
@@ -130,26 +138,68 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
 
     @Override
     public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-        // TODO: wildcard support?
-        final BoolQueryBuilder query = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
-            .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
-        final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
-            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(getSettings()))
-            .setQuery(query)
-            .setSize(1000)
-            .setFetchSource(false)
-            .request();
-        request.indicesOptions().ignoreUnavailable();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (false == frozenSecurityIndex.indexExists()) {
+            listener.onResponse(List.of());
+        } else if (false == frozenSecurityIndex.isAvailable()) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            // TODO: wildcard support?
+            final BoolQueryBuilder query = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
+                .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
+            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(getSettings()))
+                .setQuery(query)
+                .setSize(1000)
+                .setFetchSource(false)
+                .request();
+            request.indicesOptions().ignoreUnavailable();
 
-        logger.trace("Searching tokens for service account [{}]", accountId);
-        ScrollHelper.fetchAllByEntity(client, request,
-            new ContextPreservingActionListener<>(client.threadPool().getThreadContext().newRestorableContext(false), listener),
-            hit -> extractTokenInfo(hit.getId(), accountId));
+            logger.trace("Searching tokens for service account [{}]", accountId);
+            ScrollHelper.fetchAllByEntity(client, request,
+                new ContextPreservingActionListener<>(client.threadPool().getThreadContext().newRestorableContext(false), listener),
+                hit -> extractTokenInfo(hit.getId(), accountId));
+        }
     }
 
-    private String docIdForToken(ServiceAccountToken token) {
-        return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + token.getQualifiedName();
+    public void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        if (false == frozenSecurityIndex.indexExists()) {
+            listener.onResponse(false);
+        } else if (false == frozenSecurityIndex.isAvailable()) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+            if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
+                listener.onResponse(false);
+                return;
+            }
+            final String qualifiedTokenName = ServiceAccountToken.buildQualifiedName(accountId, request.getTokenName());
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final DeleteRequest deleteRequest = client.prepareDelete(SECURITY_MAIN_ALIAS, docIdForToken(qualifiedTokenName)).request();
+                deleteRequest.setRefreshPolicy(request.getRefreshPolicy());
+                executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteAction.INSTANCE, deleteRequest,
+                    ActionListener.wrap(deleteResponse -> {
+                        final ClearSecurityCacheRequest clearSecurityCacheRequest =
+                            new ClearSecurityCacheRequest().cacheName("index_service_account_token").keys(qualifiedTokenName);
+                        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest,
+                            ActionListener.wrap(clearSecurityCacheResponse -> {
+                                listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                            }, e -> {
+                                final ParameterizedMessage message = new ParameterizedMessage(
+                                    "clearing the cache for service token [{}] failed. please clear the cache manually",
+                                    qualifiedTokenName);
+                                logger.error(message, e);
+                                listener.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
+                            }));
+                    }, listener::onFailure));
+            });
+        }
+    }
+
+    private String docIdForToken(String qualifiedTokenName) {
+        return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
     }
 
     private XContentBuilder newDocument(Authentication authentication, ServiceAccountToken serviceAccountToken) throws IOException {

@@ -38,7 +38,7 @@
               script:
                 source: |
                   float s = 0;
-                  for (def el : doc['v'].getVectorValue()) {
+                  for (def el : doc['v'].vectorValue) {
                     s += el;
                   }
                   s;
@@ -51,7 +51,7 @@
   - match: { hits.hits.2._score: 3 }
 
 
-  # check getVectorMagnitude() API
+  # check getMagnitude() API
   - do:
       headers:
         Content-Type: application/json
@@ -61,7 +61,7 @@
             script_score:
               query: { "exists" : { "field" : "v" } }
               script:
-                source: "doc['v'].getVectorMagnitude()"
+                source: "doc['v'].magnitude"
 
   - match: { hits.hits.0._id: "3" }
   - gte: {hits.hits.0._score: 3.3166}
@@ -82,7 +82,7 @@
             script_score:
               query: { match_all: { } }
               script:
-                source: "doc['v'].getVectorValue()[0]"
+                source: "doc['v'].vectorValue[0]"
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "script_exception" }
@@ -96,7 +96,7 @@
             script_score:
               query: { match_all: { } }
               script:
-                source: "doc['v'].getVectorMagnitude()"
+                source: "doc['v'].magnitude"
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "script_exception" }
@@ -113,8 +113,8 @@
               query: { "exists": { "field": "v" } }
               script:
                 source: |
-                  float[] v = doc['v'].getVectorValue();
-                  float vm = doc['v'].getVectorMagnitude();
+                  float[] v = doc['v'].vectorValue;
+                  float vm = doc['v'].magnitude;
 
                   int closestPv = 0;
                   float maxCosSim = -1;

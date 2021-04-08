@@ -46,7 +46,7 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     @Override
     public BytesRef get(int index) {
         throw new UnsupportedOperationException("accessing a vector field's value through 'get' or 'value' is not supported!" +
-            "Use 'getVectorValue' or 'getVectorMagnitude' instead!'");
+            "Use 'vectorValue' or 'magnitude' instead!'");
     }
 
     /**
@@ -60,8 +60,8 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     /**
      * Get dense vector's magnitude
      */
-    public float getVectorMagnitude() {
-        return VectorEncoderDecoder.getVectorMagnitude(indexVersion, value);
+    public float getMagnitude() {
+        return VectorEncoderDecoder.getMagnitude(indexVersion, value);
     }
 
     @Override

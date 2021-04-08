@@ -8,14 +8,14 @@ linearly scanned. Thus, expect the query time grow linearly
 with the number of matched documents. For this reason, we recommend
 to limit the number of matched documents with a `query` parameter.
 
-This is the list of available vector functions:
+This is the list of available vector functions and vector access methods:
 
 1. `cosineSimilarity` – calculates cosine similarity
 2. `dotProduct` – calculates dot product
 3. `l1norm` – calculates L^1^ distance
 4. `l2norm` - calculates L^2^ distance
-5. `getVectorValue` – returns a vector's value as an array of floats
-6. `getVectorMagnitude` – returns a vector's magnitude
+5. `doc[<field>].vectorValue` – returns a vector's value as an array of floats
+6. `doc[<field>].magnitude` – returns a vector's magnitude
 
 
 Let's create an index with a `dense_vector` mapping and index a couple
@@ -210,10 +210,10 @@ The recommended way to access dense vectors is through `cosineSimilarity`,
 `dotProduct`, `l1norm` or `l2norm` functions. But for custom use cases,
 you can access dense vectors's values directly through the following functions:
 
-- `float[] getVectorValue()` – returns a vector's value as an array of floats
+- `doc[<field>].vectorValue` – returns a vector's value as an array of floats
 
-- `float getVectorMagnitude()` – returns a vector's magnitude (available for
-vectors created in the version 7.5 or later).
+- `doc[<field>].magnitude` – returns a vector's magnitude as a float
+(available for vectors created in the version 7.5 or later).
 
 For example, the script below implements a cosine similarity using these
 two functions:
@@ -235,8 +235,8 @@ GET my-index-000001/_search
       },
       "script": {
         "source": """
-          float[] v = doc['my_dense_vector'].getVectorValue();
-          float vm = doc['my_dense_vector'].getVectorMagnitude();
+          float[] v = doc['my_dense_vector'].vectorValue;
+          float vm = doc['my_dense_vector'].magnitude;
           float dotProduct = 0;
           for (int i = 0; i < v.length; i++) {
             dotProduct += v[i] * params.queryVector[i];

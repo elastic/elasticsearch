@@ -32,15 +32,11 @@ public final class VectorEncoderDecoder {
      */
     public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
         assert indexVersion.onOrAfter(Version.V_7_5_0);
-        int offset = vectorBR.offset + vectorBR.length - INT_BYTES;
-        int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
-            ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
-            ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
-            (vectorBR.bytes[offset+3] & 0xFF);
-        return Float.intBitsToFloat(intValue);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
     }
 
-    public static float getVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
+    public static float getMagnitude(Version indexVersion, BytesRef vectorBR) {
         if (vectorBR == null) {
             throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
         }

@@ -15,9 +15,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -262,6 +260,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
         Client client = mock(Client.class);
         SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         Mockito.doAnswer((Answer) invocation -> {
@@ -278,11 +277,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
                         Loggers.LOG_LEVEL_SETTING)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getSmallestNonClientNodeVersion()).thenReturn(Version.CURRENT);
-        when(clusterState.nodes()).thenReturn(nodes);
-        when(clusterService.state()).thenReturn(clusterState);
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
         if (randomBoolean()) {

@@ -452,19 +452,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return compatible;
     }
 
-    /**
-     * Get the released version that is before the given version
-     */
-    public Version getPreviousVersion() {
-        for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
-            final Version version = DeclaredVersionsHolder.DECLARED_VERSIONS.get(i);
-            if (version.isRelease() && version.before(this)) {
-                return version;
-            }
-        }
-        throw new IllegalArgumentException("cannot find a released version before [" + this + "]");
-    }
-
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
         final String versionOutput = String.format(

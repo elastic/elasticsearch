@@ -11,9 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -96,13 +94,10 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
-        final ClusterState clusterState = mock(ClusterState.class);
-        final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getSmallestNonClientNodeVersion()).thenReturn(Version.CURRENT);
-        when(clusterState.nodes()).thenReturn(nodes);
-        when(clusterService.state()).thenReturn(clusterState);
+        final SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), new XPackLicenseState(settings, () -> 0),
-                                          mock(SecurityIndexManager.class), clusterService,
+            securityIndexManager, clusterService,
                                           mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
     }
 

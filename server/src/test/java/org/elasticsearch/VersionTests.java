@@ -388,13 +388,4 @@ public class VersionTests extends ESTestCase {
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
 
-    public void testPreviousVersion() {
-        assertThat(Version.V_7_13_0.getPreviousVersion(), is(Version.V_7_12_1));
-        assertThat(Version.V_7_12_1.getPreviousVersion(), is(Version.V_7_12_0));
-        assertThat(Version.V_7_12_0.getPreviousVersion(), is(Version.V_7_11_2));
-        assertThat(Version.V_7_11_2.getPreviousVersion(), is(Version.V_7_11_1));
-        assertThat(Version.V_7_11_1.getPreviousVersion(), is(Version.V_7_11_0));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, Version.V_6_0_0::getPreviousVersion);
-        assertThat(e.getMessage(), containsString("cannot find a released version before [6.0.0]"));
-    }
 }

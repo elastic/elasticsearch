@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -774,7 +775,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final List<RoleDescriptor> limitedByRoleDescriptors = service.parseRoleDescriptors(docId, limitedByRoleDescriptorsBytes);
         assertEquals(1, limitedByRoleDescriptors.size());
         assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
-        if (metadata == null) {
+        if (metadata == null || metadata.isEmpty()) {
             assertNull(cachedApiKeyDoc.metadataFlattened);
         } else {
             assertThat(cachedApiKeyDoc.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata, XContentType.JSON)));
@@ -797,7 +798,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final BytesReference limitedByRoleDescriptorsBytes2 =
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc2.limitedByRoleDescriptorsHash);
         assertSame(limitedByRoleDescriptorsBytes, limitedByRoleDescriptorsBytes2);
-        if (metadata2 == null) {
+        if (metadata2 == null || metadata2.isEmpty()) {
             assertNull(cachedApiKeyDoc2.metadataFlattened);
         } else {
             assertThat(cachedApiKeyDoc2.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata2, XContentType.JSON)));
@@ -825,7 +826,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final BytesReference roleDescriptorsBytes3 = service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc3.roleDescriptorsHash);
         assertNotSame(roleDescriptorsBytes, roleDescriptorsBytes3);
         assertEquals(3, service.getRoleDescriptorsBytesCache().count());
-        if (metadata3 == null) {
+        if (metadata3 == null || metadata3.isEmpty()) {
             assertNull(cachedApiKeyDoc3.metadataFlattened);
         } else {
             assertThat(cachedApiKeyDoc3.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata3, XContentType.JSON)));
@@ -1003,6 +1004,27 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
+    public void testCreateApiKeyWillEnsureMetadataCompatibility() {
+        when(securityIndex.getInstallableMappingVersion()).thenReturn(Version.V_7_12_0);
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final Authentication authentication = new Authentication(new User("alice"), new RealmRef("file", "file", "node-1"), null);
+        final CreateApiKeyRequest request1 = new CreateApiKeyRequest("name", null, null,
+            org.elasticsearch.common.collect.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
+        final PlainActionFuture<CreateApiKeyResponse> future1 = new PlainActionFuture<>();
+        service.createApiKey(authentication, request1, Collections.emptySet(), future1);
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("API metadata requires all nodes to be at least [7.3.0]"));
+
+        final CreateApiKeyRequest request2 = new CreateApiKeyRequest("name", null, null,
+            randomFrom(org.elasticsearch.common.collect.Map.of(), null));
+        when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.threadPool()).thenReturn(threadPool);
+        final PlainActionFuture<CreateApiKeyResponse> future2 = new PlainActionFuture<>();
+        service.createApiKey(authentication, request2, Collections.emptySet(), future2);
+        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+    }
+
     public static class Utils {
 
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
@@ -1141,8 +1163,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     private void checkAuthApiKeyMetadata(Object metadata, AuthenticationResult authResult1) throws IOException {
-        if (metadata == null) {
+        if (metadata == null || ((Map<String, Object>)metadata).isEmpty()) {
             assertThat(authResult1.getMetadata().containsKey(ApiKeyService.API_KEY_METADATA_KEY), is(false));
         } else {
             //noinspection unchecked

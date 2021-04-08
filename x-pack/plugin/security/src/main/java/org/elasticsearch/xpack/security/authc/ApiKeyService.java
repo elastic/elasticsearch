@@ -141,6 +141,7 @@ public class ApiKeyService {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
+    private static final Version METADATA_INTRODUCED = Version.V_7_13_0;
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
     public static final String API_KEY_NAME_KEY = "_security_api_key_name";
     public static final String API_KEY_METADATA_KEY = "_security_api_key_metadata";
@@ -250,6 +251,13 @@ public class ApiKeyService {
     public void createApiKey(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> userRoles,
                              ActionListener<CreateApiKeyResponse> listener) {
         ensureEnabled();
+        if (request.getMetadata() != null && false == request.getMetadata().isEmpty()) {
+            if (securityIndex.getInstallableMappingVersion().before(METADATA_INTRODUCED)) {
+                listener.onFailure(new IllegalArgumentException("API metadata requires all nodes to be at least ["
+                    + FLATTENED_FIELD_TYPE_INTRODUCED + "]"));
+                return;
+            }
+        }
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
@@ -337,13 +345,11 @@ public class ApiKeyService {
         builder.field("name", name)
             .field("version", version.id);
 
-        final Version smallestNonClientNodeVersion = clusterService.state().nodes().getSmallestNonClientNodeVersion();
-        if (smallestNonClientNodeVersion.onOrAfter(FLATTENED_FIELD_TYPE_INTRODUCED)) {
+        if (metadata != null && false == metadata.isEmpty()) {
+            // The check in createApiKey method should prevent this assertion from tripping
+            assert securityIndex.getInstallableMappingVersion().onOrAfter(METADATA_INTRODUCED)
+                : "API metadata requires all nodes to be at least [" + FLATTENED_FIELD_TYPE_INTRODUCED + "]";
             builder.field("metadata_flattened", metadata);
-        } else {
-            // The assertion should not trip because ApiKeyGenerator should prevent it
-            assert metadata == null || metadata.isEmpty()
-                : "API key metadata requires all nodes to be at least [" + FLATTENED_FIELD_TYPE_INTRODUCED + "]";
         }
 
         builder.startObject("creator")

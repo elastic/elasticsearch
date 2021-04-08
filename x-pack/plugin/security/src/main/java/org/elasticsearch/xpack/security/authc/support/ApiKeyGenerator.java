@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
@@ -24,8 +22,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import java.util.Arrays;
 import java.util.HashSet;
 
-import static org.elasticsearch.xpack.security.Security.FLATTENED_FIELD_TYPE_INTRODUCED;
-
 /**
  * Utility class for generating API keys for a provided {@link Authentication}.
  */
@@ -33,14 +29,11 @@ public class ApiKeyGenerator {
 
     private final ApiKeyService apiKeyService;
     private final CompositeRolesStore rolesStore;
-    private final ClusterService clusterService;
     private final NamedXContentRegistry xContentRegistry;
 
-    public ApiKeyGenerator(ApiKeyService apiKeyService, CompositeRolesStore rolesStore, ClusterService clusterService,
-                           NamedXContentRegistry xContentRegistry) {
+    public ApiKeyGenerator(ApiKeyService apiKeyService, CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
         this.apiKeyService = apiKeyService;
         this.rolesStore = rolesStore;
-        this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -50,14 +43,6 @@ public class ApiKeyGenerator {
             return;
         }
         apiKeyService.ensureEnabled();
-        if (request.getMetadata() != null && false == request.getMetadata().isEmpty()) {
-            final Version smallestNonClientNodeVersion = clusterService.state().nodes().getSmallestNonClientNodeVersion();
-            if (smallestNonClientNodeVersion.before(FLATTENED_FIELD_TYPE_INTRODUCED)) {
-                listener.onFailure(new IllegalArgumentException("API metadata requires all nodes to be at least ["
-                    + FLATTENED_FIELD_TYPE_INTRODUCED + "], got [" + smallestNonClientNodeVersion + "]"));
-                return;
-            }
-        }
         if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType() && grantsAnyPrivileges(request)) {
             listener.onFailure(new IllegalArgumentException(
                 "creating derived api keys requires an explicit role descriptor that is empty (has no privileges)"));

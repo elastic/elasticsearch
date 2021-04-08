@@ -11,7 +11,7 @@ IPv4 or IPv6 address.
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
 ASN GeoIP2 databases from
 http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
-CCA-ShareAlike 4.0 license. {es} automatically downloads and manages updates for
+CCA-ShareAlike 4.0 license. {es} automatically downloads updates for
 these databases from the Elastic GeoIP endpoint:
 https://geoip.elastic.co/v1/database. To get download statistics for these
 updates, use the <<geoip-stats-api,GeoIP stats API>>.
@@ -303,16 +303,11 @@ GET /my_ip_locations/_search
 ==== Manage your own GeoIP2 database updates
 
 If you can't <<geoip-automatic-updates,automatically update>> your GeoIP2
-databases from the Elastic endpoint, you have a few options:
+databases from the Elastic endpoint, you have a few other options:
 
 * <<use-proxy-geoip-endpoint,Use a proxy endpoint>>
 * <<use-custom-geoip-endpoint,Use a custom endpoint>>
 * <<manually-update-geoip-databases,Manually update your GeoIP2 databases>>
-
-To disable automatic database updates entirely, use the
-<<cluster-update-settings,update cluster settings API>> to set
-<<ingest-geoip-downloader-enabled,`ingest.geoip.downloader.enabled`>> to
-`false`.
 
 [[use-proxy-geoip-endpoint]]
 **Use a proxy endpoint**

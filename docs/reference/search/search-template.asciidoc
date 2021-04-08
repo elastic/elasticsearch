@@ -120,7 +120,7 @@ script API>>. Specify `mustache` as the `lang`.
 
 [source,console]
 ------------------------------------------
-POST _scripts/my-search-template
+POST _scripts/<templateid>
 {
   "script": {
     "lang": "mustache",
@@ -155,7 +155,7 @@ The template can be retrieved by calling
 
 [source,console]
 ------------------------------------------
-GET _scripts/my-search-template
+GET _scripts/<templateid>
 ------------------------------------------
 // TEST[continued]
 
@@ -171,7 +171,7 @@ The API returns the following result:
       "content_type" : "application/json;charset=utf-8"
     }
   },
-  "_id": "my-search-template",
+  "_id": "<templateid>",
   "found": true
 }
 ------------------------------------------
@@ -181,7 +181,7 @@ This template can be deleted by calling
 
 [source,console]
 ------------------------------------------
-DELETE _scripts/my-search-template
+DELETE _scripts/<templateid>
 ------------------------------------------
 // TEST[continued]
 
@@ -195,13 +195,14 @@ To use a stored template at search time send the following request:
 ------------------------------------------
 GET _search/template
 {
-  "id": "my-search-template",
+  "id": "<templateid>", <1>
   "params": {
     "query_string": "search for these words"
   }
 }
 ------------------------------------------
 // TEST[catch:missing]
+<1> Name of the stored template script.
 
 
 [[_validating_templates]]

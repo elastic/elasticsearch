@@ -14,11 +14,8 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.common.network.CIDRUtils;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -280,7 +277,11 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "internal_networks", "or [internal_networks_field] must be specified");
             }
             if (internalNetworks != null && internalNetworksField != null) {
-                throw newConfigurationException(TYPE, processorTag, "internal_networks", "and [internal_networks_field] cannot both be used in the same processor");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "internal_networks", "and [internal_networks_field] cannot both be used in the same processor"
+                );
             }
 
             List<TemplateScript.Factory> internalNetworkTemplates = null;

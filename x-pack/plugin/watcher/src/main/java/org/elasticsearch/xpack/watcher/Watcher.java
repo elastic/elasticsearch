@@ -530,7 +530,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(DiscoveryNode.isDataNode(settings), EsExecutors.allocatedProcessors(settings));
+        return getWatcherThreadPoolSize(DiscoveryNode.canContainData(settings), EsExecutors.allocatedProcessors(settings));
     }
 
     static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {

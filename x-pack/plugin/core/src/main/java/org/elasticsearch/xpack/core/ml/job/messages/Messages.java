@@ -50,6 +50,14 @@ public final class Messages {
     public static final String DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD = "Missing max aggregation for time_field [{0}]";
     public static final String DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_AGGREGATIONS_INTERVAL =
             "Datafeed frequency [{0}] must be a multiple of the aggregation interval [{1}]";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE =
+        "Composite aggregation [{0}] must have exactly one date_histogram source";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET =
+        "Datafeed composite aggregation [{0}] date_histogram [{1}] source does not support missing_buckets";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT =
+        "Datafeed composite aggregation [{0}] date_histogram [{1}] must be sorted in ascending order";
+    public static final String DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_BE_TOP_LEVEL_AND_ALONE =
+        "Composite aggregation [{0}] must be the only composite agg and should be the only top level aggregation";
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
     public static final String DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH = "Datafeed [{0}] is configured with a remote index pattern(s) {1}" +
         " but the current node [{2}] is not allowed to connect to remote clusters." +

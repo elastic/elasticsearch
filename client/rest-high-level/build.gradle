@@ -24,7 +24,7 @@ ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
@@ -54,6 +54,7 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
   }
   testImplementation(project(':x-pack:plugin:eql'))
+  testImplementation(project(':x-pack:plugin:ql:test-fixtures'))
 }
 
 tasks.named('forbiddenApisMain').configure {

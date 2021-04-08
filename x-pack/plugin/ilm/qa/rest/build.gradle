@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -6,15 +7,14 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'indices', 'index', 'snapshot'
-    includeXpack 'ilm', 'slm'
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm'
   }
 }
 
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
-tasks.named("yamlRestTest").configure {
+tasks.withType(Test).configureEach {
   systemProperty 'tests.rest.cluster.username', clusterCredentials.username
   systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }

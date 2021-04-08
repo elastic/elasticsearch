@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'info'
-    includeXpack 'ccr'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'info', 'ccr'
   }
 }
 
@@ -23,4 +23,3 @@ testClusters.all {
   // TODO: reduce the need for superuser here
   user username: 'ccr-user', password: 'ccr-user-password', role: 'superuser'
 }
-

@@ -74,7 +74,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 if (execution == null) {
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
-                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasGlobalOrdinals() == false)) {
+                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasOrdinals() == false)) {
                     execution = ExecutionMode.MAP;
                 }
                 return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);

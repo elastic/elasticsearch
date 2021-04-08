@@ -20,20 +20,20 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class CreateServiceAccountTokenRequest extends ActionRequest {
+public class DeleteServiceAccountTokenRequest extends ActionRequest {
 
     private final String namespace;
     private final String serviceName;
     private final String tokenName;
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
-    public CreateServiceAccountTokenRequest(String namespace, String serviceName, String tokenName) {
+    public DeleteServiceAccountTokenRequest(String namespace, String serviceName, String tokenName) {
         this.namespace = namespace;
         this.serviceName = serviceName;
         this.tokenName = tokenName;
     }
 
-    public CreateServiceAccountTokenRequest(StreamInput in) throws IOException {
+    public DeleteServiceAccountTokenRequest(StreamInput in) throws IOException {
         super(in);
         this.namespace = in.readString();
         this.serviceName = in.readString();
@@ -67,7 +67,7 @@ public class CreateServiceAccountTokenRequest extends ActionRequest {
             return true;
         if (o == null || getClass() != o.getClass())
             return false;
-        CreateServiceAccountTokenRequest that = (CreateServiceAccountTokenRequest) o;
+        DeleteServiceAccountTokenRequest that = (DeleteServiceAccountTokenRequest) o;
         return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName)
             && Objects.equals(tokenName, that.tokenName) && refreshPolicy == that.refreshPolicy;
     }

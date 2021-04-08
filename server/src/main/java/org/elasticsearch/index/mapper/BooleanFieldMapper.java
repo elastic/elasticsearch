@@ -87,7 +87,12 @@ public class BooleanFieldMapper extends FieldMapper {
         public Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
             this.scriptCompiler = scriptCompiler;
-            //TODO precludes etc.
+            this.script.precludesParameters(nullValue);
+            this.script.setValidator(s -> {
+                if (s != null && indexed.get() == false && docValues.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+            });
         }
 
         @Override

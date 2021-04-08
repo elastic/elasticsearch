@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -54,17 +55,36 @@ public class BooleanScriptMapperTests extends MapperScriptTestCase<BooleanFieldS
     }
 
     @Override
-    protected BooleanFieldScript.Factory compileScript(String name) {
-        if ("single-valued".equals(name)) {
-            return factory(s -> s.emit(true));
-        }
-        if ("multi-valued".equals(name)) {
-            return factory(s -> {
-                s.emit(true);
-                s.emit(false);
-            });
-        }
-        return super.compileScript(name);
+    protected BooleanFieldScript.Factory singleValueScript() {
+        return factory(s -> s.emit(true));
     }
 
+    @Override
+    protected BooleanFieldScript.Factory multipleValuesScript() {
+        return factory(s -> {
+            s.emit(true);
+            s.emit(false);
+        });
+    }
+
+    @Override
+    protected void assertMultipleValues(IndexableField[] fields) {
+        assertEquals(4, fields.length);
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:F>", fields[0].toString());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:0>", fields[1].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[2].toString());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[3].toString());
+    }
+
+    @Override
+    protected void assertDocValuesDisabled(IndexableField[] fields) {
+        assertEquals(1, fields.length);
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[0].toString());
+    }
+
+    @Override
+    protected void assertIndexDisabled(IndexableField[] fields) {
+        assertEquals(1, fields.length);
+        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[0].toString());
+    }
 }

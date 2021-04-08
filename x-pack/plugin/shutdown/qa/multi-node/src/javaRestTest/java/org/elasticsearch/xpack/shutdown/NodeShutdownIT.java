@@ -68,10 +68,10 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(System.getProperty("tests.rest.cluster.username"),
-            new SecureString(System.getProperty("tests.rest.cluster.password").toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        String token = basicAuthHeaderValue(
+            System.getProperty("tests.rest.cluster.username"),
+            new SecureString(System.getProperty("tests.rest.cluster.password").toCharArray())
+        );
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

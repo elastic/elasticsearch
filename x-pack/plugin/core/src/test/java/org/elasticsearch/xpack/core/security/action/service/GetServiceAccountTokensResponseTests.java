@@ -41,7 +41,7 @@ public class GetServiceAccountTokensResponseTests extends AbstractWireSerializin
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         final List<TokenInfo> tokenInfos = IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> randomTokenInfo())
-            .collect(Collectors.toUnmodifiableList());
+            .collect(Collectors.toList());
         return new GetServiceAccountTokensResponse(principal, nodeName, tokenInfos);
     }
 
@@ -80,8 +80,7 @@ public class GetServiceAccountTokensResponseTests extends AbstractWireSerializin
                             tokenInfos.add(randomTokenInfo());
                         }
                 }
-                return new GetServiceAccountTokensResponse(instance.getPrincipal(), instance.getNodeName(),
-                    tokenInfos.stream().collect(Collectors.toUnmodifiableList()));
+                return new GetServiceAccountTokensResponse(instance.getPrincipal(), instance.getNodeName(), new ArrayList<>(tokenInfos));
         }
     }
 
@@ -90,7 +89,7 @@ public class GetServiceAccountTokensResponseTests extends AbstractWireSerializin
         final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(response.getTokenInfos());
         Collections.shuffle(tokenInfos, random());
         assertThat(new GetServiceAccountTokensResponse(
-            response.getPrincipal(), response.getNodeName(), tokenInfos.stream().collect(Collectors.toUnmodifiableList())),
+            response.getPrincipal(), response.getNodeName(), new ArrayList<>(tokenInfos)),
             equalTo(response));
     }
 

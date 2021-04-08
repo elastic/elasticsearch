@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -81,7 +82,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
     @Override
     void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
         final GetRequest getRequest = client
-            .prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token))
+            .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, docIdForToken(token))
             .setFetchSource(true)
             .request();
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
@@ -106,7 +107,7 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
         final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
         try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_MAIN_ALIAS)
+                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
                     .setId(docIdForToken(token))
                     .setSource(builder)
                     .setOpType(OpType.CREATE)

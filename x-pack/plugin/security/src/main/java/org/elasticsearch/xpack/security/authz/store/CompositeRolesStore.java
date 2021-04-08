@@ -254,11 +254,12 @@ public class CompositeRolesStore {
 
     private void getRolesForServiceAccount(Authentication authentication, ActionListener<Role> roleActionListener) {
         serviceAccountService.getRoleDescriptor(authentication, ActionListener.wrap(roleDescriptor -> {
-            final RoleKey roleKey = new RoleKey(Set.of(roleDescriptor.getName()), "service_account");
+            final RoleKey roleKey = new RoleKey(org.elasticsearch.common.collect.Set.of(roleDescriptor.getName()), "service_account");
             final Role existing = roleCache.get(roleKey);
             if (existing == null) {
                 final long invalidationCounter = numInvalidation.get();
-                buildThenMaybeCacheRole(roleKey, List.of(roleDescriptor), Set.of(), true, invalidationCounter, roleActionListener);
+                buildThenMaybeCacheRole(roleKey, org.elasticsearch.common.collect.List.of(roleDescriptor),
+                    org.elasticsearch.common.collect.Set.of(), true, invalidationCounter, roleActionListener);
             } else {
                 roleActionListener.onResponse(existing);
             }

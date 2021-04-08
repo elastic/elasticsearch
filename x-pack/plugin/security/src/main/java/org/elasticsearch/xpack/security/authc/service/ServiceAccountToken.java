@@ -19,11 +19,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -87,7 +85,7 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     public SecureString asBearerString() throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            out.writeBytes(PREFIX);
+            out.write(PREFIX, 0, PREFIX.length);
             out.write(getQualifiedName().getBytes(StandardCharsets.UTF_8));
             out.write(':');
             out.write(secret.toString().getBytes(StandardCharsets.UTF_8));
@@ -99,30 +97,30 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     public static ServiceAccountToken fromBearerString(SecureString bearerString) throws IOException {
         final byte[] bytes = CharArrays.toUtf8Bytes(bearerString.getChars());
         logger.trace("parsing token bytes {}", MessageDigests.toHexString(bytes));
-        try (InputStream in = Base64.getDecoder().wrap(new ByteArrayInputStream(bytes))) {
-            final byte[] prefixBytes = in.readNBytes(4);
-            if (prefixBytes.length != 4 || false == Arrays.equals(prefixBytes, PREFIX)) {
-                logger.trace(() -> new ParameterizedMessage(
-                    "service account token expects the 4 leading bytes to be {}, got {}.",
-                    Arrays.toString(PREFIX), Arrays.toString(prefixBytes)));
-                return null;
-            }
-            final char[] content = CharArrays.utf8BytesToChars(in.readAllBytes());
-            final int i = UsernamePasswordToken.indexOfColon(content);
-            if (i < 0) {
-                logger.trace("failed to extract qualified service token name and secret, missing ':'");
-                return null;
-            }
-            final String qualifiedName = new String(Arrays.copyOfRange(content, 0, i));
-            final String[] split = Strings.delimitedListToStringArray(qualifiedName, "/");
-            if (split == null || split.length != 3) {
-                logger.trace("The qualified name of a service token should take format of " +
-                    "'namespace/service_name/token_name', got [{}]", qualifiedName);
-                return null;
-            }
-            return new ServiceAccountToken(new ServiceAccountId(split[0], split[1]), split[2],
-                new SecureString(Arrays.copyOfRange(content, i + 1, content.length)));
+        final byte[] decodedBytes = Base64.getDecoder().decode(bytes);
+        final byte[] prefixBytes = Arrays.copyOfRange(decodedBytes, 0, 4);
+        if (decodedBytes.length < 4 || false == Arrays.equals(prefixBytes, PREFIX)) {
+            logger.trace(() -> new ParameterizedMessage(
+                "service account token expects the 4 leading bytes to be {}, got {}.",
+                Arrays.toString(PREFIX), Arrays.toString(prefixBytes)));
+            return null;
         }
+        final byte[] contentBytes = Arrays.copyOfRange(decodedBytes, 4, decodedBytes.length);
+        final char[] content = CharArrays.utf8BytesToChars(contentBytes);
+        final int i = UsernamePasswordToken.indexOfColon(content);
+        if (i < 0) {
+            logger.trace("failed to extract qualified service token name and secret, missing ':'");
+            return null;
+        }
+        final String qualifiedName = new String(Arrays.copyOfRange(content, 0, i));
+        final String[] split = Strings.delimitedListToStringArray(qualifiedName, "/");
+        if (split == null || split.length != 3) {
+            logger.trace("The qualified name of a service token should take format of " +
+                "'namespace/service_name/token_name', got [{}]", qualifiedName);
+            return null;
+        }
+        return new ServiceAccountToken(new ServiceAccountId(split[0], split[1]), split[2],
+            new SecureString(Arrays.copyOfRange(content, i + 1, content.length)));
     }
 
     @Override

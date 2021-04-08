@@ -29,7 +29,7 @@ public class RestGetServiceAccountTokensAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             new Route(GET, "/_security/service/{namespace}/{service}/credential")
         );
     }

@@ -22,7 +22,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -118,7 +117,7 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
         doAuthenticateInvoked.set(false); // reset
 
         // Invalidate token1 in the cache
-        store.invalidate(List.of(token1Valid.getQualifiedName()));
+        store.invalidate(org.elasticsearch.common.collect.List.of(token1Valid.getQualifiedName()));
         assertThat(cache.count(), equalTo(1));
 
         // 7th auth with the right token1

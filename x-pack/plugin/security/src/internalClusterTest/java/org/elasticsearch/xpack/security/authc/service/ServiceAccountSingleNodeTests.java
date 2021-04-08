@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.Map;
-
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,14 +59,15 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(authenticateResponse.authentication(), equalTo(
             new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
-                    Map.of("_elastic_service_account", true), true),
+                    org.elasticsearch.common.collect.Map.of("_elastic_service_account", true), true),
                 new Authentication.RealmRef("service_account", "service_account", nodeName),
-                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", "token1")
+                null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
+                org.elasticsearch.common.collect.Map.of("_token_name", "token1")
             )
         ));
     }
 
     private Client createServiceAccountClient() {
-        return client().filterWithHeader(Map.of("Authorization", "Bearer " + BEARER_TOKEN));
+        return client().filterWithHeader(org.elasticsearch.common.collect.Map.of("Authorization", "Bearer " + BEARER_TOKEN));
     }
 }

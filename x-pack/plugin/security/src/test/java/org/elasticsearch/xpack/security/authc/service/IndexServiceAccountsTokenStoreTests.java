@@ -59,7 +59,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -231,7 +230,8 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
                 final SearchHit[] hits = IntStream.range(0, nhits)
                     .mapToObj(i ->
                         new SearchHit(randomIntBetween(0, Integer.MAX_VALUE),
-                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i], Map.of(), Map.of()))
+                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i], null,
+                            org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of()))
                     .toArray(SearchHit[]::new);
                 final InternalSearchResponse internalSearchResponse;
                     internalSearchResponse = new InternalSearchResponse(new SearchHits(hits,
@@ -252,8 +252,8 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         store.findTokensFor(accountId, future);
         final Collection<TokenInfo> tokenInfos = future.actionGet();
         assertThat(tokenInfos.stream().map(TokenInfo::getSource).allMatch(TokenInfo.TokenSource.INDEX::equals), is(true));
-        assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()),
-            equalTo(Set.of(tokenNames)));
+        assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toSet()),
+            equalTo(org.elasticsearch.common.collect.Set.of(tokenNames)));
     }
 
     public void testFindTokensForException() {
@@ -271,13 +271,14 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
 
     private GetResponse createGetResponse(ServiceAccountToken serviceAccountToken, boolean exists) throws IOException {
         final char[] hash = Hasher.PBKDF2_STRETCH.hash(serviceAccountToken.getSecret());
-        final Map<String, Object> documentMap = Map.of("password", new String(CharArrays.toUtf8Bytes(hash), StandardCharsets.UTF_8));
+        final Map<String, Object> documentMap
+            = org.elasticsearch.common.collect.Map.of("password", new String(CharArrays.toUtf8Bytes(hash), StandardCharsets.UTF_8));
         return new GetResponse(new GetResult(
-            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
             exists ? randomLongBetween(0, Long.MAX_VALUE) : UNASSIGNED_SEQ_NO,
             exists ? randomLongBetween(1, Long.MAX_VALUE) : UNASSIGNED_PRIMARY_TERM, randomLong(), exists,
             XContentTestUtils.convertToXContent(documentMap, XContentType.JSON),
-            Map.of(), Map.of()));
+            org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of()));
     }
 
     private Authentication createAuthentication() {
@@ -293,7 +294,8 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
     private BulkResponse createSingleBulkResponse() {
         return new BulkResponse(new BulkItemResponse[] {
             new BulkItemResponse(randomInt(), OpType.CREATE, new IndexResponse(
-                mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
+                mock(ShardId.class), randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
             ))
         }, randomLong());
     }

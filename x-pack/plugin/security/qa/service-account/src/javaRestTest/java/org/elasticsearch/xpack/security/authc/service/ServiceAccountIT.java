@@ -146,7 +146,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         assertThat(responseMap.get("username"), equalTo("elastic/fleet-server"));
         assertThat(responseMap.get("authentication_type"), equalTo("realm"));
-        assertThat(responseMap.get("roles"), equalTo(List.of("superuser")));
+        assertThat(responseMap.get("roles"), equalTo(org.elasticsearch.common.collect.List.of("superuser")));
         Map<?, ?> authRealm = (Map<?, ?>) responseMap.get("authentication_realm");
         assertThat(authRealm, hasEntry("type", "file"));
     }
@@ -208,8 +208,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap1 = responseAsMap(getTokensResponse1);
         assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap1.get("count"), equalTo(1));
-        assertThat(getTokensResponseMap1.get("tokens"), equalTo(Map.of()));
-        assertThat(getTokensResponseMap1.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
+        assertThat(getTokensResponseMap1.get("tokens"), equalTo(org.elasticsearch.common.collect.Map.of()));
+        assertThat(getTokensResponseMap1.get("file_tokens"),
+            equalTo(org.elasticsearch.common.collect.Map.of("token1", org.elasticsearch.common.collect.Map.of())));
 
         final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse1 = client().performRequest(createTokenRequest1);
@@ -224,10 +225,11 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap2 = responseAsMap(getTokensResponse2);
         assertThat(getTokensResponseMap2.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap2.get("count"), equalTo(3));
-        assertThat(getTokensResponseMap2.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
-        assertThat(getTokensResponseMap2.get("tokens"), equalTo(Map.of(
-            "api-token-1", Map.of(),
-            "api-token-2", Map.of()
+        assertThat(getTokensResponseMap2.get("file_tokens"),
+            equalTo(org.elasticsearch.common.collect.Map.of("token1", org.elasticsearch.common.collect.Map.of())));
+        assertThat(getTokensResponseMap2.get("tokens"), equalTo(org.elasticsearch.common.collect.Map.of(
+            "api-token-1", org.elasticsearch.common.collect.Map.of(),
+            "api-token-2", org.elasticsearch.common.collect.Map.of()
         )));
     }
 
@@ -267,7 +269,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);
         final Map<String, Object> invalidateApiKeysResponseMap = responseAsMap(invalidateApiKeysResponse);
-        assertThat(invalidateApiKeysResponseMap.get("invalidated_api_keys"), equalTo(List.of(apiKeyId1)));
+        assertThat(invalidateApiKeysResponseMap.get("invalidated_api_keys"), equalTo(org.elasticsearch.common.collect.List.of(apiKeyId1)));
 
         assertApiKeys(apiKeyId1, "key-1", true, requestOptions);
     }

@@ -69,7 +69,7 @@ public class FileTokensToolTests extends CommandTestCase {
         Files.createDirectories(confDir);
         hasher = getFastStoredHashAlgoForTests();
 
-        Files.write(confDir.resolve("service_tokens"), List.of(
+        Files.write(confDir.resolve("service_tokens"), org.elasticsearch.common.collect.List.of(
             "elastic/fleet-server/server_1:" + new String(hasher.hash(token1)),
             "elastic/fleet-server/server_2:" + new String(hasher.hash(token2)),
             "elastic/fleet-server/server_3:" + new String(hasher.hash(token3))
@@ -107,21 +107,24 @@ public class FileTokensToolTests extends CommandTestCase {
     public void testParsePrincipalAndTokenName() throws UserException {
         final String tokenName1 = randomAlphaOfLengthBetween(3, 8);
         final Tuple<String, String> tuple1 =
-            CreateFileTokenCommand.parsePrincipalAndTokenName(List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
+            CreateFileTokenCommand.parsePrincipalAndTokenName(
+                org.elasticsearch.common.collect.List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
         assertEquals("elastic/fleet-server", tuple1.v1());
         assertEquals(tokenName1, tuple1.v2());
 
         final UserException e2 = expectThrows(UserException.class,
-            () -> CreateFileTokenCommand.parsePrincipalAndTokenName(List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY));
+            () -> CreateFileTokenCommand.parsePrincipalAndTokenName(
+                org.elasticsearch.common.collect.List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY));
         assertThat(e2.getMessage(), containsString("Missing token-name argument"));
 
         final UserException e3 = expectThrows(UserException.class,
-            () -> CreateFileTokenCommand.parsePrincipalAndTokenName(List.of(), Settings.EMPTY));
+            () -> CreateFileTokenCommand.parsePrincipalAndTokenName(org.elasticsearch.common.collect.List.of(), Settings.EMPTY));
         assertThat(e3.getMessage(), containsString("Missing service-account-principal and token-name arguments"));
 
         final UserException e4 = expectThrows(UserException.class,
             () -> CreateFileTokenCommand.parsePrincipalAndTokenName(
-                List.of(randomAlphaOfLengthBetween(6, 16), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+                org.elasticsearch.common.collect.List.of(randomAlphaOfLengthBetween(6, 16),
+                    randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
                 Settings.EMPTY));
         assertThat(e4.getMessage(), containsString(
             "Expected two arguments, service-account-principal and token-name, found extra:"));

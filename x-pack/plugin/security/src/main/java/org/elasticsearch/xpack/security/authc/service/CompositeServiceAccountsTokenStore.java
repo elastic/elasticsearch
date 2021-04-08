@@ -77,7 +77,7 @@ public final class CompositeServiceAccountsTokenStore implements ServiceAccounts
         @Override
         public void run() {
             if (stores.isEmpty()) {
-                delegate.onResponse(List.of());
+                delegate.onResponse(org.elasticsearch.common.collect.List.of());
             } else if (position < 0 || position >= stores.size()) {
                 onFailure(new IllegalArgumentException("invalid position [" + position + "]. List size [" + stores.size() + "]"));
             } else {
@@ -89,7 +89,7 @@ public final class CompositeServiceAccountsTokenStore implements ServiceAccounts
         public void onResponse(Collection<TokenInfo> response) {
             result.addAll(response);
             if (position == stores.size()) {
-                delegate.onResponse(List.copyOf(result));
+                delegate.onResponse(org.elasticsearch.common.collect.List.copyOf(result));
             } else {
                 stores.get(position++).findTokensFor(accountId, this);
             }

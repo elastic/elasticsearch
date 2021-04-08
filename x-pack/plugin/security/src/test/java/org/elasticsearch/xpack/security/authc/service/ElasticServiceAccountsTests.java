@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
-import java.util.Map;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -55,7 +53,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(serviceAccount.roleDescriptor(), equalTo(roleDescriptor1));
         assertThat(serviceAccount.asUser(), equalTo(new User(principal, Strings.EMPTY_ARRAY,
             "Service account - " + principal, null,
-            Map.of("_elastic_service_account", true),
+            org.elasticsearch.common.collect.Map.of("_elastic_service_account", true),
             true)));
 
         final NullPointerException e1 =

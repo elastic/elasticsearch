@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -39,7 +38,7 @@ final class ElasticServiceAccounts {
             null
         ));
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
+    static final Map<String, ServiceAccount> ACCOUNTS = org.elasticsearch.common.collect.List.of(FLEET_ACCOUNT).stream()
         .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));;
 
     private ElasticServiceAccounts() {}
@@ -57,7 +56,7 @@ final class ElasticServiceAccounts {
                     + "] must have the same name as the service account [" + id.asPrincipal() + "]");
             }
             this.user = new User(id.asPrincipal(), Strings.EMPTY_ARRAY, "Service account - " + id, null,
-                Map.of("_elastic_service_account", true),
+                org.elasticsearch.common.collect.Map.of("_elastic_service_account", true),
                 true);
         }
 

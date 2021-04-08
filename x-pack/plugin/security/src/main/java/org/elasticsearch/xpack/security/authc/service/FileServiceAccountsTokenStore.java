@@ -62,7 +62,7 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load service_tokens file [" + file + "]", e);
         }
-        refreshListeners = new CopyOnWriteArrayList<>(List.of(this::invalidateAll));
+        refreshListeners = new CopyOnWriteArrayList<>(org.elasticsearch.common.collect.List.of(this::invalidateAll));
     }
 
     @Override
@@ -81,8 +81,8 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
             .stream()
             .filter(k -> k.startsWith(principal + "/"))
             .map(k -> TokenInfo.fileToken(Strings.substring(k, principal.length() + 1, k.length())))
-            .collect(Collectors.toUnmodifiableList());
-        listener.onResponse(tokenInfos);
+            .collect(Collectors.toList());
+        listener.onResponse(org.elasticsearch.common.collect.List.copyOf(tokenInfos));
     }
 
     public void addListener(Runnable listener) {
@@ -117,7 +117,7 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
         } catch (Exception e) {
             logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...",
                 path.toAbsolutePath());
-            return Map.of();
+            return org.elasticsearch.common.collect.Map.of();
         }
     }
 
@@ -126,7 +126,7 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
         thisLogger.trace("reading service_tokens file [{}]...", path.toAbsolutePath());
         if (Files.exists(path) == false) {
             thisLogger.trace("file [{}] does not exist", path.toAbsolutePath());
-            return Map.of();
+            return org.elasticsearch.common.collect.Map.of();
         }
         final Map<String, char[]> parsedTokenHashes = new HashMap<>();
         FileLineParser.parse(path, (lineNumber, line) -> {
@@ -151,7 +151,7 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
             }
         });
         thisLogger.debug("parsed [{}] tokens from file [{}]", parsedTokenHashes.size(), path.toAbsolutePath());
-        return Map.copyOf(parsedTokenHashes);
+        return org.elasticsearch.common.collect.Map.copyOf(parsedTokenHashes);
     }
 
     static void writeFile(Path path, Map<String, char[]> tokenHashes) {

@@ -18,9 +18,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toUnmodifiableList;
 
 public class GetServiceAccountTokensResponse extends ActionResponse implements ToXContentObject {
 
@@ -31,7 +31,9 @@ public class GetServiceAccountTokensResponse extends ActionResponse implements T
     public GetServiceAccountTokensResponse(String principal, String nodeName, Collection<TokenInfo> tokenInfos) {
         this.principal = principal;
         this.nodeName = nodeName;
-        this.tokenInfos = tokenInfos == null ? List.of() : tokenInfos.stream().sorted().collect(toUnmodifiableList());
+        this.tokenInfos = tokenInfos == null ?
+            org.elasticsearch.common.collect.List.of() :
+            org.elasticsearch.common.collect.List.copyOf(tokenInfos.stream().sorted().collect(Collectors.toList()));
     }
 
     public GetServiceAccountTokensResponse(StreamInput in) throws IOException {
@@ -63,17 +65,17 @@ public class GetServiceAccountTokensResponse extends ActionResponse implements T
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final Map<TokenInfo.TokenSource, List<TokenInfo>> tokenInfosBySource =
-            tokenInfos.stream().collect(groupingBy(TokenInfo::getSource, toUnmodifiableList()));
+            tokenInfos.stream().collect(groupingBy(TokenInfo::getSource, Collectors.toList()));
         builder.startObject()
             .field("service_account", principal)
             .field("node_name", nodeName)
             .field("count", tokenInfos.size())
             .field("tokens").startObject();
-        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.INDEX, List.of())) {
+        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.INDEX, org.elasticsearch.common.collect.List.of())) {
             info.toXContent(builder, params);
         }
         builder.endObject().field("file_tokens").startObject();
-        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.FILE, List.of())) {
+        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.FILE, org.elasticsearch.common.collect.List.of())) {
             info.toXContent(builder, params);
         }
         builder.endObject().endObject();

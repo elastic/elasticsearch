@@ -19,10 +19,8 @@ import org.mockito.Mockito;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +46,8 @@ public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
         store1 = mock(ServiceAccountsTokenStore.class);
         store2 = mock(ServiceAccountsTokenStore.class);
         store3 = mock(ServiceAccountsTokenStore.class);
-        compositeStore = new CompositeServiceAccountsTokenStore(List.of(store1, store2, store3), threadContext);
+        compositeStore = new CompositeServiceAccountsTokenStore(
+            org.elasticsearch.common.collect.List.of(store1, store2, store3), threadContext);
     }
 
     public void testAuthenticate() throws ExecutionException, InterruptedException {
@@ -131,7 +130,7 @@ public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
                 if (store1Error) {
                     listener.onFailure(e);
                 } else {
-                    listener.onResponse(List.of());
+                    listener.onResponse(org.elasticsearch.common.collect.List.of());
                 }
             }
             return null;
@@ -152,7 +151,7 @@ public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
                 listener.onResponse(tokenInfos);
             } else  {
                 if (store1Error) {
-                    listener.onResponse(List.of());
+                    listener.onResponse(org.elasticsearch.common.collect.List.of());
                 } else {
                     listener.onFailure(e);
                 }
@@ -164,14 +163,14 @@ public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ActionListener<Collection<TokenInfo>> listener =
                 (ActionListener<Collection<TokenInfo>>) invocationOnMock.getArguments()[1];
-            listener.onResponse(List.of());
+            listener.onResponse(org.elasticsearch.common.collect.List.of());
             return null;
         }).when(store3).findTokensFor(any(), any());
 
         final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
         compositeStore.findTokensFor(accountId1, future1);
         final Collection<TokenInfo> result = future1.get();
-        assertThat(result.stream().collect(Collectors.toUnmodifiableSet()), equalTo(allTokenInfos));
+        assertThat(new HashSet<>(result), equalTo(allTokenInfos));
 
         final PlainActionFuture<Collection<TokenInfo>> future2 = new PlainActionFuture<>();
         compositeStore.findTokensFor(accountId2, future2);

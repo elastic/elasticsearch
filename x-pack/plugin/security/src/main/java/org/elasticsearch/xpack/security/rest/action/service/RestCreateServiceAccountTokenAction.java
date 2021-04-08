@@ -33,7 +33,7 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}"),
             new Route(PUT, "/_security/service/{namespace}/{service}/credential/token/{name}"),
             new Route(POST, "/_security/service/{namespace}/{service}/credential/token"));

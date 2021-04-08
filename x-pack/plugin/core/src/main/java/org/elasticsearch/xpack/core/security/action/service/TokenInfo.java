@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenInfo> {
@@ -65,7 +64,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(name, Map.of());
+        return builder.field(name, org.elasticsearch.common.collect.Map.of());
     }
 
     @Override

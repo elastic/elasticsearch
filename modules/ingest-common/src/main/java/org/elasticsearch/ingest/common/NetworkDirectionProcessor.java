@@ -22,11 +22,12 @@ import org.elasticsearch.common.network.CIDRUtils;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
 public class NetworkDirectionProcessor extends AbstractProcessor {
@@ -276,7 +277,10 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             );
 
             if (internalNetworks == null && internalNetworksField == null) {
-                throw new ElasticsearchParseException("either [internal_networks] or [internal_networks_field] must be specified");
+                throw newConfigurationException(TYPE, processorTag, "internal_networks", "or [internal_networks_field] must be specified");
+            }
+            if (internalNetworks != null && internalNetworksField != null) {
+                throw newConfigurationException(TYPE, processorTag, "internal_networks", "and [internal_networks_field] cannot both be used in the same processor");
             }
 
             List<TemplateScript.Factory> internalNetworkTemplates = null;

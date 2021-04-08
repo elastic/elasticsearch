@@ -65,7 +65,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
             factory.create(null, processorTag, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("either [internal_networks] or [internal_networks_field] must be specified"));
+            assertThat(e.getMessage(), equalTo("[internal_networks] or [internal_networks_field] must be specified"));
         }
     }
 

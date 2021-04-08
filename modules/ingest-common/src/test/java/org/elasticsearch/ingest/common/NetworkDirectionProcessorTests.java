@@ -55,7 +55,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> testNetworkDirectionProcessor(buildEvent(), null)
         );
-        assertThat(e.getMessage(), containsString("either [internal_networks] or [internal_networks_field] must be specified"));
+        assertThat(e.getMessage(), containsString("[internal_networks] or [internal_networks_field] must be specified"));
     }
 
     public void testNoSource() throws Exception {
@@ -154,6 +154,27 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         IngestDocument output = processor.execute(input);
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class);
         assertThat(hash, equalTo("external"));
+    }
+
+    public void testInternalNetworksAndField() throws Exception {
+        String processorTag = randomAlphaOfLength(10);
+        Map<String, Object> source = buildEvent("192.168.1.1", "192.168.1.2");
+        ArrayList<String> networks = new ArrayList<>();
+        networks.add("public");
+        source.put("some_field", networks);
+        Map<String, Object> config = new HashMap<>();
+        config.put("internal_networks_field", "some_field");
+        config.put("internal_networks", networks);
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(
+                null,
+                processorTag,
+                null,
+                config
+            )
+        );
+        assertThat(e.getMessage(), containsString("[internal_networks] and [internal_networks_field] cannot both be used in the same processor"));
     }
 
     private void testNetworkDirectionProcessor(

@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-enrich-policy-api]]
-=== Create or update enrich policy API
+=== Create enrich policy API
 ++++
-<titleabbrev>Create or update enrich policy</titleabbrev>
+<titleabbrev>Create enrich policy</titleabbrev>
 ++++
 
-Creates or updates an enrich policy.
+Creates an enrich policy.
 
 ////
 [source,console]

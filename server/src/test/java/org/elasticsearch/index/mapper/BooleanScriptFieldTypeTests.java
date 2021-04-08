@@ -32,9 +32,9 @@ import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -302,7 +302,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testDualingQueries() throws IOException {
-        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo").build(new ContentPath());
+        BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", null).build(new ContentPath());
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";

@@ -27,7 +27,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -1015,22 +1014,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
-        protected final ScriptCompiler scriptCompiler;
 
         /**
          * Creates a new Builder with a field name
          */
         protected Builder(String name) {
             super(name);
-            this.scriptCompiler = null;
-        }
-
-        /**
-         * Creates a new Builder with a field name and a script compiler
-         */
-        protected Builder(String name, ScriptCompiler scriptCompiler) {
-            super(name);
-            this.scriptCompiler = scriptCompiler;
         }
 
         /**

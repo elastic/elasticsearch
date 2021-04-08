@@ -293,7 +293,7 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name), context);
+            createDynamicField(new BooleanFieldMapper.Builder(name, null), context);
         }
 
         @Override

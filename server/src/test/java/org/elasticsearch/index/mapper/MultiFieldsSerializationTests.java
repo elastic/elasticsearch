@@ -35,10 +35,10 @@ public class MultiFieldsSerializationTests extends ESTestCase {
         sortedNames.sort(Comparator.naturalOrder());
 
         for (String name : names) {
-            builder.add(new BooleanFieldMapper.Builder(name));
+            builder.add(new BooleanFieldMapper.Builder(name, null));
         }
 
-        Mapper.Builder root = new BooleanFieldMapper.Builder("root");
+        Mapper.Builder root = new BooleanFieldMapper.Builder("root", null);
         FieldMapper.MultiFields multiFields = builder.build(root, new ContentPath());
 
         String serialized = Strings.toString(multiFields);

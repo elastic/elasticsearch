@@ -84,6 +84,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
@@ -97,8 +98,9 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
-            super(name, compiler);
+            super(name);
             this.type = type;
+            this.scriptCompiler = compiler;
 
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);

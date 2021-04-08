@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -81,8 +82,11 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
+        private final ScriptCompiler scriptCompiler;
+
+        public Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
+            this.scriptCompiler = scriptCompiler;
         }
 
         @Override
@@ -104,14 +108,14 @@ public class BooleanFieldMapper extends FieldMapper {
             }
             assert scriptCompiler != null;
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
-            return (lookup, ctx, doc, consumer) -> scriptFactory
+            return scriptFactory == null ? null : (lookup, ctx, doc, consumer) -> scriptFactory
                 .newFactory(name, script.get().getParams(), lookup)
                 .newInstance(ctx)
                 .runForDoc(doc, consumer);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler()));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -234,6 +238,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final boolean stored;
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
+    private final ScriptCompiler scriptCompiler;
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
@@ -244,6 +249,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.hasDocValues = builder.docValues.getValue();
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
+        this.scriptCompiler = builder.scriptCompiler;
     }
 
     @Override
@@ -295,7 +301,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(simpleName(), scriptCompiler).init(this);
     }
 
     @Override

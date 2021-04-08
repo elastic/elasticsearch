@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -293,7 +294,7 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name, null), context);
+            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
         }
 
         @Override

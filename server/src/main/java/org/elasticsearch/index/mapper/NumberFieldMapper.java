@@ -92,7 +92,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
-            Builder builder = new Builder(name, type, null, false, false);
+            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false);
             builder.indexed.setValue(false);
             return builder;
         }
@@ -100,7 +100,7 @@ public class NumberFieldMapper extends FieldMapper {
         public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.type = type;
-            this.scriptCompiler = compiler;
+            this.scriptCompiler = Objects.requireNonNull(compiler);
 
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
@@ -131,7 +131,6 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.script.get() == null) {
                 return null;
             }
-            assert scriptCompiler != null;
             return type.compile(name, script.get(), scriptCompiler);
         }
 

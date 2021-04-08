@@ -38,6 +38,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -86,7 +87,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         public Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
-            this.scriptCompiler = scriptCompiler;
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
             this.script.setValidator(s -> {
                 if (s != null && indexed.get() == false && docValues.get() == false) {
@@ -112,7 +113,6 @@ public class BooleanFieldMapper extends FieldMapper {
             if (script.get() == null) {
                 return null;
             }
-            assert scriptCompiler != null;
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
             return scriptFactory == null ? null : (lookup, ctx, doc, consumer) -> scriptFactory
                 .newFactory(name, script.get().getParams(), lookup)

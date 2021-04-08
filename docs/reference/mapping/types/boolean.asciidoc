@@ -200,8 +200,7 @@ The following parameters are accepted by `boolean` fields:
     source. If a value is set for this field on the input document, then
     the document will be rejected with an error.
     Scripts are in the same format as their
-    <<runtime-mapping-fields,runtime equivalent>>. Scripts can only be
-    configured on `long` and `double` field types.
+    <<runtime-mapping-fields,runtime equivalent>>.
 
 <<mapping-store,`store`>>::
 

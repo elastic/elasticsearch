@@ -70,6 +70,16 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }
 
+    public void testDisallowedContext() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
+                .setId("foobar")
+                .setContext("double_field")
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON)
+                .get()
+        );
+        assertEquals("cannot store a script for context [double_field]", e.getCause().getMessage());
+    }
+
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override

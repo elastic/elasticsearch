@@ -19,17 +19,17 @@ stored <<search-template,search templates>>.
 TODO: See https://github.com/elastic/elasticsearch/issues/71376
 
 [discrete]
-[[script-languages-apis]]
-=== Script languages API
+[[script-support-apis]]
+=== Script support API
 
-Use the get script languages API to get a list of supported script languages.
+Use the script support APIs to get a list of supported script languages and
+contexts.
 
 [discrete]
 [[painless-apis]]
 === Painless APIs
 
-Painless is {es}'s default scripting language. Use the Painless APIs to get
-information about Painless contexts and safely test Painless scripts.
+Use the execute script API to safely test Painless scripts.
 ////
 
 include::create-stored-script-api.asciidoc[]

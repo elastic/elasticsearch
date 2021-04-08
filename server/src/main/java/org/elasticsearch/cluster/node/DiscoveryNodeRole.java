@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -58,6 +59,15 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public boolean isEnabledByDefault(final Settings settings) {
         return true;
+    }
+
+    /**
+     * Validate this role against all configured roles.
+     *
+     * @param roles the complete set of configured roles
+     */
+    public void validateRoles(final List<DiscoveryNodeRole> roles) {
+
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
@@ -182,6 +192,13 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             return false;
+        }
+
+        @Override
+        public void validateRoles(final List<DiscoveryNodeRole> roles) {
+            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false) {
+                throw new IllegalStateException("voting-only node must be master-eligible");
+            }
         }
 
     };

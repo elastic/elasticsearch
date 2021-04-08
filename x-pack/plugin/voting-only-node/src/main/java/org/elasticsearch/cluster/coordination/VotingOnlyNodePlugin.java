@@ -79,14 +79,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        if (isVotingOnlyNode && DiscoveryNode.isMasterNode(settings) == false) {
-            throw new IllegalStateException("voting-only node must be master-eligible");
-        }
-        return Collections.singleton(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
-    }
-
-    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,

@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class DynamicTemplateTests extends ESTestCase {
 
     public void testMappingTypeTypeNotSet() {
@@ -162,7 +164,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "*");
         templateDef.put("mapping", Collections.singletonMap("store", true));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", randomFrom(XContentFieldType.values())));
+        assertTrue(template.match(null, "a.b", "b", randomFrom(XContentFieldType.values())));
         assertFalse(template.isRuntimeMapping());
     }
 
@@ -172,13 +174,13 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         assertTrue(template.isRuntimeMapping());
-        assertTrue(template.match("a.b", "b", XContentFieldType.BOOLEAN));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DATE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DOUBLE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.LONG));
-        assertFalse(template.match("a.b", "b", XContentFieldType.OBJECT));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BINARY));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.DATE));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.DOUBLE));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.LONG));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.OBJECT));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BINARY));
     }
 
     public void testMatchAllTypesTemplateRuntime() {
@@ -187,13 +189,13 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         assertTrue(template.isRuntimeMapping());
-        assertTrue(template.match("a.b", "b", XContentFieldType.BOOLEAN));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DATE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertTrue(template.match("a.b", "b", XContentFieldType.DOUBLE));
-        assertTrue(template.match("a.b", "b", XContentFieldType.LONG));
-        assertFalse(template.match("a.b", "b", XContentFieldType.OBJECT));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BINARY));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.DATE));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.DOUBLE));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.LONG));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.OBJECT));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BINARY));
     }
 
     public void testMatchTypeTemplate() {
@@ -201,8 +203,8 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.singletonMap("store", true));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
         assertFalse(template.isRuntimeMapping());
     }
 
@@ -211,8 +213,8 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match("a.b", "b", XContentFieldType.STRING));
-        assertFalse(template.match("a.b", "b", XContentFieldType.BOOLEAN));
+        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
+        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
         assertTrue(template.isRuntimeMapping());
     }
 
@@ -249,6 +251,9 @@ public class DynamicTemplateTests extends ESTestCase {
 
         // name-based template
         templateDef = new HashMap<>();
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
         templateDef.put("mapping", Collections.singletonMap("store", true));
@@ -261,6 +266,9 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -272,11 +280,22 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("match", "^a$");
         templateDef.put("match_pattern", "regex");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("mapping", Collections.singletonMap("store", true));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+
+        // empty condition
+        templateDef = new HashMap<>();
+        templateDef.put("mapping", Collections.singletonMap("store", true));
+        template = DynamicTemplate.parse("my_template", templateDef);
+        builder = JsonXContent.contentBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(Strings.toString(builder), equalTo("{\"mapping\":{\"store\":true}}"));
     }
 
     public void testSerializationRuntimeMappings() throws Exception {
@@ -293,6 +312,9 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("match", "*name");
         templateDef.put("unmatch", "first_name");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("runtime", Collections.singletonMap("type", "new_type"));
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -303,6 +325,9 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef = new HashMap<>();
         templateDef.put("path_match", "*name");
         templateDef.put("path_unmatch", "first_name");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("runtime", Collections.emptyMap());
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
@@ -313,11 +338,59 @@ public class DynamicTemplateTests extends ESTestCase {
         // regex matching
         templateDef = new HashMap<>();
         templateDef.put("match", "^a$");
+        if (randomBoolean()) {
+            templateDef.put("match_mapping_type", "*");
+        }
         templateDef.put("match_pattern", "regex");
         templateDef.put("runtime", Collections.emptyMap());
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"runtime\":{}}", Strings.toString(builder));
+    }
+
+    public void testMatchTemplateName() throws Exception {
+        // match_mapping_type
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match_mapping_type", "string");
+            if (randomBoolean()) {
+                templateDef.put("runtime", Collections.emptyMap());
+            } else {
+                templateDef.put("mapping", Map.of());
+            }
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.match("my_template", "a", "a.b", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match("not_template_name", "a", "a.b", XContentFieldType.BOOLEAN));
+
+            assertTrue(template.match(null, "a", "a.b", XContentFieldType.STRING));
+            assertFalse(template.match(null, "a", "a.b", XContentFieldType.BOOLEAN));
+        }
+        // match name
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", "foo*");
+            templateDef.put("mapping", Map.of());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.match("my_template", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match(null, "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match("not_template_name", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match("my_template", "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match(null, "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+        }
+        // no match condition
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            if (randomBoolean()) {
+                templateDef.put("runtime", Collections.emptyMap());
+            } else {
+                templateDef.put("mapping", Map.of());
+            }
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.match("my_template", "foo.bar", "bar", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match(null, "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match("not_template_name", "foo.bar", "bar", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match("my_template", "foo.bar", "bar", randomFrom(XContentFieldType.values())));
+        }
     }
 }

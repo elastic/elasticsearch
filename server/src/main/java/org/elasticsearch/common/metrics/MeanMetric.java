@@ -37,9 +37,4 @@ public final class MeanMetric {
         }
         return 0.0;
     }
-
-    public void clear() {
-        counter.reset();
-        sum.reset();
-    }
 }

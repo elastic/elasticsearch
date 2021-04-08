@@ -21,7 +21,7 @@ public enum LuceneFilesExtensions {
     // Compound files are tricky because they store all the information for the segment. Benchmarks
     // suggested that not mapping them hurts performance.
     CFS("cfs", "Compound Files", false, true),
-    CMP("cmp", "Completion Index", false, false),
+    CMP("cmp", "Completion Index", true, false),
     DII("dii", "Points Index", false, false),
     // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
     DIM("dim", "Points", false, true),

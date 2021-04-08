@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.StaticCacheKeyDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.SuppressForbidden;
@@ -32,6 +33,8 @@ import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
@@ -53,6 +56,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
     private final DocsStats docsStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
+    private final Function<DirectoryReader, DirectoryReader> readerWrapperFunction;
+    private final Map<String, IndexReader.CacheKey> cachedKeys;
 
     public FrozenEngine(EngineConfig config, boolean requireCompleteHistory, boolean lazilyLoadSoftDeletes) {
         this(config, null, null, true, Function.identity(), requireCompleteHistory, lazilyLoadSoftDeletes);
@@ -62,6 +67,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                         Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
                         boolean lazilyLoadSoftDeletes) {
         super(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory, lazilyLoadSoftDeletes);
+        this.readerWrapperFunction = readerWrapperFunction;
+        this.cachedKeys = new ConcurrentHashMap<>();
         boolean success = false;
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {
@@ -161,7 +168,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     listeners.beforeRefresh();
                 }
                 final DirectoryReader dirReader = openDirectory(engineConfig.getStore().directory());
-                reader = lastOpenedReader = wrapReader(dirReader, Function.identity());
+                reader = lastOpenedReader = wrapReader(
+                    new StaticCacheKeyDirectoryReaderWrapper(dirReader, cachedKeys), readerWrapperFunction);
                 processReader(reader);
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config().getInternalRefreshListener()) {

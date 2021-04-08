@@ -528,7 +528,7 @@ The recommended way of passing values to a query is with question mark placehold
 Use the `runtime_mappings` parameter to extract and create <<runtime,runtime
 fields>>, or columns, from existing ones during a search.
 
-The following search create a `release_day_of_week` runtime field from
+The following search creates a `release_day_of_week` runtime field from
 `release_date` and returns it in the response.
 
 [source,console]

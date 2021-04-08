@@ -540,7 +540,7 @@ Use the `runtime_mappings` parameter to extract and create <<runtime,runtime
 fields>> during a search. Use the `fields` parameter to include runtime fields
 in the response.
 
-The following search create a `day_of_week` runtime field from the `@timestamp`
+The following search creates a `day_of_week` runtime field from the `@timestamp`
 and returns it in the response.
 
 [source,console]

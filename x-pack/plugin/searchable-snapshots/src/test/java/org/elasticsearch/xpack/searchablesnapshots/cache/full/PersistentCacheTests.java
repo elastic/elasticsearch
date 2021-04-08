@@ -189,8 +189,9 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             }
         }
 
-        final Predicate<DiscoveryNodeRole> notVotingOnlyRole =
-            Predicate.not(r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE));
+        final Predicate<DiscoveryNodeRole> notVotingOnlyRole = Predicate.not(
+            r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)
+        );
         final Settings nodeSettings = Settings.builder()
             .put(
                 NODE_ROLES_SETTING.getKey(),

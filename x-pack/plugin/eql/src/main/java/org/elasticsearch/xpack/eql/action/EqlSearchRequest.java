@@ -123,6 +123,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 fetchFields = in.readList(FieldAndFormat::new);
             }
             runtimeMappings = in.readMap();
+        } else {
+            runtimeMappings = emptyMap();
         }
     }
 
@@ -220,7 +222,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (fetchFields != null && fetchFields.isEmpty() == false) {
             builder.field(KEY_FETCH_FIELDS, fetchFields);
         }
-        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
+        if (runtimeMappings != null) {
             builder.field(KEY_RUNTIME_MAPPINGS, runtimeMappings);
         }
 

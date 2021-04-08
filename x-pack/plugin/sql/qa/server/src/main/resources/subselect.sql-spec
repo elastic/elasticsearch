@@ -35,10 +35,12 @@ FROM (
 )
 ORDER BY e DESC;
 
-multiLevelSelectStar
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
+multiLevelSelectStar-Ignore
 SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ));
 
-multiLevelSelectStarWithAlias
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
+multiLevelSelectStarWithAlias-Ignore
 SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ) b) c;
 
 filterAfterGroupBy
@@ -90,7 +92,8 @@ SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM (SELECT * FROM test_emp) ORDE
 inAndIsNotNull
 SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM (SELECT * FROM test_emp WHERE emp_no IN (10019, 10020, 10021)) WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 
-filterOnColumn
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
+filterOnColumn-Ignore
 SELECT * FROM (
     SELECT * FROM test_emp
 )
@@ -136,7 +139,8 @@ SELECT * FROM (
 )
 WHERE languages < 5
 ;
-filterOnColumnFunctionWithOutsideFilter
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
+filterOnColumnFunctionWithOutsideFilter-Ignore
 SELECT * FROM (
     SELECT * FROM test_emp WHERE languages + 1 > 1
 )

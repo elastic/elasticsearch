@@ -90,6 +90,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the Nested aggregator.
  *
+ * <p>
  * Notes to people wanting to add nested aggregation tests to other test classes:
  * <ul>
  *     <li>Nested aggregations require a different {@link DirectoryReader} implementation than we usually use in aggregation tests.  You'll

@@ -101,7 +101,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
     private List<ObjectMapper> objectMappers;
-    private boolean useNestedDirectoryWrapping = false;
 
     @Override
     @Before
@@ -126,7 +125,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         super.tearDown();
         FIELD_TYPES = null;
         objectMappers = null;
-        useNestedDirectoryWrapping = false;
     }
 
     @Override
@@ -136,7 +134,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
 
     @Override
     protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
-        if (useNestedDirectoryWrapping) {
+        if (false == objectMappers().isEmpty()) {
             return wrapInMockESDirectoryReader(reader);
         }
         return  reader;
@@ -649,7 +647,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void testSubAggregationOfNested() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        useNestedDirectoryWrapping = true;
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         final String leafNameField = "name";
         final String rootNameField = "name";
@@ -705,7 +702,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void testSubAggregationOfNestedAggregateAfter() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        useNestedDirectoryWrapping = true;
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         final String leafNameField = "name";
         final String rootNameField = "name";

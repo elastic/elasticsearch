@@ -14,6 +14,7 @@ import org.elasticsearch.geoip.GeoIpCli;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -64,12 +65,15 @@ public class GeoIpHttpFixture {
         });
         this.server.createContext("/cli", exchange -> {
             String fileName = exchange.getRequestURI().getPath().replaceAll(".*/cli/", "");
-            Path target = Path.of("target").resolve(fileName);
+            Path target = new File("target").toPath().resolve(fileName);
             if (Files.isRegularFile(target)) {
                 try (OutputStream outputStream = exchange.getResponseBody();
                      InputStream db = Files.newInputStream(target)) {
                     exchange.sendResponseHeaders(200, 0);
-                    db.transferTo(outputStream);
+                    int read3;
+                    while((read3 = db.read(bytes)) != -1) {
+                        outputStream.write(bytes, 0, read3);
+                    }
                 } catch (Exception e) {
                     exchange.sendResponseHeaders(500, 0);
                     exchange.getResponseBody().close();
@@ -82,10 +86,10 @@ public class GeoIpHttpFixture {
     }
 
     private void copyFiles() throws Exception {
-        Path source = Path.of("source");
+        Path source = new File("source").toPath();
         Files.createDirectory(source);
 
-        Path target = Path.of("target");
+        Path target = new File("target").toPath();
         Files.createDirectory(target);
 
         Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-ASN.tgz"), source.resolve("GeoLite2-ASN.tgz"));

@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticati
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -184,6 +185,7 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenti
 import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountTokensAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
@@ -267,6 +269,7 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenti
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountTokensAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
@@ -876,6 +879,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
                 new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
                 new ActionHandler<>(GetServiceAccountTokensAction.INSTANCE, TransportGetServiceAccountTokensAction.class),
+                new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
                 usageAction,
                 infoAction);
     }
@@ -938,7 +942,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
                 new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
                 new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
-                new RestGetServiceAccountTokensAction(settings, getLicenseState())
+                new RestGetServiceAccountTokensAction(settings, getLicenseState()),
+                new RestGetServiceAccountAction(settings, getLicenseState())
         );
     }
 

@@ -150,4 +150,9 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         }
         return randomFrom("alpha", "beta", "") + randomVersionNumber();
     }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
 }

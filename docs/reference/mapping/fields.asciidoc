@@ -17,10 +17,6 @@ some of these metadata fields can be customized when a mapping type is created.
 
     The document's mapping type.
 
-<<mapping-tier-field,`_tier`>>::
-
-    The current data tier preference of the index to which the document belongs.
-
 <<mapping-id-field,`_id`>>::
 
     The document's ID.
@@ -70,6 +66,10 @@ some of these metadata fields can be customized when a mapping type is created.
 
     Application specific metadata.
 
+<<mapping-tier-field,`_tier`>>::
+
+    The current data tier preference of the index to which the document belongs.
+
 include::fields/doc-count-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
@@ -80,13 +80,12 @@ include::fields/id-field.asciidoc[]
 
 include::fields/index-field.asciidoc[]
 
-include::fields/tier-field.asciidoc[]
-
 include::fields/meta-field.asciidoc[]
 
 include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
-include::fields/type-field.asciidoc[]
+include::fields/tier-field.asciidoc[]
 
+include::fields/type-field.asciidoc[]

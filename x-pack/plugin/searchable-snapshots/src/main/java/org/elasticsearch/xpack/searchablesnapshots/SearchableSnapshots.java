@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.DedicatedFrozenNodeAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -290,7 +291,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING,
             SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING,
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
@@ -514,7 +514,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return List.of(
             new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS)),
             new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
-            new HasFrozenCacheAllocationDecider(frozenCacheInfoService)
+            new HasFrozenCacheAllocationDecider(frozenCacheInfoService),
+            new DedicatedFrozenNodeAllocationDecider()
         );
     }
 

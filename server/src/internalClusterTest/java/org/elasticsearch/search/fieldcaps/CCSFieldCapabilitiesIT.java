@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryBuilder;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryPlugin;
@@ -42,15 +43,16 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
     }
 
     public void testFailuresFromRemote() {
+        Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).build();
         final Client localClient = client(LOCAL_CLUSTER);
         final Client remoteClient = client("remote_cluster");
         String localIndex = "local_test";
-        assertAcked(localClient.admin().indices().prepareCreate(localIndex));
+        assertAcked(localClient.admin().indices().prepareCreate(localIndex).setSettings(indexSettings));
         localClient.prepareIndex(localIndex).setId("1").setSource("foo", "bar").get();
         localClient.admin().indices().prepareRefresh(localIndex).get();
 
         String remoteErrorIndex = "remote_test_error";
-        assertAcked(remoteClient.admin().indices().prepareCreate(remoteErrorIndex));
+        assertAcked(remoteClient.admin().indices().prepareCreate(remoteErrorIndex).setSettings(indexSettings));
         remoteClient.prepareIndex(remoteErrorIndex).setId("2").setSource("foo", "bar").get();
         remoteClient.admin().indices().prepareRefresh(remoteErrorIndex).get();
 

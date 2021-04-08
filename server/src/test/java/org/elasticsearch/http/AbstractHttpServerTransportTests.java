@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,6 +47,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static java.net.InetAddress.getByName;
@@ -350,6 +352,81 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             mockAppender.stop();
         }
     }
+
+    public void testHttpClientStats() {
+        try (AbstractHttpServerTransport transport =
+            new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+
+                        channel.sendResponse(emptyResponse(RestStatus.OK));
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                    }
+                },
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void doStart() {
+                }
+
+                @Override
+                protected void stopInternal() {
+                }
+            }) {
+
+            InetSocketAddress remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            String opaqueId = UUIDs.randomBase64UUID(random());
+            FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                .withRemoteAddress(remoteAddress)
+                .withMethod(RestRequest.Method.GET)
+                .withPath("/internal/stats_test")
+                .withHeaders(org.elasticsearch.common.collect.Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .build();
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+
+            HttpStats httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(1));
+            assertThat(httpStats.getClientStats().get(0).remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+            assertThat(httpStats.getClientStats().get(0).lastUri, equalTo("/internal/stats_test"));
+
+            remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
+            opaqueId = UUIDs.randomBase64UUID(random());
+            fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                .withRemoteAddress(remoteAddress)
+                .withMethod(RestRequest.Method.GET)
+                .withPath("/internal/stats_test2")
+                .withHeaders(org.elasticsearch.common.collect.Map.of(
+                    Task.X_OPAQUE_ID.toUpperCase(Locale.ROOT),
+                    Collections.singletonList(opaqueId))
+                )
+                .build();
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            httpStats = transport.stats();
+            assertThat(httpStats.getClientStats().size(), equalTo(2));
+
+            // due to non-deterministic ordering in map iteration, the second client may not be the second entry in the list
+            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId.equals(opaqueId)
+                ? httpStats.getClientStats().get(0)
+                : httpStats.getClientStats().get(1);
+
+            assertThat(secondClientStats.remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(secondClientStats.opaqueId, equalTo(opaqueId));
+            assertThat(secondClientStats.lastUri, equalTo("/internal/stats_test2"));
+        }
+    }
+
+
 
     private static RestResponse emptyResponse(RestStatus status) {
         return new RestResponse() {

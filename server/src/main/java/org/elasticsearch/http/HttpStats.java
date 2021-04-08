@@ -62,6 +62,10 @@ public class HttpStats implements Writeable, ToXContentFragment {
         return this.totalOpen;
     }
 
+    public List<ClientStats> getClientStats() {
+        return this.clientStats;
+    }
+
     static final class Fields {
         static final String HTTP = "http";
         static final String CURRENT_OPEN = "current_open";

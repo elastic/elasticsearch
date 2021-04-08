@@ -27,57 +27,60 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
     }
 
     public void testBasic() throws Exception {
-        testRegisteredDomainProcessor(buildEvent("www.google.com"), "google.com", "com", "www");
-        testRegisteredDomainProcessor(buildEvent(""), null, null, null);
-        testRegisteredDomainProcessor(buildEvent("."), null, null, null);
-        testRegisteredDomainProcessor(buildEvent("$"), null, null, null);
-        testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null);
-        testRegisteredDomainProcessor(buildEvent("1.www.global.ssl.fastly.net"), "www.global.ssl.fastly.net", "global.ssl.fastly.net", "1");
+        testRegisteredDomainProcessor(buildEvent("www.google.com"), "www.google.com", "google.com", "com", "www");
+        testRegisteredDomainProcessor(buildEvent(""), null, null, null, null);
+        testRegisteredDomainProcessor(buildEvent("."), null, null, null, null);
+        testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null);
+        testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null);
+        testRegisteredDomainProcessor(buildEvent("1.www.global.ssl.fastly.net"), "1.www.global.ssl.fastly.net", "www.global.ssl.fastly.net", "global.ssl.fastly.net", "1");
     }
 
     public void testError() throws Exception {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, false)
+            () -> testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null, false)
         );
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
-        e = expectThrows(IllegalArgumentException.class, () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, false));
+        e = expectThrows(IllegalArgumentException.class, () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null, false));
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
     }
 
     private void testRegisteredDomainProcessor(
         Map<String, Object> source,
+        String expectedDomain,
         String expectedRegisteredDomain,
         String expectedETLD,
         String expectedSubdomain
     ) throws Exception {
-        testRegisteredDomainProcessor(source, expectedRegisteredDomain, expectedETLD, expectedSubdomain, true);
+        testRegisteredDomainProcessor(source, expectedDomain, expectedRegisteredDomain, expectedETLD, expectedSubdomain, true);
     }
 
     private void testRegisteredDomainProcessor(
         Map<String, Object> source,
+        String expectedDomain,
         String expectedRegisteredDomain,
         String expectedETLD,
         String expectedSubdomain,
         boolean ignoreMissing
     ) throws Exception {
-        String registeredDomainField = "registered_domain";
-        String topLevelDomainField = "top_level_domain";
-        String subdomainField = "subdomain";
+        String domainField = "url.domain";
+        String registeredDomainField = "url.registered_domain";
+        String topLevelDomainField = "url.top_level_domain";
+        String subdomainField = "url.subdomain";
 
         var processor = new RegisteredDomainProcessor(
             null,
             null,
             "domain",
-            registeredDomainField,
-            topLevelDomainField,
-            subdomainField,
+            "url",
             ignoreMissing
         );
 
         IngestDocument input = new IngestDocument(source, Map.of());
         IngestDocument output = processor.execute(input);
 
+        String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);
+        assertThat(domain, equalTo(expectedDomain));
         String publicSuffix = output.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
         assertThat(publicSuffix, equalTo(expectedRegisteredDomain));
         String eTLD = output.getFieldValue(topLevelDomainField, String.class, expectedETLD == null);

@@ -18,14 +18,12 @@ import org.elasticsearch.ingest.Processor;
 import java.util.Map;
 
 public class RegisteredDomainProcessor extends AbstractProcessor {
-    public static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
+    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     public static final String TYPE = "registered_domain";
 
     private final String field;
     private final String targetField;
-    private final String targetETLDField;
-    private final String targetSubdomainField;
     private final boolean ignoreMissing;
 
     RegisteredDomainProcessor(
@@ -33,15 +31,11 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         String description,
         String field,
         String targetField,
-        String targetETLDField,
-        String targetSubdomainField,
         boolean ignoreMissing
     ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
-        this.targetETLDField = targetETLDField;
-        this.targetSubdomainField = targetSubdomainField;
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -51,14 +45,6 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
 
     public String getTargetField() {
         return targetField;
-    }
-
-    public String getTargetETLDField() {
-        return targetETLDField;
-    }
-
-    public String getTargetSubdomainField() {
-        return targetSubdomainField;
     }
 
     public boolean getIgnoreMissing() {
@@ -75,14 +61,22 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("unable to set domain information for document");
             }
         }
+        String domainTarget = targetField + ".domain";
+        String registeredDomainTarget = targetField + ".registered_domain";
+        String subdomainTarget = targetField + ".subdomain";
+        String topLevelDomainTarget = targetField + ".top_level_domain";
+
+        if (info.getDomain() != null) {
+            ingestDocument.setFieldValue(domainTarget, info.getDomain());
+        }
         if (info.getRegisteredDomain() != null) {
-            ingestDocument.setFieldValue(targetField, info.getRegisteredDomain());
+            ingestDocument.setFieldValue(registeredDomainTarget, info.getRegisteredDomain());
         }
-        if (targetETLDField != null && info.getTLD() != null) {
-            ingestDocument.setFieldValue(targetETLDField, info.getTLD());
+        if (info.getETLD() != null) {
+            ingestDocument.setFieldValue(topLevelDomainTarget, info.getETLD());
         }
-        if (targetSubdomainField != null && info.getSubdomain() != null) {
-            ingestDocument.setFieldValue(targetSubdomainField, info.getSubdomain());
+        if (info.getSubdomain() != null) {
+            ingestDocument.setFieldValue(subdomainTarget, info.getSubdomain());
         }
         return ingestDocument;
     }
@@ -112,12 +106,14 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     }
 
     private class DomainInfo {
+        private final String domain;
         private final String registeredDomain;
-        private final String tld;
+        private final String eTLD;
         private final String subdomain;
 
-        private DomainInfo(String tld) {
-            this.tld = tld;
+        private DomainInfo(String eTLD) {
+            this.domain = eTLD;
+            this.eTLD = eTLD;
             this.registeredDomain = null;
             this.subdomain = null;
         }
@@ -125,7 +121,8 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         private DomainInfo(String registeredDomain, String domain) {
             int index = registeredDomain.indexOf(".") + 1;
             if (index > 0 && index < registeredDomain.length()) {
-                this.tld = registeredDomain.substring(index);
+                this.domain = domain;
+                this.eTLD = registeredDomain.substring(index);
                 this.registeredDomain = registeredDomain;
                 int subdomainIndex = domain.lastIndexOf("." + registeredDomain);
                 if (subdomainIndex > 0) {
@@ -134,10 +131,15 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
                     this.subdomain = null;
                 }
             } else {
-                this.tld = null;
+                this.domain = null;
+                this.eTLD = null;
                 this.registeredDomain = null;
                 this.subdomain = null;
             }
+        }
+
+        public String getDomain() {
+            return domain;
         }
 
         public String getSubdomain() {
@@ -148,12 +150,15 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             return registeredDomain;
         }
 
-        public String getTLD() {
-            return tld;
+        public String getETLD() {
+            return eTLD;
         }
     }
 
     public static final class Factory implements Processor.Factory {
+
+        static final String DEFAULT_TARGET_FIELD = "";
+
         @Override
         public RegisteredDomainProcessor create(
             Map<String, Processor.Factory> registry,
@@ -162,14 +167,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             Map<String, Object> config
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
-            String targetETLDField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_etld_field");
-            String targetSubdomainField = ConfigurationUtils.readOptionalStringProperty(
-                TYPE,
-                processorTag,
-                config,
-                "target_subdomain_field"
-            );
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
 
             return new RegisteredDomainProcessor(
@@ -177,8 +175,6 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
                 description,
                 field,
                 targetField,
-                targetETLDField,
-                targetSubdomainField,
                 ignoreMissing
             );
         }

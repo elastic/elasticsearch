@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -390,7 +391,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test")
-                .withHeaders(org.elasticsearch.common.collect.Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                 .build();
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
@@ -406,7 +407,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withRemoteAddress(remoteAddress)
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/internal/stats_test2")
-                .withHeaders(org.elasticsearch.common.collect.Map.of(
+                .withHeaders(Map.of(
                     Task.X_OPAQUE_ID.toUpperCase(Locale.ROOT),
                     Collections.singletonList(opaqueId))
                 )

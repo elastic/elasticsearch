@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.elasticsearch.common.CheckedConsumer;
 
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -64,8 +65,7 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
                 typeName = typeName.equals("DATE") ? "DATETIME" : typeName;
                 typeName += "_ARRAY";
                 assertEquals(typeName, md.getColumnTypeName(i + 1));
-                // JdbcArray is not a public class
-                assertEquals("org.elasticsearch.xpack.sql.jdbc.JdbcArray", md.getColumnClassName(i + 1));
+                assertEquals(Array.class.getName(), md.getColumnClassName(i + 1));
             }
         });
     }

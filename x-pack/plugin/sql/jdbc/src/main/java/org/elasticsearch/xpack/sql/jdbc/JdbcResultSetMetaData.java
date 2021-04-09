@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import java.sql.Array;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
@@ -139,7 +140,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return column(column).isArray ? JdbcArray.class.getName() : TypeUtils.classOf(column(column).type).getName();
+        return column(column).isArray ? Array.class.getName() : TypeUtils.classOf(column(column).type).getName();
     }
 
     private void checkOpen() throws SQLException {

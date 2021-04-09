@@ -275,7 +275,7 @@ final class DynamicFieldsBuilder {
                 new NumberFieldMapper.Builder(
                     name,
                     NumberFieldMapper.NumberType.LONG,
-                    null,
+                    ScriptCompiler.NONE,
                     context.indexSettings().getSettings()
                 ), context);
         }
@@ -288,7 +288,7 @@ final class DynamicFieldsBuilder {
             createDynamicField(new NumberFieldMapper.Builder(
                 name,
                 NumberFieldMapper.NumberType.FLOAT,
-                null,
+                ScriptCompiler.NONE,
                 context.indexSettings().getSettings()), context);
         }
 

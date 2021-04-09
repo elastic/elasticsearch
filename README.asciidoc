@@ -25,33 +25,26 @@ https://www.elastic.co/products/elasticsearch[product page].
 [[get-started]]
 == Get started
 
-If you want to give Elasticsearch a try, check out our
-https://www.elastic.co/guide/en/elasticsearch/reference/current/getting-started.html[Quick
-start guide].
 
-To get started with the Elastic Stack, see the
-https://www.elastic.co/start[Elastic Stack start page].
 
-[[use-release]]
-=== Use a release
 
-The best way to use Elasticsearch is our hosted
+The simplest way to set up {es} is to create a managed deployment with
 https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
 Cloud].
 
-You can also deploy and self-manage Elasticsearch on your own infrastructure. To
-download the latest version, use the
-https://www.elastic.co/downloads/elasticsearch[download page].
+If you prefer to install and manage Elasticsearch yourself, you can download
+the latest version from 
+https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 
-For more installation options, see our
-https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Installation
+For more installation options, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation
 docs].
 
 [[upgrade]]
 === Upgrade
 
-To upgrade from an earlier version of Elasticsearch, see our
-https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[upgrade
+To upgrade from an earlier version of Elasticsearch, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[Elasticsearch upgrade
 documentation].
 
 [[build-source]]
@@ -84,10 +77,10 @@ To run the test suite, see xref:TESTING.asciidoc[TESTING].
 [[docs]]
 == Documentation
 
-For our full docs, visit
+For the complete Elasticsearch documentation visit
 https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elastic.co].
 
-For information about our documentation processes, see our
+For information about our documentation processes, see the
 xref:docs/README.asciidoc[docs README].
 
 [[contribute]]

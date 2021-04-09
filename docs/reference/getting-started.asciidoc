@@ -39,8 +39,7 @@ You add data to {es} as JSON objects called documents. {es} stores these
 documents in searchable indices.
 
 For time series data, such as logs and metrics, you typically add documents to a
-data stream made up of multiple auto-generated backing indices. {es} creates
-and manages these backing indices for you.
+data stream made up of multiple auto-generated backing indices.
 
 A data stream requires an index template that matches its name. {es} uses this
 template to configure the stream's backing indices. Documents sent to a data

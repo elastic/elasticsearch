@@ -62,7 +62,8 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     }
 
     /**
-     * Validate this role against all configured roles.
+     * Validate this role against all configured roles. Implementors are expected to throw an {@link IllegalArgumentException} when the
+     * combination of configured roles is invalid with this role.
      *
      * @param roles the complete set of configured roles
      */
@@ -197,7 +198,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         @Override
         public void validateRoles(final List<DiscoveryNodeRole> roles) {
             if (roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false) {
-                throw new IllegalStateException("voting-only node must be master-eligible");
+                throw new IllegalArgumentException("voting-only node must be master-eligible");
             }
         }
 

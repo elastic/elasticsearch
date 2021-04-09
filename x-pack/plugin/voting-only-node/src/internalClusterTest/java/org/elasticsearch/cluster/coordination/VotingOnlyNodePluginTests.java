@@ -62,10 +62,10 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     public void testRequireVotingOnlyNodeToBeMasterEligible() {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(Settings.builder()
             .put(onlyRole(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE))
             .build()));
-        assertThat(ise.getMessage(), containsString("voting-only node must be master-eligible"));
+        assertThat(e.getMessage(), containsString("voting-only node must be master-eligible"));
     }
 
     public void testVotingOnlyNodeStats() throws Exception {

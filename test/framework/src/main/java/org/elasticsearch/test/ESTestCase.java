@@ -402,17 +402,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
-    private void ensureNoWarnings() {
+    public void ensureNoWarnings() {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            if (warnings != null && JvmInfo.jvmInfo().getBundledJdk() == false) {
+            if (warnings != null) {
                 // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                 final List<String> filteredWarnings = warnings
                     .stream()
-                    .filter(k -> k.contains(
-                        "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release") == false)
+                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
                     .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
@@ -420,6 +419,14 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } finally {
             resetDeprecationLogger();
+        }
+    }
+
+    protected List<String> filteredWarnings() {
+        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
+            return List.of("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+        } else {
+            return List.of();
         }
     }
 
@@ -713,11 +720,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(T... array) {
         return randomFrom(random(), array);
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(Random random, T... array) {
         return RandomPicks.randomFrom(random, array);
     }
@@ -1138,10 +1149,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
 
-    public String randomCompatibleMediaType(byte version) {
+    public String randomCompatibleMediaType(RestApiVersion version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
         return type.toParsedMediaType()
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {

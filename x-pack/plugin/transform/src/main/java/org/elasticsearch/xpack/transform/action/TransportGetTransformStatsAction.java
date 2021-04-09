@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -131,17 +132,18 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
+        final ClusterState state = clusterService.state();
+        TransformNodes.warnIfNoTransformNodes(state);
+
         transformConfigManager.expandTransformIds(
             request.getId(),
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
                 request.setExpandedIds(hitsAndIds.v2());
-                final ClusterState state = clusterService.state();
-                TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
-                // TODO: if empty the request is send to all nodes(benign but superfluous)
-                request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
-                super.doExecute(task, request, ActionListener.wrap(response -> {
+                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+
+                ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
                     PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
@@ -150,6 +152,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                     collectStatsForTransformsWithoutTasks(
                         request,
                         response,
+                        transformNodeAssignments.getWaitingForAssignment(),
+                        state,
                         ActionListener.wrap(
                             finalResponse -> finalListener.onResponse(
                                 new Response(
@@ -162,7 +166,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             finalListener::onFailure
                         )
                     );
-                }, finalListener::onFailure));
+                }, finalListener::onFailure);
+
+                if (transformNodeAssignments.getExecutorNodes().size() > 0) {
+                    request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
+                    super.doExecute(task, request, doExecuteListener);
+                } else {
+                    doExecuteListener.onResponse(new Response(Collections.emptyList(), 0L));
+                }
             },
                 e -> {
                     // If the index to search, or the individual config is not there, just return empty
@@ -210,7 +221,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         );
     }
 
-    private void collectStatsForTransformsWithoutTasks(Request request, Response response, ActionListener<Response> listener) {
+    private void collectStatsForTransformsWithoutTasks(
+        Request request,
+        Response response,
+        Set<String> transformsWaitingForAssignment,
+        ClusterState clusterState,
+        ActionListener<Response> listener
+    ) {
         // We gathered all there is, no need to continue
         if (request.getExpandedIds().size() == response.getTransformsStats().size()) {
             listener.onResponse(response);
@@ -226,23 +243,30 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         // There is a potential race condition where the saved document does not actually have a STOPPED state
         // as the task is cancelled before we persist state.
         ActionListener<List<TransformStoredDoc>> searchStatsListener = ActionListener.wrap(statsForTransformsWithoutTasks -> {
-            List<TransformStats> allStateAndStats = response.getTransformsStats();
-            addCheckpointingInfoForTransformsWithoutTasks(allStateAndStats, statsForTransformsWithoutTasks, ActionListener.wrap(aVoid -> {
-                transformsWithoutTasks.removeAll(
-                    statsForTransformsWithoutTasks.stream().map(TransformStoredDoc::getId).collect(Collectors.toSet())
-                );
+            // copy the list as it might be immutable
+            List<TransformStats> allStateAndStats = new ArrayList<>(response.getTransformsStats());
+            addCheckpointingInfoForTransformsWithoutTasks(
+                allStateAndStats,
+                statsForTransformsWithoutTasks,
+                transformsWaitingForAssignment,
+                clusterState,
+                ActionListener.wrap(aVoid -> {
+                    transformsWithoutTasks.removeAll(
+                        statsForTransformsWithoutTasks.stream().map(TransformStoredDoc::getId).collect(Collectors.toSet())
+                    );
 
-                // Transforms that have not been started and have no state or stats.
-                transformsWithoutTasks.forEach(transformId -> allStateAndStats.add(TransformStats.initialStats(transformId)));
+                    // Transforms that have not been started and have no state or stats.
+                    transformsWithoutTasks.forEach(transformId -> allStateAndStats.add(TransformStats.initialStats(transformId)));
 
-                // Any transform in collection could NOT have a task, so, even though the list is initially sorted
-                // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
-                allStateAndStats.sort(Comparator.comparing(TransformStats::getId));
+                    // Any transform in collection could NOT have a task, so, even though the list is initially sorted
+                    // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
+                    allStateAndStats.sort(Comparator.comparing(TransformStats::getId));
 
-                listener.onResponse(
-                    new Response(allStateAndStats, allStateAndStats.size(), response.getTaskFailures(), response.getNodeFailures())
-                );
-            }, listener::onFailure));
+                    listener.onResponse(
+                        new Response(allStateAndStats, allStateAndStats.size(), response.getTaskFailures(), response.getNodeFailures())
+                    );
+                }, listener::onFailure)
+            );
         }, e -> {
             if (e instanceof IndexNotFoundException) {
                 listener.onResponse(response);
@@ -271,6 +295,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private void addCheckpointingInfoForTransformsWithoutTasks(
         List<TransformStats> allStateAndStats,
         List<TransformStoredDoc> statsForTransformsWithoutTasks,
+        Set<String> transformsWaitingForAssignment,
+        ClusterState clusterState,
         ActionListener<Void> listener
     ) {
 
@@ -285,9 +311,30 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
         statsForTransformsWithoutTasks.forEach(stat -> populateSingleStoppedTransformStat(stat, ActionListener.wrap(checkpointingInfo -> {
             synchronized (allStateAndStats) {
-                allStateAndStats.add(
-                    new TransformStats(stat.getId(), TransformStats.State.STOPPED, null, null, stat.getTransformStats(), checkpointingInfo)
-                );
+                if (transformsWaitingForAssignment.contains(stat.getId())) {
+                    Assignment assignment = TransformNodes.getAssignment(stat.getId(), clusterState);
+                    allStateAndStats.add(
+                        new TransformStats(
+                            stat.getId(),
+                            TransformStats.State.WAITING,
+                            assignment.getExplanation(),
+                            null,
+                            stat.getTransformStats(),
+                            checkpointingInfo
+                        )
+                    );
+                } else {
+                    allStateAndStats.add(
+                        new TransformStats(
+                            stat.getId(),
+                            TransformStats.State.STOPPED,
+                            null,
+                            null,
+                            stat.getTransformStats(),
+                            checkpointingInfo
+                        )
+                    );
+                }
             }
             if (numberRemaining.decrementAndGet() == 0) {
                 listener.onResponse(null);

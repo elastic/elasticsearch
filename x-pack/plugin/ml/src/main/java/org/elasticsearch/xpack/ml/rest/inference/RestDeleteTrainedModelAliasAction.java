@@ -11,13 +11,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction.Request.MODEL_ALIAS;
-import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.MODEL_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestDeleteTrainedModelAliasAction extends BaseRestHandler {
@@ -25,7 +25,7 @@ public class RestDeleteTrainedModelAliasAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(DELETE, BASE_PATH + "trained_models/{" + MODEL_ID.getPreferredName() + "}/model_aliases/{" + MODEL_ALIAS + "}")
+            new Route(DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}/model_aliases/{" + MODEL_ALIAS + "}")
         );
     }
 
@@ -36,7 +36,7 @@ public class RestDeleteTrainedModelAliasAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final String modelId = restRequest.param(MODEL_ID.getPreferredName());
+        final String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         final String modelAlias = restRequest.param(MODEL_ALIAS);
         return channel -> client.execute(
             DeleteTrainedModelAliasAction.INSTANCE,

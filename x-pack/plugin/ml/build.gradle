@@ -12,15 +12,22 @@ esplugin {
 
 
 repositories {
-  ivy {
-    name "ml-cpp"
-    url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
-    metadataSources {
-      // no repository metadata, look directly for the artifact
-      artifact()
+  exclusiveContent {
+    forRepository {
+      ivy {
+        name "ml-cpp"
+        url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
+        metadataSources {
+          // no repository metadata, look directly for the artifact
+          artifact()
+        }
+        patternLayout {
+          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+        }
+      }
     }
-    patternLayout {
-      artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+    filter {
+      includeGroup 'org.elasticsearch.ml'
     }
   }
 }

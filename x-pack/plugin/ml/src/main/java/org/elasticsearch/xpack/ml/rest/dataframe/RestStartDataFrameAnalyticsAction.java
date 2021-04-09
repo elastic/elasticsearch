@@ -12,12 +12,12 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
@@ -25,7 +25,7 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_start")
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_start")
         );
     }
 
@@ -36,7 +36,7 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(ID.getPreferredName());
+        String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
         StartDataFrameAnalyticsAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
             request = StartDataFrameAnalyticsAction.Request.parseRequest(id, restRequest.contentOrSourceParamParser());

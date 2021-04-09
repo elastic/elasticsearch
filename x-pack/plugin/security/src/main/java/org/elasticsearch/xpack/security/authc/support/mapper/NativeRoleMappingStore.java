@@ -268,20 +268,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (names == null || names.isEmpty()) {
             getMappings(listener);
         } else {
-            getMappings(new ActionListener<List<ExpressionRoleMapping>>() {
-                @Override
-                public void onResponse(List<ExpressionRoleMapping> mappings) {
-                    final List<ExpressionRoleMapping> filtered = mappings.stream()
-                            .filter(m -> names.contains(m.getName()))
-                            .collect(Collectors.toList());
-                    listener.onResponse(filtered);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            getMappings(listener.delegateFailure((l, mappings) -> {
+                final List<ExpressionRoleMapping> filtered = mappings.stream()
+                        .filter(m -> names.contains(m.getName()))
+                        .collect(Collectors.toList());
+                l.onResponse(filtered);
+            }));
         }
     }
 

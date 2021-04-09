@@ -23,10 +23,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -37,13 +35,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -55,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -134,27 +129,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
     }
 
-    static Tuple<Set<String>, Set<String>> findTasksWithoutConfig(ClusterState state, String transformId) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-
-        Set<String> taskIds = new HashSet<>();
-        Set<String> executorNodes = new HashSet<>();
-
-        if (tasks != null) {
-            Predicate<PersistentTask<?>> taskMatcher = Strings.isAllOrWildcard(new String[] { transformId }) ? t -> true : t -> {
-                TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
-                return Regex.simpleMatch(transformId, transformParams.getId());
-            };
-
-            for (PersistentTasksCustomMetadata.PersistentTask<?> pTask : tasks.findTasks(TransformField.TASK_NAME, taskMatcher)) {
-                executorNodes.add(pTask.getExecutorNode());
-                taskIds.add(pTask.getId());
-            }
-        }
-
-        return new Tuple<>(taskIds, executorNodes);
-    }
-
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
@@ -173,6 +147,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 );
             }
         } else {
+            TransformNodes.warnIfNoTransformNodes(state);
+
             final ActionListener<Response> finalListener;
             if (request.waitForCompletion()) {
                 finalListener = waitForStopListener(request, listener);
@@ -204,21 +180,42 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     }
                 }, e -> {
                     if (e instanceof ResourceNotFoundException) {
-                        Tuple<Set<String>, Set<String>> runningTasksAndNodes = findTasksWithoutConfig(state, request.getId());
-                        if (runningTasksAndNodes.v1().isEmpty()) {
+                        final TransformNodeAssignments transformNodeAssignments = TransformNodes.findPersistentTasks(
+                            request.getId(),
+                            state
+                        );
+
+                        if (transformNodeAssignments.getAssigned().isEmpty()
+                            && transformNodeAssignments.getWaitingForAssignment().isEmpty()) {
                             listener.onFailure(e);
                             // found transforms without a config
                         } else if (request.isForce()) {
-                            // TODO: handle tasks waiting for assignment
-                            request.setExpandedIds(runningTasksAndNodes.v1());
-                            request.setNodes(runningTasksAndNodes.v2().toArray(new String[0]));
-                            super.doExecute(task, request, finalListener);
+                            final ActionListener<Response> doExecuteListener;
+
+                            if (transformNodeAssignments.getWaitingForAssignment().size() > 0) {
+                                doExecuteListener = cancelTransformTasksWithNoAssignment(finalListener, transformNodeAssignments);
+                            } else {
+                                doExecuteListener = finalListener;
+                            }
+
+                            if (transformNodeAssignments.getExecutorNodes().size() > 0) {
+                                request.setExpandedIds(transformNodeAssignments.getAssigned());
+                                request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
+                                super.doExecute(task, request, doExecuteListener);
+                            } else {
+                                doExecuteListener.onResponse(new Response(true));
+                            }
                         } else {
+                            Set<String> transformsWithoutConfig = Stream.concat(
+                                transformNodeAssignments.getAssigned().stream(),
+                                transformNodeAssignments.getWaitingForAssignment().stream()
+                            ).collect(Collectors.toSet());
+
                             listener.onFailure(
                                 new ElasticsearchStatusException(
                                     TransformMessages.getMessage(
                                         TransformMessages.REST_STOP_TRANSFORM_WITHOUT_CONFIG,
-                                        Strings.arrayToCommaDelimitedString(runningTasksAndNodes.v1().toArray(new String[0]))
+                                        Strings.collectionToCommaDelimitedString(transformsWithoutConfig)
                                     ),
                                     RestStatus.CONFLICT
                                 )

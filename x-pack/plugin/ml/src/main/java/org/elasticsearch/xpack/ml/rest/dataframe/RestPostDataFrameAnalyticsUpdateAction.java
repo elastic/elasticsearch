@@ -12,12 +12,12 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.UpdateDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
@@ -25,7 +25,7 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_update")
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_update")
         );
     }
 
@@ -36,7 +36,7 @@ public class RestPostDataFrameAnalyticsUpdateAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(ID.getPreferredName());
+        String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         UpdateDataFrameAnalyticsAction.Request updateRequest = UpdateDataFrameAnalyticsAction.Request.parseRequest(id, parser);
         updateRequest.timeout(restRequest.paramAsTime("timeout", updateRequest.timeout()));

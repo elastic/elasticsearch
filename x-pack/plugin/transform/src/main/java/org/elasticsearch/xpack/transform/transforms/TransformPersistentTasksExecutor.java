@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -136,10 +137,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return false;
         }
 
-        final Map<String, String> nodeAttributes = node.getAttributes();
-
         // transform enabled?
-        if (Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_ENABLED_NODE_ATTR)) == false) {
+        if (node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a transform node");
             }

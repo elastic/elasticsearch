@@ -5,10 +5,13 @@
 --
 
 [id="{upid}-{api}"]
-=== Put Mapping API
+=== Update mapping API
+
+Adds new fields to an existing data stream or index. You can also use the API to
+change the search settings of existing fields.
 
 [id="{upid}-{api}-request"]
-==== Put Mapping Request
+==== Request
 
 A +{request}+ requires an `index` argument:
 
@@ -63,7 +66,7 @@ include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Mapping Response
+==== Response
 
 The returned +{response}+ allows to retrieve information about the executed
  operation as follows:

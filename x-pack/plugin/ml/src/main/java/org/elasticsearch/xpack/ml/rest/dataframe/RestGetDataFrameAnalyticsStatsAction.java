@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
@@ -29,7 +29,7 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_stats"),
-            new Route(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_stats")
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_stats")
         );
     }
 
@@ -40,7 +40,7 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(ID.getPreferredName());
+        String id = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
         GetDataFrameAnalyticsStatsAction.Request request = new GetDataFrameAnalyticsStatsAction.Request();
         if (Strings.isNullOrEmpty(id) == false) {
             request.setId(id);

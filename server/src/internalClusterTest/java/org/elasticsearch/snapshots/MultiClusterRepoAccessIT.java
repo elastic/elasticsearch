@@ -45,8 +45,8 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, 0,
                 0, "second_cluster", new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal))
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+                return Settings.builder().put(MultiClusterRepoAccessIT.this.nodeSettings(nodeOrdinal, otherSettings))
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(Environment.PATH_REPO_SETTING.getKey(), repoPath).build();
             }

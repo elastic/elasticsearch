@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -51,6 +50,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
@@ -260,7 +260,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Query topLevelQuery = ft.rangeQuery("2020-01-01", "2020-02-01", true, true, null, null, null, mock(SearchExecutionContext.class));
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder(
             "t",
-            // The range query will be wrapped in IndexOrDocValuesQuery by the date field type 
+            // The range query will be wrapped in IndexOrDocValuesQuery by the date field type
             new KeyedFilter("k", new RangeQueryBuilder("test").from("2020-01-01").to("2020-02-01"))
         );
         withAggregator(builder, topLevelQuery, iw -> {
@@ -322,7 +322,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            Collections.emptyMap()
         );
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
@@ -444,7 +444,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     /**
      * This runs {@code filters} with a single {@code match_all} filter with
      * the index set up kind of like document level security. As a bonus, this
-     * "looks" to the agg just like an index with deleted documents. 
+     * "looks" to the agg just like an index with deleted documents.
      */
     public void testMatchAllOnFilteredIndex() throws IOException {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
@@ -523,7 +523,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTermQuery() throws IOException {
-        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, false, null);
+        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, false, Collections.emptyMap());
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchQueryBuilder("f", "0")));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
@@ -555,7 +555,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
         AggregationBuilder builder = new FiltersAggregationBuilder(
@@ -592,7 +592,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(2));
 
-            InternalFilters.InternalBucket b = filters.getBucketByKey("q1"); 
+            InternalFilters.InternalBucket b = filters.getBucketByKey("q1");
             assertThat(b.getDocCount(), equalTo(1L));
             InternalMax max = b.getAggregations().get("m");
             assertThat(max.getValue(), equalTo(100.0));
@@ -629,7 +629,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
         AggregationBuilder builder = new FiltersAggregationBuilder(
@@ -656,7 +656,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(2));
 
-            InternalFilters.InternalBucket b = filters.getBucketByKey("q1"); 
+            InternalFilters.InternalBucket b = filters.getBucketByKey("q1");
             assertThat(b.getDocCount(), equalTo(3334L));
             InternalMax max = b.getAggregations().get("m");
             assertThat(max.getValue(), equalTo(9999.0));
@@ -693,7 +693,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
         List<KeyedFilter> buckets = new ArrayList<>();
@@ -755,8 +755,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }, dateFt, intFt);
     }
 
-
-
     @Override
     protected List<ObjectMapper> objectMappers() {
         return MOCK_OBJECT_MAPPERS;
@@ -765,7 +763,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     private Map<String, Object> collectAndGetFilterDebugInfo(IndexSearcher searcher, Aggregator aggregator) throws IOException {
         aggregator.preCollection();
         for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-            expectThrows(CollectionTerminatedException.class, () -> aggregator.getLeafCollector(ctx));
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(ctx);
+            assertTrue(leafCollector.isNoop());
         }
         Map<String, Object> debug = new HashMap<>();
         ((FiltersAggregator.FilterByFilter) aggregator).filters().get(0).collectDebugInfo(debug::put);

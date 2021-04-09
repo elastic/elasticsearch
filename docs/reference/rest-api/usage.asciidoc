@@ -293,7 +293,9 @@ GET /_xpack/usage
   "searchable_snapshots" : {
     "available" : true,
     "enabled" : true,
-    "indices_count" : 0
+    "indices_count" : 0,
+    "full_copy_indices_count" : 0,
+    "shared_cache_indices_count" : 0
   },
   "frozen_indices" : {
     "available" : true,
@@ -392,11 +394,6 @@ GET /_xpack/usage
   "aggregate_metric" : {
     "available" : true,
     "enabled" : true
-  },
-  "runtime_fields" : {
-    "available" : true,
-    "enabled" : true,
-    "field_types" : []
   }
 }
 ------------------------------------------------------------

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestDataStreamsStatsAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -25,10 +27,7 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.GET, "/_data_stream/_stats"),
-            new Route(RestRequest.Method.GET, "/_data_stream/{name}/_stats")
-        );
+        return List.of(new Route(GET, "/_data_stream/_stats"), new Route(GET, "/_data_stream/{name}/_stats"));
     }
 
     @Override

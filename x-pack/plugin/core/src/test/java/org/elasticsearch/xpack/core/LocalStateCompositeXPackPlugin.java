@@ -544,6 +544,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         return suppliers;
     }
 
+    @SuppressWarnings("unchecked")
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());

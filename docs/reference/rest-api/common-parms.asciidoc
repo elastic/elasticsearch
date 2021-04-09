@@ -25,15 +25,16 @@ end::index-alias[]
 
 tag::aliases[]
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) Index aliases which include the
-index. See <<indices-aliases>>.
+(Optional, <<indices-aliases,alias object>>) <<indices-aliases,Index aliases>>
+which include the index. Index alias names support <<date-math-index-names,date
+math>>.
 end::aliases[]
 
 tag::target-index-aliases[]
 `aliases`::
 (Optional, <<indices-aliases,alias object>>)
-Index aliases which include the target index.
-See <<indices-aliases>>.
+<<indices-aliases,Index aliases>> which include the target index. Index alias
+names support <<date-math-index-names,date math>>.
 end::target-index-aliases[]
 
 tag::allow-no-indices[]
@@ -165,7 +166,7 @@ prior to starting the {transform}.
 end::dest-index[]
 
 tag::dest-pipeline[]
-The unique identifier for a <<pipeline,pipeline>>.
+The unique identifier for an <<ingest,ingest pipeline>>.
 end::dest-pipeline[]
 
 tag::detailed[]
@@ -213,11 +214,6 @@ tag::docs-processed[]
 The number of documents that have been processed from the source index of
 the {transform}.
 end::docs-processed[]
-
-tag::enrich-policy[]
-Enrich policy name
-used to limit the request.
-end::enrich-policy[]
 
 tag::ds-expand-wildcards[]
 `expand_wildcards`::
@@ -431,7 +427,7 @@ tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, Boolean)
 If `true`, the call reports the aggregated disk usage of
-each one  of the Lucene index files (only applies if segment stats are
+each one of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
@@ -629,6 +625,15 @@ tag::require-alias[]
 If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
 `false`.
 end::require-alias[]
+
+tag::bulk-dynamic-templates[]
+`dynamic_templates`::
+(Optional, map)
+A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be 
+applied regardless of other match predicates defined in the template. And if a field is 
+already defined in the mapping, then this parameter won't be used.
+end::bulk-dynamic-templates[]
 
 tag::node-filter[]
 `<node_filter>`::
@@ -923,8 +928,12 @@ end::source-transforms[]
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
 pattern (for example, `"my-index-*"`), an array of indices (for example,
-`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for example,
-`["my-index-*", "my-other-index-*"]`.
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for 
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax 
+`"remote_name:index_name"`.
+
+NOTE: If any indices are in remote clusters then the master node and at least 
+one transform node must have the `remote_cluster_client` node role.
 end::source-index-transforms[]
 
 tag::source-query-transforms[]
@@ -933,7 +942,9 @@ A query clause that retrieves a subset of data from the source index. See
 end::source-query-transforms[]
 
 tag::source-runtime-mappings-transforms[]
-Definitions of search-time runtime fields that can be used by the transform.
+Definitions of search-time runtime fields that can be used by the transform. For 
+search runtime fields all data nodes, including remote nodes, must be 7.12 or 
+later.
 end::source-runtime-mappings-transforms[]
 
 tag::state-transform[]

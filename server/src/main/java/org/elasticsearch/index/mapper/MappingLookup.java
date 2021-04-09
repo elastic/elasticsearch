@@ -54,7 +54,9 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
+    private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
+    private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final DocumentParser documentParser;
     private final Mapping mapping;
     private final IndexSettings indexSettings;
@@ -137,6 +139,9 @@ public final class MappingLookup {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
+            if (mapper.hasScript()) {
+                indexTimeScriptMappers.add(mapper);
+            }
         }
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
@@ -148,7 +153,10 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFieldTypes());
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
+        this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
+            ? null
+            : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -163,8 +171,16 @@ public final class MappingLookup {
         return fieldMappers.get(field);
     }
 
-    FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypesLookup() {
         return fieldTypeLookup;
+    }
+
+    FieldTypeLookup indexTimeLookup() {
+        return indexTimeLookup;
+    }
+
+    List<FieldMapper> indexTimeScriptMappers() {
+        return indexTimeScriptMappers;
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
@@ -179,6 +195,13 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> fieldTypes() {
+        return fieldTypeLookup.get();
     }
 
     void checkLimits(IndexSettings settings) {
@@ -270,14 +293,14 @@ public final class MappingLookup {
     }
 
     public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypes().simpleMatchToFullName(pattern);
+        return fieldTypesLookup().simpleMatchToFullName(pattern);
     }
 
     /**
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {
-        return fieldTypes().get(field);
+        return fieldTypesLookup().get(field);
     }
 
     /**
@@ -293,7 +316,7 @@ public final class MappingLookup {
      * @return A set of paths in the _source that contain the field's values.
      */
     public Set<String> sourcePaths(String field) {
-        return fieldTypes().sourcePaths(field);
+        return fieldTypesLookup().sourcePaths(field);
     }
 
     public ParsedDocument parseDocument(SourceToParse source) {

@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
@@ -34,8 +33,8 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
         return List.of(
             new Route(GET, BASE_PATH + "data_frame/analytics/_explain"),
             new Route(POST, BASE_PATH + "data_frame/analytics/_explain"),
-            new Route(GET, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain"),
-            new Route(POST, BASE_PATH + "data_frame/analytics/{" + ID.getPreferredName() + "}/_explain")
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_explain"),
+            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_explain")
         );
     }
 
@@ -46,16 +45,16 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        final String jobId = restRequest.param(ID.getPreferredName());
+        final String jobId = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
 
         if (Strings.isNullOrEmpty(jobId) && restRequest.hasContentOrSourceParam() == false) {
             throw ExceptionsHelper.badRequestException("Please provide a job [{}] or the config object",
-                ID.getPreferredName());
+                DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 
         if (Strings.isNullOrEmpty(jobId) == false && restRequest.hasContentOrSourceParam()) {
             throw ExceptionsHelper.badRequestException("Please provide either a job [{}] or the config object but not both",
-                ID.getPreferredName());
+                DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 
         // We need to consume the body before returning

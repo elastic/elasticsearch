@@ -13,13 +13,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetInfluencersAction extends BaseRestHandler {
@@ -27,8 +27,8 @@ public class RestGetInfluencersAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/influencers"),
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/influencers")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/influencers"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/influencers")
         );
     }
 
@@ -39,7 +39,7 @@ public class RestGetInfluencersAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String jobId = restRequest.param(ID.getPreferredName());
+        String jobId = restRequest.param(Job.ID.getPreferredName());
         String start = restRequest.param(GetInfluencersAction.Request.START.getPreferredName());
         String end = restRequest.param(GetInfluencersAction.Request.END.getPreferredName());
         final GetInfluencersAction.Request request;

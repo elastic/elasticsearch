@@ -14,6 +14,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +22,6 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request.CATEGORY_ID;
-import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetCategoriesAction extends BaseRestHandler {
@@ -29,12 +29,10 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
-                "}/results/categories/{" + CATEGORY_ID.getPreferredName() + "}"),
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() +
-                "}/results/categories/{" + CATEGORY_ID.getPreferredName() + "}"),
-            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories"),
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID.getPreferredName() + "}/results/categories")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}"),
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
         );
     }
 
@@ -46,7 +44,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request;
-        String jobId = restRequest.param(ID.getPreferredName());
+        String jobId = restRequest.param(Job.ID.getPreferredName());
         Long categoryId = restRequest.hasParam(CATEGORY_ID.getPreferredName()) ? Long.parseLong(
                 restRequest.param(CATEGORY_ID.getPreferredName())) : null;
 

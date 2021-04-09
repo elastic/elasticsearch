@@ -35,7 +35,8 @@ image:images/ilm/create-policy.png[Create policy page]
 
 You specify the lifecycle phases for the policy and the actions to perform in each phase.
 
-The <<ilm-put-lifecycle, put policy>> API is invoked to add the policy to the {es} cluster.
+The <<ilm-put-lifecycle,create or update policy>> API is invoked to add the
+policy to the {es} cluster.
 
 .API example
 [%collapsible]
@@ -83,7 +84,8 @@ wizard, open the menu and go to *Stack Management > Index Management*. In the
 [role="screenshot"]
 image:images/ilm/create-template-wizard-my_template.png[Create template page]
 
-The wizard invokes the <<indices-put-template,put template API>> to add templates to a cluster.
+The wizard invokes the <<indices-put-template,create or update index template
+API>> to add templates to a cluster.
 
 .API example
 [%collapsible]

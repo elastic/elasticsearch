@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -269,6 +271,9 @@ public final class DestinationIndex {
 
         // Fetch mappings from destination index
         ImmutableOpenMap<String, MappingMetadata> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
+        if (mappings.isEmpty()) {
+           mappings = createEmptyMappings();
+        }
         String type = mappings.keysIt().next();
         Map<String, Object> destMappingsAsMap = mappings.valuesIt().next().sourceAsMap();
         Map<String, Object> destPropertiesAsMap =
@@ -303,6 +308,19 @@ public final class DestinationIndex {
         getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
     }
 
+    private static ImmutableOpenMap<String, MappingMetadata> createEmptyMappings() {
+        MappingMetadata singleDocEmptyMetadata;
+        try {
+            singleDocEmptyMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
+        } catch (IOException e) {
+            // we should never fail to create empty mapping_metadata
+            throw new IllegalStateException("failed to create empty mapping_metadata");
+        }
+        return ImmutableOpenMap.<String, MappingMetadata>builder()
+            .fPut(MapperService.SINGLE_MAPPING_NAME, singleDocEmptyMetadata)
+            .build();
+    }
+
     private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {
         String resultsField = config.getDest().getResultsField();
         if (properties.containsKey(resultsField)) {
@@ -316,7 +334,10 @@ public final class DestinationIndex {
     }
 
     @SuppressWarnings("unchecked")
-    public static Metadata readMetadata(String jobId, MappingMetadata mappingMetadata) {
+    public static Metadata readMetadata(String jobId, @Nullable MappingMetadata mappingMetadata) {
+        if (mappingMetadata == null) {
+            return new NoMetadata();
+        }
         Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
         Map<String, Object> meta = (Map<String, Object>) mappings.get(META);
         if ((meta == null) || (DFA_CREATOR.equals(meta.get(CREATED_BY)) == false)) {

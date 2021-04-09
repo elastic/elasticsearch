@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -455,9 +456,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin().indices().prepareCreate(destIndex)
-            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
-            .get();
+        CreateIndexRequestBuilder createDestIndexBuilder = client().admin().indices().prepareCreate(destIndex);
+        // Test with and without mappings in the dest index
+        if (randomBoolean()) {
+            createDestIndexBuilder.addMapping("_doc",
+                "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword");
+        }
+        createDestIndexBuilder.get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

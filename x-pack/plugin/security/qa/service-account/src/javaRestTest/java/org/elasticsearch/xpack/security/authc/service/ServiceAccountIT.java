@@ -354,7 +354,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                                                     String serviceAccountPrincipal,
                                                     String roleDescriptorString) throws IOException {
         final Map<String, Object> responseMap = responseAsMap(response);
-        assertThat(responseMap, hasEntry(serviceAccountPrincipal, Map.of("role_descriptor",
+        assertThat(responseMap, hasEntry(serviceAccountPrincipal, org.elasticsearch.common.collect.Map.of("role_descriptor",
             XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())));
     }
 }

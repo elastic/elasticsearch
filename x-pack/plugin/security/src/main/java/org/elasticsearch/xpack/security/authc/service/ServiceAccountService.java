@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
 
@@ -53,7 +54,7 @@ public class ServiceAccountService {
     }
 
     public static Map<String, ServiceAccount> getServiceAccounts() {
-        return Map.copyOf(ACCOUNTS);
+        return org.elasticsearch.common.collect.Map.copyOf(ACCOUNTS);
     }
 
     /**

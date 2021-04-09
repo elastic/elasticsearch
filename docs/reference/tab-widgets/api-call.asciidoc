@@ -4,9 +4,9 @@
 . To communicate with {es} using curl or another client, you need your cluster's
 endpoint. Go to the **Elasticsearch** page and click **Copy endpoint**.
 
-. In a terminal session, run the following curl command. Replace `<password>`
-with the password for the `elastic` user. Replace `<elasticsearch_endpoint>`
-with your cluster's endpoint.
+. To submit an example API request, run the following curl command in a new
+terminal session. Replace `<password>` with the password for the `elastic` user.
+Replace `<elasticsearch_endpoint>` with your cluster's endpoint.
 +
 [source,sh]
 ----
@@ -26,7 +26,7 @@ The API returns information about your {es} cluster.
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
 
-. In the console, run:
+. Run the following example API request in the console:
 +
 [source,console]
 ----
@@ -41,7 +41,8 @@ The API returns information about your {es} cluster.
 // tag::self-managed[]
 **Use curl**
 
-In a new terminal session, run:
+To submit an example API request, run the following curl command in a new
+terminal session.
 
 [source,sh]
 ----

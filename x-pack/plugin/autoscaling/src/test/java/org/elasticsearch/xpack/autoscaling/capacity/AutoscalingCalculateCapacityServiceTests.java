@@ -338,10 +338,17 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         Set<String> roles = randomRoles();
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
             org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService() {
+
                 @Override
                 public List<DiscoveryNodeRole> roles() {
                     return roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toList());
                 }
+
+                @Override
+                public boolean appliesToEmptyRoles() {
+                    return false;
+                }
+
             })
         );
         SortedSet<String> badRoles = new TreeSet<>(randomRoles());

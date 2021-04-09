@@ -135,6 +135,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "operator_users.yml", configOperatorUsers());
+        writeFile(xpackConf, "service_tokens", configServiceTokens());
 
         Settings.Builder builder = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
@@ -211,6 +212,10 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     protected String configOperatorUsers() {
         // By default, no operator user is configured
+        return "";
+    }
+
+    protected String configServiceTokens() {
         return "";
     }
 

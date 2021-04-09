@@ -16,17 +16,13 @@ To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].
 
 * <<get-started>>
-** <<use-release>>
-** <<upgrade>>
-** <<build-source>>
+* <<upgrade>>
+* <<build-source>>
 * <<docs>>
 * <<questions>>
 
 [[get-started]]
 == Get started
-
-
-
 
 The simplest way to set up {es} is to create a managed deployment with
 https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
@@ -41,14 +37,14 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elastics
 docs].
 
 [[upgrade]]
-=== Upgrade
+== Upgrade
 
 To upgrade from an earlier version of Elasticsearch, see the
 https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[Elasticsearch upgrade
 documentation].
 
 [[build-source]]
-=== Build from source
+== Build from source
 
 Elasticsearch uses https://gradle.org[Gradle] for its build system.
 

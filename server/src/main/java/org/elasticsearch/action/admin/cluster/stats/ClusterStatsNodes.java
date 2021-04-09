@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -188,9 +187,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         private Counts(final List<NodeInfo> nodeInfos) {
             // TODO: do we need to report zeros?
-            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNodeRole.ROLE_MAP.keySet().size());
             roles.put(COORDINATING_ONLY, 0);
-            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
+            for (final String possibleRoleName : DiscoveryNodeRole.ROLE_MAP.keySet()) {
                 roles.put(possibleRoleName, 0);
             }
 

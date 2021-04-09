@@ -11,10 +11,14 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.SortedSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Represents a node role.
@@ -188,7 +192,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
 
-    public static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
+    public static final DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -197,31 +201,12 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
         @Override
         public void validateRoles(final List<DiscoveryNodeRole> roles) {
-            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false) {
+            if (roles.contains(MASTER_ROLE) == false) {
                 throw new IllegalArgumentException("voting-only node must be master-eligible");
             }
         }
 
     };
-
-    /**
-     * The built-in node roles.
-     */
-    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
-        Set.of(
-            DATA_ROLE,
-            INGEST_ROLE,
-            MASTER_ROLE,
-            REMOTE_CLUSTER_CLIENT_ROLE,
-            DATA_CONTENT_NODE_ROLE,
-            DATA_HOT_NODE_ROLE,
-            DATA_WARM_NODE_ROLE,
-            DATA_COLD_NODE_ROLE,
-            DATA_FROZEN_NODE_ROLE,
-            ML_ROLE,
-            TRANSFORM_ROLE,
-            VOTING_ONLY_NODE_ROLE
-        ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -240,6 +225,50 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             super(false, roleName, roleNameAbbreviation, canContainData);
         }
 
+    }
+
+    /**
+     * The possible node roles.
+     */
+    public static final SortedSet<DiscoveryNodeRole> ROLES;
+
+    /**
+     * A map from role names to their role representations.
+     */
+    public static final Map<String, DiscoveryNodeRole> ROLE_MAP;
+
+    static {
+        final List<Field> roleFields = Arrays.stream(DiscoveryNodeRole.class.getFields())
+            .filter(f -> f.getType().equals(DiscoveryNodeRole.class))
+            .collect(Collectors.toUnmodifiableList());
+        // this will detect duplicate role names
+        final Map<String, DiscoveryNodeRole> roleMap = roleFields.stream()
+            .map(f -> {
+                try {
+                    return (DiscoveryNodeRole) f.get(null);
+                } catch (final IllegalAccessException e) {
+                    throw new AssertionError(e);
+                }
+            })
+            .collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity()));
+        assert roleMap.size() == roleFields.size() :
+            "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
+        final SortedSet<DiscoveryNodeRole> builtInRoles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
+        // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
+        final Map<String, DiscoveryNodeRole> abbreviations = builtInRoles
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
+        assert roleMap.size() == abbreviations.size() :
+            "roles by name [" + roleMap + "], roles by name abbreviation [" + abbreviations + "]";
+        ROLES = builtInRoles;
+        ROLE_MAP = Map.copyOf(roleMap); // this ensures ROLE_MAP is immutable
+    }
+
+    public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
+        if (ROLE_MAP.containsKey(roleName) == false) {
+            throw new IllegalArgumentException("unknown role [" + roleName + "]");
+        }
+        return ROLE_MAP.get(roleName);
     }
 
 }

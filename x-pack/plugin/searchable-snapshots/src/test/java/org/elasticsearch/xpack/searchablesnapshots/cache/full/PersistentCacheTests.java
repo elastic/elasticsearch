@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.ROLES;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCacheFileEquals;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
@@ -193,7 +193,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 NODE_ROLES_SETTING.getKey(),
                 randomValueOtherThanMany(
                     r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) || r.canContainData(),
-                    () -> randomFrom(BUILT_IN_ROLES)
+                    () -> randomFrom(ROLES)
                 ).roleName()
             )
             .build();

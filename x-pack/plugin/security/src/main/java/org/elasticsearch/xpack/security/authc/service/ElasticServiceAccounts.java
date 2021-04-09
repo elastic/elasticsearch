@@ -28,8 +28,13 @@ final class ElasticServiceAccounts {
             new RoleDescriptor.IndicesPrivileges[]{
                 RoleDescriptor.IndicesPrivileges
                     .builder()
-                    .indices("logs-*", "metrics-*", "traces-*")
+                    .indices("logs-*", "metrics-*", "traces-*", ".log-*")
                     .privileges("write", "create_index", "auto_configure")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges
+                    .builder()
+                    .indices(".fleet-*")
+                    .privileges("all")
                     .build()
             },
             null,

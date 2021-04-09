@@ -19,11 +19,13 @@ import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -132,9 +134,21 @@ public abstract class ScalarFunction extends Function {
             (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
 
             return "{sql}.asDateTime({})";
-        } else {
-            return "{}";
+        } else if (function instanceof AggregateFunction) {
+            DataType dt = function.dataType();
+            if (dt.isInteger()) {
+                // MAX, MIN, SUM need to retain field's data type, so that possible operations on integral types (like division) work
+                // correctly -> perform a cast
+                // SQL function classes not available in QL: filter by name
+                String fn = function.functionName();
+                if ("MAX".equals(fn) || "MIN".equals(fn)) {
+                    return "(" + (dt == INTEGER ? "int" : dt.esType()) + "){}";
+                } else if ("SUM".equals(fn)) {
+                    return "(long){}";
+                }
+            }
         }
+        return "{}";
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

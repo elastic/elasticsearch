@@ -603,6 +603,14 @@ SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WH
 aggMultiGroupByMultiWithHavingUsingInAndNullHandling
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;
 
+// aggs filtering with integral types
+maxFiltering
+SELECT MAX(salary)/100 AS max FROM test_emp HAVING max > 749;
+minFiltering
+SELECT MIN(salary)/100 AS min FROM test_emp HAVING min <= 253;
+sumFiltering
+SELECT SUM(salary)/100 AS sum FROM test_emp HAVING sum <= 48248;
+
 // group by with literal
 implicitGroupByWithLiteral
 SELECT 10, MAX("salary") FROM test_emp;

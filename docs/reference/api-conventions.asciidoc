@@ -695,7 +695,7 @@ When using the `source` query string parameter, the content type must be
 specified using the `source_content_type` query string parameter.
 
 {es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
-sent with a request. API responses are also UTF-8 encoded.
+sent with a request. Responses are also UTF-8 encoded.
 
 [[url-access-control]]
 === URL-based access control

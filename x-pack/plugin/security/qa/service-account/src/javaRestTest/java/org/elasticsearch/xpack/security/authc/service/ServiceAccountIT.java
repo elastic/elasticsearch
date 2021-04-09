@@ -62,7 +62,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
 
-    private static final String ELASTIC_FLEET_ROLE_DESCRIPTOR = ""
+    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = ""
         + "{\n"
         + "      \"cluster\": [\n"
         + "        \"monitor\",\n"
@@ -74,7 +74,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "            \"logs-*\",\n"
         + "            \"metrics-*\",\n"
         + "            \"traces-*\",\n"
-        + "            \".log-*\"\n"
+        + "            \".logs-endpoint.diagnostic.collection-*\"\n"
         + "          ],\n"
         + "          \"privileges\": [\n"
         + "            \"write\",\n"
@@ -88,7 +88,11 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "            \".fleet-*\"\n"
         + "          ],\n"
         + "          \"privileges\": [\n"
-        + "            \"all\"\n"
+        + "            \"read\",\n"
+        + "            \"write\",\n"
+        + "            \"monitor\",\n"
+        + "            \"create_index\",\n"
+        + "            \"auto_configure\"\n"
         + "          ],\n"
         + "          \"allow_restricted_indices\": false\n"
         + "        }\n"
@@ -130,19 +134,19 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response getServiceAccountResponse1 = client().performRequest(getServiceAccountRequest1);
         assertOK(getServiceAccountResponse1);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse1,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest2 = new Request("GET", "_security/service/elastic");
         final Response getServiceAccountResponse2 = client().performRequest(getServiceAccountRequest2);
         assertOK(getServiceAccountResponse2);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse2,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest3 = new Request("GET", "_security/service/elastic/fleet-server");
         final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);

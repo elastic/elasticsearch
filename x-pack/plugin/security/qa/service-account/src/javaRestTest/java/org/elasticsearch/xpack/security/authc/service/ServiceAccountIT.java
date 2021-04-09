@@ -299,9 +299,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap3 = responseAsMap(getTokensResponse3);
         assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap3.get("count"), equalTo(2));
-        assertThat(getTokensResponseMap3.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
-        assertThat(getTokensResponseMap3.get("tokens"), equalTo(Map.of(
-            "api-token-1", Map.of()
+        assertThat(getTokensResponseMap3.get("file_tokens"),
+            equalTo(org.elasticsearch.common.collect.Map.of("token1", org.elasticsearch.common.collect.Map.of())));
+        assertThat(getTokensResponseMap3.get("tokens"), equalTo(org.elasticsearch.common.collect.Map.of(
+            "api-token-1", org.elasticsearch.common.collect.Map.of()
         )));
 
         final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");

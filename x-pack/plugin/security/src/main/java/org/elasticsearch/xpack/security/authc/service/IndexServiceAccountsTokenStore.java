@@ -55,7 +55,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;

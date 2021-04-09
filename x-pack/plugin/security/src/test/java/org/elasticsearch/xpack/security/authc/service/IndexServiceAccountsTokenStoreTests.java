@@ -67,7 +67,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -288,12 +287,13 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
             if (r instanceof DeleteRequest) {
                 final DeleteRequest dr = (DeleteRequest) r;
                 final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-elastic/fleet-server/token1");
-                l.onResponse(new DeleteResponse(mock(ShardId.class), randomAlphaOfLengthBetween(3, 8),
+                l.onResponse(new DeleteResponse(mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
                     randomLong(), randomLong(), randomLong(), found));
             } else if (r instanceof ClearSecurityCacheRequest) {
                 cacheCleared.set(true);
                 l.onResponse(new ClearSecurityCacheResponse(mock(ClusterName.class),
-                    List.of(mock(ClearSecurityCacheResponse.Node.class)), List.of()));
+                    org.elasticsearch.common.collect.List.of(mock(ClearSecurityCacheResponse.Node.class)),
+                    org.elasticsearch.common.collect.List.of()));
             } else {
                 fail("unexpected request " + r);
             }
@@ -330,7 +330,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
         store.findTokensFor(accountId, future1);
-        assertThat(future1.actionGet(), equalTo(List.of()));
+        assertThat(future1.actionGet(), equalTo(org.elasticsearch.common.collect.List.of()));
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
             randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));

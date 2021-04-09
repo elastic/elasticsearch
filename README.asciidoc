@@ -18,7 +18,7 @@ https://www.elastic.co/products/elasticsearch[product page].
 [[get-started]]
 == Get started
 
-The simplest way to set up {es} is to create a managed deployment with
+The simplest way to set up Elasticsearch is to create a managed deployment with
 https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
 Cloud].
 

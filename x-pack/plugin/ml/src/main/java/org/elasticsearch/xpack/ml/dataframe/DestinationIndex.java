@@ -313,7 +313,8 @@ public final class DestinationIndex {
         try {
             singleDocEmptyMetadata = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
         } catch (IOException e) {
-            throw new IllegalStateException("we should never fail to create empty mapping_metadata");
+            // we should never fail to create empty mapping_metadata
+            throw new IllegalStateException("failed to create empty mapping_metadata");
         }
         return ImmutableOpenMap.<String, MappingMetadata>builder()
             .fPut(MapperService.SINGLE_MAPPING_NAME, singleDocEmptyMetadata)

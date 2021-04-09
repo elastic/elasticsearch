@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -61,6 +62,36 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
 
+    private static final String ELASTIC_FLEET_ROLE_DESCRIPTOR = ""
+        + "{\n"
+        + "      \"cluster\": [\n"
+        + "        \"monitor\",\n"
+        + "        \"manage_own_api_key\"\n"
+        + "      ],\n"
+        + "      \"indices\": [\n"
+        + "        {\n"
+        + "          \"names\": [\n"
+        + "            \"logs-*\",\n"
+        + "            \"metrics-*\",\n"
+        + "            \"traces-*\"\n"
+        + "          ],\n"
+        + "          \"privileges\": [\n"
+        + "            \"write\",\n"
+        + "            \"create_index\",\n"
+        + "            \"auto_configure\"\n"
+        + "          ],\n"
+        + "          \"allow_restricted_indices\": false\n"
+        + "        }\n"
+        + "      ],\n"
+        + "      \"applications\": [],\n"
+        + "      \"run_as\": [],\n"
+        + "      \"metadata\": {},\n"
+        + "      \"transient_metadata\": {\n"
+        + "        \"enabled\": true\n"
+        + "      }\n"
+        + "    }\n"
+        + "  }";
+
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {
         URL resource = ServiceAccountIT.class.getResource("/ssl/ca.crt");
@@ -82,6 +113,32 @@ public class ServiceAccountIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token)
             .put(CERTIFICATE_AUTHORITIES, caPath)
             .build();
+    }
+
+    public void testGetServiceAccount() throws IOException {
+        final Request getServiceAccountRequest1 = new Request("GET", "_security/service");
+        final Response getServiceAccountResponse1 = client().performRequest(getServiceAccountRequest1);
+        assertOK(getServiceAccountResponse1);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponse1,
+            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+
+        final Request getServiceAccountRequest2 = new Request("GET", "_security/service/elastic");
+        final Response getServiceAccountResponse2 = client().performRequest(getServiceAccountRequest2);
+        assertOK(getServiceAccountResponse2);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponse2,
+            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+
+        final Request getServiceAccountRequest3 = new Request("GET", "_security/service/elastic/fleet-server");
+        final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
+        assertOK(getServiceAccountResponse3);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
+            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+
+        final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
+        final Request getServiceAccountRequest4 = new Request("GET", requestPath);
+        final Response getServiceAccountResponse4 = client().performRequest(getServiceAccountRequest4);
+        assertOK(getServiceAccountResponse4);
+        assertThat(responseAsMap(getServiceAccountResponse4), anEmptyMap());
     }
 
     public void testAuthenticate() throws IOException {
@@ -291,5 +348,13 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(apiKey.get("username"), equalTo("elastic/fleet-server"));
         assertThat(apiKey.get("realm"), equalTo("service_account"));
         assertThat(apiKey.get("invalidated"), is(invalidated));
+    }
+
+    private void assertServiceAccountRoleDescriptor(Response response,
+                                                    String serviceAccountPrincipal,
+                                                    String roleDescriptorString) throws IOException {
+        final Map<String, Object> responseMap = responseAsMap(response);
+        assertThat(responseMap, hasEntry(serviceAccountPrincipal, org.elasticsearch.common.collect.Map.of("role_descriptor",
+            XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())));
     }
 }

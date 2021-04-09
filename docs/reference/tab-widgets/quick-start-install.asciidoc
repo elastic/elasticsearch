@@ -6,6 +6,8 @@ include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
 // tag::self-managed[]
 **Install and run {es} using Docker**
 
+:release-state: released
+
 ifeval::["{release-state}"=="unreleased"]
 NOTE: No Docker image is currently available for {es} {version}.
 endif::[]

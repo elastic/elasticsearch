@@ -1,8 +1,8 @@
 // tag::cloud[]
-**Use a client**
+**Use curl**
 
-. To make an API call using a client, you need the endpoint for your cluster. Go
-to the **Elasticsearch** page and click **Copy endpoint**.
+. To communicate with {es} using curl or another client, you need your cluster's
+endpoint. Go to the **Elasticsearch** page and click **Copy endpoint**.
 
 . In a terminal session, run the following curl command. Replace `<password>`
 with the password for the `elastic` user. Replace `<elasticsearch_endpoint>`
@@ -13,6 +13,8 @@ with your cluster's endpoint.
 curl -u elastic:<password> <elasticsearch_endpoint>/
 ----
 // NOTCONSOLE
++
+The API returns information about your {es} cluster.
 
 **Use {kib}**
 
@@ -30,12 +32,14 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 ----
 GET /
 ----
++
+The API returns information about your {es} cluster.
 
 //end::kibana-api-ex[]
 // end::cloud[]
 
 // tag::self-managed[]
-**Use a client**
+**Use curl**
 
 In a new terminal session, run:
 
@@ -44,6 +48,8 @@ In a new terminal session, run:
 curl -X GET http://localhost:9200/
 ----
 // NOTCONSOLE
+
+The API returns information about your {es} cluster.
 
 **Use {kib}**
 

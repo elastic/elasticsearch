@@ -9,16 +9,13 @@ This guide helps beginners learn how to:
 * Search and sort data
 * Extract fields from unstructured content during a search
 
-We do not recommend using this guide to set up a self-managed production
-deployment. To install and configure {es} in production, see
-<<install-elasticsearch>> and <<settings>>.
-
 [discrete]
 [[run-elasticsearch]]
 === Step 1. Run {es}
 
-The best way to run {es} is our hosted {ess} on {ecloud}. If needed, you can
-also run and self-manage {es} on your own infrastructure.
+The simplest way to set up {es} is to create a managed deployment with {ess} on
+{ecloud}. If you prefer to manage your own test environment, you can install and
+run {es} using Docker.
 
 include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
@@ -29,7 +26,8 @@ include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 You send data and other requests to {es} using REST APIs. This lets you interact
 with {es} using any client that sends HTTP requests, such as
-https://curl.se[curl]. You can also use {kib}'s console to make API calls.
+https://curl.se[curl]. You can also use {kib}'s console to send requests to
+{es}.
 
 include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
 
@@ -38,17 +36,23 @@ include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
 === Step 3. Add data
 
 You add data to {es} as JSON objects called documents. {es} stores these
-documents in searchable indices. For time series data, you typically add data
-to <<data-streams,data streams>> made up of multiple auto-generated indices.
+documents in searchable indices.
 
-The following <<docs-index_,index API>> request adds a JSON document containing
-a `@timestamp` and a log message, `event.original`, to a test data stream named
-`logs-my_app-default`. Since `logs-my_app-default` doesn't exist, the request
-automatically creates it.
+For time series data, such as logs and metrics, you typically add documents to a
+data stream made up of multiple auto-generated backing indices. {es} manages the
+creation and management of these backing indices for you.
 
-A data stream requires a matching <<create-index-template,index template>>. This
-stream uses a built-in template for the `logs-*-*` pattern. Data streams also
-require documents contain a `@timestamp` field.
+A data stream requires an index template that matches its name. {es} uses this
+template to configure the stream's backing indices. Documents sent to a data
+stream must have a `@timestamp` field.
+
+[discrete]
+[[add-single-document]]
+==== Add a single document
+
+To add a single log entry to the `logs-my_app-default` data stream, submit the
+following indexing request. Since `logs-my_app-default` doesn't exist, the
+request automatically creates it using the built-in `logs-*-*` index template.
 
 [source,console]
 ----
@@ -64,9 +68,9 @@ POST logs-my_app-default/_doc
 
 The response includes metadata that {es} generates for the document:
 
-* The `_index` of the data stream that stores the document. For data streams,
-  the index name is automatically generated.
-* An `_id` that is unique to the document within an index.
+* The backing `_index` that contains the document. {es} automatically generates
+  the names of backing indices.
+* A unique `_id` for the document within the index.
 
 [source,console-result]
 ----
@@ -88,12 +92,12 @@ The response includes metadata that {es} generates for the document:
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body._id/]
 
 [discrete]
-[[add-bulk-data]]
-=== Step 4. Add bulk data
+[[add-multiple-documents]]
+==== Add multiple documents
 
-To add a large number of documents in one request, use the <<docs-bulk,bulk
-API>>. Bulk data must be newline-delimited JSON (NDJSON). Each line must end in
-a newline character (`\n`), including the last line.
+To add multiple documents in one request, use the bulk API. Bulk data must be
+newline-delimited JSON (NDJSON). Each line must end in a newline character
+(`\n`), including the last line.
 
 [source,console]
 ----
@@ -108,13 +112,13 @@ PUT logs-my_app-default/_bulk
 
 [discrete]
 [[qs-search-data]]
-=== Step 5. Search data
+=== Step 4. Search data
 
-Indexed documents are available for search in near real-time. Use the
-<<search-search,search API>> to search your indexed data.
+Indexed documents are available for search in near real-time. To search your
+data stream, use the search API.
 
-The following search matches all data in `logs-my_app-default` and sorts results
-by `@timestamp` in descending order.
+The following search matches all log entries in `logs-my_app-default` and
+sorts them by `@timestamp` in descending order.
 
 [source,console]
 ----
@@ -133,7 +137,7 @@ GET logs-my_app-default/_search
 // TEST[continued]
 
 By default, the `hits` section of the response includes up to the first 10
-documents that match the search. Each hit contains a `_source`, the original
+documents that match the search. The `_source` of each hit contains the original
 JSON object submitted during indexing.
 
 [source,console-result]
@@ -180,11 +184,11 @@ JSON object submitted during indexing.
 
 [discrete]
 [[get-specific-fields]]
-=== Step 6. Get specific fields
+==== Get specific fields
 
-Parsing the entire `_source` can be unwieldy for large documents. To exclude it
-from the response, set the `_source` parameter to `false`. Instead, use the
-`fields` parameter to retrieve only the fields you want.
+Parsing the entire `_source` is unwieldy for large documents. To exclude it from
+the response, set the `_source` parameter to `false`. Instead, use the `fields`
+parameter to retrieve the fields you want.
 
 [source,console]
 ----
@@ -251,11 +255,9 @@ The response contains each hit's `fields` values as a flat array.
 
 [discrete]
 [[search-date-range]]
-=== Step 7. Search a date range
+==== Search a date range
 
-The `query` parameter supports several <<query-dsl,Query DSL>> query types. To
-search across a specific time or IP range, use a
-<<query-dsl-range-query,`range`>> query.
+To search across a specific time or IP range, use a `range` query.
 
 [source,console]
 ----
@@ -282,8 +284,9 @@ GET logs-my_app-default/_search
 ----
 // TEST[continued]
 
-Use <<date-math,date math>> to define relative time ranges. The following
-search will match not any documents in `logs-my_app-default`.
+You can use date math to define relative time ranges. The following query
+searches for data from the past day, which won't match any log entries in
+`logs-my_app-default`.
 
 [source,console]
 ----
@@ -312,15 +315,14 @@ GET logs-my_app-default/_search
 
 [discrete]
 [[extract-fields]]
-=== Step 8. Extract fields from unstructured content
+==== Extract fields from unstructured content
 
-Use a <<modules-scripting-painless,Painless script>> and a <<grok-basics,grok
-pattern>> to extract a <<runtime-search-request,runtime field>> from
-unstructured content, such as log messages. Include the extracted field name in
-the `fields` parameter.
+You can extract <<runtime-search-request,runtime fields>> from unstructured
+content, such as log messages, during a search.
 
-The following search uses the `runtime_mappings` parameter to extract the
-`source.ip` address from the `event.original` field.
+Use the following search to extract the `source.ip` runtime field from
+`event.original`. To include it in the response, add `source.ip` to the `fields`
+parameter.
 
 [source,console]
 ----
@@ -359,12 +361,11 @@ GET logs-my_app-default/_search
 
 [discrete]
 [[combine-queries-sorts]]
-=== Step 9. Combine queries and sorts
+==== Combine queries and sorts
 
-To combine multiple queries, use the <<query-dsl-bool-query,`bool` query>>. The
-following search uses a `bool` query to combine multiple queries, including a
-`range` query on the `source.ip` runtime field. The search also sorts results by
-`source.ip`.
+You can use the `bool` query to combine multiple queries. The following search
+combines two `range` queries: one on `@timestamp` and one on the `source.ip`
+runtime field.
 
 [source,console]
 ----
@@ -408,8 +409,7 @@ GET logs-my_app-default/_search
   "_source": false,
   "sort": [
     {
-      "@timestamp": "desc",
-      "source.ip": "desc"
+      "@timestamp": "desc"
     }
   ]
 }
@@ -417,13 +417,16 @@ GET logs-my_app-default/_search
 // TEST[continued]
 
 [discrete]
-[[clean-up]]
-=== Step 10. Delete data
+[[explore-more-search-options]]
+==== Explore more search options
 
-Index more data to your data stream and explore the search options in outlined
-in <<search-your-data>>. When you're done, use the
-<<indices-delete-data-stream,delete data stream API>> to delete your test data
-stream and it backing indices.
+To keep exploring, index more data to your data stream and check out <<common-search-options>>.
+
+[discrete]
+[[clean-up]]
+=== Step 5. Clean up
+
+When you're done, delete your test data stream and it backing indices.
 
 [source,console]
 ----
@@ -431,35 +434,13 @@ DELETE _data_stream/logs-my_app-default
 ----
 // TEST[continued]
 
-[discrete]
-[[stop-remove-docker-containers]]
-=== Step 11. Stop and remove your Docker containers
+You can also delete your test deployment.
 
-TIP: If you're using {ess}, skip this step.
-
-If you're using Docker to run {es} or {kib}, run the following command in a new
-terminal session to stop the containers.
-
-[source,sh]
-----
-docker stop es01-test
-docker stop kib01-test
-----
-
-To remove the containers, run:
-
-[source,sh]
-----
-docker rm es01-test
-docker rm kib01-test
-----
+include::{es-repo-dir}/tab-widgets/quick-start-cleanup-widget.asciidoc[]
 
 [discrete]
 [[whats-next]]
 === What's next?
-
-* To install and configure {es} in production, see <<install-elasticsearch>> and
-<<settings>>. To secure {es} and the {stack}, see <<secure-cluster>>.
 
 * Get the most out of your time series data by setting up data tiers and
 {ilm-init}. See <<use-elasticsearch-for-time-series-data>>.

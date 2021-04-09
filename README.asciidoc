@@ -15,12 +15,6 @@ Elasticsearch to store, search, and manage data for:
 To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].
 
-* <<get-started>>
-* <<upgrade>>
-* <<build-source>>
-* <<docs>>
-* <<questions>>
-
 [[get-started]]
 == Get started
 

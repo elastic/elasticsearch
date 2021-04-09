@@ -38,8 +38,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService.EMPTY_ROLES;
-
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
     private final Map<String, AutoscalingDeciderService> deciderByName;
 
@@ -173,7 +171,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
     private boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
         if (roles.isEmpty()) {
-            return deciderService.roles().contains(EMPTY_ROLES);
+            return deciderService.appliesToEmptyRoles();
         } else {
             return deciderService.roles().stream().map(DiscoveryNodeRole::roleName).anyMatch(roles::contains);
         }

@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -371,14 +372,17 @@ public class BulkRequestTests extends ESTestCase {
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
+        Map<String, String> expected = new HashMap<>();
+        expected.put("baz", "t1");
+        expected.put("foo.bar", "t2");
         assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(),
-            equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
+            equalTo(expected));
         assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplates(),
-            equalTo(Map.of("bar", "t1")));
+            equalTo(Collections.singletonMap("bar", "t1")));
         assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplates(),
-            equalTo(Map.of("foo.bar", "xyz")));
+            equalTo(Collections.singletonMap("foo.bar", "xyz")));
         assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(),
-            equalTo(Map.of()));
+            equalTo(Collections.emptyMap()));
     }
 
     public void testInvalidDynamicTemplates() {

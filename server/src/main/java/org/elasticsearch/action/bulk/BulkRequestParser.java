@@ -29,6 +29,7 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -179,7 +180,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
-                Map<String, String> dynamicTemplates = Map.of();
+                Map<String, String> dynamicTemplates = Collections.emptyMap();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters

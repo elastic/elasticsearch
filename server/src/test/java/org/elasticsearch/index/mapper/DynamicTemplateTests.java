@@ -298,7 +298,7 @@ public class DynamicTemplateTests extends ESTestCase {
         // empty condition
         templateDef = new HashMap<>();
         templateDef.put("mapping", Collections.singletonMap("store", true));
-        template = DynamicTemplate.parse("my_template", templateDef);
+        template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo("{\"mapping\":{\"store\":true}}"));
@@ -363,9 +363,9 @@ public class DynamicTemplateTests extends ESTestCase {
             if (randomBoolean()) {
                 templateDef.put("runtime", Collections.emptyMap());
             } else {
-                templateDef.put("mapping", Map.of());
+                templateDef.put("mapping", Collections.emptyMap());
             }
-            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
             assertTrue(template.match("my_template", "a", "a.b", randomFrom(XContentFieldType.values())));
             assertFalse(template.match("not_template_name", "a", "a.b", XContentFieldType.BOOLEAN));
 
@@ -376,8 +376,8 @@ public class DynamicTemplateTests extends ESTestCase {
         {
             Map<String, Object> templateDef = new HashMap<>();
             templateDef.put("match", "foo*");
-            templateDef.put("mapping", Map.of());
-            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            templateDef.put("mapping", Collections.emptyMap());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
             assertTrue(template.match("my_template", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
             assertTrue(template.match(null, "foo.bar", "foo", randomFrom(XContentFieldType.values())));
             assertFalse(template.match("not_template_name", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
@@ -390,9 +390,9 @@ public class DynamicTemplateTests extends ESTestCase {
             if (randomBoolean()) {
                 templateDef.put("runtime", Collections.emptyMap());
             } else {
-                templateDef.put("mapping", Map.of());
+                templateDef.put("mapping", Collections.emptyMap());
             }
-            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
             assertTrue(template.match("my_template", "foo.bar", "bar", randomFrom(XContentFieldType.values())));
             assertFalse(template.match(null, "foo.bar", "foo", randomFrom(XContentFieldType.values())));
             assertFalse(template.match("not_template_name", "foo.bar", "bar", randomFrom(XContentFieldType.values())));

@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -731,8 +730,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }
         mapping.endObject();
         MapperService mapperService = createMapperService(mapping);
-        ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",
-            new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"), XContentType.JSON, null, Map.of("foo", "geo_point")));
+        ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "_doc", "1",
+            new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"), XContentType.JSON, null,
+            Collections.singletonMap("foo", "geo_point")));
         assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("bar"), arrayWithSize(1));
     }

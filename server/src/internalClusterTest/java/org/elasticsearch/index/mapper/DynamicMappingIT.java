@@ -203,20 +203,20 @@ public class DynamicMappingIT extends ESIntegTestCase {
             mappings.endArray();
         }
         mappings.endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(mappings));
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", mappings));
         List<IndexRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("1").source("location", "41.12,-71.34")
-            .setDynamicTemplates(Map.of("location", "location")));
+            .setDynamicTemplates(Collections.singletonMap("location", "location")));
         requests.add(new IndexRequest("test").id("2").source(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("location").field("lat", 41.12).field("lon", -71.34).endObject()
                 .endObject())
-            .setDynamicTemplates(Map.of("location", "location")));
+            .setDynamicTemplates(Collections.singletonMap("location", "location")));
         requests.add(new IndexRequest("test").id("3").source("address.location", "41.12,-71.34")
-            .setDynamicTemplates(Map.of("address.location", "location")));
+            .setDynamicTemplates(Collections.singletonMap("address.location", "location")));
         requests.add(new IndexRequest("test").id("4").source("location", new double[]{-71.34, 41.12})
-            .setDynamicTemplates(Map.of("location", "location")));
+            .setDynamicTemplates(Collections.singletonMap("location", "location")));
         requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[]{-71.34, 41.12}));
 
         Randomness.shuffle(requests);
@@ -273,13 +273,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
                     .startObject()
                     .field("my_location", "41.12,-71.34")
                     .endObject())
-                .setDynamicTemplates(Map.of("my_location", "foo_bar")),
+                .setDynamicTemplates(Collections.singletonMap("my_location", "foo_bar")),
             new IndexRequest("test").id("2").source(
                 XContentFactory.jsonBuilder()
                     .startObject()
                     .field("address.location", "41.12,-71.34")
                     .endObject())
-                .setDynamicTemplates(Map.of("address.location", "bar_foo"))
+                .setDynamicTemplates(Collections.singletonMap("address.location", "bar_foo"))
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());

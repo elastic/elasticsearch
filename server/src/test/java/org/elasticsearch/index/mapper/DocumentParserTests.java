@@ -1067,13 +1067,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         String field = randomFrom("loc", "foo.loc", "foo.bar.loc");
 
-        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "41.12,-71.34"), null, Map.of(field, "points")));
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "41.12,-71.34"), null,
+            Collections.singletonMap(field, "points")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(2));
         assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
         assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
 
-        doc = mapper.parse(source("1", b -> b.field(field, new double[]{-71.34, 41.12}), null, Map.of(field, "points")));
+        doc = mapper.parse(source("1", b -> b.field(field, new double[]{-71.34, 41.12}), null, Collections.singletonMap(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(2));
         assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
@@ -1084,13 +1085,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("lat", "-71.34");
             b.field("lon", 41.12);
             b.endObject();
-        }, null, Map.of(field, "points")));
+        }, null, Collections.singletonMap(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(2));
         assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
         assertThat(fields[1].fieldType(), sameInstance(LatLonPoint.TYPE));
 
-        doc = mapper.parse(source("1", b -> b.field(field, new String[]{"41.12,-71.34", "43,-72.34"}), null, Map.of(field, "points")));
+        doc = mapper.parse(source("1", b -> b.field(field, new String[]{"41.12,-71.34", "43,-72.34"}), null,
+            Collections.singletonMap(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(4));
         assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
@@ -1110,7 +1112,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("lon", 41.12);
             b.endObject();
             b.endArray();
-        }, null, Map.of(field, "points")));
+        }, null, Collections.singletonMap(field, "points")));
         fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(4));
         assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
@@ -1122,7 +1124,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startObject("address");
             b.field("home", "43,-72.34");
             b.endObject();
-        }, null, Map.of("address.home", "points")));
+        }, null, Collections.singletonMap("address.home", "points")));
         fields = doc.rootDoc().getFields("address.home");
         assertThat(fields, arrayWithSize(2));
         assertThat(fields[0].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
@@ -1153,12 +1155,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         }));
         String field = randomFrom("foo", "foo.bar", "foo.bar.baz");
-        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Collections.singletonMap(field, "booleans")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(1));
         assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
         MapperParsingException error = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "foo_bar"))));
+            mapper.parse(source("1", b -> b.field(field, "hello"), null, Collections.singletonMap(field, "foo_bar"))));
         assertThat(error.getMessage(),
             containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [" + field + "]"));
     }
@@ -1188,11 +1190,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
         String field = randomFrom("foo.bar", "foo.bar.baz");
         MapperParsingException error = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of("foo", "booleans"))));
+            () -> mapper.parse(source("1", b -> b.field(field, "true"), null, Collections.singletonMap("foo", "booleans"))));
         assertThat(error.getMessage(),
             containsString("Field [foo] must be an object; but it's configured as [boolean] in dynamic template [booleans]"));
 
-        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Collections.singletonMap(field, "booleans")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
         assertThat(fields, arrayWithSize(1));
         assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));

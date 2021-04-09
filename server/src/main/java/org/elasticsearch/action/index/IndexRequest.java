@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -112,7 +113,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-    private Map<String, String> dynamicTemplates = Map.of();
+    private Map<String, String> dynamicTemplates = Collections.emptyMap();
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);

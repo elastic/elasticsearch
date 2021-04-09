@@ -27,6 +27,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -192,7 +193,7 @@ public class IndexRequestTests extends ESTestCase {
         // Empty dynamic templates
         {
             if (randomBoolean()) {
-                indexRequest.setDynamicTemplates(Map.of());
+                indexRequest.setDynamicTemplates(Collections.emptyMap());
             }
             Version ver = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             BytesStreamOutput out = new BytesStreamOutput();

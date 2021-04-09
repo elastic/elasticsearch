@@ -15,11 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -188,7 +183,7 @@ final class DynamicFieldsBuilder {
                                                  String name,
                                                  DynamicTemplate.XContentFieldType matchType,
                                                  DateFormatter dateFormatter) throws IOException {
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return false;
         }
@@ -214,7 +209,7 @@ final class DynamicFieldsBuilder {
 
     private static Mapper.Builder findTemplateBuilderForObject(ParseContext context, String name) {
         DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
@@ -276,7 +271,12 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicLongField(ParseContext context, String name) throws IOException {
             createDynamicField(
-                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, context.indexSettings().getSettings()), context);
+                new NumberFieldMapper.Builder(
+                    name,
+                    NumberFieldMapper.NumberType.LONG,
+                    null,
+                    context.indexSettings().getSettings()
+                ), context);
         }
 
         @Override
@@ -284,8 +284,11 @@ final class DynamicFieldsBuilder {
             // no templates are defined, we use float by default instead of double
             // since this is much more space-efficient and should be enough most of
             // the time
-            createDynamicField(new NumberFieldMapper.Builder(name,
-                NumberFieldMapper.NumberType.FLOAT, context.indexSettings().getSettings()), context);
+            createDynamicField(new NumberFieldMapper.Builder(
+                name,
+                NumberFieldMapper.NumberType.FLOAT,
+                null,
+                context.indexSettings().getSettings()), context);
         }
 
         @Override

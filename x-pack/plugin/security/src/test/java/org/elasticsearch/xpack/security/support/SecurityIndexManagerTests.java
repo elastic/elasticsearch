@@ -65,8 +65,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -280,7 +281,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
 
         // Hard-code a failure here.
-        when(descriptorSpy.checkMinimumNodeVersion(anyString(), any(Version.class))).thenReturn("Nope");
+        doReturn("Nope").when(descriptorSpy).getMinimumNodeVersionMessage(anyString());
+        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(Version.CURRENT));
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.

@@ -256,24 +256,3 @@
   - do:
       indices.get_index_template:
         name: my-it
-
----
-"Verify date_nanos default format":
-  - do:
-      indices.create:
-        index: index_nanos
-        body:
-          mappings:
-            properties:
-              date:
-                type: date
-              date_nanos:
-                type: date_nanos
-
-  - do:
-      index:
-        index: index_nanos
-        id: 0
-        body:
-          date: "2015-01-01T12:10:30.123456789Z"
-          date_nanos: "2015-01-01T12:10:30.123456789Z"

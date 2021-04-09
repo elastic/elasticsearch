@@ -229,7 +229,7 @@ public class ServerUtils {
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));
         assertThat(count, containsString("\"count\" : 2"));
 
-        makeRequest(Request.Delete("http://localhost:9200/_all"));
+        makeRequest(Request.Delete("http://localhost:9200/library"));
     }
 
     public static String makeRequest(Request request) throws Exception {

@@ -14,8 +14,6 @@ Replace `<elasticsearch_endpoint>` with your endpoint.
 curl -u elastic:<password> <elasticsearch_endpoint>/
 ----
 // NOTCONSOLE
-+
-The API returns information about your {es} instance.
 
 **Use {kib}**
 
@@ -33,8 +31,6 @@ image::images/kibana-console.png[{kib} Console,align="center"]
 ----
 GET /
 ----
-+
-The API returns information about your {es} instance.
 
 //end::kibana-api-ex[]
 // end::cloud[]
@@ -50,8 +46,6 @@ terminal session.
 curl -X GET http://localhost:9200/
 ----
 // NOTCONSOLE
-
-The API returns information about your {es} instance.
 
 **Use {kib}**
 

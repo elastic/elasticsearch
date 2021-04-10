@@ -2,7 +2,7 @@
 **Use curl**
 
 . To communicate with {es} using curl or another client, you need your
-deployment's endpoint. Go to the **Elasticsearch** page and click **Copy
+cluster's endpoint. Go to the **Elasticsearch** page and click **Copy
 endpoint**.
 
 . To submit an example API request, run the following curl command in a new

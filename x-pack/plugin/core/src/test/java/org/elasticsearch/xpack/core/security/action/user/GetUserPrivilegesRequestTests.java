@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -33,7 +31,7 @@ public class GetUserPrivilegesRequestTests extends ESTestCase {
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
-        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
         final GetUserPrivilegesRequest copy = new GetUserPrivilegesRequest(in);
 
         assertThat(copy.username(), equalTo(original.username()));

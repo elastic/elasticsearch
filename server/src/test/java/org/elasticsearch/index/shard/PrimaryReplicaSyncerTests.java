@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,7 +35,6 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -190,7 +188,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             randomIntBetween(0, 1000), randomIntBetween(0, 1000), randomIntBetween(0, 1000));
         final BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
-        final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes));
+        final StreamInput in = out.bytes().streamInput();
         PrimaryReplicaSyncer.ResyncTask.Status serializedStatus = new PrimaryReplicaSyncer.ResyncTask.Status(in);
         assertEquals(status, serializedStatus);
     }
@@ -201,7 +199,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeNamedWriteable(status);
             try (StreamInput in = new NamedWriteableAwareStreamInput(
-                new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes)),
+                out.bytes().streamInput(),
                 new NamedWriteableRegistry(NetworkModule.getNamedWriteables()))) {
                 assertThat(in.readNamedWriteable(Task.Status.class), equalTo(status));
             }

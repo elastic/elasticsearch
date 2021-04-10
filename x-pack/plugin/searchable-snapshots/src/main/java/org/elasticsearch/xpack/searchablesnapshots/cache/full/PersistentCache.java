@@ -40,7 +40,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +57,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -618,7 +616,7 @@ public class PersistentCache implements Closeable {
         assert cacheRangesBytesRef != null;
 
         final SortedSet<ByteRange> cacheRanges = new TreeSet<>();
-        try (StreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(cacheRangesBytesRef.bytes))) {
+        try (StreamInput input = StreamInput.wrap(cacheRangesBytesRef.bytes)) {
             final int length = input.readVInt();
             assert length > 0 : "empty cache ranges";
             ByteRange previous = null;

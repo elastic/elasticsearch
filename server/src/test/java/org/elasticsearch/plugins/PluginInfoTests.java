@@ -10,11 +10,10 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -178,8 +177,7 @@ public class PluginInfoTests extends ESTestCase {
                                          randomBoolean());
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
-        ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
-        ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
+        StreamInput input = output.bytes().streamInput();
         PluginInfo info2 = new PluginInfo(input);
         assertThat(info2.toString(), equalTo(info.toString()));
 

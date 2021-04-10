@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -467,7 +465,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
     R decodeResponse(String value) throws IOException {
-        try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
+        try (StreamInput buf = StreamInput.wrap(Base64.getDecoder().decode(value))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
                 return reader.read(in);

@@ -7,13 +7,11 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Objects;
 
@@ -97,15 +95,15 @@ public final class AsyncExecutionId {
      * to retrieve the response of an async execution.
      */
     public static AsyncExecutionId decode(String id) {
-        final ByteBuffer byteBuffer;
+        final StreamInput in;
         try {
-            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
+            in = StreamInput.wrap(Base64.getUrlDecoder().decode(id));
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         String docId;
         String taskId;
-        try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
+        try {
             docId = in.readString();
             taskId = in.readString();
             if (in.available() > 0) {

@@ -10,8 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -296,8 +294,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         original.writeTo(output);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry);
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry);
         streamInput.setVersion(version);
         final ExpressionRoleMapping serialized = new ExpressionRoleMapping(streamInput);
         assertEquals(original, serialized);
@@ -312,8 +309,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         original.writeTo(output);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry);
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry);
         streamInput.setVersion(version);
         final ExpressionRoleMapping serialized = new ExpressionRoleMapping(streamInput);
         assertEquals(original, serialized);

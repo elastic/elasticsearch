@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -116,7 +115,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         original.writeTo(output);
 
-        final StreamInput rawInput = ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes()));
+        final StreamInput rawInput = output.bytes().streamInput();
         final TemplateRoleName serialized = new TemplateRoleName(rawInput);
         assertEquals(original, serialized);
     }

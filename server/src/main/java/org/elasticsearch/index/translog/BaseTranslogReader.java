@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
@@ -98,7 +98,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         buffer.limit(opSize);
         readBytes(buffer, position);
         buffer.flip();
-        return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), path.toString(), reuse);
+        return new BufferedChecksumStreamInput(
+                StreamInput.wrap(buffer.array(), buffer.arrayOffset(), buffer.remaining()), path.toString(), reuse);
     }
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {

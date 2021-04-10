@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -25,7 +24,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -77,13 +75,13 @@ public final class SearchContextId {
     }
 
     public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, String id) {
-        final ByteBuffer byteBuffer;
+        final StreamInput inpt;
         try {
-            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
+            inpt = StreamInput.wrap(Base64.getUrlDecoder().decode(id));
         } catch (Exception e) {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(inpt, namedWriteableRegistry)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);

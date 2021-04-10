@@ -33,7 +33,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -60,7 +59,6 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -300,7 +298,7 @@ class RollupShardIndexer {
             BucketKey lastKey = null;
             int docCount = 0;
             while (next != null) {
-                try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(next.bytes, next.offset, next.length))) {
+                try (StreamInput in = StreamInput.wrap(next.bytes, next.offset, next.length)) {
                     // skip key size
                     in.readInt();
                     BucketKey key = decodeKey(in, groupFieldFetchers.size());

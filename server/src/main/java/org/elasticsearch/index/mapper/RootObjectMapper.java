@@ -418,15 +418,13 @@ public class RootObjectMapper extends ObjectMapper {
                 lastError = e;
             }
         }
-        if (lastError != null) {
+        final boolean shouldEmitDeprecationWarning = parserContext.indexVersionCreated().onOrAfter(Version.V_7_7_0);
+        if (lastError != null && shouldEmitDeprecationWarning) {
             String format = "dynamic template [%s] has invalid content [%s], " +
-                "attempted to validate it with the following match_mapping_type: %s";
-            String message = String.format(Locale.ROOT, format, template.getName(), Strings.toString(template),
-                Arrays.toString(types));
-            final boolean shouldEmitDeprecationWarning = parserContext.indexVersionCreated().onOrAfter(Version.V_7_7_0);
-            if(shouldEmitDeprecationWarning){
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
-            }
+                "attempted to validate it with the following match_mapping_type: %s, caused by [%s]";
+            String message = String.format(Locale.ROOT, format,
+                template.getName(), Strings.toString(template), Arrays.toString(types), lastError.getMessage());
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
         }
     }
 

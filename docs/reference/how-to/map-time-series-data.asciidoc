@@ -28,7 +28,7 @@ If you aren't sure how to map your fields or what fields your data may contain,
 start with just the `@timestamp` and `message` fields.
 
 `message` is designed for unstructured content, such as log and event messages.
-You can use <<runtime,runtime fields>> to parse and extract other fields from
+You can parse and extract <<runtime,runtime fields>> from
 `message` at search time without defining a full schema in advance.
 
 [discrete]
@@ -40,7 +40,7 @@ If `message` contains machine-generated unstructured content, map it as a
 <<keyword-field-type,`keyword`>> field.
 
 Avoid using the <<text,`text`>> field type. {es} changes `text` field values
-during <<analysis,analysis>>, meaning `text` fields don't preserve the original
+during <<analysis,analysis>>, meaning `text` fields don't preserve their original
 field value. `text` fields also don't support runtime fields.
 
 To better understand when to use the `text`, `keyword`, and `wildcard` field
@@ -134,13 +134,13 @@ PUT _component_template/my-mappings
 === Map most strings as `keyword` fields
 
 If {es}'s dynamic mapping doesn't detect a date or <<numeric-detection,number>>
-in a string, it maps the string as a `text` field with a `keyword` sub-field.
-This can create unneeded fields, leading to memory issues and increased storage
-costs.
+in a string, it maps the string as a `text` field with a `keyword` sub-field by
+default. This can create unneeded fields, leading to memory issues and increased
+storage costs.
 
 Use a <<dynamic-templates,dynamic mapping template>> to automatically map
 strings without an explicit mapping as `keyword` fields. This reduces your field
-count and preserves the field's original value.
+count and preserves the original field value.
 
 [source,console]
 ----

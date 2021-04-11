@@ -11,7 +11,7 @@ Use following APIs to manage, store, and test your
 === Stored script APIs
 
 Use stored script APIs to manage <<script-stored-scripts,stored scripts>> and
-stored <<search-template,search templates>>.
+<<search-template,search templates>>.
 
 * <<create-stored-script-api>>
 

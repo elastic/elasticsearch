@@ -204,9 +204,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),
             Matchers.equalTo(
-                DiscoveryNode.getPossibleRoles().stream().filter(DiscoveryNodeRole::canContainData)
+                DiscoveryNode.getPossibleRoles()
+                    .stream()
+                    .filter(DiscoveryNodeRole::canContainData)
                     .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
-                    .sorted().collect(Collectors.toList())
+                    .sorted()
+                    .collect(Collectors.toList())
             )
         );
     }

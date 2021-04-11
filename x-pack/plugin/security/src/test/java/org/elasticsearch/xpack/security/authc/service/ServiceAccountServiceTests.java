@@ -29,6 +29,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
@@ -190,7 +191,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final SecureString bearerString4 = createBearerString(List.of(
                 magicBytes,
                 (randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
-                    + "/" + randomValueOtherThanMany(n -> n.contains("/"), ServiceAccountTokenTests::randomInvalidTokenName)
+                    + "/" + randomValueOtherThanMany(n -> n.contains("/"), ValidationTests::randomInvalidTokenName)
                     + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
             ));
             assertNull(ServiceAccountService.tryParseToken(bearerString4));
@@ -199,7 +200,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             // Everything is good
             final String namespace = randomAlphaOfLengthBetween(3, 8);
             final String serviceName = randomAlphaOfLengthBetween(3, 8);
-            final String tokenName = ServiceAccountTokenTests.randomTokenName();
+            final String tokenName = ValidationTests.randomTokenName();
             final ServiceAccountId accountId = new ServiceAccountId(namespace, serviceName);
             final String secret = randomAlphaOfLengthBetween(10, 20);
             final SecureString bearerString5 = createBearerString(List.of(

@@ -183,7 +183,7 @@ final class DynamicFieldsBuilder {
                                                  String name,
                                                  DynamicTemplate.XContentFieldType matchType,
                                                  DateFormatter dateFormatter) throws IOException {
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return false;
         }
@@ -209,7 +209,7 @@ final class DynamicFieldsBuilder {
 
     private static Mapper.Builder findTemplateBuilderForObject(ParseContext context, String name) {
         DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }

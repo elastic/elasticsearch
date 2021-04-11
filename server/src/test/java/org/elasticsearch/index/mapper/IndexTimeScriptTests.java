@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -23,9 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class IndexTimeScriptTests extends MapperServiceTestCase {
 
@@ -71,20 +68,6 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         assertEquals(doc.rootDoc().getField("double_field_plus_two").numericValue(), 6.5);
     }
 
-    public void testSerialization() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("message").field("type", "text").endObject();
-            b.startObject("message_length");
-            b.field("type", "long");
-            b.field("script", "message_length");
-            b.endObject();
-        }));
-        assertEquals(
-            "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"text\"}," +
-                "\"message_length\":{\"type\":\"long\",\"script\":{\"source\":\"message_length\",\"lang\":\"painless\"}}}}}",
-            Strings.toString(mapper.mapping()));
-    }
-
     public void testCrossReferences() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("message").field("type", "text").endObject();
@@ -107,25 +90,6 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         assertEquals(doc.rootDoc().getField("message_length_plus_four").numericValue(), 21d);
     }
 
-    public void testCannotIndexDirectlyIntoScriptMapper() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("message").field("type", "text").endObject();
-            b.startObject("message_length");
-            b.field("type", "long");
-            b.field("script", "length");
-            b.endObject();
-        }));
-
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
-            b.field("message", "foo");
-            b.field("message_length", 3);
-        })));
-        assertEquals("failed to parse field [message_length] of type [long] in document with id '1'. Preview of field's value: '3'",
-            e.getMessage());
-        Throwable original = e.getCause();
-        assertEquals("Cannot index data directly into a field with a [script] parameter", original.getMessage());
-    }
-
     public void testLoopDetection() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field1").field("type", "long").field("script", "field2_plus_two").endObject();
@@ -145,14 +109,6 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         assertThat(root.getMessage(), containsString("field1->field2"));
     }
 
-    public void testStoredScriptsNotPermitted() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "long");
-            b.startObject("script").field("id", "foo").endObject();
-        })));
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: stored scripts are not supported on field [field]"));
-    }
-
     public void testCannotReferToRuntimeFields() throws IOException {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startObject("runtime");
@@ -166,61 +122,6 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [index-field]", e.getMessage());
         assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
-    }
-
-    public void testScriptErrorParameterRequiresScript() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "long");
-            b.field("on_script_error", "ignore");
-        })));
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Field [on_script_error] requires field [script] to be configured"));
-    }
-
-    public void testIgnoreScriptErrors() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("message").field("type", "keyword").endObject();
-            b.startObject("message_length");
-            {
-                b.field("type", "long");
-                b.field("script", "message_length");
-            }
-            b.endObject();
-            b.startObject("message_error");
-            {
-                b.field("type", "long");
-                b.field("script", "throws");
-                b.field("on_script_error", "ignore");
-            }
-            b.endObject();
-        }));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        assertThat(doc.rootDoc().getFields("message_length"), arrayWithSize(2));
-        assertThat(doc.rootDoc().getFields("message_error"), arrayWithSize(0));
-        assertThat(doc.rootDoc().getField("_ignored").stringValue(), equalTo("message_error"));
-    }
-
-    public void testRejectScriptErrors() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("message").field("type", "keyword").endObject();
-            b.startObject("message_length");
-            {
-                b.field("type", "long");
-                b.field("script", "message_length");
-            }
-            b.endObject();
-            b.startObject("message_error");
-            {
-                b.field("type", "long");
-                b.field("script", "throws");
-            }
-            b.endObject();
-        }));
-
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
-        assertThat(e.getMessage(), equalTo("Error executing script on field [message_error]"));
-        assertThat(e.getCause().getMessage(), equalTo("Oops!"));
     }
 
     @Override

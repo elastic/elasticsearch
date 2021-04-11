@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
@@ -17,7 +18,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.transform.Transform;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -131,7 +131,7 @@ public final class TransformNodes {
      */
     public static long getNumberOfTransformNodes(ClusterState clusterState) {
         return StreamSupport.stream(clusterState.getNodes().spliterator(), false)
-            .filter(node -> node.getRoles().contains(Transform.TRANSFORM_ROLE))
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE))
             .count();
     }
 

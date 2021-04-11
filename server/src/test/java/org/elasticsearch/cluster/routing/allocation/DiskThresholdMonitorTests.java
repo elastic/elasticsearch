@@ -600,7 +600,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private static ClusterInfo clusterInfo(ImmutableOpenMap<String, DiskUsage> diskUsages,
                                            ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace) {
-        return new ClusterInfo(diskUsages, null, null, null, reservedSpace);
+        return new ClusterInfo(diskUsages, null, null, null, null, reservedSpace);
     }
 
 }

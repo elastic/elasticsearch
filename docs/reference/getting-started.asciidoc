@@ -425,7 +425,7 @@ To keep exploring, index more data to your data stream and check out <<common-se
 [[clean-up]]
 === Step 5. Clean up
 
-When you're done, delete your test data stream and it backing indices.
+When you're done, delete your test data stream and its backing indices.
 
 [source,console]
 ----

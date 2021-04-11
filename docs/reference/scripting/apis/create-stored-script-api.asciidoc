@@ -5,7 +5,7 @@
 ++++
 
 Creates or updates a <<script-stored-scripts,stored script>> or
-stored <<search-template,search template>>.
+<<search-template,search template>>.
 
 [source,console]
 ----

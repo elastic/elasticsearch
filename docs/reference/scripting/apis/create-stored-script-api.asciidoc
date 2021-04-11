@@ -64,6 +64,7 @@ uses the request path parameter.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
+[role="child_attributes"]
 [[create-stored-script-api-request-body]]
 ==== {api-request-body-title}
 

@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -44,9 +45,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollableHitSourceTests extends ESTestCase {
@@ -144,7 +147,62 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110));
     }
 
+    public void testScrollableHitSourceResponseCanBeConsumedInChunks() {
+        List<ScrollableHitSource.BasicHit> hits = new ArrayList<>();
+        int numberOfHits = randomIntBetween(1, 300);
+        for (int i = 0; i < numberOfHits; i++) {
+            hits.add(new ScrollableHitSource.BasicHit("idx", "id-" + i, -1));
+        }
+        final ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), hits.size(), hits, "scrollid");
+        assertThat(response.remainingHits(), equalTo(numberOfHits));
+        assertThat(response.hasRemainingHits(), equalTo(true));
 
+        int totalConsumedHits = 0;
+        while (response.hasRemainingHits()) {
+            final int numberOfHitsToConsume;
+            final List<? extends ScrollableHitSource.Hit> consumedHits;
+            if (randomBoolean()) {
+                numberOfHitsToConsume = numberOfHits - totalConsumedHits;
+                consumedHits = response.consumeRemainingHits();
+            } else {
+                numberOfHitsToConsume = randomIntBetween(1, numberOfHits - totalConsumedHits);
+                consumedHits = response.consumeHits(numberOfHitsToConsume);
+            }
+
+            assertThat(consumedHits.size(), equalTo(numberOfHitsToConsume));
+            assertThat(consumedHits, equalTo(hits.subList(totalConsumedHits, totalConsumedHits + numberOfHitsToConsume)));
+            totalConsumedHits += numberOfHitsToConsume;
+
+            assertThat(response.remainingHits(), equalTo(numberOfHits - totalConsumedHits));
+        }
+    }
+
+    public void testScrollableHitSourceResponseErrorHandling() {
+        List<ScrollableHitSource.BasicHit> hits = new ArrayList<>();
+        int numberOfHits = randomIntBetween(2, 300);
+        for (int i = 0; i < numberOfHits; i++) {
+            hits.add(new ScrollableHitSource.BasicHit("idx", "id-" + i, -1));
+        }
+        final ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), hits.size(), hits, "scrollid");
+        assertThat(response.remainingHits(), equalTo(numberOfHits));
+        assertThat(response.hasRemainingHits(), equalTo(true));
+
+        expectThrows(IllegalArgumentException.class, () -> response.consumeHits(0));
+        expectThrows(IllegalArgumentException.class, () -> response.consumeHits(-1));
+        expectThrows(IllegalArgumentException.class, () -> response.consumeHits(numberOfHits + 1));
+
+        if (randomBoolean()) {
+            response.consumeHits(numberOfHits - 1);
+            // Unable to consume more than remaining hits
+            expectThrows(IllegalArgumentException.class, () -> response.consumeHits(response.remainingHits() + 1));
+            response.consumeHits(1);
+        } else {
+            response.consumeRemainingHits();
+        }
+
+        expectThrows(IllegalStateException.class, () -> response.consumeHits(1));
+        expectThrows(IllegalStateException.class, response::consumeRemainingHits);
+    }
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.

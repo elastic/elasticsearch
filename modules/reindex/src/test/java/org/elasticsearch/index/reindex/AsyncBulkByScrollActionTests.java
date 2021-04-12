@@ -623,7 +623,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testCancelBeforeStartNextScroll() throws Exception {
         long now = System.nanoTime();
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.notifyDone(now, null, 0, Collections.emptyList()));
+        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.notifyDone(now, null, 0));
     }
 
     public void testCancelBeforeRefreshAndFinish() throws Exception {

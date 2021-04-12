@@ -265,7 +265,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSize, ScrollableHitSource.AsyncResponse asyncResponse) {
         ScrollableHitSource.Response response = asyncResponse.response();
-        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), response.getHits().size());
+        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), response.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
@@ -316,33 +316,31 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        if (response.getHits().isEmpty()) {
+        if (response.hasRemainingHits() == false) {
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }
         worker.countBatch();
-        List<? extends ScrollableHitSource.Hit> hits = response.getHits();
-        List<? extends ScrollableHitSource.Hit> remainingHits = Collections.emptyList();
-        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
+        final List<? extends ScrollableHitSource.Hit> hits;
+        long remaining = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES && remaining < response.remainingHits()) {
             // Truncate the hits if we have more than the request max docs
-            long remaining = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
-            if (remaining < hits.size()) {
-                remainingHits = hits.subList((int) remaining, hits.size());
-                hits = hits.subList(0, (int) remaining);
-            }
+            hits = response.consumeHits((int) remaining);
+        } else {
+            hits = response.consumeRemainingHits();
         }
+
         BulkRequest request = buildBulk(hits);
         if (request.requests().isEmpty()) {
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
-            notifyDone(thisBatchStartTimeNS, asyncResponse, 0, remainingHits);
+            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        final List<? extends ScrollableHitSource.Hit> scrollRemainingHits = remainingHits;
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size(), scrollRemainingHits));
+        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
     }
 
     /**
@@ -430,8 +428,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     void notifyDone(long thisBatchStartTimeNS,
                     ScrollableHitSource.AsyncResponse asyncResponse,
-                    int batchSize,
-                    List<? extends ScrollableHitSource.Hit> scrollRemainingHits) {
+                    int batchSize) {
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
@@ -440,28 +437,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.lastBatchSize = batchSize;
         this.totalBatchSizeInSingleScrollResponse += batchSize;
 
-        if (scrollRemainingHits.isEmpty()) {
+        if (asyncResponse.response().hasRemainingHits() == false) {
             int totalBatchSize = totalBatchSizeInSingleScrollResponse;
             totalBatchSizeInSingleScrollResponse = 0;
             asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
         } else {
-            final ScrollableHitSource.Response response = asyncResponse.response();
-            onScrollResponse(new ScrollableHitSource.AsyncResponse() {
-                @Override
-                public ScrollableHitSource.Response response() {
-                    return new ScrollableHitSource.Response(response.isTimedOut(),
-                        response.getFailures(),
-                        scrollRemainingHits.size(),
-                        scrollRemainingHits,
-                        response.getScrollId()
-                    );
-                }
-
-                @Override
-                public void done(TimeValue extraKeepAlive) {
-                    asyncResponse.done(extraKeepAlive);
-                }
-            });
+            onScrollResponse(asyncResponse);
         }
 
     }

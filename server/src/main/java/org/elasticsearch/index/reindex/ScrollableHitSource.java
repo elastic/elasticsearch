@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -163,6 +164,7 @@ public abstract class ScrollableHitSource {
         private final long totalHits;
         private final List<? extends Hit> hits;
         private final String scrollId;
+        private final AtomicInteger consumedOffset = new AtomicInteger();
 
         public Response(boolean timedOut, List<SearchFailure> failures, long totalHits, List<? extends Hit> hits, String scrollId) {
             this.timedOut = timedOut;
@@ -187,6 +189,48 @@ public abstract class ScrollableHitSource {
         }
 
         /**
+         * Returns all the hits that hasn't been consumed yet
+         */
+        public List<? extends Hit> consumeRemainingHits() {
+            checkNotAllHitsHaveBeenConsumed();
+
+            return consumeHits(remainingHits());
+        }
+
+        /**
+         * Returns a list containing {@code numberOfHits} hits that hasn't been consumed previously
+         */
+        public List<? extends Hit> consumeHits(int numberOfHits) {
+            if (numberOfHits <= 0) {
+                throw new IllegalArgumentException("Invalid number of hits to consume [" + numberOfHits + "]");
+            }
+            checkNotAllHitsHaveBeenConsumed();
+            if (numberOfHits > remainingHits()) {
+                throw new IllegalArgumentException(
+                    "Unable to provide [" + numberOfHits + "] hits as there are only [" + remainingHits() + "] hits available"
+                );
+            }
+
+            int start = consumedOffset.get();
+            int end = consumedOffset.addAndGet(numberOfHits);
+            return hits.subList(start, end);
+        }
+
+        /**
+         * Returns the number of hits that are pending to consume
+         */
+        public int remainingHits() {
+            return hits.size() - consumedOffset.get();
+        }
+
+        /**
+         * Returns {@code true} when there are still hits to be consumed, {@code false} otherwise
+         */
+        public boolean hasRemainingHits() {
+            return remainingHits() > 0;
+        }
+
+        /**
          * What were the total number of documents matching the search?
          */
         public long getTotalHits() {
@@ -205,6 +249,12 @@ public abstract class ScrollableHitSource {
          */
         public String getScrollId() {
             return scrollId;
+        }
+
+        private void checkNotAllHitsHaveBeenConsumed() {
+            if (consumedOffset.get() >= hits.size()) {
+                throw new IllegalStateException("All hits have been consumed");
+            }
         }
     }
 

@@ -144,7 +144,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
-                deleteOldChunks(name, state.getDatabases().get("name").getFirstChunk());
+                deleteOldChunks(name, state.getDatabases().get(name).getFirstChunk());
             }
         } catch (Exception e) {
             stats = stats.failedDownload();

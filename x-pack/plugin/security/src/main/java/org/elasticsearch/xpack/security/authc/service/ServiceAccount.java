@@ -27,16 +27,6 @@ public interface ServiceAccount {
 
     User asUser();
 
-    default User asUser(Map<String, Object> additionalMetadata) {
-        final User user = asUser();
-        assert false == user.isRunAs() : "cannot run-as a service account user";
-        final Map<String, Object> metadata = new HashMap<>(user.metadata());
-        assert Sets.haveEmptyIntersection(metadata.keySet(), additionalMetadata.keySet())
-            : "additional metadata must not override existing ones";
-        metadata.putAll(additionalMetadata);
-        return new User(user.principal(), user.roles(), user.fullName(), user.email(), Map.copyOf(metadata), user.enabled());
-    }
-
     final class ServiceAccountId {
 
         private final String namespace;

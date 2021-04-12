@@ -12,10 +12,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -104,6 +107,10 @@ public class Authentication implements ToXContentObject {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public boolean isServiceAccount() {
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
     }
 
     /**
@@ -219,7 +226,15 @@ public class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
+        if (isServiceAccount()) {
+            final Map<String, Object> allMetadata = new HashMap<>(user.metadata());
+            assert Sets.haveEmptyIntersection(allMetadata.keySet(), getMetadata().keySet())
+                : "authentication metadata must not override existing user ones";
+            allMetadata.putAll(getMetadata());
+            builder.field(User.Fields.METADATA.getPreferredName(), allMetadata);
+        } else {
+            builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
+        }
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
         builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());

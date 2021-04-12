@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -28,9 +29,6 @@ import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccou
 
 public class ServiceAccountService {
 
-    public static final String REALM_TYPE = "service_account";
-    public static final String REALM_NAME = "service_account";
-
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
     private final ServiceAccountsTokenStore serviceAccountsTokenStore;
@@ -39,10 +37,6 @@ public class ServiceAccountService {
     public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         this.serviceAccountsTokenStore = serviceAccountsTokenStore;
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
-    }
-
-    public static boolean isServiceAccount(Authentication authentication) {
-        return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType()) && null == authentication.getLookedUpBy();
     }
 
     public static boolean isServiceAccountPrincipal(String principal) {
@@ -119,7 +113,7 @@ public class ServiceAccountService {
     }
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
+        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account role descriptor resolving", () -> {
             final String principal = authentication.getUser().principal();
             final ServiceAccount account = ACCOUNTS.get(principal);
@@ -133,9 +127,11 @@ public class ServiceAccountService {
     }
 
     private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {
-        final User user = account.asUser(Map.of("_token_name", token.getTokenName()));
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(REALM_NAME, REALM_TYPE, nodeName);
-        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of());
+        final User user = account.asUser();
+        final Authentication.RealmRef authenticatedBy =
+            new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
+        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
+            Map.of("_token_name", token.getTokenName()));
     }
 
     private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {

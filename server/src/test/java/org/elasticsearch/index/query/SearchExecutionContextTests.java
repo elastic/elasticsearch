@@ -44,6 +44,8 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -59,8 +61,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.index.mapper.KeywordScriptFieldType;
-import org.elasticsearch.index.mapper.LongScriptFieldType;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -451,7 +452,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             indexSettings.getIndexVersionCreated(),
             searchExecutionContextSupplier,
             null,
-            null,
+            ScriptCompiler.NONE,
             indexAnalyzers,
             indexSettings,
             () -> true

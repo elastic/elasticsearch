@@ -68,6 +68,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         expectedCounts.put(DiscoveryNodeRole.ML_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(DiscoveryNodeRole.TRANSFORM_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE.roleName(), 0);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -258,8 +259,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 "\"eggplant\":{\"type\":\"integer\"}}}}}").get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
-        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
-        for (IndexFeatureStats stat : stats) {
+        Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (FieldStats stat : stats) {
             if (stat.getName().equals("integer")) {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));
             } else if (stat.getName().equals("keyword")) {

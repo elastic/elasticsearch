@@ -70,7 +70,7 @@ GET my-index-000001/_search
 <4> This document uses milliseconds-since-the-epoch.
 <5> Note that the `sort` values that are returned are all in
 nanoseconds-since-the-epoch.
-<6> In scripts use `.nano` gets the nanosecond component of the date.
+<6> Use `.nano` in scripts to return the nanosecond component of the date.
 <7> When fetching using fields you can specify the format. Make sure
 it includes `nanos` or you'll get a rounded result.
 

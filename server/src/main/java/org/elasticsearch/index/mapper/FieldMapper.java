@@ -426,6 +426,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasMultiFields() {
+                return mapperBuilders.isEmpty() == false;
+            }
+
             public MultiFields build(Mapper.Builder mainFieldBuilder, ContentPath contentPath) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();

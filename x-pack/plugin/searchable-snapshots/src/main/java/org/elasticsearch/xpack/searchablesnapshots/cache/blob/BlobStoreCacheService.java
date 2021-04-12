@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -251,7 +250,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      * Computes the {@link ByteRange} corresponding to the header of a Lucene file. This range can vary depending of the type of the file
      * which is indicated by the file's extension. The returned byte range can never be larger than the file's length but it can be smaller.
      *
-     * For files that are declared as metadata files in {@link #METADATA_FILES_EXTENSIONS}, the header can be as large as the specified
+     * For files that are declared as metadata files in {@link LuceneFilesExtensions}, the header can be as large as the specified
      * maximum metadata length parameter {@code maxMetadataLength}. Non-metadata files have a fixed length header of maximum 1KB.
      *
      * @param fileName the name of the file

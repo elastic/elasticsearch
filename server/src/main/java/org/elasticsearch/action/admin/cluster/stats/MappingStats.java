@@ -38,6 +38,9 @@ import java.util.regex.Pattern;
  */
 public final class MappingStats implements ToXContentFragment, Writeable {
 
+    private static final Pattern DOC_PATTERN = Pattern.compile("doc[\\[.]");
+    private static final Pattern SOURCE_PATTERN = Pattern.compile("params\\._source");
+
     /**
      * Create {@link MappingStats} from the given cluster state.
      */
@@ -122,15 +125,14 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             String scriptSource = scriptSourceObject.toString();
             int chars = scriptSource.length();
             long lines = scriptSource.lines().count();
-            int docUsages = countOccurrences(scriptSource, "doc[\\[\\.]");
-            int sourceUsages = countOccurrences(scriptSource, "params\\._source");
+            int docUsages = countOccurrences(scriptSource, DOC_PATTERN);
+            int sourceUsages = countOccurrences(scriptSource, SOURCE_PATTERN);
             scriptStats.update(chars, lines, sourceUsages, docUsages);
         }
     }
 
-    private static int countOccurrences(String script, String keyword) {
+    private static int countOccurrences(String script, Pattern pattern) {
         int occurrences = 0;
-        Pattern pattern = Pattern.compile(keyword);
         Matcher matcher = pattern.matcher(script);
         while (matcher.find()) {
             occurrences++;

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
@@ -132,7 +133,8 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             if (args.size() > 1) {
                 throw new UserException(
                     ExitCodes.USAGE,
-                    "Expected at most one argument, service-account-principal, found extra: " + args.toString());
+                    "Expected at most one argument, service-account-principal, found extra: ["
+                        + Strings.collectionToCommaDelimitedString(args) + "]");
             }
             Predicate<String> filter = k -> true;
             if (args.size() == 1) {
@@ -161,7 +163,8 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         } else if (arguments.size() > 2) {
             throw new UserException(
                 ExitCodes.USAGE,
-                "Expected two arguments, service-account-principal and token-name, found extra: " + arguments.toString());
+                "Expected two arguments, service-account-principal and token-name, found extra: ["
+                    + Strings.collectionToCommaDelimitedString(arguments) + "]");
         }
         final String principal = arguments.get(0);
         final String tokenName = arguments.get(1);
@@ -169,8 +172,8 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
                 + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
         }
-        if (false == ServiceAccountToken.isValidTokenName(tokenName)) {
-            throw new UserException(ExitCodes.CODE_ERROR, ServiceAccountToken.INVALID_TOKEN_NAME_MESSAGE);
+        if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
+            throw new UserException(ExitCodes.CODE_ERROR, Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
         }
         return new Tuple<>(principal, tokenName);
     }

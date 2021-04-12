@@ -17,6 +17,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.ByteArrayInputStream;
@@ -28,7 +29,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 /**
  * A decoded credential that may be used to authenticate a {@link ServiceAccount}.
@@ -40,12 +40,6 @@ import java.util.regex.Pattern;
  * </ol>
  */
 public class ServiceAccountToken implements AuthenticationToken, Closeable {
-
-    public static final String INVALID_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character " +
-        "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). " +
-        "It must not begin with an underscore (_).";
-
-    private static final Pattern VALID_TOKEN_NAME = Pattern.compile("^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,255}$");
 
     public static final byte MAGIC_BYTE = '\0';
     public static final byte TOKEN_TYPE = '\1';
@@ -62,8 +56,8 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     // pkg private for testing
     ServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
         this.accountId = Objects.requireNonNull(accountId, "service account ID cannot be null");
-        if (false == isValidTokenName(tokenName)) {
-            throw new IllegalArgumentException(INVALID_TOKEN_NAME_MESSAGE);
+        if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
+            throw new IllegalArgumentException(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
         }
         this.tokenName = tokenName;
         this.secret = Objects.requireNonNull(secret, "service account token secret cannot be null");
@@ -82,7 +76,7 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     }
 
     public String getQualifiedName() {
-        return getAccountId().asPrincipal() + "/" + tokenName;
+        return buildQualifiedName(getAccountId(), tokenName);
     }
 
     public SecureString asBearerString() throws IOException {
@@ -94,6 +88,10 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
             final String base64 = Base64.getEncoder().withoutPadding().encodeToString(out.toByteArray());
             return new SecureString(base64.toCharArray());
         }
+    }
+
+    public static String buildQualifiedName(ServiceAccountId accountId, String tokenName) {
+        return accountId.asPrincipal() + "/" + tokenName;
     }
 
     public static ServiceAccountToken fromBearerString(SecureString bearerString) throws IOException {
@@ -169,7 +167,4 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
         close();
     }
 
-    public static boolean isValidTokenName(String name) {
-        return name != null && VALID_TOKEN_NAME.matcher(name).matches();
-    }
 }

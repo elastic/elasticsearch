@@ -117,6 +117,11 @@ public class NumberFieldMapper extends FieldMapper {
 
             this.onScriptError.requiresParameters(this.script);
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
+            this.script.setValidator(s -> {
+                if (s != null && indexed.get() == false && hasDocValues.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+            });
         }
 
         Builder nullValue(Number number) {

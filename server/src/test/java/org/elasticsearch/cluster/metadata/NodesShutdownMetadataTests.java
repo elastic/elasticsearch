@@ -16,11 +16,46 @@ import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
 public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+
+    public void testInsertNewNodeShutdownMetadata() {
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
+        SingleNodeShutdownMetadata newNodeMetadata = randomNodeShutdownInfo();
+
+        nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(newNodeMetadata);
+
+        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().values(), contains(newNodeMetadata));
+    }
+
+    public void testRemoveShutdownMetadata() {
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
+        List<SingleNodeShutdownMetadata> nodes = randomList(1, 20, this::randomNodeShutdownInfo);
+
+        for (SingleNodeShutdownMetadata node : nodes) {
+            nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(node);
+        }
+
+        SingleNodeShutdownMetadata nodeToRemove = randomFrom(nodes);
+        nodesShutdownMetadata = nodesShutdownMetadata.removeSingleNodeMetadata(nodeToRemove.getNodeId());
+
+        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().get(nodeToRemove.getNodeId()), nullValue());
+        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().values(), hasSize(nodes.size() - 1));
+        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().values(), not(hasItem(nodeToRemove)));
+    }
 
     @Override
     protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
@@ -45,15 +80,15 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return new SingleNodeShutdownMetadata(
-            randomAlphaOfLength(5),
-            randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART,
-            randomAlphaOfLength(5),
-            randomStatus(),
-            randomNonNegativeLong(),
-            randomComponentStatus(),
-            randomComponentStatus(),
-            randomComponentStatus());
+        return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
+            .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+            .setReason(randomAlphaOfLength(5))
+            .setStatus(randomStatus())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setShardMigrationStatus(randomComponentStatus())
+            .setPersistentTasksStatus(randomComponentStatus())
+            .setPluginsStatus(randomComponentStatus())
+            .build();
     }
 
     private SingleNodeShutdownMetadata.Status randomStatus() {

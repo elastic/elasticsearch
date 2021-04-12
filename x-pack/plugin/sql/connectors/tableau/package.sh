@@ -58,8 +58,9 @@ function package() {
     rm -rfv $MY_WORKSPACE/$SRC_DIR
     cp -rv $MY_TOP_DIR/$SRC_DIR $MY_WORKSPACE
 
-    # patch version tag in manifest file, filtering out any -SNAPSHOT
-    echo -e "cd //connector-plugin/@version\nset ${TACO_VERSION%-*}\nsave" |\
+    # patch plugin-version tag in manifest file, filtering out any -SNAPSHOT
+    echo \
+    -e "cd //connector-plugin/@plugin-version\nset ${TACO_VERSION%-*}\nsave" |\
         xmllint --shell $MY_WORKSPACE/$SRC_DIR/manifest.xml
 
     # check out TDVT SDK

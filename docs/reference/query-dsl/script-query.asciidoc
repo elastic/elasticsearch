@@ -77,10 +77,11 @@ GET /_search
 ----
 ////
 
-
-[NOTE]
-====
-Doing this with runtime fields would looke like:
+You can achieve the same results in a search
+query by using runtime fields. Use the
+<<search-fields,`fields`>> parameter on the 
+`_search` API to fetch values as part of the
+same query:
 
 [source,console]
 ----
@@ -107,13 +108,11 @@ GET /_search
       }
     }
   },
-  "fields": [{"field": "amount.signed"}] <1>
+  "fields": [{"field": "amount.signed"}]
 }
 ----
 // TEST[setup:ledger]
 // TEST[s/_search/_search?filter_path=hits.hits.fields&sort=amount.signed:desc/]
-<1> You can fetch the values too!
-====
 
 ////
 [source,console-result]

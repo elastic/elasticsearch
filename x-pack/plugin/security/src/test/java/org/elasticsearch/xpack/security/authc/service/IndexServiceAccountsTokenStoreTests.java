@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -17,6 +18,8 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,6 +31,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,24 +47,31 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -88,6 +99,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
     private final AtomicReference<ActionRequest> requestHolder = new AtomicReference<>();
     private final AtomicReference<BiConsumer<ActionRequest, ActionListener<ActionResponse>>> responseProviderHolder =
         new AtomicReference<>();
+    private SecurityIndexManager securityIndex;
 
     @Before
     public void init() {
@@ -112,7 +124,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
 
-        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
@@ -130,8 +142,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         store = new IndexServiceAccountsTokenStore(Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
-            client,
-            securityIndex,
+            client, securityIndex,
             clusterService,
             cacheInvalidatorRegistry);
     }
@@ -224,7 +235,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
     public void testFindTokensFor() {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final int nhits = randomIntBetween(0, 10);
-        final String[] tokenNames = randomArray(nhits, nhits, String[]::new, ServiceAccountTokenTests::randomTokenName);
+        final String[] tokenNames = randomArray(nhits, nhits, String[]::new, ValidationTests::randomTokenName);
 
         responseProviderHolder.set((r, l) -> {
             if (r instanceof SearchRequest) {
@@ -245,6 +256,8 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
                 l.onResponse(searchResponse);
             } else if (r instanceof ClearScrollRequest) {
                 l.onResponse(new ClearScrollResponse(true, 1));
+            } else {
+                fail("unexpected request " + r);
             }
         });
 
@@ -267,6 +280,81 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
         store.findTokensFor(accountId, future);
         final RuntimeException e1 = expectThrows(RuntimeException.class, future::actionGet);
         assertThat(e1, is(e));
+    }
+
+    public void testDeleteToken() {
+        final AtomicBoolean cacheCleared = new AtomicBoolean(false);
+        responseProviderHolder.set((r, l) -> {
+            if (r instanceof DeleteRequest) {
+                final DeleteRequest dr = (DeleteRequest) r;
+                final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-elastic/fleet-server/token1");
+                l.onResponse(new DeleteResponse(mock(ShardId.class), randomAlphaOfLengthBetween(3, 8),
+                    randomLong(), randomLong(), randomLong(), found));
+            } else if (r instanceof ClearSecurityCacheRequest) {
+                cacheCleared.set(true);
+                l.onResponse(new ClearSecurityCacheResponse(mock(ClusterName.class),
+                    List.of(mock(ClearSecurityCacheResponse.Node.class)), List.of()));
+            } else {
+                fail("unexpected request " + r);
+            }
+        });
+
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest1 = new DeleteServiceAccountTokenRequest(
+            "elastic", "fleet-server", "token1");
+        final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+        store.deleteToken(deleteServiceAccountTokenRequest1, future1);
+        assertThat(future1.actionGet(), is(true));
+        assertThat(cacheCleared.get(), is(true));
+
+        // non-exist token name
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest2 = new DeleteServiceAccountTokenRequest(
+            "elastic", "fleet-server", randomAlphaOfLengthBetween(3, 8));
+        final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+        store.deleteToken(deleteServiceAccountTokenRequest2, future2);
+        assertThat(future2.actionGet(), is(false));
+
+        // Invalid service account
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest3 = new DeleteServiceAccountTokenRequest(
+            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)), "fleet-server", "token1");
+        final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
+        store.deleteToken(deleteServiceAccountTokenRequest3, future3);
+        assertThat(future3.actionGet(), is(false));
+    }
+
+    public void testIndexStateIssues() {
+        // Index not exists
+        Mockito.reset(securityIndex);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.indexExists()).thenReturn(false);
+
+        final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
+        store.findTokensFor(accountId, future1);
+        assertThat(future1.actionGet(), equalTo(List.of()));
+
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
+            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+        store.deleteToken(deleteServiceAccountTokenRequest, future2);
+        assertThat(future2.actionGet(), is(false));
+
+        // Index exists but not available
+        Mockito.reset(securityIndex);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isAvailable()).thenReturn(false);
+        final ElasticsearchException e = new ElasticsearchException("fail");
+        when(securityIndex.getUnavailableReason()).thenReturn(e);
+
+        final PlainActionFuture<Collection<TokenInfo>> future3 = new PlainActionFuture<>();
+        store.findTokensFor(accountId, future3);
+        final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
+        assertThat(e3, is(e));
+
+        final PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
+        store.deleteToken(deleteServiceAccountTokenRequest, future4);
+        final ElasticsearchException e4 = expectThrows(ElasticsearchException.class, future4::actionGet);
+        assertThat(e4, is(e));
     }
 
     private GetResponse createGetResponse(ServiceAccountToken serviceAccountToken, boolean exists) throws IOException {

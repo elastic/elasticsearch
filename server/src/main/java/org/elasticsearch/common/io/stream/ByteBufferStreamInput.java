@@ -33,7 +33,7 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.get();
         } catch (BufferUnderflowException ex) {
-            throw throwEOFException(ex);
+            throw newEOFException(ex);
         }
     }
 
@@ -64,7 +64,7 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             buffer.get(b, offset, len);
         } catch (BufferUnderflowException ex) {
-            throw throwEOFException(ex);
+            throw newEOFException(ex);
         }
     }
 
@@ -73,7 +73,7 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.getShort();
         } catch (BufferUnderflowException ex) {
-            throw throwEOFException(ex);
+            throw newEOFException(ex);
         }
     }
 
@@ -82,7 +82,7 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.getInt();
         } catch (BufferUnderflowException ex) {
-            throw throwEOFException(ex);
+            throw newEOFException(ex);
         }
     }
 
@@ -91,11 +91,11 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.getLong();
         } catch (BufferUnderflowException ex) {
-            throw throwEOFException(ex);
+            throw newEOFException(ex);
         }
     }
 
-    private EOFException throwEOFException(RuntimeException ex) {
+    private EOFException newEOFException(RuntimeException ex) {
         EOFException eofException = new EOFException();
         eofException.initCause(ex);
         return eofException;

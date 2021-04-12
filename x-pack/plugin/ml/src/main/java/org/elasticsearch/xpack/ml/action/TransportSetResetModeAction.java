@@ -42,8 +42,8 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
     @Override
     protected ClusterState setState(ClusterState oldState, SetResetModeActionRequest request) {
         ClusterState.Builder newState = ClusterState.builder(oldState);
-        if (request.isResetSuccessful()) {
-            // If the reset was successful then put the metadata back to its out-of-the-box state, i.e. not present.
+        if (request.shouldDeleteMetadata()) {
+            assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
             newState.metadata(Metadata.builder(oldState.getMetadata())
                 .removeCustom(MlMetadata.TYPE)
                 .removeCustom(ModelAliasMetadata.NAME)

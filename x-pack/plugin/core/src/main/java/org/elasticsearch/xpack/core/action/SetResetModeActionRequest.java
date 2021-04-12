@@ -25,41 +25,41 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
         return new SetResetModeActionRequest(true, false);
     }
 
-    public static SetResetModeActionRequest disabled(boolean resetSuccessful) {
-        return new SetResetModeActionRequest(false, resetSuccessful);
+    public static SetResetModeActionRequest disabled(boolean deleteMetadata) {
+        return new SetResetModeActionRequest(false, deleteMetadata);
     }
 
     private final boolean enabled;
-    private final boolean resetSuccessful;
+    private final boolean deleteMetadata;
 
     private static final ParseField ENABLED = new ParseField("enabled");
-    private static final ParseField RESET_SUCCESSFUL = new ParseField("reset_successful");
+    private static final ParseField DELETE_METADATA = new ParseField("delete_metadata");
     public static final ConstructingObjectParser<SetResetModeActionRequest, Void> PARSER =
         new ConstructingObjectParser<>("set_reset_mode_action_request",
             a -> new SetResetModeActionRequest((Boolean)a[0], (Boolean)a[1]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), RESET_SUCCESSFUL);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_METADATA);
     }
 
-    SetResetModeActionRequest(boolean enabled, Boolean resetSuccessful) {
+    SetResetModeActionRequest(boolean enabled, Boolean deleteMetadata) {
         this.enabled = enabled;
-        this.resetSuccessful = resetSuccessful != null && resetSuccessful;
+        this.deleteMetadata = deleteMetadata != null && deleteMetadata;
     }
 
     public SetResetModeActionRequest(StreamInput in) throws IOException {
         super(in);
         this.enabled = in.readBoolean();
-        this.resetSuccessful = in.readBoolean();
+        this.deleteMetadata = in.readBoolean();
     }
 
     public boolean isEnabled() {
         return enabled;
     }
 
-    public boolean isResetSuccessful() {
-        return resetSuccessful;
+    public boolean shouldDeleteMetadata() {
+        return deleteMetadata;
     }
 
     @Override
@@ -71,12 +71,12 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(enabled);
-        out.writeBoolean(resetSuccessful);
+        out.writeBoolean(deleteMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled, resetSuccessful);
+        return Objects.hash(enabled, deleteMetadata);
     }
 
     @Override
@@ -89,7 +89,7 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
         }
         SetResetModeActionRequest other = (SetResetModeActionRequest) obj;
         return Objects.equals(enabled, other.enabled)
-            && Objects.equals(resetSuccessful, other.resetSuccessful);
+            && Objects.equals(deleteMetadata, other.deleteMetadata);
     }
 
     @Override
@@ -97,7 +97,7 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
         builder.startObject();
         builder.field(ENABLED.getPreferredName(), enabled);
         if (enabled == false) {
-            builder.field(RESET_SUCCESSFUL.getPreferredName(), resetSuccessful);
+            builder.field(DELETE_METADATA.getPreferredName(), deleteMetadata);
         }
         builder.endObject();
         return builder;

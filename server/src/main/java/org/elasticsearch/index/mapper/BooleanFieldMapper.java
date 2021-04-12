@@ -93,6 +93,9 @@ public class BooleanFieldMapper extends FieldMapper {
                 if (s != null && indexed.get() == false && docValues.get() == false) {
                     throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
                 }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
             });
         }
 

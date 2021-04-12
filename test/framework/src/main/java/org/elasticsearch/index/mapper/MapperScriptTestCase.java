@@ -31,6 +31,10 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
 
     protected abstract FactoryType multipleValuesScript();
 
+    protected FactoryType script(String id) {
+        throw new UnsupportedOperationException("Unknown script " + id);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
@@ -46,7 +50,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         if (script.getIdOrCode().equals("multi-valued")) {
             return (T) multipleValuesScript();
         }
-        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+        return (T) script(script.getIdOrCode());
     }
 
     public void testToXContent() throws IOException {
@@ -93,6 +97,17 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("script", "serializer_test");
         })));
         assertThat(e.getMessage(), containsString("Cannot define script on field with index:false and doc_values:false"));
+    }
+
+    public final void testMultiFieldsNotPermitted() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", type());
+            b.field("script", "serializer_test");
+            b.startObject("fields");
+            b.startObject("subfield").field("type", "keyword").endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Cannot define multifields on a field with a script"));
     }
 
     public final void testOnScriptErrorParameterRequiresScript() {

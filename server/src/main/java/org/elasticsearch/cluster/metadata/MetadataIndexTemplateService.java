@@ -883,7 +883,9 @@ public class MetadataIndexTemplateService {
      *
      */
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
-        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
+        final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver
+            .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
+        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<IndexTemplateMetadata> matchedTemplates = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
             final IndexTemplateMetadata template = cursor.value;
@@ -907,8 +909,9 @@ public class MetadataIndexTemplateService {
         // this is complex but if the index is not hidden in the create request but is hidden as the result of template application,
         // then we need to exclude global templates
         if (isHidden == null) {
-            final Optional<IndexTemplateMetadata> templateWithHiddenSetting = matchedTemplates.stream()
-                .filter(template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings())).findFirst();
+            final Optional<IndexTemplateMetadata>
+                templateWithHiddenSetting =
+                matchedTemplates.stream().filter(template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings())).findFirst();
             if (templateWithHiddenSetting.isPresent()) {
                 final boolean templatedIsHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(templateWithHiddenSetting.get().settings());
                 if (templatedIsHidden) {
@@ -934,7 +937,9 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
-        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
+        final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver
+            .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
+        final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();

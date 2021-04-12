@@ -146,7 +146,8 @@ public class GatewayMetaState implements Closeable {
             }
         } else {
             final long currentTerm = 0L;
-            final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build();
+            final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
+                    ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build());
             if (persistedClusterStateService.getDataPaths().length > 0) {
                 // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
                 // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state

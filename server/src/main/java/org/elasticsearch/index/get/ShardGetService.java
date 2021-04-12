@@ -224,7 +224,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     // Slow path: recreate stored fields from original source
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(shardId.getIndexName(), id, source, XContentHelper.xContentType(source),
-                        fieldVisitor.routing());
+                        fieldVisitor.routing(), Map.of());
                     ParsedDocument doc = indexShard.mapperService().documentMapper().parse(sourceToParse);
                     assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
                     // update special fields

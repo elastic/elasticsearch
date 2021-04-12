@@ -30,7 +30,7 @@ public class UserFunctionTests extends ESTestCase {
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
         SqlConfiguration sqlConfig = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                Protocol.PAGE_TIMEOUT, null,
+                Protocol.PAGE_TIMEOUT, null, null,
                 randomFrom(Mode.values()), randomAlphaOfLength(10),
                 null, null, randomAlphaOfLengthBetween(1, 15),
                 randomBoolean(), randomBoolean());

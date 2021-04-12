@@ -29,8 +29,6 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         DoubleFieldScript newInstance(LeafReaderContext ctx);
     }
 
-
-
     private double[] values = new double[1];
     private int count;
 
@@ -74,7 +72,7 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         return count;
     }
 
-    protected final void emit(double v) {
+    public final void emit(double v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);

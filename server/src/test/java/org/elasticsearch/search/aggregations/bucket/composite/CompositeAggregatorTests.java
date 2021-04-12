@@ -50,10 +50,10 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -2638,7 +2638,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         assert rawFields.length % 2 == 0;
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(TypeFieldMapper.NAME, "__" + nestedPath, TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
         Object[] fields = new Object[rawFields.length];
         for (int i = 0; i < fields.length; i+=2) {
             assert rawFields[i] instanceof String;

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -118,7 +119,8 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             final CountDownLatch latch = new CountDownLatch(5);
 
-            FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, watcherService, threadPool);
+            FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, watcherService, threadPool,
+                mock(CacheInvalidatorRegistry.class));
             store.addListener(latch::countDown);
             //Token name shares the hashing algorithm name for convenience
             String tokenName = settings.get("xpack.security.authc.service_token_hashing.algorithm");
@@ -193,7 +195,8 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
         Files.createDirectories(configDir);
         Path targetFile = configDir.resolve("service_tokens");
         Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
-        FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, mock(ResourceWatcherService.class), threadPool);
+        FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, mock(ResourceWatcherService.class), threadPool,
+            mock(CacheInvalidatorRegistry.class));
 
         final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");
         final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();

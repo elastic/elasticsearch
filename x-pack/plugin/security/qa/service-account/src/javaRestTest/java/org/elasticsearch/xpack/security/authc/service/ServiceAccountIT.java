@@ -322,6 +322,17 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
     }
 
+    public void testClearCache() throws IOException {
+        final Request clearCacheRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/"
+            + randomFrom("", "*", "api-token-1", "api-token-1,api-token2") + "/_clear_cache");
+        final Response clearCacheResponse = client().performRequest(clearCacheRequest);
+        assertOK(clearCacheResponse);
+        final Map<String, Object> clearCacheResponseMap = responseAsMap(clearCacheResponse);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodesMap = (Map<String, Object>) clearCacheResponseMap.get("_nodes");
+        assertThat(nodesMap.get("failed"), equalTo(0));
+    }
+
     public void testManageOwnApiKey() throws IOException {
         final String token;
         if (randomBoolean()) {

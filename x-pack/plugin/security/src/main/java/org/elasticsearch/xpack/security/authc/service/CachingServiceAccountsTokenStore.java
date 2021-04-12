@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
 import java.util.Collection;
@@ -40,6 +41,7 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
     private final Settings settings;
     private final ThreadPool threadPool;
     private final Cache<String, ListenableFuture<CachedResult>> cache;
+    private CacheIteratorHelper<String, ListenableFuture<CachedResult>> cacheIteratorHelper;
     private final Hasher hasher;
 
     CachingServiceAccountsTokenStore(Settings settings, ThreadPool threadPool) {
@@ -51,8 +53,10 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
                 .setExpireAfterWrite(ttl)
                 .setMaximumWeight(CACHE_MAX_TOKENS_SETTING.get(settings))
                 .build();
+            cacheIteratorHelper = new CacheIteratorHelper<>(cache);
         } else {
             cache = null;
+            cacheIteratorHelper = null;
         }
         hasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
     }
@@ -112,7 +116,17 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
         if (cache != null) {
             logger.trace("invalidating cache for service token [{}]",
                 Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
-            qualifiedTokenNames.forEach(cache::invalidate);
+            if (qualifiedTokenNames.size() == 1) {
+                final String qualifiedTokenName = qualifiedTokenNames.iterator().next();
+                if (qualifiedTokenName.endsWith("/")) {
+                    // Wildcard case of invalidating all tokens for a service account, e.g. "elastic/fleet-server/"
+                    cacheIteratorHelper.removeKeysIf(key -> key.startsWith(qualifiedTokenName));
+                } else {
+                    cache.invalidate(qualifiedTokenName);
+                }
+            } else {
+                qualifiedTokenNames.forEach(cache::invalidate);
+            }
         }
     }
 

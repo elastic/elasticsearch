@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,7 +21,7 @@ import java.util.Objects;
 /**
  * Statistics about an index feature.
  */
-public final class IndexFeatureStats implements ToXContent, Writeable {
+public class IndexFeatureStats implements ToXContentObject, Writeable {
 
     final String name;
     int count;
@@ -79,13 +80,17 @@ public final class IndexFeatureStats implements ToXContent, Writeable {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("name", name);
         builder.field("count", count);
         builder.field("index_count", indexCount);
+        doXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+    }
 }

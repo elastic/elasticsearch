@@ -27,7 +27,9 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
@@ -71,6 +73,18 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             "           \"type\": \"keyword\"" +
             "         }" +
             "      }" +
+            "    }," +
+            "    \"long3\": {" +
+            "      \"type\":\"long\"," +
+            "      \"script\": " + Strings.toString(script3) +
+            "    }," +
+            "    \"long4\": {" +
+            "      \"type\":\"long\"," +
+            "      \"script\": " + Strings.toString(script4) +
+            "    }," +
+            "    \"keyword3\": {" +
+            "      \"type\": \"keyword\"," +
+            "      \"script\": " + Strings.toString(script1) +
             "    }" +
             "  }" +
             "}";
@@ -85,13 +99,43 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             "    \"field_types\" : [\n" +
             "      {\n" +
             "        \"name\" : \"keyword\",\n" +
-            "        \"count\" : 2,\n" +
-            "        \"index_count\" : 2\n" +
+            "        \"count\" : 4,\n" +
+            "        \"index_count\" : 2,\n" +
+            "        \"script_count\" : 2,\n" +
+            "        \"lang\" : [\n" +
+            "          \"painless\"\n" +
+            "        ],\n" +
+            "        \"lines_max\" : 1,\n" +
+            "        \"lines_total\" : 2,\n" +
+            "        \"chars_max\" : 47,\n" +
+            "        \"chars_total\" : 94,\n" +
+            "        \"source_max\" : 1,\n" +
+            "        \"source_total\" : 2,\n" +
+            "        \"doc_max\" : 2,\n" +
+            "        \"doc_total\" : 4\n" +
+            "      },\n" +
+            "      {\n" +
+            "        \"name\" : \"long\",\n" +
+            "        \"count\" : 4,\n" +
+            "        \"index_count\" : 2,\n" +
+            "        \"script_count\" : 4,\n" +
+            "        \"lang\" : [\n" +
+            "          \"painless\"\n" +
+            "        ],\n" +
+            "        \"lines_max\" : 2,\n" +
+            "        \"lines_total\" : 6,\n" +
+            "        \"chars_max\" : 68,\n" +
+            "        \"chars_total\" : 176,\n" +
+            "        \"source_max\" : 3,\n" +
+            "        \"source_total\" : 8,\n" +
+            "        \"doc_max\" : 0,\n" +
+            "        \"doc_total\" : 0\n" +
             "      },\n" +
             "      {\n" +
             "        \"name\" : \"object\",\n" +
             "        \"count\" : 2,\n" +
-            "        \"index_count\" : 2\n" +
+            "        \"index_count\" : 2,\n" +
+            "        \"script_count\" : 0\n" +
             "      }\n" +
             "    ],\n" +
             "    \"runtime_field_types\" : [\n" +
@@ -143,19 +187,13 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
 
     @Override
     protected MappingStats createTestInstance() {
-        Collection<IndexFeatureStats> stats = new ArrayList<>();
+        Collection<FieldStats> stats = new ArrayList<>();
         Collection<RuntimeFieldStats> runtimeFieldStats = new ArrayList<>();
         if (randomBoolean()) {
-            IndexFeatureStats s = new IndexFeatureStats("keyword");
-            s.count = 10;
-            s.indexCount = 7;
-            stats.add(s);
+            stats.add(randomFieldStats("keyword"));
         }
         if (randomBoolean()) {
-            IndexFeatureStats s = new IndexFeatureStats("integer");
-            s.count = 3;
-            s.indexCount = 3;
-            stats.add(s);
+            stats.add(randomFieldStats("double"));
         }
         if (randomBoolean()) {
             runtimeFieldStats.add(randomRuntimeFieldStats("keyword"));
@@ -166,17 +204,36 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         return new MappingStats(stats, runtimeFieldStats);
     }
 
+    private static FieldStats randomFieldStats(String type) {
+        FieldStats stats = new FieldStats(type);
+        stats.count = randomIntBetween(0, Integer.MAX_VALUE);
+        stats.indexCount = randomIntBetween(0, Integer.MAX_VALUE);
+        if (randomBoolean()) {
+            stats.scriptCount = randomIntBetween(0, Integer.MAX_VALUE);
+            stats.scriptLangs.add(randomAlphaOfLengthBetween(3, 10));
+            stats.fieldScriptStats.update(
+                randomIntBetween(1, 100), randomLongBetween(100, 1000), randomIntBetween(1, 10), randomIntBetween(1, 10));
+        }
+        return stats;
+    }
+
     private static RuntimeFieldStats randomRuntimeFieldStats(String type) {
         RuntimeFieldStats stats = new RuntimeFieldStats(type);
+        stats.count = randomIntBetween(0, Integer.MAX_VALUE);
+        stats.indexCount = randomIntBetween(0, Integer.MAX_VALUE);
+        stats.scriptLessCount = randomIntBetween(0, Integer.MAX_VALUE);
+        stats.shadowedCount = randomIntBetween(0, Integer.MAX_VALUE);
+        stats.scriptLangs.add(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
-            stats.update(randomIntBetween(1, 100), randomLongBetween(100, 1000), randomIntBetween(1, 10), randomIntBetween(1, 10));
+            stats.fieldScriptStats.update(
+                randomIntBetween(1, 100), randomLongBetween(100, 1000), randomIntBetween(1, 10), randomIntBetween(1, 10));
         }
         return stats;
     }
 
     @Override
     protected MappingStats mutateInstance(MappingStats instance) throws IOException {
-        List<IndexFeatureStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
+        List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
         if (randomBoolean()) {
             boolean remove = fieldTypes.size() > 0 && randomBoolean();
@@ -184,7 +241,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                 fieldTypes.remove(randomInt(fieldTypes.size() - 1));
             }
             if (remove == false || randomBoolean()) {
-                IndexFeatureStats s = new IndexFeatureStats("float");
+                FieldStats s = new FieldStats("float");
                 s.count = 13;
                 s.indexCount = 2;
                 fieldTypes.add(s);
@@ -216,7 +273,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                 .put(indexMetadata)
                 .build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        IndexFeatureStats expectedStats = new IndexFeatureStats("long");
+        FieldStats expectedStats = new FieldStats("long");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
         assertEquals(
@@ -258,7 +315,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         }));
     }
 
-    public void testWriteToPreRuntimeFields() throws IOException {
+    public void testWriteToPre7_13() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
         Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
@@ -267,20 +324,42 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         in.setVersion(version);
         MappingStats deserialized = new MappingStats(in);
-        assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         if (version.onOrAfter(Version.V_7_13_0)) {
+            assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
             assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());
         } else {
             assertEquals(0, deserialized.getRuntimeFieldStats().size());
+            Set<FieldStats> expected = new HashSet<>();
+            for (FieldStats fieldStats : instance.getFieldTypeStats()) {
+                FieldStats newFieldStats = new FieldStats(fieldStats.name);
+                newFieldStats.count = fieldStats.count;
+                newFieldStats.indexCount = fieldStats.indexCount;
+                expected.add(newFieldStats);
+            }
+            assertEquals(expected, deserialized.getFieldTypeStats());
         }
     }
 
-    public void testReadFromPreRuntimeFields() throws IOException {
+    public void testRuntimeFieldTypesReadFromPre7_13() throws IOException {
         byte[] bytes = Base64.getDecoder().decode("AQdrZXl3b3JkCgcAAAAAAA==");
         StreamInput in = StreamInput.wrap(bytes);
-        in.setVersion(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_7_12_0));
+        in.setVersion(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Version.V_7_13_0)));
         MappingStats deserialized = new MappingStats(in);
         assertEquals(1, deserialized.getFieldTypeStats().size());
         assertEquals(0, deserialized.getRuntimeFieldStats().size());
+    }
+
+    public void testFieldTypesReadFromPre7_13() throws IOException {
+        String base64EncodedFromPre8_0 = "AQR0ZXN0qebzzQGSg/HlBgAAAAAAAAAA";
+        byte[] bytes = Base64.getDecoder().decode(base64EncodedFromPre8_0);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(Version.V_7_13_0));
+        StreamInput in = StreamInput.wrap(bytes);
+        in.setVersion(version);
+        MappingStats deserialized = new MappingStats(in);
+        assertEquals("{\"mappings\":{\"field_types\":" +
+            "[{\"name\":\"test\",\"count\":431813417,\"index_count\":1824276882,\"script_count\":0}],\"runtime_field_types\":[]}}",
+            Strings.toString(deserialized));
     }
 }

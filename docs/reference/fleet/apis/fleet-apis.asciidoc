@@ -1,0 +1,11 @@
+[role="xpack"]
+[[fleet-apis]]
+== Fleet APIs
+
+The following APIs are design to support fleet-server's usage of Elasticsearch as a datastore internal agent and action data.
+
+* <<fleet-global-checkpoints,Get current global checkpoints>>
+
+// top-level
+include::global-checkpoints.asciidoc[]
+

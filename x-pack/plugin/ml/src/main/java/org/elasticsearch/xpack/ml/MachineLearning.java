@@ -16,15 +16,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.ActionFilter;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1249,7 +1246,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         logger.info("Starting machine learning feature reset");
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
+            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(
                 resetSuccess -> finalListener.onResponse(success),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
@@ -1261,7 +1258,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     );
                 })
             ),
-            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
+            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
                 resetSuccess -> finalListener.onFailure(failure),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after state clean up failure", resetFailure);
@@ -1325,6 +1322,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             }
         }, unsetResetModeListener::onFailure);
 
+
         ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
             // Handle the response
             results.put("anomaly_detectors", closeJobResponse.isClosed());
@@ -1367,7 +1365,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }, unsetResetModeListener::onFailure);
 
         // Stop data feeds
-        ActionListener<AcknowledgedResponse> afterTrainedModelAliasesRemoved = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(
             acknowledgedResponse -> {
                 StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all")
                     .setAllowNoMatch(true);
@@ -1379,32 +1377,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     }
                 ));
             },
-            unsetResetModeListener::onFailure
-        );
-
-        // Remove all trained model aliases
-        ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(
-            acknowledgedResponse -> clusterService.submitStateUpdateTask(
-                "reset-model-aliases",
-                // TODO: it would be nice if these timeouts could be customized by the caller of the feature reset API
-                new AckedClusterStateUpdateTask(new AckedRequest() {
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-                    }
-
-                    @Override
-                    public TimeValue masterNodeTimeout() {
-                        return AcknowledgedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-                    }
-                }, afterTrainedModelAliasesRemoved) {
-                    @Override
-                    public ClusterState execute(final ClusterState currentState) {
-                        final ClusterState.Builder builder = ClusterState.builder(currentState);
-                        builder.metadata(Metadata.builder(currentState.getMetadata()).removeCustom(ModelAliasMetadata.NAME).build());
-                        return builder.build();
-                    }
-                }),
             unsetResetModeListener::onFailure
         );
 

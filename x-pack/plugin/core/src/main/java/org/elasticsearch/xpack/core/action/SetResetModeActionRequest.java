@@ -22,34 +22,44 @@ import java.util.Objects;
 
 public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeActionRequest> implements ToXContentObject {
     public static SetResetModeActionRequest enabled() {
-        return new SetResetModeActionRequest(true);
+        return new SetResetModeActionRequest(true, false);
     }
 
-    public static SetResetModeActionRequest disabled() {
-        return new SetResetModeActionRequest(false);
+    public static SetResetModeActionRequest disabled(boolean resetSuccessful) {
+        return new SetResetModeActionRequest(false, resetSuccessful);
     }
 
     private final boolean enabled;
+    private final boolean resetSuccessful;
 
     private static final ParseField ENABLED = new ParseField("enabled");
+    private static final ParseField RESET_SUCCESSFUL = new ParseField("reset_successful");
     public static final ConstructingObjectParser<SetResetModeActionRequest, Void> PARSER =
-        new ConstructingObjectParser<>("set_reset_mode_action_request", a -> new SetResetModeActionRequest((Boolean)a[0]));
+        new ConstructingObjectParser<>("set_reset_mode_action_request",
+            a -> new SetResetModeActionRequest((Boolean)a[0], (Boolean)a[1]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), RESET_SUCCESSFUL);
     }
 
-    SetResetModeActionRequest(boolean enabled) {
+    SetResetModeActionRequest(boolean enabled, Boolean resetSuccessful) {
         this.enabled = enabled;
+        this.resetSuccessful = resetSuccessful != null && resetSuccessful;
     }
 
     public SetResetModeActionRequest(StreamInput in) throws IOException {
         super(in);
         this.enabled = in.readBoolean();
+        this.resetSuccessful = in.readBoolean();
     }
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean isResetSuccessful() {
+        return resetSuccessful;
     }
 
     @Override
@@ -61,11 +71,12 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(enabled);
+        out.writeBoolean(resetSuccessful);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled);
+        return Objects.hash(enabled, resetSuccessful);
     }
 
     @Override
@@ -77,13 +88,17 @@ public class SetResetModeActionRequest extends AcknowledgedRequest<SetResetModeA
             return false;
         }
         SetResetModeActionRequest other = (SetResetModeActionRequest) obj;
-        return Objects.equals(enabled, other.enabled);
+        return Objects.equals(enabled, other.enabled)
+            && Objects.equals(resetSuccessful, other.resetSuccessful);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(ENABLED.getPreferredName(), enabled);
+        if (enabled == false) {
+            builder.field(RESET_SUCCESSFUL.getPreferredName(), resetSuccessful);
+        }
         builder.endObject();
         return builder;
     }

@@ -39,8 +39,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService.EMPTY_ROLES;
-
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
     private final Map<String, AutoscalingDeciderService> deciderByName;
 
@@ -174,7 +172,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
     private boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
         if (roles.isEmpty()) {
-            return deciderService.roles().contains(EMPTY_ROLES);
+            return deciderService.appliesToEmptyRoles();
         } else {
             return deciderService.roles().stream().map(DiscoveryNodeRole::roleName).anyMatch(roles::contains);
         }
@@ -268,7 +266,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         private boolean nodeHasAccurateCapacity(DiscoveryNode node) {
-            if (node.isDataNode()) {
+            if (node.canContainData()) {
                 // todo: multiple data path support.
                 DiskUsage mostAvailable = clusterInfo.getNodeMostAvailableDiskUsages().get(node.getId());
                 DiskUsage leastAvailable = clusterInfo.getNodeLeastAvailableDiskUsages().get(node.getId());
@@ -296,7 +294,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         private AutoscalingCapacity.AutoscalingResources resourcesFor(DiscoveryNode node) {
-            long storage = node.isDataNode()
+            long storage = node.canContainData()
                 ? Math.max(
                     totalStorage(clusterInfo.getNodeLeastAvailableDiskUsages(), node),
                     totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node)

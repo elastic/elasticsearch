@@ -9,8 +9,6 @@
 
 Retrieves usage information for trained models.
 
-beta::[]
-
 
 [[ml-get-trained-models-stats-request]]
 == {api-request-title}

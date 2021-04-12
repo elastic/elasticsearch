@@ -105,7 +105,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         logger.debug("Failed to write audit message", exception);
     }
 
-    private void indexDoc(ToXContent toXContent) {
+    protected void indexDoc(ToXContent toXContent) {
         if (hasLatestTemplate.get()) {
             writeDoc(toXContent);
             return;
@@ -184,7 +184,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         }
     }
 
-    private void writeBacklog() {
+    protected void clearBacklog() {
+        backlog = null;
+    }
+
+    protected void writeBacklog() {
         assert backlog != null;
         if (backlog == null) {
             logger.error("Message back log has already been written");

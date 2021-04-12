@@ -29,9 +29,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -45,11 +47,13 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -569,12 +573,116 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
                 return o;
             }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
             /*
              * Doc values sort according to something appropriate to the field
              * and the native fetchers usually don't sort. We're ok with this
              * difference. But we have to convince the test we're ok with it.
              */
             assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
+        });
+    }
+
+    /**
+     * A few field types (e.g. keyword fields) don't allow duplicate values, so in those cases we need to de-dup our expected values.
+     * Field types where this is the case should overwrite this. The default is to not de-duplicate though.
+     */
+    protected boolean dedupAfterFetch() {
+        return false;
+    }
+
+    /**
+     * @return whether or not this field type supports access to its values from a SearchLookup
+     */
+    protected boolean supportsSearchLookup() {
+        return true;
+    }
+
+    /**
+     * Checks that field data from this field produces the same values for query-time
+     * scripts and for index-time scripts
+     */
+    public final void testIndexTimeFieldData() throws IOException {
+        assumeTrue("Field type does not support access via search lookup", supportsSearchLookup());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        if (fieldType.isAggregatable() == false) {
+            return; // No field data available, so we ignore
+        }
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+
+            ScriptDocValues<?> fieldData = fieldType
+                .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(ctx)
+                .getScriptValues();
+
+            fieldData.setNextDocId(0);
+
+            DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
+            ScriptDocValues<?> indexData = fieldType
+                .fielddataBuilder("test", () -> {
+                    throw new UnsupportedOperationException();
+                })
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(reader.getContext())
+                .getScriptValues();
+            indexData.setNextDocId(0);
+
+            // compare index and search time fielddata
+            assertThat(fieldData, equalTo(indexData));
+        });
+    }
+
+    /**
+     * Checks that loading stored fields for this field produces the same set of values
+     * for query time scripts and index time scripts
+     */
+    public final void testIndexTimeStoredFieldsAccess() throws IOException {
+
+        MapperService mapperService;
+        try {
+            mapperService = createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("store", true);
+            }));
+            assertParseMinimalWarnings();
+        } catch (MapperParsingException e) {
+            assertParseMinimalWarnings();
+            assumeFalse("Field type does not support stored fields", true);
+            return;
+        }
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> {
+            throw new UnsupportedOperationException();
+        });
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+            LeafStoredFieldsLookup storedFields = lookup.getLeafSearchLookup(ctx).fields();
+            storedFields.setDocument(0);
+
+            DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
+
+            LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(reader.getContext()).fields();
+            indexStoredFields.setDocument(0);
+
+            // compare index and search time stored fields
+            assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
         });
     }
 

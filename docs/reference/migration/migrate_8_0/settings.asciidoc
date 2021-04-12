@@ -166,3 +166,62 @@ Discontinue use of the removed settings. If needed, use
 `gateway.expected_data_nodes` or `gateway.recover_after_data_nodes` to defer
 cluster recovery pending a certain number of data nodes.
 ====
+
+.Setting the searchable snapshots shared cache size on non-frozen nodes is no
+longer permitted.
+[%collapsible]
+====
+*Details* +
+Setting `xpack.searchable.snapshot.shared_cache.size` to be positive on a node
+that does not have the `data_frozen` role was deprecated in {es} 7.12.0 and has
+been removed in {es} 8.0.0.
+
+*Impact* +
+Discontinue use of the removed setting. Note that searchable snapshots mounted
+using the `shared_cache` storage option were only allocated to nodes that had
+the `data_frozen` role, so removing this setting on nodes that do not have the
+`data_frozen` role will have no impact on functionality.
+====
+
+.By default, destructive index actions do not allow wildcards.
+[%collapsible]
+====
+*Details* +
+The default value of the setting `action.destructive_requires_name` changes from `false`
+to `true` in {es} 8.0.0.
+
+In previous versions, the default setting allowed users to use wildcard
+patterns to delete, close, or change index blocks on indices. In order
+to prevent the accidental deletion of indices that happen to match a
+wildcard pattern, we now require, by default, that any such destructive
+operation explicitly name the indices it intends to modify.
+
+*Impact* +
+If you would like to use wildcard patterns for destructive actions, set
+`action.destructive_requires_name` to `false` using the <<cluster-update-settings,
+cluster settings>> API.
+====
+
+.Legacy role settings are removed
+[%collapsible]
+====
+*Details* +
+The legacy role settings:
+
+* `node.data`
+* `node.ingest`
+* `node.master`
+* `node.ml`
+* `node.remote_cluster_client`
+* `node.transform`
+* `node.voting_only`
+
+have been removed. Instead, use the `node.roles` setting. If you were previously
+using the legacy role settings on a 7.13 or later cluster, you will have a
+deprecation log message on each of your nodes indicating the exact replacement
+value for `node.roles`.
+
+*Impact* +
+Discontinue use of the removed settings. Specifying these settings in
+`elasticsearch.yml` will result in an error on startup.
+====

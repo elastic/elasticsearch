@@ -7,7 +7,7 @@
 import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.yaml-rest-test'
-
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation project(path: xpackModule('rollup'))
@@ -15,8 +15,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk', 'cluster', 'indices', 'search'
-    includeXpack 'rollup'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'rollup'
   }
 }
 

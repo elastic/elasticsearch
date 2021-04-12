@@ -208,4 +208,9 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected String generateRandomInputValue(MappedFieldType ft) {
         return NetworkAddress.format(randomIp(randomBoolean()));
     }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
 }

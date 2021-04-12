@@ -43,7 +43,7 @@ keystore and add the secure settings:
 ----------------------------------------------------------------------
 
 When prompted, specify the `kibana_system` built-in user and its password for these
-setting values.  The settings are automatically applied when you start {kib}.
+setting values. The settings are automatically applied when you start {kib}.
 To learn more, see {kibana-ref}/secure-settings.html[Secure settings].
 // end::store-kibana-user[]
 --

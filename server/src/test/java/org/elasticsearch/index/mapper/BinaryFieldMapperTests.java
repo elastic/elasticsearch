@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -121,13 +122,18 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        assumeFalse("We can't parse the binary doc values we send", true);
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/70244
-        return null;
+        if (rarely()) return null;
+        byte[] value = randomByteArrayOfLength(randomIntBetween(1, 50));
+        return Base64.getEncoder().encodeToString(value);
     }
 
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "binary").field("doc_values", true); // enable doc_values so the test is happy
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

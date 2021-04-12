@@ -105,7 +105,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         logger.debug("Failed to write audit message", exception);
     }
 
-    private void indexDoc(ToXContent toXContent) {
+    protected void indexDoc(ToXContent toXContent) {
         if (hasLatestTemplate.get()) {
             writeDoc(toXContent);
             return;

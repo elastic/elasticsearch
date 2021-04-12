@@ -365,7 +365,6 @@ public class CacheFile {
                     @Override
                     protected void doRun() throws Exception {
                         if (reference.tryIncRef() == false) {
-                            assert false : "expected a non-closed channel reference";
                             throw new AlreadyClosedException("Cache file channel has been released and closed");
                         }
                         try {

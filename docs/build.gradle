@@ -143,6 +143,9 @@ Closure setupMyIndex = { String name, int count ->
                           type: keyword
                 message:
                   type: text
+                  fields:
+                    keyword:
+                      type: keyword
                 user:
                   properties:
                     id:
@@ -221,15 +224,16 @@ buildRestTests.setups['messages'] = '''
           refresh: true
           body: |
             {"index":{"_id": "0"}}
-            {"message": "trying out Elasticsearch"}
+            {"message": "trying out Elasticsearch", "context": "foo"}
             {"index":{"_id": "1"}}
-            {"message": "some message with the number 1"}
+            {"message": "some message with the number 1", "context": "bar"}
             {"index":{"_id": "2"}}
-            {"message": "some message with the number 2"}
+            {"message": "some message with the number 2", "context": "bar"}
             {"index":{"_id": "3"}}
-            {"message": "some message with the number 3"}
+            {"message": "some message with the number 3", "context": "bar"}
             {"index":{"_id": "4"}}
-            {"message": "some message with the number 4"}'''
+            {"message": "some message with the number 4", "context": "bar"}
+'''
 
 // Used for EQL
 setups['sec_logs'] = setups['my_data_stream'] + '''
@@ -530,14 +534,6 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
-  # Simple script to load a field. Not really a good example, but a simple one.
-  - do:
-      put_script:
-        id: "my_script"
-        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
-  - match: { acknowledged: true }
-'''
 
 buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:

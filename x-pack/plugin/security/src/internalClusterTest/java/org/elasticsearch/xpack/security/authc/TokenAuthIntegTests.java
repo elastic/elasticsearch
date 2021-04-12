@@ -63,9 +63,9 @@ import static org.hamcrest.Matchers.hasItem;
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 // crank up the deletion interval and set timeout for delete requests
                 .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
                 .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))

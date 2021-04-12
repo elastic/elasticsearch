@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -96,21 +97,8 @@ public class CreateServiceAccountTokenRequest extends ActionRequest {
             validationException = addValidationError("service account service-name is required", validationException);
         }
 
-        if (Strings.isNullOrEmpty(tokenName)) {
-            validationException = addValidationError("service account token name is required", validationException);
-        } else {
-            if (tokenName.length() > 256) {
-                validationException = addValidationError(
-                    "service account token name may not be more than 256 characters long", validationException);
-            }
-            if (tokenName.equals(tokenName.trim()) == false) {
-                validationException = addValidationError(
-                    "service account token name may not begin or end with whitespace", validationException);
-            }
-            if (tokenName.startsWith("_")) {
-                validationException = addValidationError(
-                    "service account token name may not begin with an underscore", validationException);
-            }
+        if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
+            validationException = addValidationError(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE, validationException);
         }
         return validationException;
     }

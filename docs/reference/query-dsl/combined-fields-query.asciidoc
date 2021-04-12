@@ -170,9 +170,10 @@ is executed as
 In other words, each term must be present in at least one field for a
 document to match.
 
-The `cross_fields` `multi_match` mode also takes a term-centric approach and. The
-main advantage of `combined_fields` over `cross_fields` is its robust and
-interpretable approach to scoring based on the BM25F algorithm.
+The `cross_fields` `multi_match` mode also takes a term-centric approach and
+applies `operator` and `minimum_should_match per-term`. The main advantage of
+`combined_fields` over `cross_fields` is its robust and interpretable approach
+to scoring based on the BM25F algorithm.
 
 [NOTE]
 .Custom similarities

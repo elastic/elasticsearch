@@ -78,6 +78,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
@@ -476,7 +477,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES);
+            IndexingPressure.MAX_INDEXING_BYTES,
+            GeoIpSettings.ENABLED_SETTING);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

@@ -55,7 +55,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,11 +79,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(Arrays.asList(CACHE_SIZE,
-            GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING));
-            settings.add(GeoIpDownloaderTaskExecutor.ENABLED_SETTING);
-        return settings;
+        return Arrays.asList(CACHE_SIZE, GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING);
     }
 
     @Override

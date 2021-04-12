@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -65,7 +66,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloaderTaskExecutor.ENABLED_SETTING)));
+            Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpSettings.ENABLED_SETTING)));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);

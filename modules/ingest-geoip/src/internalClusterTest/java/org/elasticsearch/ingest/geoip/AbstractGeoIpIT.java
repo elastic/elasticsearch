@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -49,7 +50,7 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
         }
         return Settings.builder()
             .put("ingest.geoip.database_path", databasePath)
-            .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false)
+            .put(GeoIpSettings.ENABLED_SETTING.getKey(), false)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .build();
     }

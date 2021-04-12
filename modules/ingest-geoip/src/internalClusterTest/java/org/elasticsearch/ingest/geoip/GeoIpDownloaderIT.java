@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
@@ -81,7 +82,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void disableDownloader() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
+            .setPersistentSettings(Settings.builder().put(GeoIpSettings.ENABLED_SETTING.getKey(), (String) null))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
     }
@@ -89,7 +90,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testGeoIpDatabasesDownload() throws Exception {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
+            .setPersistentSettings(Settings.builder().put(GeoIpSettings.ENABLED_SETTING.getKey(), true))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
@@ -228,7 +229,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
 
         // Enable downloader:
-        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
+        Settings.Builder settings = Settings.builder().put(GeoIpSettings.ENABLED_SETTING.getKey(), true);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
@@ -267,7 +268,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
 
         // Disable downloader:
-        settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
+        settings = Settings.builder().put(GeoIpSettings.ENABLED_SETTING.getKey(), false);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         assertBusy(() -> {

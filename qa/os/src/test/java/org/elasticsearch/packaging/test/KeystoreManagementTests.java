@@ -42,6 +42,7 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -63,6 +64,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
+
+        disableGeoIpDownloader(installation);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -91,7 +94,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(distribution(), builder().envVars("geoip.downloader.enabled", "false"));
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -72,11 +71,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
         Setting.Property.Dynamic, Setting.Property.IndexScope) {
         @Override
         public String get(Settings settings) {
-            final Version idxVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
-            if (idxVersion.onOrAfter(Version.V_7_13_0)) {
-                // 7.13.0+ indices can use the original setting value
-                return super.get(settings);
-            } else if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+            if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
                 // Partial searchable snapshot indices should be restricted to
                 // only data_frozen when reading the setting, or else validation fails.
                 return DATA_FROZEN;

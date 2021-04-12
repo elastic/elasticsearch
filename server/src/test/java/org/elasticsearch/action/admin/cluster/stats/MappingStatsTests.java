@@ -351,15 +351,15 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testFieldTypesReadFromPre7_13() throws IOException {
-        String base64EncodedFromPre8_0 = "AQR0ZXN0qebzzQGSg/HlBgAAAAAAAAAA";
-        byte[] bytes = Base64.getDecoder().decode(base64EncodedFromPre8_0);
+        String base64EncodedFromPre7_13 = "AQR0ZXN0qebzzQGSg/HlBgAAAAAAAAAA";
+        byte[] bytes = Base64.getDecoder().decode(base64EncodedFromPre7_13);
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
             VersionUtils.getPreviousVersion(Version.V_7_13_0));
         StreamInput in = StreamInput.wrap(bytes);
         in.setVersion(version);
         MappingStats deserialized = new MappingStats(in);
         assertEquals("{\"mappings\":{\"field_types\":" +
-            "[{\"name\":\"test\",\"count\":431813417,\"index_count\":1824276882,\"script_count\":0}],\"runtime_field_types\":[]}}",
+                "[{\"name\":\"test\",\"count\":431813417,\"index_count\":1824276882,\"script_count\":0}],\"runtime_field_types\":[]}}",
             Strings.toString(deserialized));
     }
 }

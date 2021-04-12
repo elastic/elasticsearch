@@ -8,6 +8,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -34,4 +35,10 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
+  ].join(',')
 }

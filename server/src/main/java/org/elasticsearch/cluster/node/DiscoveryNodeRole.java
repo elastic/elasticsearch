@@ -11,10 +11,10 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.function.Predicate;
 
 /**
  * Represents a node role.
@@ -59,6 +59,16 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public boolean isEnabledByDefault(final Settings settings) {
         return true;
+    }
+
+    /**
+     * Validate this role against all configured roles. Implementors are expected to throw an {@link IllegalArgumentException} when the
+     * combination of configured roles is invalid with this role.
+     *
+     * @param roles the complete set of configured roles
+     */
+    public void validateRoles(final List<DiscoveryNodeRole> roles) {
+
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
@@ -176,16 +186,20 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
 
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
+
+    public static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            // transform is enabled by default on any non-frozen data node
-            final Predicate<DiscoveryNodeRole> notFrozen = Predicate.not(s -> Objects.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE, s));
-            return DiscoveryNode.getPossibleRoles()
-                .stream()
-                .filter(notFrozen.and(DiscoveryNodeRole::canContainData))
-                .anyMatch(r -> DiscoveryNode.hasRole(settings, r));
+            return false;
+        }
+
+        @Override
+        public void validateRoles(final List<DiscoveryNodeRole> roles) {
+            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false) {
+                throw new IllegalArgumentException("voting-only node must be master-eligible");
+            }
         }
 
     };
@@ -205,7 +219,8 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             DATA_COLD_NODE_ROLE,
             DATA_FROZEN_NODE_ROLE,
             ML_ROLE,
-            TRANSFORM_ROLE
+            TRANSFORM_ROLE,
+            VOTING_ONLY_NODE_ROLE
         ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**

@@ -6,49 +6,26 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.transform.log4j;
+package org.elasticsearch.gradle.docker;
 
+import org.apache.commons.io.IOUtils;
+
+import java.io.FilterReader;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * This class takes in a log4j configuration file, and transform it into a config that
- * writes everything to the console. This is useful when running Elasticsearch in a Docker
- * container, where the Docker convention is to log to stdout / stderr and let the
- * orchestration layer direct the output.
- */
-public class TransformLog4jConfig {
-
-    public static void main(String[] args) throws IOException {
-        List<String> lines = getConfigFile(args);
-
-        final List<String> output = skipBlanks(transformConfig(lines));
-
-        output.forEach(System.out::println);
+public class TransformLog4jConfigFilter extends FilterReader {
+    public TransformLog4jConfigFilter(Reader in) throws IOException {
+        super(new StringReader(transform(in)));
     }
 
-    private static List<String> getConfigFile(String[] args) throws IOException {
-        if (args.length != 1) {
-            System.err.println("ERROR: Must supply a single argument, the file to process");
-            System.exit(1);
-        }
-
-        Path configPath = Path.of(args[0]);
-
-        if (Files.exists(configPath) == false) {
-            System.err.println("ERROR: [" + configPath + "] does not exist");
-            System.exit(1);
-        }
-
-        if (Files.isReadable(configPath) == false) {
-            System.err.println("ERROR: [" + configPath + "] exists but is not readable");
-            System.exit(1);
-        }
-
-        return Files.readAllLines(configPath);
+    private static String transform(Reader reader) throws IOException {
+        final List<String> inputLines = IOUtils.readLines(reader);
+        final List<String> outputLines = skipBlanks(transformConfig(inputLines));
+        return String.join("\n", outputLines);
     }
 
     /** Squeeze multiple empty lines into a single line. */

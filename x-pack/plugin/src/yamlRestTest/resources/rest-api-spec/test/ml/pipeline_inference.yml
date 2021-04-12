@@ -99,6 +99,12 @@ setup:
           { "product": "VCR", "cost": 180, "time": 1587501233000 }
           { "index": {} }
           { "product": "Laptop", "cost": 15000, "time": 1587501233000 }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.health:
+        index: [".ml-inference-*", ".ml-stats-*"]
+        wait_for_status: green
 
 ---
 "Test pipeline regression simple":

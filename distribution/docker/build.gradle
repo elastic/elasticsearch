@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.docker.DockerBuildTask
 import org.elasticsearch.gradle.docker.ShellRetry
+import org.elasticsearch.gradle.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
@@ -36,14 +37,14 @@ testFixtures.useFixture()
 configurations {
   aarch64DockerSource
   dockerSource
-  transformLog4jJar
+  log4jConfig
   tini
 }
 
 dependencies {
   aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
   dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
-  transformLog4jJar project(path: ":distribution:docker:transform-log4j-config", configuration: 'default')
+  log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini 'krallin:tini:0.19.0@tini-amd64'
 }
 
@@ -115,7 +116,7 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
       }
     }
 
-    from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+    from(projectDir.resolve("src/docker/Dockerfile")) {
       expand(varExpansions)
       filter SquashNewlinesFilter
     }
@@ -197,23 +198,24 @@ tasks.named("composePull").configure {
 }
 
 void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
-  String binDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'bin'
+  String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
 
-  final TaskProvider<DockerBuildTask> buildContextTask =
-    tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
-      archiveExtension = 'tar.gz'
-      compression = Compression.GZIP
-      archiveClassifier = "docker-build-context${arch}"
-      archiveBaseName = "elasticsearch${base.suffix}"
-      with dockerBuildContext(architecture, base)
+  tasks.register(taskName('build', architecture, base, 'DockerContext'), Tar) {
+    archiveExtension = 'tar.gz'
+    compression = Compression.GZIP
+    archiveClassifier = "docker-build-context${arch}"
+    archiveBaseName = "elasticsearch${base.suffix}"
+    with dockerBuildContext(architecture, base)
 
-      into (binDirectory) {
-        from configurations.transformLog4jJar
+    into(configDirectory) {
+      from(configurations.log4jConfig) {
+        filter TransformLog4jConfigFilter
       }
-
-      onlyIf { Architecture.current() == architecture }
     }
+
+    onlyIf { Architecture.current() == architecture }
+  }
 }
 
 void addUnpackDockerContextTask(Architecture architecture, DockerBase base) {

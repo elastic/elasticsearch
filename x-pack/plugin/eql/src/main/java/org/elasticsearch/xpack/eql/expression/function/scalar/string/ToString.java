@@ -36,9 +36,9 @@ public class ToString extends ScalarFunction {
 
     private final Expression value;
 
-    public ToString(Source source, Expression src) {
-        super(source, Collections.singletonList(src));
-        this.value = src;
+    public ToString(Source source, Expression value) {
+        super(source, Collections.singletonList(value));
+        this.value = value;
     }
 
     @Override
@@ -48,6 +48,10 @@ public class ToString extends ScalarFunction {
         }
 
         return isExact(value, sourceText(), ParamOrdinal.DEFAULT);
+    }
+
+    public Expression value() {
+        return value;
     }
 
     @Override

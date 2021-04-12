@@ -17,3 +17,8 @@ dependencies {
 }
 
 addQaCheckDependencies()
+
+tasks.named("internalClusterTest").configure {
+  // Reduce the buffer size per cache-fetch thread to keep direct memory usage under control.
+  systemProperty 'es.searchable.snapshot.shared_cache.write_buffer.size', '256k'
+}

@@ -46,6 +46,10 @@ public class NodeShutdownComponentStatus extends AbstractDiffable<NodeShutdownCo
         return PARSER.apply(parser, null);
     }
 
+    public NodeShutdownComponentStatus() {
+        this(SingleNodeShutdownMetadata.Status.NOT_STARTED, null, null);
+    }
+
     public NodeShutdownComponentStatus(
         SingleNodeShutdownMetadata.Status status,
         @Nullable Long startedAtMillis,

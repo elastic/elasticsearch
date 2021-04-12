@@ -389,8 +389,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                  * Without sub.isNoop we always end up in the `collectXXX` modes even if
                  * the sub-aggregators opt out of traditional collection.
                  */
+                segmentsCounted++;
                 collectCount(ctx, live);
             } else {
+                segmentsCollected++;
                 collectSubs(ctx, live, sub);
             }
             return LeafBucketCollector.NO_OP_COLLECTOR;

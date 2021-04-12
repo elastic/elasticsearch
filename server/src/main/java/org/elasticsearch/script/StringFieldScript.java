@@ -23,7 +23,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
      */
     public static final long MAX_CHARS = 1024 * 1024;
 
-    public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("string_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

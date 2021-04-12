@@ -79,13 +79,26 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("In [combined_fields] query, at least one field must be provided"));
     }
 
-    public void testNegativeFieldBoost() {
+    public void testInvalidFieldBoosts() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> combinedFieldsQuery("the quick fox")
                 .field("field1", -1.0f)
                 .field("field2")
                 .toQuery(context));
-        assertThat(e.getMessage(), containsString("negative [boost]"));
+        assertThat(e.getMessage(), containsString("[combined_fields] requires field boosts to be >= 1.0"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> combinedFieldsQuery("the quick fox")
+                .field("field1", 0.42f)
+                .field("field2")
+                .toQuery(context));
+        assertThat(e.getMessage(), containsString("[combined_fields] requires field boosts to be >= 1.0"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> combinedFieldsQuery("the quick fox")
+                .fields(Map.of("field1", 2.0f, "field2", 0.3f))
+                .toQuery(context));
+        assertThat(e.getMessage(), containsString("[combined_fields] requires field boosts to be >= 1.0"));
     }
 
     public void testMissingFields() throws Exception {

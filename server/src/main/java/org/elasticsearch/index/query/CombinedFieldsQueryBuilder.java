@@ -119,7 +119,6 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         for (int i = 0; i < size; i++) {
             String field = in.readString();
             float boost = in.readFloat();
-            checkNegativeBoost(boost);
             fieldsAndBoosts.put(field, boost);
         }
         operator = Operator.readFromStream(in);
@@ -164,7 +163,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty.");
         }
-        checkNegativeBoost(boost);
+        validateFieldBoost(boost);
         this.fieldsAndBoosts.put(field, boost);
         return this;
     }
@@ -174,9 +173,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     public CombinedFieldsQueryBuilder fields(Map<String, Float> fields) {
         for (float fieldBoost : fields.values()) {
-            if (fieldBoost < 1.0f) {
-                throw new IllegalArgumentException("[" + NAME + "] requires field boosts to be >= 1.0");
-            }
+            validateFieldBoost(fieldBoost);
         }
         this.fieldsAndBoosts.putAll(fields);
         return this;
@@ -233,6 +230,12 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;
+    }
+
+    private void validateFieldBoost(float boost) {
+        if (boost < 1.0f) {
+            throw new IllegalArgumentException("[" + NAME + "] requires field boosts to be >= 1.0");
+        }
     }
 
     @Override

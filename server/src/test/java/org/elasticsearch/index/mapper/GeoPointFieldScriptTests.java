@@ -13,12 +13,15 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.script.AbstractFieldScript;
+import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -45,6 +48,24 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
     @Override
     protected GeoPointFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    public void testAsDocValues() {
+        GeoPointFieldScript script = new GeoPointFieldScript(
+                "test",
+                Map.of(),
+                new SearchLookup(field -> null, (ft, lookup) -> null),
+                null
+        ) {
+            @Override
+            public void execute() {
+                emit(78.96, 12.12);
+                emit(13.45, 56.78);
+            }
+        };
+        script.execute();
+
+        assertArrayEquals(new long[] {1378381707499043786L, 8091971733044486384L}, script.asDocValues());
     }
 
     public void testTooManyValues() throws IOException {

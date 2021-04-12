@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -45,6 +46,23 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
     @Override
     protected DoubleFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    public void testAsDocValues() {
+        DoubleFieldScript script = new DoubleFieldScript(
+                "test",
+                Map.of(),
+                new SearchLookup(field -> null, (ft, lookup) -> null),
+                null
+        ) {
+            @Override
+            public void execute() {
+                emit(3.1); emit(2.29); emit(-12.47); emit(-12.46); emit(Double.MAX_VALUE); emit(0.0);
+            }
+        };
+        script.execute();
+
+        assertArrayEquals(new double[] {-12.47, -12.46, 0.0, 2.29, 3.1, Double.MAX_VALUE}, script.asDocValues(), 0.000000001);
     }
 
     public void testTooManyValues() throws IOException {

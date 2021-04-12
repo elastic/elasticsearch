@@ -1401,8 +1401,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
                         final ClusterState.Builder builder = ClusterState.builder(currentState);
-                        builder.metadata(Metadata.builder(currentState.getMetadata())
-                            .putCustom(ModelAliasMetadata.NAME, ModelAliasMetadata.EMPTY).build());
+                        builder.metadata(Metadata.builder(currentState.getMetadata()).removeCustom(ModelAliasMetadata.NAME).build());
                         return builder.build();
                     }
                 }),

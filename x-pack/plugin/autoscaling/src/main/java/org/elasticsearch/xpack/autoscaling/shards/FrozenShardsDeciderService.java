@@ -89,11 +89,12 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
         private final long shards;
 
         public FrozenShardsReason(long shards) {
+            assert shards >= 0;
             this.shards = shards;
         }
 
         public FrozenShardsReason(StreamInput in) throws IOException {
-            this.shards = in.readLong();
+            this.shards = in.readVLong();
         }
 
         @Override
@@ -112,7 +113,7 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(shards);
+            out.writeVLong(shards);
         }
 
         @Override

@@ -2149,8 +2149,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
             assertHitCount(searchResponse, 1L);
             assertHighlight(searchResponse, 0, "field1", 0,
-                anyOf(equalTo("<field1>The quick brown fox</field1> jumps over"),
-                    equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over")));
+                    equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over"));
         }
     }
 

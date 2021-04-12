@@ -20,9 +20,7 @@ setup:
           title: "Time, Clocks and the Ordering of Events in a Distributed System"
           abstract: "The concept of one event happening before another..."
           body: "The concept of time is fundamental to our way of thinking..."
-
-  - do:
-      indices.refresh: {}
+        refresh: true
 
 ---
 "Test combined_fields query":
@@ -31,7 +29,6 @@ setup:
       reason: "combined fields query is not yet backported"
   - do:
       search:
-        rest_total_hits_as_int: true
         index: test
         body:
           query:
@@ -40,6 +37,6 @@ setup:
               fields: ["abstract", "body"]
               operator: "and"
 
-  - match: { hits.total: 1 }
+  - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "1" }
 

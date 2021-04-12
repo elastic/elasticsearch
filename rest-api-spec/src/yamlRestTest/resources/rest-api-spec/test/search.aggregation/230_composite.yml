@@ -39,6 +39,41 @@ setup:
                       type: long
 
   - do:
+        indices.create:
+          index: verynested
+          body:
+              mappings:
+                properties:
+                  department:
+                    type: keyword
+                  staff:
+                    type: integer
+                  courses:
+                    type: nested
+                    properties:
+                      name:
+                        type: keyword
+                      credits:
+                        type: integer
+                      sessions:
+                        type: nested
+                        properties:
+                          semester:
+                            type: keyword
+
+  - do:
+      index:
+        index: verynested
+        id:    1
+        body:  { "department": "compsci", "staff": 12, "courses": [ { "name": "Object Oriented Programming", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 37 }, { "semester": "fall2020", "students": 45} ] }, { "name": "Theory of Computation", "credits": 4, "sessions": [ { "semester": "spr2021", "students": 19 }, { "semester": "fall2020", "students": 14 } ] } ] }
+
+  - do:
+      index:
+        index: verynested
+        id:    2
+        body:  { "department": "math", "staff": 20, "courses": [ { "name": "Precalculus", "credits": 1, "sessions": [ { "semester": "spr2021", "students": 100 }, { "semester": "fall2020", "students": 134 } ] }, { "name": "Linear Algebra", "credits": 3, "sessions": [ { "semester": "spr2021", "students": 29 }, { "semester": "fall2020", "students": 23 } ] } ] }
+
+  - do:
       index:
         index: test
         id:    1
@@ -82,7 +117,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: [test, other]
+        index: [test, other, verynested]
 
 ---
 "Simple Composite aggregation":
@@ -987,3 +1022,101 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.keyword: "foo" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Nested as parent":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "courses": {
+                  "nested": { "path": "courses" },
+                  "aggregations": {
+                      "names": {
+                          "composite": { 
+                              "sources": [
+                                  "kw": {"terms": {"field": "courses.name"}}
+                              ]
+                          }
+                      }
+                  }
+              }
+          }
+
+  - match: {hits.total: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - length: { aggregations.courses.names.buckets: 4 }
+  - match: { aggregations.courses.names.buckets.0.key.kw: "Linear Algebra" }
+  - match: { aggregations.courses.names.buckets.0.doc_count: 1}
+  - match: { aggregations.courses.names.buckets.1.key.kw: "Object Oriented Programming" }
+  - match: { aggregations.courses.names.buckets.1.doc_count: 1}
+  - match: { aggregations.courses.names.buckets.2.key.kw: "Precalculus" }
+  - match: { aggregations.courses.names.buckets.2.doc_count: 1}
+  - match: { aggregations.courses.names.buckets.3.key.kw: "Theory of Computation" }
+  - match: { aggregations.courses.names.buckets.3.doc_count: 1}
+
+---
+"Nested parent with compound key":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "sessions": {
+                  "nested": { "path": "courses.sessions" },
+                  "aggregations": {
+                      "names": {
+                          "composite": {
+                              "sources": [
+                                "kw": { "terms": { "field": "courses.sessions.semester" } }
+                                ]
+                           }
+                      }
+                  }
+              }
+          }
+  - match: {hits.total: 2}
+  - match: {aggregations.sessions.doc_count: 8}
+  - length: { aggregations.sessions.names.buckets: 2 }
+  - match: { aggregations.sessions.names.buckets.0.key.kw: "fall2020" }
+  - match: { aggregations.sessions.names.buckets.0.doc_count: 4}
+  - match: { aggregations.sessions.names.buckets.1.key.kw: "spr2021" }
+  - match: { aggregations.sessions.names.buckets.1.doc_count: 4}
+
+---
+"Nested with a nested sub aggregation":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "courses": {
+                  "nested": { "path": "courses" },
+                  "aggregations": {
+                      "sessions": {
+                          "nested": { "path": "courses.sessions" },
+                          "aggregations": {
+                              "names": {
+                                  "composite": {
+                                      "sources": [
+                                          "kw": {"terms": { "field": "courses.sessions.semester" }}
+                                      ]
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+  - match: {hits.total: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - match: {aggregations.courses.sessions.doc_count: 8}
+  - length: { aggregations.courses.sessions.names.buckets: 2 }
+  - match: { aggregations.courses.sessions.names.buckets.0.key.kw: "fall2020" }
+  - match: { aggregations.courses.sessions.names.buckets.0.doc_count: 4}
+  - match: { aggregations.courses.sessions.names.buckets.1.key.kw: "spr2021" }
+  - match: { aggregations.courses.sessions.names.buckets.1.doc_count: 4}

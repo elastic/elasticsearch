@@ -1806,7 +1806,7 @@ public class SearchQueryIT extends ESIntegTestCase {
          {
              WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
              SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
-             assertHitCount(searchResponse, 1L);
+             assertHitCount(searchResponse, 0L);
 
              wildCardQuery = wildcardQuery("field1", "bb*");
              searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();

@@ -165,7 +165,6 @@ public class GeoIpDownloaderTests extends ESTestCase {
         client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<IndexResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
             assertEquals(OpType.CREATE, request.opType());
-            assertEquals("test_" + (chunk + 15), request.id());
             assertEquals(XContentType.SMILE, request.getContentType());
             Map<String, Object> source = request.sourceAsMap();
             assertEquals("test", source.get("name"));

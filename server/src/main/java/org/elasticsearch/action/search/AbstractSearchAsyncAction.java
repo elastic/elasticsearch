@@ -223,7 +223,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 assert shardRoutings.skip() == false;
                 assert shardItIndexMap.containsKey(shardRoutings);
                 int shardIndex = shardItIndexMap.get(shardRoutings);
-                performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
+                final SearchShardTarget shard = shardRoutings.nextOrNull();
+                if (shard != null) {
+                    performPhaseOnShard(shardIndex, shardRoutings, shard);
+                } else {
+                    SearchShardTarget unassignedShard = new SearchShardTarget(null, shardRoutings.shardId(),
+                        shardRoutings.getClusterAlias(), shardRoutings.getOriginalIndices());
+                    onShardFailure(shardIndex, unassignedShard, shardRoutings,
+                        new NoShardAvailableActionException(shardRoutings.shardId()));
+                }
             }
         }
     }
@@ -252,6 +260,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+        if (shard == null) {
+            assert false : "Target shard must be non-null: " + shardIt;
+            throw new IllegalStateException("");
+        }
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -259,56 +271,50 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * could stack overflow. To prevent this, we fork if we are called back on the same thread that execution started on and otherwise
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
-        if (shard == null) {
-            SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(),
-                shardIt.getClusterAlias(), shardIt.getOriginalIndices());
-            fork(() -> onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
-        } else {
-            final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
-                pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
-                : null;
-            Runnable r = () -> {
-                final Thread thread = Thread.currentThread();
-                try {
-                    executePhaseOnShard(shardIt, shard,
-                        new SearchActionListener<Result>(shard, shardIndex) {
-                            @Override
-                            public void innerOnResponse(Result result) {
-                                try {
-                                    onShardResult(result, shardIt);
-                                } catch (Exception exc) {
-                                    onShardFailure(shardIndex, shard, shardIt, exc);
-                                } finally {
-                                    executeNext(pendingExecutions, thread);
-                                }
+        final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
+            pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
+            : null;
+        Runnable r = () -> {
+            final Thread thread = Thread.currentThread();
+            try {
+                executePhaseOnShard(shardIt, shard,
+                    new SearchActionListener<Result>(shard, shardIndex) {
+                        @Override
+                        public void innerOnResponse(Result result) {
+                            try {
+                                onShardResult(result, shardIt);
+                            } catch (Exception exc) {
+                                onShardFailure(shardIndex, shard, shardIt, exc);
+                            } finally {
+                                executeNext(pendingExecutions, thread);
                             }
+                        }
 
-                            @Override
-                            public void onFailure(Exception t) {
-                                try {
-                                    onShardFailure(shardIndex, shard, shardIt, t);
-                                } finally {
-                                    executeNext(pendingExecutions, thread);
-                                }
+                        @Override
+                        public void onFailure(Exception t) {
+                            try {
+                                onShardFailure(shardIndex, shard, shardIt, t);
+                            } finally {
+                                executeNext(pendingExecutions, thread);
                             }
-                        });
-                } catch (final Exception e) {
-                    try {
-                        /*
-                         * It is possible to run into connection exceptions here because we are getting the connection early and might
-                         * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
-                         */
-                        fork(() -> onShardFailure(shardIndex, shard, shardIt, e));
-                    } finally {
-                        executeNext(pendingExecutions, thread);
-                    }
+                        }
+                    });
+            } catch (final Exception e) {
+                try {
+                    /*
+                     * It is possible to run into connection exceptions here because we are getting the connection early and might
+                     * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+                     */
+                    fork(() -> onShardFailure(shardIndex, shard, shardIt, e));
+                } finally {
+                    executeNext(pendingExecutions, thread);
                 }
-            };
-            if (throttleConcurrentRequests) {
-                pendingExecutions.tryRun(r);
-            } else {
-                r.run();
             }
+        };
+        if (throttleConcurrentRequests) {
+            pendingExecutions.tryRun(r);
+        } else {
+            r.run();
         }
     }
 

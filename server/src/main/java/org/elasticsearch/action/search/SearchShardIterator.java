@@ -158,4 +158,15 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
             .thenComparing(SearchShardIterator::getClusterAlias, Comparator.nullsFirst(String::compareTo))
             .compare(this, o);
     }
+
+    @Override
+    public String toString() {
+        return "SearchShardIterator{" +
+            "originalIndices=" + originalIndices +
+            ", clusterAlias='" + clusterAlias + '\'' +
+            ", shardId=" + shardId +
+            ", searchContextId=" + searchContextId +
+            ", searchContextKeepAlive=" + searchContextKeepAlive +
+            '}';
+    }
 }

@@ -42,15 +42,15 @@ The same nodes can serve both the `data_hot` and `data_content` roles.
 
 To enable {ilm} to automatically move _existing_ managed indices through the data tiers,
 remove the routing allocation filters from the indices and set the `_tier_preference`.
-For example, if your old template set a `node-type` attribute to assign new indices to `hot-nodes`,
-set the value to `null` to remove the filter:
+For example, if your old template set the `data` attribute to `hot` to allocate shards to the hot tier,
+set the `data` attribute to `null` to remove the filter and set the `_tier_preference` instead.
 
 ////
 [source,console]
 --------------------------------------------------
 PUT /my-index-000001/_settings
 {
-  "index.routing.allocation.require.node-type": "hot-nodes"
+  "index.routing.allocation.require.data": "hot"
 }
 --------------------------------------------------
 // TEST[setup:my_index]
@@ -61,7 +61,7 @@ PUT /my-index-000001/_settings
 --------------------------------------------------
 PUT my-index-000001/_settings
 {
-  "index.routing.allocation.require.node-type": null,
+  "index.routing.allocation.require.data": null,
   "index.routing.allocation.include._tier_preference": "data_hot"
 
 }

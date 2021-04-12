@@ -38,6 +38,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -62,6 +64,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -122,7 +125,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         resourceWatcherService.close();
         threadPool.shutdownNow();
     }
-    
+
     public void testCheckDatabases() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -258,6 +261,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
 
+        Map<SearchRequest, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
             SearchHit hit = new SearchHit(i);
@@ -270,17 +274,31 @@ public class DatabaseRegistryTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[] {hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchHits hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
             SearchResponse searchResponse =
                 new SearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 0), null, 1, 1, 0, 1L, null, null);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenReturn(searchResponse);
             SearchRequest expectedSearchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-            String id = String.format(Locale.ROOT, "%s_%d", databaseName, i);
-            expectedSearchRequest.source().query(new TermQueryBuilder("_id", id));
+            expectedSearchRequest.source().query(new BoolQueryBuilder()
+                .filter(new TermQueryBuilder("name", databaseName))
+                .filter(new TermQueryBuilder("chunk", i)));
+            requestMap.put(expectedSearchRequest, actionFuture);
             when(client.search(eq(expectedSearchRequest))).thenReturn(actionFuture);
         }
+        when(client.search(any())).thenAnswer(invocationOnMock -> {
+            SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
+            BoolQueryBuilder query = (BoolQueryBuilder) req.source().query();
+            List<QueryBuilder> filters = query.filter();
+            //remove timestamp filter, no way to get correct value upfront
+            filters.remove(2);
+            query = new BoolQueryBuilder();
+            filters.forEach(query::filter);
+            req = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
+            req.source().query(query);
+            return requestMap.get(req);
+        });
 
         MessageDigest md = MessageDigests.md5();
         data.forEach(md::update);
@@ -322,7 +340,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         int chunkSize = all.length / chunks;
         List<byte[]> data = new ArrayList<>();
 
-        for (int from = 0; from < all.length;) {
+        for (int from = 0; from < all.length; ) {
             int to = from + chunkSize;
             if (to > all.length) {
                 to = all.length;

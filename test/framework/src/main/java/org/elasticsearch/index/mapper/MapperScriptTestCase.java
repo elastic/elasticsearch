@@ -31,6 +31,10 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
 
     protected abstract FactoryType multipleValuesScript();
 
+    protected FactoryType script(String id) {
+        throw new UnsupportedOperationException("Unknown script " + id);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
@@ -46,7 +50,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         if (script.getIdOrCode().equals("multi-valued")) {
             return (T) multipleValuesScript();
         }
-        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+        return (T) script(script.getIdOrCode());
     }
 
     public void testToXContent() throws IOException {

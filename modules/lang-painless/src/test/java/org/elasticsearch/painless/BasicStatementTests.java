@@ -508,4 +508,13 @@ public class BasicStatementTests extends ScriptTestCase {
             "[i, j];"
         ));
     }
+
+    public void testNoLoopCounterInForEach() {
+        String bytecode = Debugger.toString("def x = []; for (y in x) { int z; }");
+        assertFalse(bytecode.contains("IINC"));
+        bytecode = Debugger.toString("List x = []; for (y in x) { int z; }");
+        assertFalse(bytecode.contains("IINC"));
+        bytecode = Debugger.toString("int[] x = new int[] {}; for (y in x) { int z; }");
+        assertFalse(bytecode.contains("IINC 1 -1"));
+    }
 }

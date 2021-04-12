@@ -12,7 +12,6 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.TileGeomResult;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerParams;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 import org.elasticsearch.geometry.Circle;
@@ -37,7 +36,6 @@ import java.util.List;
 public class FeatureFactory {
 
     private final IGeometryFilter acceptAllGeomFilter = geometry -> true;
-    private final IUserDataConverter ignoreUserData = new UserDataIgnoreConverter();
     private final MvtLayerParams layerParams;
     private final GeometryFactory geomFactory = new GeometryFactory();
     private final MvtLayerProps layerProps = new MvtLayerProps();
@@ -55,12 +53,16 @@ public class FeatureFactory {
         this.layerParams  = new MvtLayerParams(extent, extent);
     }
 
-    public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry) {
+    public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry, IUserDataConverter userData) {
         TileGeomResult tileGeom =
             JtsAdapter.createTileGeom(JtsAdapter.flatFeatureList(geometry.visit(builder)),
                 tileEnvelope, clipEnvelope, geomFactory, layerParams, acceptAllGeomFilter);
         // MVT tile geometry to MVT features
-        return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, ignoreUserData);
+        return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userData);
+    }
+
+    public MvtLayerProps getLayerProps() {
+        return layerProps;
     }
 
     private static class JTSGeometryBuilder implements GeometryVisitor<org.locationtech.jts.geom.Geometry, IllegalArgumentException> {

@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -27,12 +28,20 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * Base class for rest actions that performs a search and translates it into
@@ -45,6 +54,22 @@ public abstract class AbstractVectorTileSearchAction<R extends AbstractVectorTil
     private static final String Z_PARAM = "z";
     private static final String X_PARAM = "x";
     private static final String Y_PARAM = "y";
+    private static final ParseField GRID_PRECISION_FIELD = new ParseField("grid_precision");
+    private static final ParseField GRID_TYPE_FIELD = new ParseField("grid_type");
+    private static final ParseField EXTENT_FIELD = new ParseField("extent");
+    private static final ParseField EXACT_BOUNDS_FIELD = new ParseField("exact_bounds");
+
+    protected enum GRID_TYPE {
+        GRID, POINT;
+
+        static GRID_TYPE fromString(String type) {
+            switch (type) {
+                case "grid" : return GRID;
+                case "point" : return POINT;
+                default: throw new IllegalArgumentException("Invalid grid type [" + type + "]");
+            }
+        }
+    }
 
     protected final ObjectParser<R, RestRequest> parser;
 
@@ -56,12 +81,20 @@ public abstract class AbstractVectorTileSearchAction<R extends AbstractVectorTil
     private final Supplier<R> emptyRequestProvider;
 
     protected static class Request {
-        QueryBuilder queryBuilder;
-        String index;
-        String field;
-        int x;
-        int y;
-        int z;
+        private QueryBuilder queryBuilder;
+        private String index;
+        private String field;
+        private int x;
+        private int y;
+        private int z;
+        private Map<String, Object> runtimeMappings = emptyMap();
+        private int gridPrecision = 8;
+        private GRID_TYPE gridType = GRID_TYPE.GRID;
+        private int size = 10000;
+        private int extent = 4096;
+        private AggregatorFactories.Builder aggBuilder;
+        private List<FieldAndFormat> fields = emptyList();
+        private boolean exact_bounds;
 
         public String getIndex() {
             return index;
@@ -103,11 +136,37 @@ public abstract class AbstractVectorTileSearchAction<R extends AbstractVectorTil
             this.z = z;
         }
 
+        public int getExtent() {
+            return extent;
+        }
+
+        public void setExtent(int extent) {
+            // TODO: validation
+            this.extent = extent;
+        }
+
+        public boolean getExactBounds() {
+            return exact_bounds;
+        }
+
+        public void setExactBounds(boolean exact_bounds) {
+            this.exact_bounds = exact_bounds;
+        }
+
+        public List<FieldAndFormat> getFields() {
+            return fields;
+        }
+
+        public void setFields(List<FieldAndFormat> fields) {
+            this.fields = fields;
+        }
+
         public QueryBuilder getQueryBuilder() {
             return queryBuilder;
         }
 
         public void setQueryBuilder(QueryBuilder queryBuilder) {
+            // TODO: validation
             this.queryBuilder = queryBuilder;
         }
 
@@ -125,17 +184,94 @@ public abstract class AbstractVectorTileSearchAction<R extends AbstractVectorTil
             }
             return qBuilder;
         }
+
+        public Map<String, Object> getRuntimeMappings() {
+            return runtimeMappings;
+        }
+
+        public void setRuntimeMappings(Map<String, Object> runtimeMappings) {
+            this.runtimeMappings = runtimeMappings;
+        }
+
+        public int getGridPrecision() {
+            return gridPrecision;
+        }
+
+        public void setGridPrecision(int gridPrecision) {
+            if (gridPrecision < 0 || gridPrecision > 8) {
+                throw new IllegalArgumentException("Invalid grid precision, value should be between 0 and 8, got [" + gridPrecision + "]");
+            }
+            this.gridPrecision = gridPrecision;
+        }
+
+        public GRID_TYPE getGridType() {
+            return gridType;
+        }
+
+        public void setGridType(String gridType) {
+            this.gridType = GRID_TYPE.fromString(gridType);
+        }
+
+        public int getSize() {
+            return size;
+        }
+
+        public void setSize(int size) {
+            // TODO: validation
+            this.size = size;
+        }
+
+        public AggregatorFactories.Builder getAggBuilder() {
+            return aggBuilder;
+        }
+
+        public void setAggBuilder(AggregatorFactories.Builder aggBuilder) {
+            // TODO: validation
+            this.aggBuilder = aggBuilder;
+        }
     }
 
     protected AbstractVectorTileSearchAction(Supplier<R> emptyRequestProvider) {
         this.emptyRequestProvider = emptyRequestProvider;
         parser = new ObjectParser<>(getName(), emptyRequestProvider);
+        parser.declareInt(Request::setSize, SearchSourceBuilder.SIZE_FIELD);
+        parser.declareField(
+            Request::setFields,
+            AbstractVectorTileSearchAction::parseFetchFields,
+            SearchSourceBuilder.FETCH_FIELDS_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
         parser.declareField(
             Request::setQueryBuilder,
             (CheckedFunction<XContentParser, QueryBuilder, IOException>) AbstractQueryBuilder::parseInnerQueryBuilder,
             SearchSourceBuilder.QUERY_FIELD,
             ObjectParser.ValueType.OBJECT
         );
+        parser.declareField(
+            Request::setRuntimeMappings,
+            XContentParser::map,
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        parser.declareField(
+            Request::setAggBuilder,
+            AggregatorFactories::parseAggregators,
+            SearchSourceBuilder.AGGS_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        // Specific for vector tiles
+        parser.declareInt(Request::setGridPrecision, GRID_PRECISION_FIELD);
+        parser.declareInt(Request::setExtent, EXTENT_FIELD);
+        parser.declareBoolean(Request::setExactBounds, EXACT_BOUNDS_FIELD);
+        parser.declareString(Request::setGridType, GRID_TYPE_FIELD);
+    }
+
+    private static List<FieldAndFormat> parseFetchFields(XContentParser parser) throws IOException {
+        List<FieldAndFormat> fetchFields = new ArrayList<>();
+        while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            fetchFields.add(FieldAndFormat.fromXContent(parser));
+        }
+        return fetchFields;
     }
 
     protected abstract ResponseBuilder doParseRequest(RestRequest restRequest, R request, SearchRequestBuilder searchRequestBuilder)
@@ -159,7 +295,6 @@ public abstract class AbstractVectorTileSearchAction<R extends AbstractVectorTil
 
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(Strings.splitStringByCommaToArray(request.getIndex()));
         searchRequestBuilder.setQuery(request.getQuery());
-        searchRequestBuilder.setSize(0);
         ResponseBuilder responseBuilder = doParseRequest(restRequest, request, searchRequestBuilder);
 
         // TODO: how do we handle cancellations?

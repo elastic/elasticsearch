@@ -26,14 +26,6 @@ class VectorTileGeometryBuilder {
         pointYScale = -1d / ((rectangle.getMaxLat() - rectangle.getMinLat()) / (double) extent);
     }
 
-    public int lat(double lat) {
-        return (int) (pointYScale * (VectorTileUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
-    }
-
-    public int lon(double lon) {
-        return (int) (pointXScale * (VectorTileUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
-    }
-
     public void point(VectorTile.Tile.Feature.Builder featureBuilder, double lon, double lat) {
         featureBuilder.setType(VectorTile.Tile.GeomType.POINT);
         featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.MoveTo, 1));
@@ -64,4 +56,11 @@ class VectorTileGeometryBuilder {
         featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.ClosePath, 1));
     }
 
+    private int lat(double lat) {
+        return (int) (pointYScale * (VectorTileUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
+    }
+
+    private int lon(double lon) {
+        return (int) (pointXScale * (VectorTileUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
+    }
 }

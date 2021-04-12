@@ -786,7 +786,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             clusterService.getNodeName(),
             inferenceModelBreaker.get());
         this.modelLoadingService.set(modelLoadingService);
-        this.deploymentManager.set(new DeploymentManager(client, threadPool, pyTorchProcessFactory));
+        this.deploymentManager.set(new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory));
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(

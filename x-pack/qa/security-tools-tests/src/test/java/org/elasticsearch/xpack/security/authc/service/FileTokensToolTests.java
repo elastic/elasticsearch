@@ -203,7 +203,7 @@ public class FileTokensToolTests extends CommandTestCase {
         assertThat(e1.getMessage(), containsString("Unknown service account principal: "));
         assertThat(e1.getMessage(), containsString("Must be one of "));
 
-        // Invalid toke name
+        // Invalid token name
         final String tokenName2 = ServiceAccountTokenTests.randomInvalidTokenName();
         final String[] args = tokenName2.startsWith("-") ?
             new String[] { "delete", pathHomeParameter, "elastic/fleet-server", "--", tokenName2 } :

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.termenum.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;

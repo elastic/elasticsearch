@@ -61,7 +61,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
     @Before
     public void createComponents() {
-        Settings settings = nodeSettings(0);
+        Settings settings = nodeSettings(0, Settings.EMPTY);
         ThreadPool tp = mockThreadPool();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,

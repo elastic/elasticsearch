@@ -78,7 +78,7 @@ public class SystemIndexManager implements ClusterStateListener {
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }
@@ -278,6 +278,9 @@ public class SystemIndexManager implements ClusterStateListener {
         } catch (ElasticsearchParseException e) {
             logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
+        } catch (IllegalArgumentException e) {
+            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            throw e;
         }
     }
 

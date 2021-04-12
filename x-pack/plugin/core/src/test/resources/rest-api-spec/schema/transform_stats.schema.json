@@ -11,8 +11,7 @@
   ],
   "properties": {
     "checkpointing": {
-      "type": "object",
-      "description": "TODO"
+      "$ref": "file:transform_checkpointing_info.schema.json"
     },
     "id": {
       "type": "string",
@@ -32,8 +31,7 @@
       "description": "The transform state"
     },
     "stats": {
-      "type": "object",
-      "description": "TODO"
+      "$ref": "file:transform_indexer_stats.schema.json"
     },
     "node": {
       "type": "object",

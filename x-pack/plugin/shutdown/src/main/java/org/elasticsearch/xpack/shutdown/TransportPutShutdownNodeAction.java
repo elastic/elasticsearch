@@ -11,15 +11,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.HashMap;
+import java.util.Objects;
 
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<PutShutdownNodeAction.Request> {
     @Inject
@@ -49,8 +56,37 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        // TODO: implement me!
-        listener.onResponse(AcknowledgedResponse.of(true));
+        clusterService.submitStateUpdateTask(
+            "put-node-shutdown-" + request.getNodeId(),
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
+                    if (currentShutdownMetadata == null) {
+                        currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
+                    }
+
+                    // Verify that there's not already a shutdown metadata for this node
+                    if (Objects.nonNull(currentShutdownMetadata.getAllNodeMetdataMap().get(request.getNodeId()))) {
+                        throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
+                    }
+
+                    SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
+                        .setNodeId(request.getNodeId())
+                        .setType(request.getType())
+                        .setReason(request.getReason())
+                        .setStartedAtMillis(System.currentTimeMillis())
+                        .build();
+
+                    return ClusterState.builder(currentState)
+                        .metadata(
+                            Metadata.builder(currentState.metadata())
+                                .putCustom(NodesShutdownMetadata.TYPE, currentShutdownMetadata.putSingleNodeMetadata(newNodeMetadata))
+                        )
+                        .build();
+                }
+            }
+        );
     }
 
     @Override

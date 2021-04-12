@@ -34,6 +34,7 @@ tasks.named("yamlRestCompatTest").configure {
     // Skip these tests on Windows since the blacklist exceeds Windows CLI limits
     OS.current() != OS.WINDOWS
   }
+
   systemProperty 'tests.rest.blacklist', [
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',
@@ -359,6 +360,9 @@ tasks.named("yamlRestCompatTest").configure {
 tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.replaceMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")
+  task.replaceMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
+  task.removeMatch("nodes.\$node_id.roles.10", "node_info role test")
 })
 
 tasks.register('enforceYamlTestConvention').configure {

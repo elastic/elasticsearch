@@ -131,7 +131,7 @@ xpack:
 ------------------------------------------------------------
 
 If the truststore is password protected, the password should be configured by
-adding the appropriate `secure_password` setting to the {es} keystore.  For
+adding the appropriate `secure_password` setting to the {es} keystore. For
 example, the following command adds the password for the example realm above:
 
 [source, shell]
@@ -213,7 +213,7 @@ alternative to role mapping.
 By default, the PKI realm relies on the node's network interface to perform the
 SSL/TLS handshake and extract the client certificate. This behaviour requires
 that clients connect directly to {es} so that their SSL connection is terminated
-by the {es} node.  If SSL/TLS authentication is to be performed by {kib}, the
+by the {es} node. If SSL/TLS authentication is to be performed by {kib}, the
 PKI realm must be configured to permit delegation.
 
 Specifically, when clients presenting X.509 certificates connect to {kib},

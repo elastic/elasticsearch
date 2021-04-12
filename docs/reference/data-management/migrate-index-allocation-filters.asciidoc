@@ -2,13 +2,17 @@
 [[migrate-index-allocation-filters]]
 == Migrate index allocation filters to node roles
 
-If you currently use custom node attributes and routing allocation filters to move indices
-through data tiers in a hot-warm-cold architecture, we recommend that you switch to using node roles.
-The built-in node roles enable {ilm-init} to automatically migrate indices between data tiers.
-You no longer need to explicitly invoke the allocate action in your {ilm-init} policies.
+If you currently use custom node attributes and
+<<<<shard-allocation-filtering, attribute-based allocation filters>> to move indices
+through data tiers in a hot-warm-cold architecture, we recommend that you switch to using
+the built-in node roles and automatic <<data-tier-shard-filtering, data tier allocation>>.
+Using node roles enables {ilm-init} to automatically move indices between data tiers.
+To modify the number of replicas as the index moves between tiers,
+you can specify an allocate action with no allocation filters.
 
-NOTE: While index allocation filters are no longer the best way to manage your data
-in a hot-warm-cold architecture, you can still use them to control shard allocation for other purposes.
+NOTE: While we recommend relying on automatic data tier allocation to manage your data
+in a hot-warm-cold architecture,
+you can still use attribute-based allocation filters to control shard allocation for other purposes.
 
 To switch to using node roles:
 
@@ -37,7 +41,7 @@ is automatically assigned to `data_content` nodes.
 The same nodes can serve both the `data_hot` and `data_content` roles.
 
 To enable {ilm} to automatically move _existing_ managed indices through the data tiers,
-you must remove the routing allocation filters from the indices.
+remove the routing allocation filters from the indices and set the `_tier_preference`.
 For example, if your old template set a `node-type` attribute to assign new indices to `hot-nodes`,
 set the value to `null` to remove the filter:
 
@@ -57,7 +61,9 @@ PUT /my-index-000001/_settings
 --------------------------------------------------
 PUT my-index-000001/_settings
 {
-  "index.routing.allocation.require.node-type": null
+  "index.routing.allocation.require.node-type": null,
+  "index.routing.allocation.include._tier_preference": "data_hot"
+
 }
 --------------------------------------------------
 // TEST[continued]

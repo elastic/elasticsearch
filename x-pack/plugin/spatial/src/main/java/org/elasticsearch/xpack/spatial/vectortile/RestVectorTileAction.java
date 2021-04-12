@@ -76,16 +76,14 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             );
             final SearchHit[] hits = s.getHits().getHits();
             if (hits.length > 0) {
-                tileBuilder.addLayers(
-                    getHitsLayer(extent, request.getZ(), request.getX(), request.getY(), request.getField(), hits, request.getFields())
-                );
+                tileBuilder.addLayers(getHitsLayer(s, request));
             }
             final InternalGeoTileGrid grid = s.getAggregations() != null ? s.getAggregations().get(GRID_FIELD) : null;
             // TODO: should be expose the total number of buckets on InternalGeoTileGrid?
             if (grid != null && grid.getBuckets().size() > 0) {
-                tileBuilder.addLayers(getAggregationLayer(extent, request.getGridType(), grid, geomBuilder));
+                tileBuilder.addLayers(getAggsLayer(s, request, geomBuilder));
             }
-            tileBuilder.addLayers(getMetaLayer(extent, s, request.getBoundingBox(), geomBuilder));
+            tileBuilder.addLayers(getMetaLayer(s, request, geomBuilder));
             tileBuilder.build().writeTo(b);
         };
     }
@@ -123,19 +121,12 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         return searchRequestBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getHitsLayer(
-        int extent,
-        int z,
-        int x,
-        int y,
-        String geoField,
-        SearchHit[] hits,
-        List<FieldAndFormat> fields
-    ) {
-        final FeatureFactory featureFactory = new FeatureFactory(z, x, y, extent);
+    private VectorTile.Tile.Layer.Builder getHitsLayer(SearchResponse response, Request request) {
+        final FeatureFactory featureFactory = new FeatureFactory(request.getZ(), request.getX(), request.getY(), request.getExtent());
         final GeometryParser parser = new GeometryParser(true, false, false);
-        final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, extent);
-        for (SearchHit searchHit : hits) {
+        final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());
+        final List<FieldAndFormat> fields = request.getFields();
+        for (SearchHit searchHit : response.getHits()) {
             final IUserDataConverter tags = (userData, layerProps, featureBuilder) -> {
                 // TODO: It would be great if we can add the centroid information for polygons. That information can be
                 // used to place labels inside those geometries
@@ -150,27 +141,23 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
                 }
             };
             // TODO: See comment on field formats.
-            final Geometry geometry = parser.parseGeometry(searchHit.field(geoField).getValue());
+            final Geometry geometry = parser.parseGeometry(searchHit.field(request.getField()).getValue());
             hitsLayerBuilder.addAllFeatures(featureFactory.getFeatures(geometry, tags));
         }
         addPropertiesToLayer(hitsLayerBuilder, featureFactory.getLayerProps());
         return hitsLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getAggregationLayer(
-        int extent,
-        GRID_TYPE grid_type,
-        InternalGeoTileGrid t,
-        VectorTileGeometryBuilder geomBuilder
-    ) {
-        final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, extent);
+    private VectorTile.Tile.Layer.Builder getAggsLayer(SearchResponse response, Request request, VectorTileGeometryBuilder geomBuilder) {
+        final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        for (InternalGeoGridBucket<?> bucket : t.getBuckets()) {
+        final InternalGeoTileGrid grid = response.getAggregations().get(GRID_FIELD);
+        for (InternalGeoGridBucket<?> bucket : grid.getBuckets()) {
             final long count = bucket.getDocCount();
             featureBuilder.clear();
             // Add geometry
-            if (grid_type == GRID_TYPE.GRID) {
+            if (request.getGridType() == GRID_TYPE.GRID) {
                 final Rectangle r = GeoTileUtils.toBoundingBox(bucket.getKeyAsString());
                 geomBuilder.box(featureBuilder, r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
             } else {
@@ -203,31 +190,26 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         return aggLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getMetaLayer(
-        int extent,
-        SearchResponse searchResponse,
-        Rectangle tile,
-        VectorTileGeometryBuilder geomBuilder
-    ) {
-        final VectorTile.Tile.Layer.Builder metaLayerBuilder = VectorTileUtils.createLayerBuilder(META_LAYER, extent);
+    private VectorTile.Tile.Layer.Builder getMetaLayer(SearchResponse response, Request request, VectorTileGeometryBuilder geomBuilder) {
+        final VectorTile.Tile.Layer.Builder metaLayerBuilder = VectorTileUtils.createLayerBuilder(META_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        final InternalGeoBounds bounds
-            = searchResponse.getAggregations() != null ? searchResponse.getAggregations().get(BOUNDS_FIELD) : null;
+        final InternalGeoBounds bounds = response.getAggregations() != null ? response.getAggregations().get(BOUNDS_FIELD) : null;
         if (bounds != null && bounds.topLeft() != null) {
             final GeoPoint topLeft = bounds.topLeft();
             final GeoPoint bottomRight = bounds.bottomRight();
             geomBuilder.box(featureBuilder, topLeft.lon(), bottomRight.lon(), bottomRight.lat(), topLeft.lat());
         } else {
+            final Rectangle tile = request.getBoundingBox();
             geomBuilder.box(featureBuilder, tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat());
         }
-        addPropertyToFeature(featureBuilder, layerProps, "timed_out", searchResponse.isTimedOut());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.total", searchResponse.getTotalShards());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.successful", searchResponse.getSuccessfulShards());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.skipped", searchResponse.getSkippedShards());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.failed", searchResponse.getFailedShards());
-        addPropertyToFeature(featureBuilder, layerProps, "hits.total.value", searchResponse.getHits().getTotalHits().value);
-        addPropertyToFeature(featureBuilder, layerProps, "hits.total.relation", searchResponse.getHits().getTotalHits().relation.name());
+        addPropertyToFeature(featureBuilder, layerProps, "timed_out", response.isTimedOut());
+        addPropertyToFeature(featureBuilder, layerProps, "_shards.total", response.getTotalShards());
+        addPropertyToFeature(featureBuilder, layerProps, "_shards.successful", response.getSuccessfulShards());
+        addPropertyToFeature(featureBuilder, layerProps, "_shards.skipped", response.getSkippedShards());
+        addPropertyToFeature(featureBuilder, layerProps, "_shards.failed", response.getFailedShards());
+        addPropertyToFeature(featureBuilder, layerProps, "hits.total.value", response.getHits().getTotalHits().value);
+        addPropertyToFeature(featureBuilder, layerProps, "hits.total.relation", response.getHits().getTotalHits().relation.name());
         metaLayerBuilder.addFeatures(featureBuilder);
         addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;

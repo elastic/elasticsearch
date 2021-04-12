@@ -143,9 +143,10 @@ keywords or numbers, then the <<query-dsl-multi-match-query,`multi_match`>>
 query may be a better fit. It supports both text and non-text fields, and
 accepts text fields that do not share the same analyzer.
 
-`multi_match` takes a field-centric view of the query by default. In contrast,
-`combined_fields` is term-centric: `operator` and `minimum_should_match` are
-applied per-term, instead of per-field. Concretely, a query like
+The main `multi_match` modes `best_fields` and `most_fields` take a
+field-centric view of the query. In contrast, `combined_fields` is
+term-centric: `operator` and `minimum_should_match` are applied per-term,
+instead of per-field. Concretely, a query like
 
 [source,console]
 --------------------------------------------------
@@ -166,8 +167,12 @@ is executed as
     +(combined("database", fields:["title" "abstract"]))
     +(combined("systems", fields:["title", "abstract"]))
 
-In other words, all terms must be present in at least one field for a
+In other words, each term must be present in at least one field for a
 document to match.
+
+The `cross_fields` `multi_match` mode also takes a term-centric approach and. The
+main advantage of `combined_fields` over `cross_fields` is its robust and
+interpretable approach to scoring based on the BM25F algorithm.
 
 [NOTE]
 .Custom similarities

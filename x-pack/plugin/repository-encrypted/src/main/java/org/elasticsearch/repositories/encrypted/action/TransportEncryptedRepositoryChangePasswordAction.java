@@ -10,12 +10,15 @@ package org.elasticsearch.repositories.encrypted.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.encrypted.EncryptedRepository;
@@ -72,10 +75,15 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
         encryptedRepository.startOrResumePasswordChange(
             request.fromPasswordName(),
             request.toPasswordName(),
-            ActionListener.wrap(changePasswords -> {
-                encryptedRepository.copyAllDeks(
-                    changePasswords.v1(),
-                    changePasswords.v2(),
+            ActionListener.wrap(changePasswordValues -> {
+                SecureString fromPasswordValue = changePasswordValues.v1();
+                SecureString toPasswordValue = changePasswordValues.v2();
+                // list in-progress snapshots
+                // SnapshotsService#currentSnapshots
+                encryptedRepository.copyDeks(
+                    encryptedRepository.listAllDekIds(),
+                    changePasswordValues.v1(),
+                    changePasswordValues.v2(),
                     true,
                     true,
                     ActionListener.wrap(movedDeksName -> {
@@ -94,5 +102,13 @@ public final class TransportEncryptedRepositoryChangePasswordAction extends Tran
     @Override
     protected ClusterBlockException checkBlock(EncryptedRepositoryChangePasswordRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    private static class S implements ClusterStateListener {
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+
+        }
     }
 }

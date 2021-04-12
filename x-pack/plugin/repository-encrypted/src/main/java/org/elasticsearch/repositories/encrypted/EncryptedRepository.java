@@ -608,37 +608,39 @@ public class EncryptedRepository extends BlobStoreRepository {
         });
     }
 
-    public void copyAllDeks(
+    public Set<String> listAllDekIds() throws IOException {
+        return ((EncryptedBlobStore) blobStore()).listAllDekIds();
+    }
+
+    public void copyDeks(
+        Set<String> dekIds,
         SecureString fromPassword,
         SecureString toPassword,
         boolean ignoreMissing,
-        boolean overwrite,
+        boolean overwriteExisting,
         ActionListener<List<String>> listener
     ) {
-        final EncryptedBlobStore encryptedBlobStore = ((EncryptedBlobStore) blobStore());
-        final Set<String> allDeksId;
-        try {
-            allDeksId = encryptedBlobStore.listAllDekIds();
-        } catch (IOException e) {
-            listener.onFailure(e);
+        if (dekIds.isEmpty()) {
+            listener.onResponse(List.of());
             return;
         }
-        GroupedActionListener<Tuple<String, Boolean>> groupListener = new GroupedActionListener<>(
+        final EncryptedBlobStore encryptedBlobStore = (EncryptedBlobStore) blobStore();
+        final GroupedActionListener<Tuple<String, Boolean>> groupListener = new GroupedActionListener<>(
             listener.map(
                 movedList -> movedList.stream()
                     .filter(movedDek -> movedDek.v2())
                     .map(movedDek -> movedDek.v1())
                     .collect(Collectors.toUnmodifiableList())
             ),
-            allDeksId.size()
+            dekIds.size()
         );
-        for (String dekId : allDeksId) {
+        for (String dekId : dekIds) {
             encryptedBlobStore.copyDek(
                 dekId,
                 (dekIdArg) -> getDekUnwrapperUsingPassword(dekIdArg, () -> fromPassword),
                 (dekIdArg) -> getDekWrapperUsingPasswords(dekIdArg, () -> List.of(toPassword)),
                 ignoreMissing,
-                overwrite,
+                overwriteExisting,
                 groupListener.map(copied -> new Tuple<>(dekId, copied))
             );
         }
@@ -666,8 +668,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             BlobStore delegatedBlobStore,
             BlobPath delegatedBasePath,
             String repositoryName,
-            Function<String, Function<SecretKey, Map<String, byte[]>>> dekWrapper,
-            Function<String, Tuple<String, Function<byte[], SecretKey>>> dekUnwrapper,
+            Function<String, Function<SecretKey, Map<String, byte[]>>> getDekWrapper,
+            Function<String, Tuple<String, Function<byte[], SecretKey>>> getDekUnwrapper,
             Supplier<Tuple<BytesReference, SecretKey>> dekGenerator,
             Cache<String, SecretKey> dekCache,
             ThreadPool threadPool
@@ -681,7 +683,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     Tuple<BytesReference, SecretKey> newDek = dekGenerator.get();
                     PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     // store and encrypt the newly generated DEK before making it available
-                    storeDek(newDek.v1().utf8ToString(), newDek.v2(), true, dekWrapper, future);
+                    storeDek(newDek.v1().utf8ToString(), newDek.v2(), true, getDekWrapper, future);
                     FutureUtils.get(future);
                     return newDek;
                 } catch (Exception e) {
@@ -701,7 +703,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 try {
                     return dekCache.computeIfAbsent(dekId, ignored -> {
                         PlainActionFuture<SecretKey> future = PlainActionFuture.newFuture();
-                        loadDek(dekId, dekUnwrapper, future);
+                        loadDek(dekId, getDekUnwrapper, future);
                         return FutureUtils.get(future);
                     });
                 } catch (ExecutionException e) {
@@ -816,7 +818,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 .execute(ActionRunnable.supply(wrappedDekBytesStepListener, () -> getDekWrapper.apply(dekId).apply(dek)));
             wrappedDekBytesStepListener.whenComplete(
                 wrappedDekBytesMap -> threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
-                    for (Map.Entry<String, byte[]> wrappedDek : getDekWrapper.apply(dekId).apply(dek).entrySet()) {
+                    for (Map.Entry<String, byte[]> wrappedDek : wrappedDekBytesMap.entrySet()) {
                         dekBlobContainer.writeBlobAtomic(wrappedDek.getKey(), new BytesArray(wrappedDek.getValue()), failIfAlreadyExists);
                         logger.debug(
                             () -> new ParameterizedMessage(
@@ -833,7 +835,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             );
         }
 
-        void copyDek(
+        private void copyDek(
             String dekId,
             Function<String, Tuple<String, Function<byte[], SecretKey>>> getDekUnwrapper,
             Function<String, Function<SecretKey, Map<String, byte[]>>> getDekWrapper,
@@ -877,7 +879,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             );
         }
 
-        Set<String> listAllDekIds() throws IOException {
+        private Set<String> listAllDekIds() throws IOException {
             BlobPath deksBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER);
             return delegatedBlobStore.blobContainer(deksBlobPath).children().keySet();
         }

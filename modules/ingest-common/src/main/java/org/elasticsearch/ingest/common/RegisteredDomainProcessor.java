@@ -61,10 +61,14 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("unable to set domain information for document");
             }
         }
-        String domainTarget = targetField + ".domain";
-        String registeredDomainTarget = targetField + ".registered_domain";
-        String subdomainTarget = targetField + ".subdomain";
-        String topLevelDomainTarget = targetField + ".top_level_domain";
+        String fieldPrefix = targetField;
+        if (!fieldPrefix.equals("")) {
+            fieldPrefix += ".";
+        }
+        String domainTarget = fieldPrefix + "domain";
+        String registeredDomainTarget = fieldPrefix + "registered_domain";
+        String subdomainTarget = fieldPrefix + "subdomain";
+        String topLevelDomainTarget = fieldPrefix + "top_level_domain";
 
         if (info.getDomain() != null) {
             ingestDocument.setFieldValue(domainTarget, info.getDomain());

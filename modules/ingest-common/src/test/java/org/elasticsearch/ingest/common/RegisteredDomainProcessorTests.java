@@ -28,6 +28,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
     public void testBasic() throws Exception {
         testRegisteredDomainProcessor(buildEvent("www.google.com"), "www.google.com", "google.com", "com", "www");
+        testRegisteredDomainProcessor(buildEvent("google.com"), "google.com", "google.com", "com", null);
         testRegisteredDomainProcessor(buildEvent(""), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("."), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null);
@@ -39,6 +40,42 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             "global.ssl.fastly.net",
             "1"
         );
+        testRegisteredDomainProcessor(
+            buildEvent("www.books.amazon.co.uk"),
+            "www.books.amazon.co.uk",
+            "amazon.co.uk",
+            "co.uk",
+            "www.books"
+        );
+    }
+
+    public void testUseRoot() throws Exception {
+        Map<String, Object> source = buildEvent("www.google.co.uk");
+
+        String domainField = "domain";
+        String registeredDomainField = "registered_domain";
+        String topLevelDomainField = "top_level_domain";
+        String subdomainField = "subdomain";
+
+        var processor = new RegisteredDomainProcessor(
+            null,
+            null,
+            "domain",
+            "",
+            false
+        );
+
+        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument output = processor.execute(input);
+
+        String domain = output.getFieldValue(domainField, String.class);
+        assertThat(domain, equalTo("www.google.co.uk"));
+        String registeredDomain = output.getFieldValue(registeredDomainField, String.class);
+        assertThat(registeredDomain, equalTo("google.co.uk"));
+        String eTLD = output.getFieldValue(topLevelDomainField, String.class);
+        assertThat(eTLD, equalTo("co.uk"));
+        String subdomain = output.getFieldValue(subdomainField, String.class);
+        assertThat(subdomain, equalTo("www"));
     }
 
     public void testError() throws Exception {
@@ -97,8 +134,8 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);
         assertThat(domain, equalTo(expectedDomain));
-        String publicSuffix = output.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
-        assertThat(publicSuffix, equalTo(expectedRegisteredDomain));
+        String registeredDomain = output.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
+        assertThat(registeredDomain, equalTo(expectedRegisteredDomain));
         String eTLD = output.getFieldValue(topLevelDomainField, String.class, expectedETLD == null);
         assertThat(eTLD, equalTo(expectedETLD));
         String subdomain = output.getFieldValue(subdomainField, String.class, expectedSubdomain == null);

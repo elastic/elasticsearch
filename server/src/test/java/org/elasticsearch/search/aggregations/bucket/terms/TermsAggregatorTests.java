@@ -11,7 +11,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -88,9 +87,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
-import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
@@ -1742,11 +1738,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     /**
      * If the top level query is a runtime field we should still use
-     * {@link RangeAggregator.FromFilters} because we expect it'll still be faster
-     * that the normal aggregator, even though running the script for the runtime
-     * field is quite a bit more expensive than a regular query. The thing is, we
-     * won't be executing the script more times than we would if it were just at
-     * the top level.
+     * {@link StringTermsAggregatorFromFilters} because we expect it'll still
+     * be faster that the normal aggregator, even though running the script
+     * for the runtime field is quite a bit more expensive than a regular
+     * query. The thing is, we won't be executing the script more times than
+     * we would if it were just at the top level.
      */
     public void testRuntimeFieldTopLevelQueryStillOptimized() throws IOException {
         long totalDocs = 500;

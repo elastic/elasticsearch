@@ -14,7 +14,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
-import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -57,7 +56,12 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
         ) {
             @Override
             public void execute() {
-                emit("test"); emit("baz was not here"); emit("Data"); emit("-10"); emit("20"); emit("9");
+                emit("test");
+                emit("baz was not here");
+                emit("Data");
+                emit("-10");
+                emit("20");
+                emit("9");
             }
         };
         script.execute();

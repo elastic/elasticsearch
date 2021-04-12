@@ -14,7 +14,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
-import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -57,7 +56,12 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
         ) {
             @Override
             public void execute() {
-                emit(3L); emit(1L); emit(20000000000L); emit(10L); emit(-1000L); emit(0L);
+                emit(3L);
+                emit(1L);
+                emit(20000000000L);
+                emit(10L);
+                emit(-1000L);
+                emit(0L);
             }
         };
         script.execute();

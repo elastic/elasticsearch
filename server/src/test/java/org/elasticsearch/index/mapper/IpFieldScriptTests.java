@@ -15,7 +15,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.IpFieldScript;
-import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -57,7 +56,10 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
         ) {
             @Override
             public void execute() {
-                emit("192.168.0.1"); emit("127.0.0.1"); emit("255.255.255.255"); emit("0.0.0.0");
+                emit("192.168.0.1");
+                emit("127.0.0.1");
+                emit("255.255.255.255");
+                emit("0.0.0.0");
             }
         };
         script.execute();

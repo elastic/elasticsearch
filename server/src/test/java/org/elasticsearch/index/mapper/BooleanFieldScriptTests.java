@@ -54,7 +54,11 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
         ) {
             @Override
             public void execute() {
-                emit(true); emit(false); emit(true); emit(true); emit(false);
+                emit(true);
+                emit(false);
+                emit(true);
+                emit(true);
+                emit(false);
             }
         };
         script.execute();

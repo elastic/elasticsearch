@@ -15,7 +15,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
-import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -57,7 +56,12 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
         ) {
             @Override
             public void execute() {
-                emit(3.1); emit(2.29); emit(-12.47); emit(-12.46); emit(Double.MAX_VALUE); emit(0.0);
+                emit(3.1);
+                emit(2.29);
+                emit(-12.47);
+                emit(-12.46);
+                emit(Double.MAX_VALUE);
+                emit(0.0);
             }
         };
         script.execute();

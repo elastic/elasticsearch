@@ -192,7 +192,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
     protected TermEnumResponse newResponse(
         TermEnumRequest request,
         AtomicReferenceArray<?> nodesResponses,
-        ClusterState clusterState,
         boolean complete,
         Map<String, Set<ShardId>> nodeBundles
     ) {
@@ -308,7 +307,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                 final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                 final IndexShard indexShard = indexService.getShard(shardId.getId());
 
-                Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
                 openedResources.add(searcher);
                 final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
                     shardId.id(),
@@ -409,14 +408,9 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
-            // TODO There was a suggestion we could remove FLS check because the reader does that filtering anyway - didn't
-            // turn out that way when I tested it.
-            // TODO remove DLS check by getting a new security feature to filter at coordinating node the choice of indices
-            // based on if ANY DLS is present on an index.
             if (indexAccessControl != null) {
-                final boolean fls = indexAccessControl.getFieldPermissions().grantsAccessTo(fieldName) == false;
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if ((fls || dls) && licenseChecker.get()) {
+                if ( dls && licenseChecker.get()) {
                     return false;
                 }
             }
@@ -475,7 +469,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             if (nodeBundles.size() == 0) {
                 // no shards
                 try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray<>(0), clusterState, true, nodeBundles));
+                    listener.onResponse(newResponse(request, new AtomicReferenceArray<>(0), true, nodeBundles));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -575,7 +569,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                 return;
             }
             try {
-                listener.onResponse(newResponse(request, nodesResponses, clusterState, complete, nodeBundles));
+                listener.onResponse(newResponse(request, nodesResponses, complete, nodeBundles));
             } catch (Exception e) {
                 listener.onFailure(e);
             } finally {
@@ -620,9 +614,12 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                 request.remove(shardId);
             }
         }
-        // TODO avoid making request if no shards searchable?
-        transportService.getThreadPool()
-            .executor(shardExecutor)
-            .execute(ActionRunnable.supply(listener, () -> dataNodeOperation(request, task)));
+        if (request.shardIds().size() == 0) {
+            listener.onResponse(new NodeTermEnumResponse(request.nodeId(), Collections.emptyList(), null, true));
+        } else {
+            transportService.getThreadPool()
+                .executor(shardExecutor)
+                .execute(ActionRunnable.supply(listener, () -> dataNodeOperation(request, task)));
+        }
     }
 }

@@ -139,6 +139,10 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath
+      // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
+      if (Architecture.current() == Architecture.AARCH64) {
+        env 'ES_JAVA_OPTS', '-Xss512k'
+      }
       args 'oldes.OldElasticsearch',
         baseDir,
         unzip.get().temporaryDir,

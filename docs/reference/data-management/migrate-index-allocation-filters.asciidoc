@@ -12,22 +12,52 @@ in a hot-warm-cold architecture, you can still use them to control shard allocat
 
 To switch to using node roles:
 
-. Assign your nodes to the appropriate data tier using the `data_hot`, `data_warm`,
-`data_cold`, and `data_frozen` roles.
-When you add a data tier to an {ess} deployment, this is done automatically.
+. Assign your nodes to the appropriate <<data-tiers, data tier>> using the
+`data_hot`, `data_content`, `data_warm`, `data_cold`, and `data_frozen` roles.
+When you add a data tier to an {ess} deployment,
+nodes are automatically assigned to the tier.
 You can change the role of an existing node in an {ess} deployment with the
 {cloud}/ec-api-deployment-crud.html#ec_update_a_deployment[Update deployment API].
 If you are directly managing your own cluster,
 configure the appropriate data role for each node in `elasticsearch.yml`.
 . Update your {ilm-init} policy to:
-.. Remove the {ilm-init} allocate action from each phase in your index lifecycle policy.
+.. Remove the attribute-based allocation settings From the {ilm-init}
+allocate action in each phase, or remove the allocate action entirely
+if it does not set the number of replicas. (An empty allocate action is invalid.)
 .. Ensure the policy specifies the corresponding phase for each data tier in your architecture.
 For example, if you enable the warm and cold data tiers for a deployment, your policy must
 include the hot, warm, and cold phases.
-This is necessary for {ilm-init} to automatically move indices through the data tiers,
+This is necessary for {ilm-init} to automatically inject the <<ilm-migrate, migrate>> action
+to move indices through the data tiers,
 even if you don't need to perform any other actions and the phase is empty.
 . Update your index template to remove the custom node attribute you used to assign new indices
-to the hot tier. New indices are automatically assigned to `data_content` nodes, and new backing
-indices for data streams are automatically assigned to `data_hot` nodes.
-. To enable {ilm} to automatically move existing managed indices through the data tiers,
-remove your routing allocation filters from those indices.
+to the hot tier. Going forward, when you create a data stream, its first backing index is automatically
+assigned to `data_hot` nodes. Similarly, when you directly create an index, it
+is automatically assigned to `data_content` nodes.
+The same nodes can serve both the `data_hot` and `data_content` roles.
+
+To enable {ilm} to automatically move _existing_ managed indices through the data tiers,
+you must remove the routing allocation filters from the indices.
+For example, if your old template set a `node-type` attribute to assign new indices to `hot-nodes`,
+set the value to `null` to remove the filter:
+
+////
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001/_settings
+{
+  "index.routing.allocation.require.node-type": "hot-nodes"
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+
+////
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001/_settings
+{
+  "index.routing.allocation.require.node-type": null
+}
+--------------------------------------------------
+// TEST[continued]

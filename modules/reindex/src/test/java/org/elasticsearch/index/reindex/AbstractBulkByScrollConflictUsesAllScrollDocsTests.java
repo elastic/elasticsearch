@@ -17,12 +17,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -31,6 +34,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,12 +48,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class UpdateByQueryConflictTests extends ReindexTestCase {
+public class AbstractBulkByScrollConflictUsesAllScrollDocsTests extends ReindexTestCase {
     private static final String SCRIPT_LANG = "fake_lang";
     private static final String NOOP_GENERATOR = "modificationScript";
     private static final String RETURN_NOOP_FIELD = "return_noop";
@@ -80,22 +85,82 @@ public class UpdateByQueryConflictTests extends ReindexTestCase {
         }
     }
 
-    public void testConcurrentDocumentUpdates() throws Exception {
+    @Before
+    public void setUpCluster() {
         internalCluster().startMasterOnlyNode();
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
+    }
 
+    public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        final boolean scriptEnabled = randomBoolean();
+        executeConcurrentUpdatesOnSubsetOfDocs(indexName,
+            indexName,
+            scriptEnabled,
+            updateByQuery(),
+            true,
+            (bulkByScrollResponse, maxDocs, conflictingUpdates) -> {
+                assertThat(bulkByScrollResponse.getUpdated(), is((long) maxDocs));
+                assertThat(bulkByScrollResponse.getVersionConflicts(), is((long) conflictingUpdates));
+                if (scriptEnabled) {
+                    assertThat(bulkByScrollResponse.getNoops(), is((long) maxDocs));
+                }
+        });
+    }
+
+    public void testReindex() throws Exception {
+        final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndexWithSingleShard(targetIndex);
+
+        final ReindexRequestBuilder reindexRequestBuilder = reindex();
+        reindexRequestBuilder.destination(targetIndex);
+        reindexRequestBuilder.destination().setVersionType(VersionType.INTERNAL);
+        // Force MATCH_DELETE version so we get reindex conflicts
+        reindexRequestBuilder.destination().setVersion(MATCH_DELETED);
+
+        final boolean scriptEnabled = randomBoolean();
+        executeConcurrentUpdatesOnSubsetOfDocs(sourceIndex,
+            targetIndex,
+            scriptEnabled,
+            reindexRequestBuilder,
+            false,
+            (bulkByScrollResponse, maxDocs, conflictingUpdates) -> {
+            assertThat(bulkByScrollResponse.getCreated(), is((long) maxDocs));
+            assertThat(bulkByScrollResponse.getVersionConflicts(), is((long) conflictingUpdates));
+            if (scriptEnabled) {
+                assertThat(bulkByScrollResponse.getNoops(), is((long) maxDocs));
+            }
+        });
+    }
+
+    public void testDeleteByQuery() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        executeConcurrentUpdatesOnSubsetOfDocs(indexName,
+            indexName,
+            false,
+            deleteByQuery(),
+            true,
+            (bulkByScrollResponse, maxDocs, conflictingUpdates) -> {
+                assertThat(bulkByScrollResponse.getDeleted(), is((long) maxDocs));
+                assertThat(bulkByScrollResponse.getVersionConflicts(), is((long) conflictingUpdates));
+        });
+    }
+
+    <R extends AbstractBulkByScrollRequest<R>,
+     Self extends AbstractBulkByScrollRequestBuilder<R, Self>> void executeConcurrentUpdatesOnSubsetOfDocs(String sourceIndex,
+        String targetIndex,
+        boolean scriptEnabled,
+        AbstractBulkByScrollRequestBuilder<R, Self> requestBuilder,
+        boolean useOptimisticConcurrency,
+        TriConsumer<BulkByScrollResponse, Integer, Integer> resultConsumer) throws Exception {
+        createIndexWithSingleShard(sourceIndex);
 
         final int numDocs = 100;
         final int scrollSize = 50;
         final int maxDocs = 10;
 
-        boolean scriptEnabled = randomBoolean();
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
         int noopDocs = 0;
         for (int i = numDocs; i > 0; i--) {
@@ -108,7 +173,7 @@ public class UpdateByQueryConflictTests extends ReindexTestCase {
                 source.put(RETURN_NOOP_FIELD, true);
                 noopDocs++;
             }
-            indexRequests.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource(source));
+            indexRequests.add(client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
 
@@ -132,7 +197,7 @@ public class UpdateByQueryConflictTests extends ReindexTestCase {
         // Ensure that the write thread blocking task is currently executing
         barrier.await();
 
-        final SearchResponse searchResponse = client().prepareSearch(indexName)
+        final SearchResponse searchResponse = client().prepareSearch(sourceIndex)
             .setSize(scrollSize)
             .addSort(SORTING_FIELD, SortOrder.DESC)
             .execute()
@@ -170,7 +235,7 @@ public class UpdateByQueryConflictTests extends ReindexTestCase {
                 conflictingUpdates++;
             }
 
-            conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit));
+            conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency));
         }
 
         // The bulk request is enqueued before the update by query
@@ -179,20 +244,20 @@ public class UpdateByQueryConflictTests extends ReindexTestCase {
         // Ensure that the concurrent writes are enqueued before the update by query request is sent
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
 
-        final UpdateByQueryRequestBuilder updateByQueryRequestBuilder = updateByQuery()
-            .source(indexName)
+        requestBuilder.source(sourceIndex)
             .maxDocs(maxDocs)
             .abortOnVersionConflict(false);
 
         if (scriptEnabled) {
             final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
-            updateByQueryRequestBuilder.script(script);
+            ((AbstractBulkIndexByScrollRequestBuilder) requestBuilder).script(script);
         }
 
-        final SearchRequestBuilder source = updateByQueryRequestBuilder.source();
+        final SearchRequestBuilder source = requestBuilder.source();
         source.setSize(scrollSize);
         source.addSort(SORTING_FIELD, SortOrder.DESC);
-        final ActionFuture<BulkByScrollResponse> updateByQueryResponse = updateByQueryRequestBuilder.execute();
+        source.setQuery(QueryBuilders.matchAllQuery());
+        final ActionFuture<BulkByScrollResponse> updateByQueryResponse = requestBuilder.execute();
 
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(2)));
 
@@ -205,22 +270,27 @@ public class UpdateByQueryConflictTests extends ReindexTestCase {
         }
 
         final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();
-        assertThat(bulkByScrollResponse.getUpdated(), is((long) maxDocs));
-        assertThat(bulkByScrollResponse.getVersionConflicts(), is((long) conflictingUpdates));
-        if (scriptEnabled) {
-            assertThat(bulkByScrollResponse.getNoops(), is((long) maxDocs));
-        }
+        resultConsumer.apply(bulkByScrollResponse, maxDocs, conflictingUpdates);
     }
 
-    private IndexRequest createUpdatedIndexRequest(SearchHit searchHit) {
+    private void createIndexWithSingleShard(String index) {
+        createIndex(index, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+    }
+
+    private IndexRequest createUpdatedIndexRequest(SearchHit searchHit, String targetIndex, boolean useOptimisticUpdate) {
         final BytesReference sourceRef = searchHit.getSourceRef();
         final XContentType xContentType = sourceRef != null ? XContentHelper.xContentType(sourceRef) : null;
         IndexRequest indexRequest = new IndexRequest();
-        indexRequest.index(searchHit.getIndex());
+        indexRequest.index(targetIndex);
         indexRequest.id(searchHit.getId());
         indexRequest.source(sourceRef, xContentType);
-        indexRequest.setIfSeqNo(searchHit.getSeqNo());
-        indexRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
+        if (useOptimisticUpdate) {
+            indexRequest.setIfSeqNo(searchHit.getSeqNo());
+            indexRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
+        }
         return indexRequest;
     }
 }

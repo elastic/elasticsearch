@@ -63,78 +63,77 @@ public class ThreadPoolTests extends ESTestCase {
         assertEquals("failed to parse value [-1] for setting [thread_pool.estimated_time_interval], must be >= [0ms]", e.getMessage());
     }
 
-
-    static class Factorial {
-        int factorial(int n) {
-            assertCurrentMethodIsNotCalledRecursively();
-            if (n <= 1) {
-                return 1;
-            } else {
-                return n * factorial(n - 1);
-            }
-        }
-    }
-
-    static class ExtendedFactorial extends Factorial {
-        @Override
-        int factorial(int n) {
-            assertCurrentMethodIsNotCalledRecursively();
-            return super.factorial(n);
-        }
-    }
-
-    static class AnotherFactorial extends Factorial {
-        @Override
-        int factorial(int n) {
-            return super.factorial(n);
-        }
-
-        int anotherFactorial(int n) {
-            if (randomBoolean()) {
-                return super.factorial(n);
-            } else {
-                return factorial(n);
-            }
-        }
-    }
-
-    int factorialForked(int n, ExecutorService executor) {
-        assertCurrentMethodIsNotCalledRecursively();
-        if (n <= 1) {
-            return 1;
-        }
-        return n * FutureUtils.get(executor.submit(() -> factorialForked(n - 1, executor)));
-    }
-
     public void testAssertCurrentMethodIsNotCalledRecursively() {
+        class Factorial {
+            int factorial(int n) {
+                assertCurrentMethodIsNotCalledRecursively();
+                if (n <= 1) {
+                    return 1;
+                } else {
+                    return n * factorial(n - 1);
+                }
+            }
+
+            int factorialForked(int n, ExecutorService executor) {
+                assertCurrentMethodIsNotCalledRecursively();
+                if (n <= 1) {
+                    return 1;
+                }
+                return n * FutureUtils.get(executor.submit(() -> factorialForked(n - 1, executor)));
+            }
+        }
         {
             Factorial factorial = new Factorial();
             expectThrows(AssertionError.class, () -> factorial.factorial(between(2, 10)));
             assertThat(factorial.factorial(1), equalTo(1)); // is not called recursively
             assertThat(expectThrows(AssertionError.class, () -> factorial.factorial(between(2, 10))).getMessage(),
-                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$Factorial#factorial is called recursively"));
+                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$1Factorial#factorial is called recursively"));
         }
         {
+            class ExtendedFactorial extends Factorial {
+                @Override
+                int factorial(int n) {
+                    assertCurrentMethodIsNotCalledRecursively();
+                    return super.factorial(n);
+                }
+            }
             Factorial factorial = new ExtendedFactorial();
             expectThrows(AssertionError.class, () -> factorial.factorial(between(2, 10)));
             assertThat(factorial.factorial(1), equalTo(1)); // is not called recursively
             assertThat(expectThrows(AssertionError.class, () -> factorial.factorial(between(2, 10))).getMessage(),
-                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$ExtendedFactorial#factorial is called recursively"));
+                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$1ExtendedFactorial#factorial is called recursively"));
         }
         {
+            class AnotherFactorial extends Factorial {
+                @Override
+                int factorial(int n) {
+                    return super.factorial(n);
+                }
+
+                int anotherFactorial(int n) {
+                    if (randomBoolean()) {
+                        return super.factorial(n);
+                    } else {
+                        return factorial(n);
+                    }
+                }
+            }
             AnotherFactorial factorial = new AnotherFactorial();
             expectThrows(AssertionError.class, () -> factorial.anotherFactorial(between(2, 10)));
             assertThat(factorial.anotherFactorial(1), equalTo(1)); // is not called recursively
             assertThat(expectThrows(AssertionError.class, () -> factorial.factorial(between(2, 10))).getMessage(),
-                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$Factorial#factorial is called recursively"));
+                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$1Factorial#factorial is called recursively"));
         }
-        TestThreadPool threadPool = new TestThreadPool("test");
-        assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
-        assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
-        assertThat(expectThrows(AssertionError.class,
-            () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
-            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
-        terminate(threadPool);
+        {
+            Factorial factorial = new Factorial();
+            TestThreadPool threadPool = new TestThreadPool("test");
+            assertThat(factorial.factorialForked(1, threadPool.generic()), equalTo(1));
+            assertThat(factorial.factorialForked(10, threadPool.generic()), equalTo(3628800));
+            assertThat(expectThrows(AssertionError.class,
+                () -> factorial.factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
+                equalTo("org.elasticsearch.threadpool.ThreadPoolTests$1Factorial#factorialForked is called recursively"));
+            terminate(threadPool);
+        }
     }
 
     public void testInheritContextOnSchedule() throws InterruptedException {

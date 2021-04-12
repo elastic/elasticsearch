@@ -150,7 +150,18 @@ public class ClusterStateTests extends ESTestCase {
             "      \"name\" : \"\",\n" +
             "      \"ephemeral_id\" : \"" + ephemeralId + "\",\n" +
             "      \"transport_address\" : \"127.0.0.1:111\",\n" +
-            "      \"attributes\" : { }\n" +
+            "      \"attributes\" : { },\n" +
+            "      \"roles\" : [\n" +
+            "        \"data\",\n" +
+            "        \"data_cold\",\n" +
+            "        \"data_content\",\n" +
+            "        \"data_frozen\",\n" +
+            "        \"data_hot\",\n" +
+            "        \"data_warm\",\n" +
+            "        \"ingest\",\n" +
+            "        \"master\",\n" +
+            "        \"remote_cluster_client\"\n" +
+            "      ]\n" +
             "    }\n" +
             "  },\n" +
             "  \"metadata\" : {\n" +
@@ -345,7 +356,18 @@ public class ClusterStateTests extends ESTestCase {
             "      \"name\" : \"\",\n" +
             "      \"ephemeral_id\" : \"" + ephemeralId + "\",\n" +
             "      \"transport_address\" : \"127.0.0.1:111\",\n" +
-            "      \"attributes\" : { }\n" +
+            "      \"attributes\" : { },\n" +
+            "      \"roles\" : [\n" +
+            "        \"data\",\n" +
+            "        \"data_cold\",\n" +
+            "        \"data_content\",\n" +
+            "        \"data_frozen\",\n" +
+            "        \"data_hot\",\n" +
+            "        \"data_warm\",\n" +
+            "        \"ingest\",\n" +
+            "        \"master\",\n" +
+            "        \"remote_cluster_client\"\n" +
+            "      ]\n" +
             "    }\n" +
             "  },\n" +
             "  \"metadata\" : {\n" +
@@ -533,7 +555,18 @@ public class ClusterStateTests extends ESTestCase {
             "      \"name\" : \"\",\n" +
             "      \"ephemeral_id\" : \"" + ephemeralId + "\",\n" +
             "      \"transport_address\" : \"127.0.0.1:111\",\n" +
-            "      \"attributes\" : { }\n" +
+            "      \"attributes\" : { },\n" +
+            "      \"roles\" : [\n" +
+            "        \"data\",\n" +
+            "        \"data_cold\",\n" +
+            "        \"data_content\",\n" +
+            "        \"data_frozen\",\n" +
+            "        \"data_hot\",\n" +
+            "        \"data_warm\",\n" +
+            "        \"ingest\",\n" +
+            "        \"master\",\n" +
+            "        \"remote_cluster_client\"\n" +
+            "      ]\n" +
             "    }\n" +
             "  },\n" +
             "  \"metadata\" : {\n" +

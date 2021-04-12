@@ -124,6 +124,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
+        if (shardId == null) {
+            throw new IllegalStateException("Null shardId. If you got here from a test, you need to wrap the directory reader. " +
+                "see for example AggregatorTestCase#wrapInMockESDirectoryReader.  If you got here in production, please file a bug.");
+        }
         if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // insanity
             throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -510,5 +511,27 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     private String randomRealmTypeOtherThanFileOrNative() {
         return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
             () -> randomAlphaOfLengthBetween(4, 12));
+    }
+
+    public void testMultipleDataPaths() {
+        final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(
+            issue.getMessage(),
+            equalTo("multiple [path.data] entries are deprecated, use a single data directory"));
+        assertThat(
+            issue.getDetails(),
+            equalTo("Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks."));
+        String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoMultipleDataPaths() {
+        Settings settings = Settings.builder().put("path.data", "data").build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        assertThat(issue, nullValue());
     }
 }

@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -59,6 +60,27 @@ public class XPackSettingsTests extends ESTestCase {
     public void testDefaultSupportedProtocolsWithoutTLSv13() throws Exception {
         assumeFalse("current JVM supports TLSv1.3", supportTLSv13());
         assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.2", "TLSv1.1"));
+    }
+
+    public void testServiceTokenHashingAlgorithmSettingValidation() {
+        final boolean isPBKDF2Available = isSecretkeyFactoryAlgoAvailable("PBKDF2WithHMACSHA512");
+        final String pbkdf2Algo = randomFrom("PBKDF2_10000", "PBKDF2", "PBKDF2_STRETCH");
+        final Settings settings = Settings.builder().put(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(), pbkdf2Algo).build();
+        if (isPBKDF2Available) {
+            assertEquals(pbkdf2Algo, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings));
+        } else {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(settings));
+            assertThat(e.getMessage(), containsString("Support for PBKDF2WithHMACSHA512 must be available"));
+        }
+
+        final String bcryptAlgo = randomFrom("BCRYPT", "BCRYPT11");
+        assertEquals(bcryptAlgo, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(
+            Settings.builder().put(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
+    }
+
+    public void testDefaultServiceTokenHashingAlgorithm() {
+        assertThat(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(Settings.EMPTY), equalTo("PBKDF2_STRETCH"));
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

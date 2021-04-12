@@ -41,6 +41,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
@@ -51,6 +52,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -61,6 +63,7 @@ import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -77,6 +80,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
@@ -96,7 +100,13 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin, ClusterPlugin {
+public class XPackPlugin extends XPackClientPlugin
+    implements
+        ExtensiblePlugin,
+        RepositoryPlugin,
+        EnginePlugin,
+        ClusterPlugin,
+        MapperPlugin {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(XPackPlugin.class);
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
@@ -235,7 +245,13 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         return metadata.custom(LicensesMetadata.TYPE) != null ||
             metadata.custom(MlMetadata.TYPE) != null ||
             metadata.custom(WatcherMetadata.TYPE) != null ||
-            clusterState.custom(TokenMetadata.TYPE) != null;
+            clusterState.custom(TokenMetadata.TYPE) != null ||
+            metadata.custom(TransformMetadata.TYPE) != null;
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Collections.singletonMap(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
 
     @Override

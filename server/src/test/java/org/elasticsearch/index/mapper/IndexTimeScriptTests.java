@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -71,20 +70,6 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         assertEquals(doc.rootDoc().getField("double_field_plus_two").numericValue(), 6.5);
     }
 
-    public void testSerialization() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("message").field("type", "text").endObject();
-            b.startObject("message_length");
-            b.field("type", "long");
-            b.field("script", "message_length");
-            b.endObject();
-        }));
-        assertEquals(
-            "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"text\"}," +
-                "\"message_length\":{\"type\":\"long\",\"script\":{\"source\":\"message_length\",\"lang\":\"painless\"}}}}}",
-            Strings.toString(mapper.mapping()));
-    }
-
     public void testCrossReferences() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("message").field("type", "text").endObject();
@@ -105,25 +90,6 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         assertEquals(doc.rootDoc().getField("message_length_plus_two").numericValue(), 19L);
         assertEquals(doc.rootDoc().getField("message_length").numericValue(), 17L);
         assertEquals(doc.rootDoc().getField("message_length_plus_four").numericValue(), 21d);
-    }
-
-    public void testCannotIndexDirectlyIntoScriptMapper() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("message").field("type", "text").endObject();
-            b.startObject("message_length");
-            b.field("type", "long");
-            b.field("script", "length");
-            b.endObject();
-        }));
-
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
-            b.field("message", "foo");
-            b.field("message_length", 3);
-        })));
-        assertEquals("failed to parse field [message_length] of type [long] in document with id '1'. Preview of field's value: '3'",
-            e.getMessage());
-        Throwable original = e.getCause();
-        assertEquals("Cannot index data directly into a field with a [script] parameter", original.getMessage());
     }
 
     public void testLoopDetection() throws IOException {
@@ -329,10 +295,5 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         public void emitValue(double v) {
             super.emit(v);
         }
-
-        public List<Object> extractValuesFromSource(String path) {
-            return super.extractFromSource(path);
-        }
     }
-
 }

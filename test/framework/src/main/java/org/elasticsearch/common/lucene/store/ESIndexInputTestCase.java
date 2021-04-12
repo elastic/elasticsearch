@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -196,33 +197,6 @@ public class ESIndexInputTestCase extends ESTestCase {
     }
 
     protected static String randomFileExtension() {
-        return randomFrom(
-            ".cfe",
-            ".cfs",
-            ".dii",
-            ".dim",
-            ".doc",
-            ".dvd",
-            ".dvm",
-            ".fdt",
-            ".fdx",
-            ".fdm",
-            ".fnm",
-            ".kdd",
-            ".kdi",
-            ".kdm",
-            ".liv",
-            ".nvd",
-            ".nvm",
-            ".pay",
-            ".pos",
-            ".tim",
-            ".tip",
-            ".tmd",
-            ".tvd",
-            ".tvx",
-            ".vec",
-            ".vem"
-        );
+        return '.' + randomFrom(LuceneFilesExtensions.values()).getExtension();
     }
 }

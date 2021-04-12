@@ -691,6 +691,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth()
             .setWaitForGreenStatus()
             .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true)
             .setWaitForEvents(Priority.LANGUID)
             .setTimeout(TimeValue.MAX_VALUE)
             .get();

@@ -507,6 +507,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         builder.endObject();
 
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : roles) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
+
         builder.endObject();
         return builder;
     }

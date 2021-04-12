@@ -14,15 +14,16 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -63,8 +64,8 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
-        byte[] disableGeoIp = "-Des.geoip_v2_feature_flag_enabled=false\n".getBytes(StandardCharsets.UTF_8);
-        Files.write(installation.config("jvm.options"), disableGeoIp, APPEND);
+        List<String> yaml = Collections.singletonList("geoip.downloader.endpoint: false");
+        Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {

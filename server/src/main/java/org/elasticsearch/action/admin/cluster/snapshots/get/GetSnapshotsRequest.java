@@ -37,8 +37,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
-    public GetSnapshotsRequest() {
-    }
+    public GetSnapshotsRequest() {}
 
     /**
      * Constructs a new get snapshots request with given repository names and list of snapshots
@@ -65,7 +64,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             repositories = in.readStringArray();
         } else {
-            repositories = new String[]{in.readString()};
+            repositories = new String[] { in.readString() };
         }
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
@@ -79,8 +78,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeStringArray(repositories);
         } else {
             if (repositories.length != 1) {
-                throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
-                        "to " + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString());
+                throw new IllegalArgumentException(
+                    "Requesting snapshots from multiple repositories is not supported in versions prior "
+                        + "to "
+                        + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString()
+                );
             }
             out.writeString(repositories[0]);
         }

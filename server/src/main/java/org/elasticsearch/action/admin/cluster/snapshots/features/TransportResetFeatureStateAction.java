@@ -39,18 +39,14 @@ public class TransportResetFeatureStateAction extends HandledTransportAction<Res
         NodeClient client,
         ClusterService clusterService
     ) {
-        super(ResetFeatureStateAction.NAME, transportService, actionFilters,
-            ResetFeatureStateRequest::new);
+        super(ResetFeatureStateAction.NAME, transportService, actionFilters, ResetFeatureStateRequest::new);
         this.systemIndices = systemIndices;
         this.client = client;
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        ResetFeatureStateRequest request,
-        ActionListener<ResetFeatureStateResponse> listener) {
+    protected void doExecute(Task task, ResetFeatureStateRequest request, ActionListener<ResetFeatureStateResponse> listener) {
 
         if (systemIndices.getFeatures().size() == 0) {
             listener.onResponse(new ResetFeatureStateResponse(Collections.emptyList()));

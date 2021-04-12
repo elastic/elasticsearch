@@ -29,10 +29,8 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
         List<ResetFeatureStateResponse.ResetFeatureStateStatus> resetStatuses = new ArrayList<>();
         String feature1 = randomAlphaOfLengthBetween(4, 10);
         String feature2 = randomValueOtherThan(feature1, () -> randomAlphaOfLengthBetween(4, 10));
-        resetStatuses.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(
-            feature1, randomFrom("SUCCESS", "FAILURE")));
-        resetStatuses.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(
-            feature2, randomFrom("SUCCESS", "FAILURE")));
+        resetStatuses.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(feature1, randomFrom("SUCCESS", "FAILURE")));
+        resetStatuses.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(feature2, randomFrom("SUCCESS", "FAILURE")));
         return new ResetFeatureStateResponse(resetStatuses);
     }
 
@@ -42,12 +40,19 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
         if (instance.getItemList().size() == 0) {
             minSize = 1;
         }
-        Set<String> existingFeatureNames = instance.getItemList().stream()
+        Set<String> existingFeatureNames = instance.getItemList()
+            .stream()
             .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
             .collect(Collectors.toSet());
-        return new ResetFeatureStateResponse(randomList(minSize, 10,
-            () -> new ResetFeatureStateResponse.ResetFeatureStateStatus(
-                randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
-                randomAlphaOfLengthBetween(5, 10))));
+        return new ResetFeatureStateResponse(
+            randomList(
+                minSize,
+                10,
+                () -> new ResetFeatureStateResponse.ResetFeatureStateStatus(
+                    randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
+                    randomAlphaOfLengthBetween(5, 10)
+                )
+            )
+        );
     }
 }

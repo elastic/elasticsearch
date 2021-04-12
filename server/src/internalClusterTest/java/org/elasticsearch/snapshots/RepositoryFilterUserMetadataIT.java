@@ -48,12 +48,22 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
     public void testFilteredRepoMetadataIsUsed() {
         final String masterName = internalCluster().getMasterName();
         final String repoName = "test-repo";
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType(MetadataFilteringPlugin.TYPE).setSettings(
-            Settings.builder().put("location", randomRepoPath())
-                .put(MetadataFilteringPlugin.MASTER_SETTING_VALUE, masterName)));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(repoName)
+                .setType(MetadataFilteringPlugin.TYPE)
+                .setSettings(
+                    Settings.builder().put("location", randomRepoPath()).put(MetadataFilteringPlugin.MASTER_SETTING_VALUE, masterName)
+                )
+        );
         createIndex("test-idx");
-        final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
-            .setWaitForCompletion(true).get().getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "test-snap")
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
         assertThat(snapshotInfo.userMetadata(), is(Collections.singletonMap(MetadataFilteringPlugin.MOCK_FILTERED_META, masterName)));
     }
 
@@ -67,40 +77,76 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
         private static final String TYPE = "mock_meta_filtering";
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, BigArrays bigArrays,
-                                                               RecoverySettings recoverySettings) {
-            return Collections.singletonMap("mock_meta_filtering", metadata ->
-                new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            return Collections.singletonMap(
+                "mock_meta_filtering",
+                metadata -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
 
                     // Storing the initially expected metadata value here to verify that #filterUserMetadata is only called once on the
                     // initial master node starting the snapshot
                     private final String initialMetaValue = metadata.settings().get(MASTER_SETTING_VALUE);
 
                     @Override
-                    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId,
-                                                 Metadata clusterMetadata, SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                                 Function<ClusterState, ClusterState> stateTransformer,
-                                                 ActionListener<RepositoryData> listener) {
-                        super.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo,
-                            repositoryMetaVersion, stateTransformer, listener);
+                    public void finalizeSnapshot(
+                        ShardGenerations shardGenerations,
+                        long repositoryStateId,
+                        Metadata clusterMetadata,
+                        SnapshotInfo snapshotInfo,
+                        Version repositoryMetaVersion,
+                        Function<ClusterState, ClusterState> stateTransformer,
+                        ActionListener<RepositoryData> listener
+                    ) {
+                        super.finalizeSnapshot(
+                            shardGenerations,
+                            repositoryStateId,
+                            clusterMetadata,
+                            snapshotInfo,
+                            repositoryMetaVersion,
+                            stateTransformer,
+                            listener
+                        );
                     }
 
                     @Override
-                    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                              IndexCommit snapshotIndexCommit, String shardStateIdentifier,
-                                              IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                                              Map<String, Object> userMetadata, ActionListener<String> listener) {
+                    public void snapshotShard(
+                        Store store,
+                        MapperService mapperService,
+                        SnapshotId snapshotId,
+                        IndexId indexId,
+                        IndexCommit snapshotIndexCommit,
+                        String shardStateIdentifier,
+                        IndexShardSnapshotStatus snapshotStatus,
+                        Version repositoryMetaVersion,
+                        Map<String, Object> userMetadata,
+                        ActionListener<String> listener
+                    ) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
-                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier,
-                            snapshotStatus, repositoryMetaVersion, userMetadata, listener);
+                        super.snapshotShard(
+                            store,
+                            mapperService,
+                            snapshotId,
+                            indexId,
+                            snapshotIndexCommit,
+                            shardStateIdentifier,
+                            snapshotStatus,
+                            repositoryMetaVersion,
+                            userMetadata,
+                            listener
+                        );
                     }
 
                     @Override
                     public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
                         return Collections.singletonMap(MOCK_FILTERED_META, clusterService.getNodeName());
                     }
-                });
+                }
+            );
         }
     }
 }

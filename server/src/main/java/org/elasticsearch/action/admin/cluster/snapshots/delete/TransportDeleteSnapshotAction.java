@@ -30,11 +30,24 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportDeleteSnapshotAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteSnapshotRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteSnapshotAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        SnapshotsService snapshotsService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteSnapshotAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteSnapshotRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.snapshotsService = snapshotsService;
     }
 
@@ -45,8 +58,12 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteSnapshotRequest request, ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final DeleteSnapshotRequest request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         snapshotsService.deleteSnapshots(request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

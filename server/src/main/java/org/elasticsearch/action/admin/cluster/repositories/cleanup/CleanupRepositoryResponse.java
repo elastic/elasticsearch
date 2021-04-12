@@ -21,18 +21,23 @@ import java.io.IOException;
 
 public final class CleanupRepositoryResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ObjectParser<CleanupRepositoryResponse, Void> PARSER =
-        new ObjectParser<>(CleanupRepositoryResponse.class.getName(), true, CleanupRepositoryResponse::new);
+    private static final ObjectParser<CleanupRepositoryResponse, Void> PARSER = new ObjectParser<>(
+        CleanupRepositoryResponse.class.getName(),
+        true,
+        CleanupRepositoryResponse::new
+    );
 
     static {
-        PARSER.declareObject((response, cleanupResult) -> response.result = cleanupResult,
-            RepositoryCleanupResult.PARSER, new ParseField("results"));
+        PARSER.declareObject(
+            (response, cleanupResult) -> response.result = cleanupResult,
+            RepositoryCleanupResult.PARSER,
+            new ParseField("results")
+        );
     }
 
     private RepositoryCleanupResult result;
 
-    public CleanupRepositoryResponse() {
-    }
+    public CleanupRepositoryResponse() {}
 
     public CleanupRepositoryResponse(RepositoryCleanupResult result) {
         this.result = result;

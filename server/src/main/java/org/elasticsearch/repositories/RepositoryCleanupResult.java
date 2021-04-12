@@ -21,8 +21,11 @@ import java.io.IOException;
 
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
-    public static final ObjectParser<RepositoryCleanupResult, Void> PARSER =
-        new ObjectParser<>(RepositoryCleanupResult.class.getName(), true, RepositoryCleanupResult::new);
+    public static final ObjectParser<RepositoryCleanupResult, Void> PARSER = new ObjectParser<>(
+        RepositoryCleanupResult.class.getName(),
+        true,
+        RepositoryCleanupResult::new
+    );
 
     private static final String DELETED_BLOBS = "deleted_blobs";
 

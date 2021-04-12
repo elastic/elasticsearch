@@ -92,8 +92,9 @@ public final class ShardGenerations {
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
             final List<String> updatedGenerations = shardGenerations.get(indexId);
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
-            assert updatedGenerations != null
-                : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
+            assert updatedGenerations != null : "Index ["
+                + indexId
+                + "] present in previous shard generations, but missing from updated generations";
             for (int i = 0; i < Math.min(oldGens.size(), updatedGenerations.size()); i++) {
                 final String oldGeneration = oldGens.get(i);
                 final String updatedGeneration = updatedGenerations.get(i);
@@ -213,19 +214,16 @@ public final class ShardGenerations {
         }
 
         public ShardGenerations build() {
-            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(
-                Map.Entry::getKey,
-                entry -> {
-                    final Set<Integer> shardIds = entry.getValue().keySet();
-                    assert shardIds.isEmpty() == false;
-                    final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
-                    // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
-                    // a map entry.
-                    final String[] gens = new String[size];
-                    entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
-                    return Arrays.asList(gens);
-                }
-            )));
+            return new ShardGenerations(generations.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> {
+                final Set<Integer> shardIds = entry.getValue().keySet();
+                assert shardIds.isEmpty() == false;
+                final int size = shardIds.stream().mapToInt(i -> i).max().getAsInt() + 1;
+                // Create a list that can hold the highest shard id as index and leave null values for shards that don't have
+                // a map entry.
+                final String[] gens = new String[size];
+                entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
+                return Arrays.asList(gens);
+            })));
         }
     }
 }

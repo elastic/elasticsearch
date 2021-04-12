@@ -62,34 +62,38 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
-        assertThat(apiResponse.getItemList(), containsInAnyOrder(
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("SystemIndexTestPlugin", "SUCCESS"),
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("SecondSystemIndexTestPlugin", "SUCCESS"),
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("tasks", "SUCCESS")
-        ));
+        assertThat(
+            apiResponse.getItemList(),
+            containsInAnyOrder(
+                new ResetFeatureStateResponse.ResetFeatureStateStatus("SystemIndexTestPlugin", "SUCCESS"),
+                new ResetFeatureStateResponse.ResetFeatureStateStatus("SecondSystemIndexTestPlugin", "SUCCESS"),
+                new ResetFeatureStateResponse.ResetFeatureStateStatus("tasks", "SUCCESS")
+            )
+        );
 
         // verify that both indices are gone
-        Exception e1 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(systemIndex1)
-            .get());
+        Exception e1 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(systemIndex1).get()
+        );
 
         assertThat(e1.getMessage(), containsString("no such index"));
 
-        Exception e2 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(associatedIndex)
-            .get());
+        Exception e2 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(associatedIndex).get()
+        );
 
         assertThat(e2.getMessage(), containsString("no such index"));
 
-        Exception e3 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(systemIndex2)
-            .get());
+        Exception e3 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(systemIndex2).get()
+        );
 
         assertThat(e3.getMessage(), containsString("no such index"));
 
-        GetIndexResponse response = client().admin().indices().prepareGetIndex()
-            .addIndices("my_index")
-            .get();
+        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("my_index").get();
 
         assertThat(response.getIndices(), arrayContaining("my_index"));
     }

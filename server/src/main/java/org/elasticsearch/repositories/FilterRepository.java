@@ -70,16 +70,33 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
-        in.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion, stateTransformer,
-            listener);
+    public void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    ) {
+        in.finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            listener
+        );
     }
 
     @Override
-    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                                ActionListener<RepositoryData> listener) {
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        ActionListener<RepositoryData> listener
+    ) {
         in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
@@ -114,15 +131,41 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
-        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier, snapshotStatus,
-            repositoryMetaVersion, userMetadata, listener);
+    public void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+    ) {
+        in.snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener
+        );
     }
+
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
-                             ActionListener<Void> listener) {
+    public void restoreShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId,
+        RecoveryState recoveryState,
+        ActionListener<Void> listener
+    ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
     }
 
@@ -137,14 +180,22 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                             Consumer<Exception> onFailure) {
+    public void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    ) {
         in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                   ActionListener<String> listener) {
+    public void cloneShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        String shardGeneration,
+        ActionListener<String> listener
+    ) {
         in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
     }
 

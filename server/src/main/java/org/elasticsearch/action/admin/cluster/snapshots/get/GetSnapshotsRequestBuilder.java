@@ -15,8 +15,10 @@ import org.elasticsearch.common.util.ArrayUtils;
 /**
  * Get snapshots request builder
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest,
-        GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
+public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<
+    GetSnapshotsRequest,
+    GetSnapshotsResponse,
+    GetSnapshotsRequestBuilder> {
 
     /**
      * Constructs the new get snapshot request with specified repositories
@@ -53,7 +55,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @return this builder
      */
     public GetSnapshotsRequestBuilder setCurrentSnapshot() {
-        request.snapshots(new String[]{GetSnapshotsRequest.CURRENT_SNAPSHOT});
+        request.snapshots(new String[] { GetSnapshotsRequest.CURRENT_SNAPSHOT });
         return this;
     }
 

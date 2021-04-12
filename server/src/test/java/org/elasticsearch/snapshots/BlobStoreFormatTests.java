@@ -64,7 +64,7 @@ public class BlobStoreFormatTests extends ESTestCase {
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token.isValue()) {
-                        if ("text" .equals(currentFieldName)) {
+                        if ("text".equals(currentFieldName)) {
                             text = parser.text();
                         } else {
                             throw new ElasticsearchParseException("unexpected field [{}]", currentFieldName);
@@ -94,14 +94,23 @@ public class BlobStoreFormatTests extends ESTestCase {
 
         // Write blobs in different formats
         checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
-        checksumSMILE.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp", true,
-                MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumSMILE.write(
+            new BlobObj("checksum smile compressed"),
+            blobContainer,
+            "check-smile-comp",
+            true,
+            MockBigArrays.NON_RECYCLING_INSTANCE
+        );
 
         // Assert that all checksum blobs can be read
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
-                "checksum smile");
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry(),
-                MockBigArrays.NON_RECYCLING_INSTANCE).getText(), "checksum smile compressed");
+        assertEquals(
+            checksumSMILE.read(blobContainer, "check-smile", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
+            "checksum smile"
+        );
+        assertEquals(
+            checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
+            "checksum smile compressed"
+        );
     }
 
     public void testCompressionIsApplied() throws IOException {
@@ -127,8 +136,10 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
         checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean(), MockBigArrays.NON_RECYCLING_INSTANCE);
-        assertEquals(checksumFormat.read(blobContainer, "test-path", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
-                testString);
+        assertEquals(
+            checksumFormat.read(blobContainer, "test-path", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE).getText(),
+            testString
+        );
         randomCorruption(blobContainer, "test-path");
         try {
             checksumFormat.read(blobContainer, "test-path", xContentRegistry(), MockBigArrays.NON_RECYCLING_INSTANCE);

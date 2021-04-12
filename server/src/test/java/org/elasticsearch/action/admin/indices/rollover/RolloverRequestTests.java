@@ -197,7 +197,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_docs", 100)
                 .endObject()
                 .startObject("mappings")
-                    .startObject("type1") //TO ASK did we allow types or only _doc?
+                    .startObject("type1")
                         .startObject("properties")
                             .startObject("field1")
                                 .field("type", "string")
@@ -222,12 +222,6 @@ public class RolloverRequestTests extends ESTestCase {
             assertThat(conditions.size(), equalTo(2));
             assertThat(request.getCreateIndexRequest().mappings(),
                 equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"index\":\"not_analyzed\",\"type\":\"string\"}}}}"));
-        }
-
-        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent,
-            BytesReference.bytes(builder).utf8ToString(), RestApiVersion.V_7)) {
-            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            expectThrows(IllegalArgumentException.class, () -> request.fromXContent(false, parser));
         }
     }
 

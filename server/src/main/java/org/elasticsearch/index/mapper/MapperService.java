@@ -332,14 +332,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
         return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
     }
-    /**
-     * Returns {@code true} if the given {@code mappingSource} includes any type (anything other than properties)
-     * as a top-level object.
-     */
-    public static boolean isMappingSourceTyped(Map<String, Object> mapping) {
-        return mapping.size() == 1 &&
-            mapping.keySet().iterator().next().equals("properties") == false;
-    }
 
     /**
      * Resolves a type from a mapping-related request into the type that should be used when

@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
-import org.elasticsearch.gradle.test.rest.transform.match.ReplaceTextual;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsTrue;
@@ -104,14 +103,6 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceMatch(String subKey, Object value) {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
-    }
-
-    public void replaceIsTrue(String subKey, Object value) {
-        transformations.add(new ReplaceTextual("is_true", subKey, MAPPER.convertValue(value, TextNode.class)));
-    }
-
-    public void replaceIsFalse(String subKey, Object value) {
-        transformations.add(new ReplaceTextual("is_false", subKey, MAPPER.convertValue(value, TextNode.class)));
     }
 
     /**

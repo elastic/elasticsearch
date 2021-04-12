@@ -207,6 +207,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("null_value", true);
         })));
         assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+            equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 }

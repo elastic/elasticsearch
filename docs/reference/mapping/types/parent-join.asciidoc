@@ -287,7 +287,7 @@ GET my-index-000001/_search
     }
   },
   "runtime_mappings": {
-    "question": {
+    "parent": {
       "type": "long",
       "script": """
         emit(Integer.parseInt(doc['my_join_field#question'].value)) <3>
@@ -295,7 +295,7 @@ GET my-index-000001/_search
     }
   },
   "fields": [
-    { "field": "question" }
+    { "field": "parent" }
   ]
 }
 ----
@@ -330,7 +330,7 @@ GET my-index-000001/_search
         "_routing": "1",
         "_source": $body.hits.hits.0._source,
         "fields": {
-          "question": [1]
+          "parent": [1]
         },
         "sort": ["3"]
       },
@@ -341,7 +341,7 @@ GET my-index-000001/_search
         "_routing": "1",
         "_source": $body.hits.hits.1._source,
         "fields": {
-          "question": [1]
+          "parent": [1]
         },
         "sort": ["4"]
       }

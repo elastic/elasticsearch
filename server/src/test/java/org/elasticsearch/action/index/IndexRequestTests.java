@@ -206,19 +206,19 @@ public class IndexRequestTests extends ESTestCase {
             Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
                 .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0));
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(ver);
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
             assertThat(error.getMessage(),
-                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_8_0_0 + " or later"));
+                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later"));
         }
         // new version
         {
             Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
                 .boxed().collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
             BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(ver);
             indexRequest.writeTo(out);

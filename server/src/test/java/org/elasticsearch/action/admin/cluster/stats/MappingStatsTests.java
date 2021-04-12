@@ -315,7 +315,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         }));
     }
 
-    public void testWriteToPre7_13() throws IOException {
+    public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
         Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);

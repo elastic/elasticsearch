@@ -18,7 +18,9 @@ back to a string depending on the date format that is associated with the field.
 Date formats can be customised, but if no `format` is specified then it uses
 the default:
 
+----
     "strict_date_optional_time_nanos||epoch_millis"
+----
 
 For instance:
 

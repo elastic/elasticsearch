@@ -25,7 +25,9 @@ supplied as a long in the JSON document.
 Date formats can be customised, but if no `format` is specified then it uses
 the default:
 
+----
     "strict_date_optional_time||epoch_millis"
+----
 
 This means that it will accept dates with optional timestamps, which conform
 to the formats supported by <<strict-date-time,`strict_date_optional_time`>>

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -23,22 +22,9 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        },
-                        new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        })));
+                        new DiscoveryNodeRole("foo", "f_1"),
+                        new DiscoveryNodeRole("foo", "f_2")
+                )));
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
@@ -46,22 +32,9 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo_1", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        },
-                        new DiscoveryNodeRole("foo_2", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        })));
+                        new DiscoveryNodeRole("foo_1", "f"),
+                        new DiscoveryNodeRole("foo_2", "f")
+                )));
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 

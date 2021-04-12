@@ -21,8 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,30 +51,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
-    private static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
-        = Setting.boolSetting("node.voting_only", false, Property.Deprecated, Property.NodeScope);
-
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
-
-    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            return VOTING_ONLY_NODE_SETTING;
-        }
-
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            return false;
-        }
-
-    };
 
     private final Settings settings;
     private final SetOnce<ThreadPool> threadPool;
@@ -86,28 +66,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public VotingOnlyNodePlugin(Settings settings) {
         this.settings = settings;
         threadPool = new SetOnce<>();
-        isVotingOnlyNode = DiscoveryNode.hasRole(settings, VOTING_ONLY_NODE_ROLE);
+        isVotingOnlyNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Collections.singletonList(VOTING_ONLY_NODE_SETTING);
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        if (isVotingOnlyNode && DiscoveryNode.isMasterNode(settings) == false) {
-            throw new IllegalStateException("voting-only node must be master-eligible");
-        }
-        return Collections.singleton(VOTING_ONLY_NODE_ROLE);
+        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false;
     }
 
     @Override

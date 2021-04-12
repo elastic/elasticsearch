@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -29,13 +30,23 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
         testCase(iw -> {
             // Intentionally not writing any docs
-        }, LongPoint.newRangeQuery("number", 2, Long.MAX_VALUE), (global, min) -> {
+        }, new MatchAllDocsQuery(), (global, min) -> {
             assertEquals(0, global.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
         });
     }
 
     public void testSomeDocs() throws IOException {
+        testCase(iw -> {
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 1)));
+        }, new MatchAllDocsQuery(), (global, min) -> {
+            assertEquals(2, global.getDocCount());
+            assertEquals(1, min.getValue(), 0);
+        });
+    }
+
+    public void testIgnoresQuery() throws IOException {
         testCase(iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 1)));

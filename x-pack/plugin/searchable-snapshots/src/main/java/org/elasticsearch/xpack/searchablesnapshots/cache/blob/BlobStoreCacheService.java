@@ -271,7 +271,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             }
         }
 
-        if (fileExtension.isMetadata()) {
+        if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
                 logExceedingFile(fileExtension, fileLength, maxMetadataLength);

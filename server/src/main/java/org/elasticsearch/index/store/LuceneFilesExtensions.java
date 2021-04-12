@@ -72,14 +72,14 @@ public enum LuceneFilesExtensions {
     VEM("vem","Vector Metadata", true, false);
 
     /**
-     * Short description of the Lucene file
-     */
-    private final String description;
-
-    /**
      * Lucene file's extension.
      */
     private final String extension;
+
+    /**
+     * Short description of the Lucene file
+     */
+    private final String description;
 
     /**
      * Some Lucene files should be memory-mapped when applicable.
@@ -111,17 +111,17 @@ public enum LuceneFilesExtensions {
         return metadata;
     }
 
-    public boolean isMmap() {
+    public boolean shouldMmap() {
         return mmap;
     }
 
     private static final Map<String, LuceneFilesExtensions> extensions;
     static {
-        final Map<String, LuceneFilesExtensions> list = new HashMap<>(values().length);
+        final Map<String, LuceneFilesExtensions> map = new HashMap<>(values().length);
         for (LuceneFilesExtensions extension : values()) {
-            list.put(extension.extension, extension);
+            map.put(extension.extension, extension);
         }
-        extensions = Collections.unmodifiableMap(list);
+        extensions = Collections.unmodifiableMap(map);
     }
 
     @Nullable

@@ -146,7 +146,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             }
 
             final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(FileSwitchDirectory.getExtension(name));
-            if (extension == null || extension.isMmap() == false) {
+            if (extension == null || extension.shouldMmap() == false) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing
                 // (e.g. stored fields and term vectors).

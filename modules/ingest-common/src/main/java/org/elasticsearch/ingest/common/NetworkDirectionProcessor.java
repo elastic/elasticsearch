@@ -92,6 +92,10 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return internalNetworks;
     }
 
+    public String getInternalNetworksField() {
+        return internalNetworksField;
+    }
+
     public boolean getIgnoreMissing() {
         return ignoreMissing;
     }

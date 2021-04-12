@@ -4,6 +4,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -516,5 +517,17 @@ public class BasicStatementTests extends ScriptTestCase {
         assertFalse(bytecode.contains("IINC"));
         bytecode = Debugger.toString("int[] x = new int[] {}; for (y in x) { int z; }");
         assertFalse(bytecode.contains("IINC 1 -1"));
+
+        int[] test = new int[10000000];
+        Arrays.fill(test, 2);
+        Map<String, Object> params = new HashMap<>();
+        params.put("values", test);
+        int total = (int)exec("int total = 0; for (int value : params['values']) total += value; return total", params, false);
+        assertEquals(total, 20000000);
+
+        PainlessError pe = expectScriptThrows(PainlessError.class, () ->
+            exec("int total = 0; for (int value = 0; value < params['values'].length; ++value) total += value; return total",
+                    params, false));
+        assertEquals("The maximum number of statements that can be executed in a loop has been reached.", pe.getMessage());
     }
 }

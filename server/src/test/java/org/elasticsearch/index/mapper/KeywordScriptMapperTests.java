@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -86,5 +87,34 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
     protected void assertIndexDisabled(IndexableField[] fields) {
         assertEquals(1, fields.length);
         assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65]>", fields[0].toString());
+    }
+
+    @Override
+    protected StringFieldScript.Factory script(String id) {
+        if ("day_of_week".equals(id)) {
+            return factory(s -> s.emit("Thursday"));
+        }
+        if ("letters".equals(id)) {
+            return factory(s -> {
+                for (Object day : s.getDoc().get("day_of_week")) {
+                    String dow = (String) day;
+                    for (int i = 0; i < dow.length(); i++) {
+                        s.emit(Character.toString(dow.charAt(i)));
+                    }
+                }
+            });
+        }
+        return super.script(id);
+    }
+
+    public void testCrossFieldReferences() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("day_of_week").field("type", "keyword").field("script", "day_of_week").endObject();
+            b.startObject("letters").field("type", "keyword").field("script", "letters").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+        IndexableField[] letterFields = doc.rootDoc().getFields("letters");
+        assertEquals(16, letterFields.length);
     }
 }

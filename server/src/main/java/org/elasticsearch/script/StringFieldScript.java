@@ -58,7 +58,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     }
 
     public final void runForDoc(int docId, Consumer<String> consumer) {
-        resultsForDoc(docId).forEach(consumer::accept);
+        resultsForDoc(docId).forEach(consumer);
     }
 
     public final void emit(String v) {

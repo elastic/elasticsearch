@@ -36,6 +36,7 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -104,7 +105,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
-            this.scriptCompiler = scriptCompiler;
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
             this.script.setValidator(s -> {
                 if (s != null && indexed.get() == false && hasDocValues.get() == false) {
@@ -114,7 +115,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder(String name) {
-            this(name, null, null);
+            this(name, null, ScriptCompiler.NONE);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {

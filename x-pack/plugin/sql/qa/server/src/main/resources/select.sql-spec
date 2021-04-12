@@ -4,8 +4,7 @@
 // Basic SELECT
 //
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-wildcardWithOrder-Ignore
+wildcardWithOrder
 SELECT * FROM test_emp ORDER BY emp_no;
 column
 SELECT last_name FROM "test_emp" ORDER BY emp_no;
@@ -22,11 +21,9 @@ SELECT first_name f, last_name AS l FROM "test_emp" ORDER BY emp_no;
 // SELECT with LIMIT
 //
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-wildcardWithLimit-Ignore
+wildcardWithLimit
 SELECT * FROM "test_emp" ORDER BY emp_no LIMIT 5;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-wildcardWithOrderWithLimit-Ignore
+wildcardWithOrderWithLimit
 SELECT * FROM "test_emp" ORDER BY emp_no LIMIT 5;
 columnWithLimit
 SELECT last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;

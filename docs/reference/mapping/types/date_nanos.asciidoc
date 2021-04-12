@@ -85,6 +85,12 @@ resolution
 You can also specify multiple date formats separated by `||`. The
 same mapping parameters than with the `date` field can be used.
 
+[WARNING]
+====
+Date nanoseconds
+include::date.asciidoc[tag=decimal-warning]
+====
+
 [[date-nanos-limitations]]
 ==== Limitations
 

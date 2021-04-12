@@ -41,7 +41,8 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
     public static final Setting<ByteSizeValue> MEMORY_PER_SHARD = Setting.byteSizeSetting(
         "memory_per_shard",
         (dummy) -> DEFAULT_MEMORY_PER_SHARD.getStringRep(),
-        ByteSizeValue.ZERO, ByteSizeValue.ofBytes(Long.MAX_VALUE)
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Long.MAX_VALUE)
     );
 
     @Override

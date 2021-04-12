@@ -42,6 +42,7 @@ import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -64,8 +65,7 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
-        List<String> yaml = Collections.singletonList("geoip.downloader.endpoint: false");
-        Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+        disableGeoIpDownloader(installation);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {

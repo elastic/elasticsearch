@@ -519,6 +519,7 @@ subprojects {
 subprojects { Project subproj ->
   plugins.withType(TestClustersPlugin).whenPluginAdded {
     testClusters.all {
+      module "ingest-geoip"
       setting "geoip.downloader.endpoint", "false"
     }
   }

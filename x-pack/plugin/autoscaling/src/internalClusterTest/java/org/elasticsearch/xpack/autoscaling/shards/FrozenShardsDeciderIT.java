@@ -119,7 +119,7 @@ public class FrozenShardsDeciderIT extends AbstractSnapshotIntegTestCase {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
             new TreeSet<>(Set.of(DataTier.DATA_FROZEN)),
-            new TreeMap<>(Map.of("frozen_shards", settings))
+            new TreeMap<>(Map.of(FrozenShardsDeciderService.NAME, settings))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }

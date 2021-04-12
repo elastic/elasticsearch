@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
 
@@ -45,6 +46,14 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         execute();
     }
 
+    public final void runForDoc(int docId, Consumer<Boolean> consumer) {
+        runForDoc(docId);
+        int count = trues + falses;
+        for (int i = 0; i < count; i++) {
+            consumer.accept(i < falses ? false : true);
+        }
+    }
+
     /**
      * How many {@code true} values were returned for this document.
      */
@@ -59,7 +68,7 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         return falses;
     }
 
-    protected final void emit(boolean v) {
+    public final void emit(boolean v) {
         if (v) {
             trues++;
         } else {

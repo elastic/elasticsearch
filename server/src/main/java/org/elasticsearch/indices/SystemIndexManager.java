@@ -278,6 +278,9 @@ public class SystemIndexManager implements ClusterStateListener {
         } catch (ElasticsearchParseException e) {
             logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
+        } catch (IllegalArgumentException e) {
+            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            throw e;
         }
     }
 

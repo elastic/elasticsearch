@@ -792,7 +792,7 @@ public class TextFieldMapper extends FieldMapper {
                               SubFieldInfo prefixFieldInfo,
                               SubFieldInfo phraseFieldInfo,
                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {

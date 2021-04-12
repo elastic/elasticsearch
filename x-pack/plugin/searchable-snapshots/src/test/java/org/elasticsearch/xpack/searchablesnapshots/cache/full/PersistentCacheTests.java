@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.CountDownLatch;
@@ -190,7 +191,10 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         final Settings nodeSettings = Settings.builder()
             .put(
                 NODE_ROLES_SETTING.getKey(),
-                randomValueOtherThanMany(DiscoveryNodeRole::canContainData, () -> randomFrom(BUILT_IN_ROLES)).roleName()
+                randomValueOtherThanMany(
+                    r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) || r.canContainData(),
+                    () -> randomFrom(BUILT_IN_ROLES)
+                ).roleName()
             )
             .build();
 

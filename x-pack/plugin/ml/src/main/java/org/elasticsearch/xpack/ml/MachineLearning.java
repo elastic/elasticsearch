@@ -77,6 +77,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -100,7 +101,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -182,7 +183,6 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.action.TransportPreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
 import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
@@ -211,6 +211,7 @@ import org.elasticsearch.xpack.ml.action.TransportOpenJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPersistJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.TransportPostDataAction;
+import org.elasticsearch.xpack.ml.action.TransportPreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportPreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDataFrameAnalyticsAction;
@@ -317,10 +318,10 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.ml.rest.dataframe.RestPreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestPostDataFrameAnalyticsUpdateAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestPreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestPutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestStopDataFrameAnalyticsAction;
@@ -370,7 +371,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -403,8 +403,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
 
-    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {};
-
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {
@@ -416,11 +414,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             this.settings);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(ML_ROLE);
     }
 
     // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -578,7 +571,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         Settings.Builder additionalSettings = Settings.builder();
-        Boolean allocationEnabled = DiscoveryNode.hasRole(settings, MachineLearning.ML_ROLE);
+        Boolean allocationEnabled = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE);
         if (allocationEnabled != null && allocationEnabled) {
             // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
             // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done
@@ -1253,7 +1246,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         logger.info("Starting machine learning feature reset");
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.disabled(), ActionListener.wrap(
+            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
                 resetSuccess -> finalListener.onResponse(success),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
@@ -1265,7 +1258,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     );
                 })
             ),
-            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.disabled(), ActionListener.wrap(
+            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
                 resetSuccess -> finalListener.onFailure(failure),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after state clean up failure", resetFailure);
@@ -1336,9 +1329,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
             // Stop data frame analytics
             StopDataFrameAnalyticsAction.Request  stopDataFramesReq = new StopDataFrameAnalyticsAction.Request("_all")
-                .setForce(true)
                 .setAllowNoMatch(true);
-            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, afterDataframesStopped);
+            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, ActionListener.wrap(
+                afterDataframesStopped::onResponse,
+                failure -> {
+                    logger.warn(
+                        "failed stopping data frame analytics jobs for machine learning feature reset. Attempting with force=true",
+                        failure
+                    );
+                    client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq.setForce(true), afterDataframesStopped);
+                }
+            ));
         }, unsetResetModeListener::onFailure);
 
         // Close anomaly detection jobs
@@ -1346,22 +1347,35 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             // Handle the response
             results.put("datafeeds", datafeedResponse.isStopped());
 
-            // Close anomaly detection jobs
             CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request()
-                .setForce(true)
                 .setAllowNoMatch(true)
                 .setJobId("_all");
-            client.execute(CloseJobAction.INSTANCE, closeJobsRequest, afterAnomalyDetectionClosed);
+            // First attempt to kill all anomaly jobs
+            client.execute(KillProcessAction.INSTANCE, new KillProcessAction.Request("*"), ActionListener.wrap(
+                // If successful, close and wait for jobs
+                success -> client.execute(CloseJobAction.INSTANCE, closeJobsRequest, ActionListener.wrap(
+                    afterAnomalyDetectionClosed::onResponse,
+                    failure -> {
+                        logger.warn("failed closing anomaly jobs for machine learning feature reset. Attempting with force=true", failure);
+                        client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), afterAnomalyDetectionClosed);
+                    }
+                )),
+                unsetResetModeListener::onFailure
+            ));
         }, unsetResetModeListener::onFailure);
 
         // Stop data feeds
         ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(
             acknowledgedResponse -> {
                 StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all")
-                    .setAllowNoMatch(true)
-                    .setForce(true);
-                client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq,
-                    afterDataFeedsStopped);
+                    .setAllowNoMatch(true);
+                client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq, ActionListener.wrap(
+                    afterDataFeedsStopped::onResponse,
+                    failure -> {
+                        logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
+                        client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), afterDataFeedsStopped);
+                    }
+                ));
             },
             unsetResetModeListener::onFailure
         );
@@ -1385,7 +1399,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         );
 
         // Indicate that a reset is now in progress
-        client.execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.enabled(), afterResetModeSet);
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
     }
 
     @Override

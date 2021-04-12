@@ -37,7 +37,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -252,9 +251,33 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return true;
     }
 
+    private boolean assertExecuteOnStartThread() {
+        // Ensure that the current code has the following stacktrace:
+        // AbstractSearchAsyncAction#start -> AbstractSearchAsyncAction#executePhase -> AbstractSearchAsyncAction#performPhaseOnShard
+        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+        assert stackTraceElements.length >= 6 : stackTraceElements;
+        int index = 0;
+        assert stackTraceElements[index++].getMethodName().equals("getStackTrace");
+        assert stackTraceElements[index++].getMethodName().equals("assertExecuteOnStartThread");
+        assert stackTraceElements[index++].getMethodName().equals("performPhaseOnShard");
+        if (stackTraceElements[index].getMethodName().equals("performPhaseOnShard")) {
+            assert stackTraceElements[index].getClassName().endsWith("CanMatchPreFilterSearchPhase");
+            index++;
+        }
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
+        assert stackTraceElements[index++].getMethodName().equals("run");
+
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
+        assert stackTraceElements[index++].getMethodName().equals("executePhase");
+
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
+        assert stackTraceElements[index++].getMethodName().equals("start");
+
+        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction") == false;
+        return true;
+    }
 
     protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -263,6 +286,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
         if (shard == null) {
+            assert assertExecuteOnStartThread();
             SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(),
                 shardIt.getClusterAlias(), shardIt.getOriginalIndices());
             onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));

@@ -95,6 +95,17 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertThat(e.getMessage(), containsString("Cannot define script on field with index:false and doc_values:false"));
     }
 
+    public final void testMultiFieldsNotPermitted() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", type());
+            b.field("script", "serializer_test");
+            b.startObject("fields");
+            b.startObject("subfield").field("type", "keyword").endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Cannot define multifields on a field with a script"));
+    }
+
     public final void testOnScriptErrorParameterRequiresScript() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", type());

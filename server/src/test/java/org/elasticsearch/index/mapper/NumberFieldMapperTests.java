@@ -68,7 +68,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     b.field("script", "test");
                     b.field("on_script_error", "ignore");
                 },
-                m -> assertThat(((NumberFieldMapper)m).onScriptError(), equalTo("ignore")));
+                m -> assertThat((m).onScriptError, equalTo("ignore")));
         }
     }
 

@@ -10,22 +10,22 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.Factory> {
+public class BooleanScriptMapperTests extends MapperScriptTestCase<BooleanFieldScript.Factory> {
 
-    private static LongFieldScript.Factory factory(Consumer<LongFieldScript> executor) {
-        return new LongFieldScript.Factory() {
+    private static BooleanFieldScript.Factory factory(Consumer<BooleanFieldScript> executor) {
+        return new BooleanFieldScript.Factory() {
             @Override
-            public LongFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
-                return new LongFieldScript.LeafFactory() {
+            public BooleanFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+                return new BooleanFieldScript.LeafFactory() {
                     @Override
-                    public LongFieldScript newInstance(LeafReaderContext ctx) {
-                        return new LongFieldScript(fieldName, params, searchLookup, ctx) {
+                    public BooleanFieldScript newInstance(LeafReaderContext ctx) {
+                        return new BooleanFieldScript(fieldName, params, searchLookup, ctx) {
                             @Override
                             public void execute() {
                                 executor.accept(this);
@@ -39,52 +39,52 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
 
     @Override
     protected String type() {
-        return NumberFieldMapper.NumberType.LONG.typeName();
+        return BooleanFieldMapper.CONTENT_TYPE;
     }
 
     @Override
-    protected LongFieldScript.Factory serializableScript() {
+    protected BooleanFieldScript.Factory serializableScript() {
         return factory(s -> {});
     }
 
     @Override
-    protected LongFieldScript.Factory errorThrowingScript() {
+    protected BooleanFieldScript.Factory errorThrowingScript() {
         return factory(s -> {
             throw new UnsupportedOperationException("Oops");
         });
     }
 
     @Override
-    protected LongFieldScript.Factory singleValueScript() {
-        return factory(s -> s.emit(4));
+    protected BooleanFieldScript.Factory singleValueScript() {
+        return factory(s -> s.emit(true));
     }
 
     @Override
-    protected LongFieldScript.Factory multipleValuesScript() {
+    protected BooleanFieldScript.Factory multipleValuesScript() {
         return factory(s -> {
-            s.emit(1);
-            s.emit(2);
+            s.emit(true);
+            s.emit(false);
         });
     }
 
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
         assertEquals(4, fields.length);
-        assertEquals("LongPoint <field:1>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[1].toString());
-        assertEquals("LongPoint <field:2>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:2>", fields[3].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:F>", fields[0].toString());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:0>", fields[1].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[2].toString());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[3].toString());
     }
 
     @Override
     protected void assertDocValuesDisabled(IndexableField[] fields) {
         assertEquals(1, fields.length);
-        assertEquals("LongPoint <field:4>", fields[0].toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[0].toString());
     }
 
     @Override
     protected void assertIndexDisabled(IndexableField[] fields) {
         assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_NUMERIC<field:4>", fields[0].toString());
+        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[0].toString());
     }
 }

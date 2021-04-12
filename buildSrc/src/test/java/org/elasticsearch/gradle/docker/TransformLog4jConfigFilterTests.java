@@ -6,16 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.transform.log4j;
+package org.elasticsearch.gradle.docker;
 
-import junit.framework.TestCase;
+import org.elasticsearch.gradle.test.GradleUnitTestCase;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
-public class TransformLog4jConfigTests extends TestCase {
+public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
 
     /**
      * Check that the transformer doesn't explode when given an empty file.
@@ -138,12 +137,12 @@ public class TransformLog4jConfigTests extends TestCase {
 
         List<String> expected = List.of("status = error", "", "rootLogger.level = info");
 
-        final List<String> transformed = TransformLog4jConfig.skipBlanks(input);
+        final List<String> transformed = TransformLog4jConfigFilter.skipBlanks(input);
         assertThat(transformed, equalTo(expected));
     }
 
     private void runTest(List<String> input, List<String> expected) {
-        final List<String> transformed = TransformLog4jConfig.transformConfig(input);
+        final List<String> transformed = TransformLog4jConfigFilter.transformConfig(input);
 
         assertThat(transformed, equalTo(expected));
     }

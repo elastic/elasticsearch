@@ -171,7 +171,7 @@ subprojects {
           } else {
             // Normally this isn't necessary, but we have Java sources in
             // non-standard places
-            target '**/*.java'
+            target 'src/**/*.java'
           }
 
           removeUnusedImports()

@@ -45,9 +45,14 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
-        putRequest.patterns(asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("template")) {
+            deprecationLogger.compatibleApiWarning("template_parameter_deprecation",
+                "Deprecated parameter [template] used, replaced by [index_patterns]");
+            putRequest.patterns(List.of(request.param("template")));
+        } else {
+            putRequest.patterns(asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
+        }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
@@ -67,6 +72,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             }
         } else {
             sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+        }
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && sourceAsMap.containsKey("template")) {
+            deprecationLogger.compatibleApiWarning("template_field_deprecation",
+                "Deprecated field [template] used, replaced by [index_patterns]");
+            putRequest.patterns(List.of((String) sourceAsMap.remove("template")));
         }
         putRequest.source(sourceAsMap);
 

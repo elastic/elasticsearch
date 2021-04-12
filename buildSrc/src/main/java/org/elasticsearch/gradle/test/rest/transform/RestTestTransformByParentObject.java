@@ -29,6 +29,10 @@ public interface RestTestTransformByParentObject extends RestTestTransform<Objec
         return null;
     }
 
+    /**
+     * @param child a node on which the transformation will be applied.
+     * @return true if the transformation should be applied on child node, otherwise false.
+     */
     default boolean matches(JsonNode child) {
         return child.has(requiredChildKey());
     }

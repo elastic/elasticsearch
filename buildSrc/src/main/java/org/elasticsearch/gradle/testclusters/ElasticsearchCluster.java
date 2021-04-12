@@ -127,8 +127,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Internal
-    ElasticsearchNode getFirstNode() {
+    public ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-0");
+    }
+
+    @Internal
+    public ElasticsearchNode getLastNode() {
+        int index = nodes.size() - 1;
+        return nodes.getAt(clusterName + "-" + index);
     }
 
     @Internal

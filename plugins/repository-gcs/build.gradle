@@ -220,6 +220,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture')
   testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-third-party')
+  testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-with-application-default-credentials')
 
 } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
   throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
@@ -266,26 +267,10 @@ tasks.named("internalClusterTest").configure {
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
 }
 
-final Closure testClustersConfiguration = {
-  keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
-
-  if (useFixture) {
-    /* Use a closure on the string to delay evaluation until tests are executed */
-    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture')}" }, IGNORE_VALUE
-    setting 'gcs.client.integration_test.token_uri', { "${-> fixtureAddress('gcs-fixture')}/o/oauth2/token" }, IGNORE_VALUE
-  } else {
-    println "Using an external service to test the repository-gcs plugin"
-  }
-}
-
 tasks.named("yamlRestTest").configure {
   if (useFixture) {
     dependsOn "createServiceAccountFile"
   }
-}
-
-testClusters {
-  all testClustersConfiguration
 }
 
 /*
@@ -327,6 +312,40 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
     dependsOn "createServiceAccountFile"
     nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureAddress('gcs-fixture-third-party')}"
     nonInputProperties.systemProperty 'test.google.tokenURI', "${-> fixtureAddress('gcs-fixture-third-party')}/o/oauth2/token"
+  }
+}
+
+testClusters.matching {
+  it.name == "yamlRestTest" ||
+  it.name == "largeBlobYamlRestTest" ||
+  it.name == "gcsThirdPartyTest" }.configureEach {
+  keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
+
+  if (useFixture) {
+    /* Use a closure on the string to delay evaluation until tests are executed */
+    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture')}" }, IGNORE_VALUE
+    setting 'gcs.client.integration_test.token_uri', { "${-> fixtureAddress('gcs-fixture')}/o/oauth2/token" }, IGNORE_VALUE
+  } else {
+    println "Using an external service to test the repository-gcs plugin"
+  }
+}
+
+
+// Application Default Credentials
+if (useFixture) {
+  tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
+    dependsOn('bundlePlugin')
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestApplicationDefaultCredentials") }
+
+  testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
+    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
+    plugin tasks.bundlePlugin.archiveFile
+    environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
   }
 }
 

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +26,7 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends MasterNodeRequest<DeleteShutdownNodeAction.Request> {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private final String nodeId;
 

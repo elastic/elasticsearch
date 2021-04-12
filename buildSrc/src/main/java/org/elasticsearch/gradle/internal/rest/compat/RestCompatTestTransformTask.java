@@ -26,6 +26,8 @@ import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceTextual;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsFalse;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
@@ -94,7 +96,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a match assertion all project REST tests. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
+     * Replaces all the values of a match assertion for all project REST tests.
+     * For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
      *
      * @param subKey the key name directly under match to replace. For example "_type"
      * @param value  the value used in the replacement. For example "bar"
@@ -109,6 +112,28 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     public void replaceIsFalse(String subKey, Object value) {
         transformations.add(new ReplaceTextual("is_false", subKey, MAPPER.convertValue(value, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_true assertion for all project REST tests.
+     * For example "is_true": "value_to_replace" to "match": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsTrue(String oldValue, Object newValue) {
+        transformations.add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_true assertion for all project REST tests.
+     * For example "is_false": "value_to_replace" to "match": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsFalse(String oldValue, Object newValue) {
+        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
     /**

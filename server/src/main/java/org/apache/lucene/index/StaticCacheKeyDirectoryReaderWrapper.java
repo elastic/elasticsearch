@@ -10,6 +10,7 @@ package org.apache.lucene.index;
 
 import org.elasticsearch.common.lucene.Lucene;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -18,8 +19,9 @@ import java.util.Map;
 
 public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader {
 
-    public StaticCacheKeyDirectoryReaderWrapper(DirectoryReader in, Map<String, CacheKey> cachedKeys) throws IOException {
-        super(in, new StaticCacheKeySubReaderWrapper(cachedKeys));
+    public StaticCacheKeyDirectoryReaderWrapper(DirectoryReader in, Map<String, CacheKey> cachedKeys,
+                                                List<Closeable> onCloseCallbacks) throws IOException {
+        super(in, new StaticCacheKeySubReaderWrapper(cachedKeys, onCloseCallbacks));
     }
 
     @Override
@@ -29,31 +31,21 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
 
     private static class StaticCacheKeySubReaderWrapper extends SubReaderWrapper {
         private final Map<String, CacheKey> cachedKeys;
+        private final List<Closeable> onCloseCallbacks;
 
-        StaticCacheKeySubReaderWrapper(Map<String, CacheKey> cachedKeys) {
+        StaticCacheKeySubReaderWrapper(Map<String, CacheKey> cachedKeys, List<Closeable> onCloseCallbacks) {
             this.cachedKeys = cachedKeys;
-        }
-
-        @Override
-        protected LeafReader[] wrap(List<? extends LeafReader> readers) {
-            List<LeafReader> wrapped = new ArrayList<>(readers.size());
-            for (LeafReader reader : readers) {
-                LeafReader wrap = wrap(reader);
-                assert wrap != null;
-                if (wrap.numDocs() != 0) {
-                    wrapped.add(wrap);
-                }
-            }
-            return wrapped.toArray(new LeafReader[0]);
+            this.onCloseCallbacks = onCloseCallbacks;
         }
 
         @Override
         public LeafReader wrap(LeafReader reader) {
-            return StaticCacheKeyDirectoryReaderWrapper.wrap(reader, cachedKeys);
+            return StaticCacheKeyDirectoryReaderWrapper.wrap(reader, cachedKeys, onCloseCallbacks);
         }
     }
 
-    private static LeafReader wrap(LeafReader reader, Map<String, CacheKey> cachedKeys) {
+    private static LeafReader wrap(LeafReader reader, Map<String, CacheKey> cachedKeys,
+                                   List<Closeable> onCloseCallbacks) {
         final SegmentReader segmentReader = Lucene.segmentReader(reader);
         assert segmentReader.isNRT == false : "expected non-NRT reader";
         final SegmentCommitInfo segmentInfo = segmentReader.getSegmentInfo();
@@ -69,15 +61,7 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
 
             @Override
             public void addClosedListener(ClosedListener listener) {
-                reader.getCoreCacheHelper().addClosedListener(key -> {
-                    final CacheKey originalCacheKey = reader.getCoreCacheHelper().getKey();
-                    assert key == originalCacheKey;
-                    if (key == originalCacheKey) {
-                        listener.onClose(cacheKey);
-                    } else {
-                        listener.onClose(key);
-                    }
-                });
+                onCloseCallbacks.add(() -> listener.onClose(cacheKey));
             }
         };
         return reader instanceof CodecReader ? new StaticCacheKeyFilterCodecReader((CodecReader) reader, adaptedCoreCacheHelper)

@@ -31,8 +31,12 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -58,6 +62,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     private final ElasticsearchDirectoryReader canMatchReader;
     private final Function<DirectoryReader, DirectoryReader> readerWrapperFunction;
     private final Map<String, IndexReader.CacheKey> cachedKeys;
+    private final List<Closeable> onCloseCallbacks;
 
     public FrozenEngine(EngineConfig config, boolean requireCompleteHistory, boolean lazilyLoadSoftDeletes) {
         this(config, null, null, true, Function.identity(), requireCompleteHistory, lazilyLoadSoftDeletes);
@@ -69,6 +74,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         super(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory, lazilyLoadSoftDeletes);
         this.readerWrapperFunction = readerWrapperFunction;
         this.cachedKeys = new ConcurrentHashMap<>();
+        this.onCloseCallbacks = Collections.synchronizedList(new ArrayList<>());
         boolean success = false;
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {
@@ -169,7 +175,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 }
                 final DirectoryReader dirReader = openDirectory(engineConfig.getStore().directory());
                 reader = lastOpenedReader = wrapReader(
-                    new StaticCacheKeyDirectoryReaderWrapper(dirReader, cachedKeys), readerWrapperFunction);
+                    new StaticCacheKeyDirectoryReaderWrapper(dirReader, cachedKeys, onCloseCallbacks), readerWrapperFunction);
                 processReader(reader);
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config().getInternalRefreshListener()) {
@@ -259,6 +265,14 @@ public final class FrozenEngine extends ReadOnlyEngine {
             return new Searcher(source, reader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
                 engineConfig.getQueryCachingPolicy(), () -> closeReader(reader));
         }
+    }
+
+    @Override
+    protected void closeNoLock(String reason, CountDownLatch closedLatch) {
+        for (Closeable closeable : onCloseCallbacks) {
+            IOUtils.closeWhileHandlingException(closeable);
+        }
+        super.closeNoLock(reason, closedLatch);
     }
 
     @Override

@@ -13,7 +13,6 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -129,10 +129,11 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testParsePrincipalAndTokenName() throws UserException {
         final String tokenName1 = randomAlphaOfLengthBetween(3, 8);
-        final Tuple<String, String> tuple1 =
+
+        final ServiceAccountTokenId accountTokenId =
             FileTokensTool.parsePrincipalAndTokenName(List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
-        assertEquals("elastic/fleet-server", tuple1.v1());
-        assertEquals(tokenName1, tuple1.v2());
+        assertEquals("elastic/fleet-server", accountTokenId.getAccountId().asPrincipal());
+        assertEquals(tokenName1, accountTokenId.getTokenName());
 
         final UserException e2 = expectThrows(UserException.class,
             () -> FileTokensTool.parsePrincipalAndTokenName(List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY));
@@ -196,7 +197,7 @@ public class FileTokensToolTests extends CommandTestCase {
         assertServiceTokenNotExists(qualifiedName);
     }
 
-    public void testDeleteTokenIncorrect() {
+    public void testDeleteTokenIncorrect() throws IOException {
         // Invalid principal
         final UserException e1 = expectThrows(UserException.class,
             () -> execute("delete", pathHomeParameter,
@@ -214,10 +215,19 @@ public class FileTokensToolTests extends CommandTestCase {
         assertThat(e2.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
 
         // Non-exist token
+        final Path serviceTokensFile = confDir.resolve("service_tokens");
+        final boolean fileDeleted = randomBoolean();
+        if (fileDeleted) {
+            Files.delete(serviceTokensFile);
+        }
         final String tokenName3 = randomAlphaOfLengthBetween(3, 8);
         final UserException e3 = expectThrows(UserException.class,
             () -> execute("delete", pathHomeParameter, "elastic/fleet-server", tokenName3));
         assertThat(e3.getMessage(), containsString("Service token [elastic/fleet-server/" + tokenName3 + "] does not exist"));
+        if (fileDeleted) {
+            // The file should not be created if not exists in the first place
+            assertThat(Files.notExists(serviceTokensFile), is(true));
+        }
     }
 
     public void testListTokens() throws Exception {
@@ -251,6 +261,16 @@ public class FileTokensToolTests extends CommandTestCase {
         execute("list", pathHomeParameter, "elastic/fleet-server");
         final String output = terminal.getOutput();
         assertThat(output, is(emptyString()));
+    }
+
+    public void testListTokensFileNotExists() throws Exception {
+        final Path serviceTokensFile = confDir.resolve("service_tokens");
+        Files.delete(serviceTokensFile);
+        execute("list", pathHomeParameter, "elastic/fleet-server");
+        final String output = terminal.getOutput();
+        assertThat(output, is(emptyString()));
+        // List should not create the file
+        assertThat(Files.notExists(serviceTokensFile), is(true));
     }
 
     private void assertServiceTokenExists(String key) throws IOException {

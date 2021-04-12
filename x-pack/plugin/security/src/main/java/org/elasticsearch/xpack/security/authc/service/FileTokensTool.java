@@ -15,13 +15,13 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Path;
@@ -66,16 +66,14 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            final Tuple<String, String> tuple = parsePrincipalAndTokenName(arguments.values(options), env.settings());
-            final String principal = tuple.v1();
-            final String tokenName = tuple.v2();
+            final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
             final Hasher hasher = Hasher.resolve(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(env.settings()));
             final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
 
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
             final Map<String, char[]> tokenHashes = new TreeMap<>(FileServiceAccountsTokenStore.parseFile(serviceTokensFile, null));
 
-            try (ServiceAccountToken token = ServiceAccountToken.newToken(ServiceAccountId.fromPrincipal(principal), tokenName)) {
+            try (ServiceAccountToken token = ServiceAccountToken.newToken(accountTokenId.getAccountId(), accountTokenId.getTokenName())) {
                 if (tokenHashes.containsKey(token.getQualifiedName())) {
                     throw new UserException(ExitCodes.CODE_ERROR, "Service token [" + token.getQualifiedName() + "] already exists");
                 }
@@ -100,10 +98,8 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            final Tuple<String, String> tuple = parsePrincipalAndTokenName(arguments.values(options), env.settings());
-            final String principal = tuple.v1();
-            final String tokenName = tuple.v2();
-            final String qualifiedName = principal + "/" + tokenName;
+            final ServiceAccountTokenId accountTokenId = parsePrincipalAndTokenName(arguments.values(options), env.settings());
+            final String qualifiedName = accountTokenId.getQualifiedName();
             final Path serviceTokensFile = FileServiceAccountsTokenStore.resolveFile(env);
 
             FileAttributesChecker attributesChecker = new FileAttributesChecker(serviceTokensFile);
@@ -155,7 +151,7 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static Tuple<String, String> parsePrincipalAndTokenName(List<String> arguments, Settings settings) throws UserException {
+    static ServiceAccountTokenId parsePrincipalAndTokenName(List<String> arguments, Settings settings) throws UserException {
         if (arguments.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Missing service-account-principal and token-name arguments");
         } else if (arguments.size() == 1) {
@@ -175,6 +171,6 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
             throw new UserException(ExitCodes.CODE_ERROR, Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
         }
-        return new Tuple<>(principal, tokenName);
+        return new ServiceAccountTokenId(ServiceAccountId.fromPrincipal(principal), tokenName);
     }
 }

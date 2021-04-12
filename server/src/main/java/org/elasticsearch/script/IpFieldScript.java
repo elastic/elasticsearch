@@ -36,7 +36,7 @@ import java.util.Map;
  * </ul>
  */
 public abstract class IpFieldScript extends AbstractFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = newContext("ip_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("ip_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

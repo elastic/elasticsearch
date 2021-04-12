@@ -479,25 +479,20 @@ public final class TimestampFormatFinder {
 
             TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
             if (match != null) {
-                return new CandidateTimestampFormat(
-                    example -> {
+                return new CandidateTimestampFormat(example -> {
 
-                        // Modify the built-in candidate so it prefers to return the user supplied format
-                        // if at all possible, and only falls back to standard logic for other situations
-                        try {
-                            // TODO consider support for overriding the locale too
-                            // But since Grok only supports English and German date words ingest
-                            // via Grok will fall down at an earlier stage for other languages...
-                            javaTimeFormatter.parse(example);
-                            return Collections.singletonList(overrideFormat);
-                        } catch (DateTimeException e) {
-                            return candidate.javaTimestampFormatSupplier.apply(example);
-                        }
-                    },
-                    candidate.simplePattern.pattern(),
-                    candidate.strictGrokPattern,
-                    candidate.outputGrokPatternName
-                );
+                    // Modify the built-in candidate so it prefers to return the user supplied format
+                    // if at all possible, and only falls back to standard logic for other situations
+                    try {
+                        // TODO consider support for overriding the locale too
+                        // But since Grok only supports English and German date words ingest
+                        // via Grok will fall down at an earlier stage for other languages...
+                        javaTimeFormatter.parse(example);
+                        return Collections.singletonList(overrideFormat);
+                    } catch (DateTimeException e) {
+                        return candidate.javaTimestampFormatSupplier.apply(example);
+                    }
+                }, candidate.simplePattern.pattern(), candidate.strictGrokPattern, candidate.outputGrokPatternName);
             }
         }
 

@@ -55,10 +55,6 @@ public abstract class AbstractFieldScript {
              * mostly reuse scripts though.
              */
             ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple()
-            /*
-             * Disable runtime fields scripts from being allowed
-             * to be stored as part of the script meta data.
-             */
         );
     }
 

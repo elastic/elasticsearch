@@ -9,7 +9,7 @@ services:
        - discovery.seed_hosts=elasticsearch-default-2:9300
        - cluster.name=elasticsearch-default
        - bootstrap.memory_lock=true
-       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.geoip_v2_feature_flag_enabled=false"
        - path.repo=/tmp/es-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b
@@ -61,7 +61,7 @@ services:
        - discovery.seed_hosts=elasticsearch-default-1:9300
        - cluster.name=elasticsearch-default
        - bootstrap.memory_lock=true
-       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+       - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.geoip_v2_feature_flag_enabled"
        - path.repo=/tmp/es-repo
        - node.attr.testattr=test
        - cluster.routing.allocation.disk.watermark.low=1b

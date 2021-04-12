@@ -240,7 +240,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 currentIOTime = in.readLong();
                 previousIOTime = in.readLong();
-            }else {
+            } else {
                 currentIOTime = 0;
                 previousIOTime = 0;
             }
@@ -372,8 +372,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.totalWriteKilobytes = in.readLong();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 this.totalIOTimeInMillis = in.readLong();
-            }
-            else{
+            } else {
                 this.totalIOTimeInMillis = 0;
             }
         }

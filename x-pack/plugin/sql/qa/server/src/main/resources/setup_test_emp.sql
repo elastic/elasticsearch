@@ -7,6 +7,7 @@ CREATE TABLE "test_emp" (
                     "hire_date" TIMESTAMP WITH TIME ZONE,
                     "languages" TINYINT,
                     "last_name" VARCHAR(50),
+                    "name" VARCHAR(50),
                     "salary" INT
                    )
-   AS SELECT * FROM CSVREAD('classpath:/employees.csv');
+   AS SELECT birth_date, emp_no, first_name, gender, hire_date, languages, last_name, CONCAT(first_name, ' ', last_name) AS name, salary FROM CSVREAD('classpath:/employees.csv');

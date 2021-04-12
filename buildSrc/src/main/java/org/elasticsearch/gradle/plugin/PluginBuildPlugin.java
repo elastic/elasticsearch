@@ -70,18 +70,13 @@ public class PluginBuildPlugin implements Plugin<Project> {
         final var bundleTask = createBundleTasks(project, extension);
 
         project.afterEvaluate(project1 -> {
-            project1.getExtensions()
-                .getByType(PluginPropertiesExtension.class)
-                .getExtendedPlugins()
-                .forEach(
-                    pluginName -> {
-                        // Auto add dependent modules to the test cluster
-                        if (project1.findProject(":modules:" + pluginName) != null) {
-                            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                            testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
-                        }
-                    }
-                );
+            project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
+                // Auto add dependent modules to the test cluster
+                if (project1.findProject(":modules:" + pluginName) != null) {
+                    NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
+                    testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
+                }
+            });
             final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
             var name = extension1.getName();
@@ -258,14 +253,11 @@ public class PluginBuildPlugin implements Plugin<Project> {
         // create the actual bundle task, which zips up all the files for the plugin
         final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> {
             zip.from(buildProperties);
-            zip.from(
-                pluginMetadata,
-                copySpec -> {
-                    // metadata (eg custom security policy)
-                    // the codebases properties file is only for tests and not needed in production
-                    copySpec.exclude("plugin-security.codebases");
-                }
-            );
+            zip.from(pluginMetadata, copySpec -> {
+                // metadata (eg custom security policy)
+                // the codebases properties file is only for tests and not needed in production
+                copySpec.exclude("plugin-security.codebases");
+            });
 
             /*
              * If the plugin is using the shadow plugin then we need to bundle

@@ -31,7 +31,7 @@ setup:
         - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
       xpack-watcher.stats:
         metric: "all"
-        emit_stacktraces: "true"
+        emit_stacktraces: true
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }
 

@@ -23,8 +23,8 @@
       indices.simulate_template:
         name: my-template
 
-  - match: {template.settings.index.number_of_shards: "1"}
-  - match: {template.settings.index.number_of_replicas: "0"}
+  - match: {template.settings.index.number_of_shards: 1}
+  - match: {template.settings.index.number_of_replicas: 0}
   - match: {template.mappings.properties.field.type: "keyword"}
   - match: {overlapping: []}
 
@@ -74,8 +74,8 @@
               test_alias: {}
           composed_of: ["ct"]
 
-  - match: {template.settings.index.blocks.write: "true"}
-  - match: {template.settings.index.number_of_replicas: "2"}
+  - match: {template.settings.index.blocks.write: true}
+  - match: {template.settings.index.number_of_replicas: 2}
   - match: {template.mappings.properties.ct_field.type: "keyword"}
   - match: {overlapping.0.name: existing_test}
   - match: {overlapping.0.index_patterns: ["te*"]}
@@ -137,8 +137,8 @@
       indices.simulate_template:
         name: winning_v2_template
 
-  - match: {template.settings.index.number_of_shards: "1"}
-  - match: {template.settings.index.number_of_replicas: "0"}
+  - match: {template.settings.index.number_of_shards: 1}
+  - match: {template.settings.index.number_of_replicas: 0}
   - match: {template.mappings.properties.field.type: "keyword"}
   - match: {overlapping.0.name: v1_template}
   - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
@@ -192,8 +192,8 @@
               test_alias: {}
           composed_of: ["ct"]
 
-  - match: {template.settings.index.blocks.write: "true"}
-  - match: {template.settings.index.number_of_replicas: "3"}
+  - match: {template.settings.index.blocks.write: true}
+  - match: {template.settings.index.number_of_replicas: 3}
   - match: {template.mappings.properties.ct_field.type: "keyword"}
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias

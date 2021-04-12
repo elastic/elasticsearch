@@ -9,8 +9,8 @@
         index: test
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
             index:
               hidden: true
           aliases:
@@ -66,8 +66,8 @@
         index: test
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
             index:
               hidden: true
           aliases:
@@ -113,8 +113,8 @@
         index: test
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
           aliases:
             test_alias:
               is_hidden: true

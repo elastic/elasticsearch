@@ -20,7 +20,7 @@
       indices.get_settings:
         index: test-alias
 
-  - match: { test-index.settings.index.number_of_replicas: "3" }
-  - match: { test-index.settings.index.number_of_shards: "2" }
-  - match: { test-index.settings.index.refresh_interval: "-1" }
+  - match: { test-index.settings.index.number_of_replicas: 3 }
+  - match: { test-index.settings.index.number_of_shards: 2 }
+  - match: { test-index.settings.index.refresh_interval: -1 }
 

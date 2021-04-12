@@ -37,8 +37,8 @@
         index: index1
         body:
           settings:
-            number_of_shards: "3"
-            number_of_replicas: "0"
+            number_of_shards: 3
+            number_of_replicas: 0
   - do:
       index:
         index: index1
@@ -56,8 +56,8 @@
         index: index2
         body:
           settings:
-            number_of_shards: "3"
-            number_of_replicas: "0"
+            number_of_shards: 3
+            number_of_replicas: 0
   - do:
       index:
         index: index2
@@ -91,8 +91,8 @@
         index: index1
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.close:
@@ -113,8 +113,8 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       index:
@@ -127,8 +127,8 @@
         index: bar
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       index:
@@ -141,8 +141,8 @@
         index: baz
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       index:

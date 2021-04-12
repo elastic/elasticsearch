@@ -100,8 +100,8 @@
         index: index1
         body:
           settings:
-            number_of_shards: "5"
-            number_of_replicas: "1"
+            number_of_shards: 5
+            number_of_replicas: 1
   - do:
       cat.shards: {}
 
@@ -114,8 +114,8 @@
         index: index2
         body:
           settings:
-            number_of_shards: "5"
-            number_of_replicas: "0"
+            number_of_shards: 5
+            number_of_replicas: 0
 
   - do:
       cat.shards: {}
@@ -138,24 +138,24 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: bar
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: baz
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       cat.shards:
@@ -184,16 +184,16 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: bar
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       index:

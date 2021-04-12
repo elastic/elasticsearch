@@ -8,8 +8,8 @@
         index: annotated
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               text:
@@ -81,8 +81,8 @@
         index: annotated
         body:
           settings:
-            number_of_shards: "5"
-            number_of_replicas: "0"
+            number_of_shards: 5
+            number_of_replicas: 0
           mappings:
             properties:
               my_field:
@@ -180,8 +180,8 @@
         index: annotated
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
           mappings:
             properties:
               my_field:
@@ -221,8 +221,8 @@
         index: annotated
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
             index.highlight.max_analyzed_offset: 20
           mappings:
             properties:
@@ -260,8 +260,8 @@
         index: annotated
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
             index.highlight.max_analyzed_offset: 20
           mappings:
             properties:

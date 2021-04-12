@@ -74,9 +74,9 @@
       indices.get:
         index: bar-baz
 
-  - match: {bar-baz.settings.index.number_of_shards: "2"}
-  - match: {bar-baz.settings.index.number_of_replicas: "0"}
-  - match: {bar-baz.settings.index.priority: "17"}
+  - match: {bar-baz.settings.index.number_of_shards: 2}
+  - match: {bar-baz.settings.index.number_of_replicas: 0}
+  - match: {bar-baz.settings.index.priority: 17}
   - match: {bar-baz.mappings.properties.field1: {type: text}}
   - match: {bar-baz.mappings.properties.field2: {type: keyword}}
   - match: {bar-baz.mappings.properties.field3: {type: integer}}
@@ -126,7 +126,7 @@
       indices.get:
         index: bar-baz
 
-  - match: {bar-baz.settings.index.number_of_shards: "3"}
+  - match: {bar-baz.settings.index.number_of_shards: 3}
 
 ---
 "Component template only composition":
@@ -199,7 +199,7 @@
       indices.get:
         index: eggplant
 
-  - match: {eggplant.settings.index.number_of_shards: "3"}
+  - match: {eggplant.settings.index.number_of_shards: 3}
 
 ---
 "Index template mapping merging":

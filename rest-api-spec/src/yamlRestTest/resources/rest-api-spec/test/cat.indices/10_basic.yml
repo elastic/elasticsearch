@@ -15,8 +15,8 @@
         index: index1
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
   - do:
       cat.indices: {}
 
@@ -150,14 +150,14 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
   - do:
       indices.create:
         index: bar
         body:
           settings:
-            number_of_shards: "1"
+            number_of_shards: 1
             number_of_replicas: $count
 
   - do:
@@ -186,24 +186,24 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: bar
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: baz
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       cat.indices:
@@ -235,24 +235,24 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: bar
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: baz
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.close:
@@ -295,8 +295,8 @@
         index: foo
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       catch: bad_request

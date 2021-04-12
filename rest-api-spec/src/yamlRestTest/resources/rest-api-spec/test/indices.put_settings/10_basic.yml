@@ -15,7 +15,7 @@ setup:
         flat_settings: true
 
   - match:
-      test-index.settings.index\.number_of_replicas: "0"
+      test-index.settings.index\.number_of_replicas: 0
 
   - do:
       indices.put_settings:
@@ -27,7 +27,7 @@ setup:
         flat_settings: false
 
   - match:
-      test-index.settings.index.number_of_replicas: "1"
+      test-index.settings.index.number_of_replicas: 1
 
 ---
 "Test indices settings ignore_unavailable":
@@ -42,7 +42,7 @@ setup:
       indices.get_settings: {}
 
   - match:
-      test-index.settings.index.number_of_replicas: "1"
+      test-index.settings.index.number_of_replicas: 1
 
 ---
 "Test indices settings allow_no_indices":
@@ -70,7 +70,7 @@ setup:
         flat_settings: false
 
   - match:
-      test-index.settings.index.number_of_replicas: "0"
+      test-index.settings.index.number_of_replicas: 0
 
   - do:
       indices.put_settings:
@@ -85,7 +85,7 @@ setup:
         flat_settings: false
 
   - match:
-      test-index.settings.index.number_of_replicas: "0"
+      test-index.settings.index.number_of_replicas: 0
   - match:
       test-index.settings.index.translog.durability: "async"
 

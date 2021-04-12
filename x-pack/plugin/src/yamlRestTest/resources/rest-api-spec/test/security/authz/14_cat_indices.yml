@@ -33,24 +33,24 @@ setup:
         index: index1
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: index2
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: index3
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.close:
@@ -94,8 +94,8 @@ teardown:
         index: index_to_monitor
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
@@ -183,16 +183,16 @@ teardown:
         index: index_to_monitor
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: this_index
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
@@ -226,24 +226,24 @@ teardown:
         index: index_to_monitor
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: this_index
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: this_index_is_closed
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user
@@ -287,32 +287,32 @@ teardown:
         index: index_to_monitor
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: this_index
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: this_index_as_well
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       indices.create:
         index: not_this_one_though
         body:
           settings:
-            number_of_shards: "1"
-            number_of_replicas: "0"
+            number_of_shards: 1
+            number_of_replicas: 0
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3NlY3JldF9wYXNzd29yZA==" } # cat_user

@@ -57,7 +57,7 @@
         index: "copy-settings-target"
 
   # settings should be copied
-  - match: { copy-settings-target.settings.index.merge.scheduler.max_merge_count: "4" }
-  - match: { copy-settings-target.settings.index.merge.scheduler.max_thread_count: "2" }
-  - match: { copy-settings-target.settings.index.blocks.write: "true" }
+  - match: { copy-settings-target.settings.index.merge.scheduler.max_merge_count: 4 }
+  - match: { copy-settings-target.settings.index.merge.scheduler.max_thread_count: 2 }
+  - match: { copy-settings-target.settings.index.blocks.write: true }
   - match: { copy-settings-target.settings.index.routing.allocation.include._id: $node_id }

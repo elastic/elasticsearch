@@ -6,7 +6,7 @@
           index:  goodbad
           body:
             settings:
-                number_of_shards: "1"
+                number_of_shards: 1
             mappings:
                 properties:
                     text:
@@ -81,7 +81,7 @@
           index:  goodbad
           body:
             settings:
-                number_of_shards: "1"
+                number_of_shards: 1
             mappings:
                 properties:
                     text:

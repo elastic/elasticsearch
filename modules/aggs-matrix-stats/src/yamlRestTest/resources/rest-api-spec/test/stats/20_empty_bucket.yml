@@ -5,7 +5,7 @@
         index: empty_bucket_idx
         body:
           settings:
-            number_of_shards: "3"
+            number_of_shards: 3
           mappings:
             "properties":
               "value":

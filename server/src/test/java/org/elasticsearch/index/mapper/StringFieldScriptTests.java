@@ -19,6 +19,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,6 +44,28 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
     @Override
     protected StringFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    public void testAsDocValues() {
+        StringFieldScript script = new StringFieldScript(
+                "test",
+                Collections.emptyMap(),
+                new SearchLookup(field -> null, (ft, lookup) -> null),
+                null
+        ) {
+            @Override
+            public void execute() {
+                emit("test");
+                emit("baz was not here");
+                emit("Data");
+                emit("-10");
+                emit("20");
+                emit("9");
+            }
+        };
+        script.execute();
+
+        assertArrayEquals(new String[] {"-10", "20", "9", "Data", "baz was not here", "test"}, script.asDocValues());
     }
 
     public void testTooManyValues() throws IOException {

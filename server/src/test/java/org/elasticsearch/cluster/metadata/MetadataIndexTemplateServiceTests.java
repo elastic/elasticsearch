@@ -737,9 +737,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct = ComponentTemplateTests.randomInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("index-*"), null, List.of("ct"), 0L, 1L, null, null, null);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            org.elasticsearch.common.collect.List.of("index-*"), null,
+            org.elasticsearch.common.collect.List.of("ct"), 0L, 1L, null, null, null
+        );
         state = service.addIndexTemplateV2(state, true, "my-template", it);
-        ComposableIndexTemplate it2 = new ComposableIndexTemplate(List.of("*"), null, List.of("ct"), 10L, 2L, null, null, null);
+        ComposableIndexTemplate it2 = new ComposableIndexTemplate(
+            org.elasticsearch.common.collect.List.of("*"), null,
+            org.elasticsearch.common.collect.List.of("ct"), 10L, 2L, null, null, null
+        );
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true);

@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71502")
     public void testXContent() throws IOException {
         final String name = randomAlphaOfLengthBetween(4, 10);
         final String id = randomAlphaOfLength(20);

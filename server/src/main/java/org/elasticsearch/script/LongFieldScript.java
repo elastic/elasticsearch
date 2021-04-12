@@ -14,7 +14,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 
 public abstract class LongFieldScript extends AbstractLongFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = newContext("long_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("long_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

@@ -190,7 +190,7 @@ public final class TransformNodes {
         Writeable.Reader<Response> reader,
         ActionListener<Response> listener
     ) {
-        final boolean isTransformNode = DiscoveryNode.hasRole(nodeSettings, Transform.TRANSFORM_ROLE);
+        final boolean isTransformNode = DiscoveryNode.hasRole(nodeSettings, DiscoveryNodeRole.TRANSFORM_ROLE);
         final boolean isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(nodeSettings);
         final DiscoveryNodes nodes = clusterState.nodes();
 
@@ -251,7 +251,7 @@ public final class TransformNodes {
         }
 
         // transform enabled?
-        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
+        if (node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a transform node");
             }

@@ -8,6 +8,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Ingest processor that uses Apache Tika to extract contents'
@@ -95,5 +96,6 @@ if (BuildParams.inFipsJvm) {
   tasks.named("jarHell").configure { enabled = false }
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
+  tasks.named("yamlRestCompatTest").configure { enabled = false };
   tasks.named("testingConventions").configure { enabled = false };
 }

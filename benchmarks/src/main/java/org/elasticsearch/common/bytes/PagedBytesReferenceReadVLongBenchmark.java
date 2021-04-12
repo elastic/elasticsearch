@@ -9,8 +9,6 @@ package org.elasticsearch.common.bytes;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,19 +30,21 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
 @Fork(value = 1)
-public class PagedBytesReferenceBenchmark {
-
-    @Param(value = { "1" })
-    private int dataMb;
+public class PagedBytesReferenceReadVLongBenchmark {
 
     private BytesReference pagedBytes;
+
+    @Param(value = { "10000000" })
+    int entries;
 
     @Setup
     public void initResults() throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        final long bytes = new ByteSizeValue(dataMb, ByteSizeUnit.MB).getBytes();
-        for (int i = 0; i < bytes / 8; i++) {
-            tmp.writeLong(i);
+        for (int i = 0; i < entries / 2; i++) {
+            tmp.writeVLong(i);
+        }
+        for (int i = 0; i < entries / 2; i++) {
+            tmp.writeVLong(Long.MAX_VALUE - i);
         }
         pagedBytes = tmp.bytes();
         if (pagedBytes instanceof PagedBytesReference == false) {
@@ -53,12 +53,11 @@ public class PagedBytesReferenceBenchmark {
     }
 
     @Benchmark
-    public long readLong() throws IOException {
-        long res = 0L;
-        final int reads = pagedBytes.length() / 8;
+    public long readVLong() throws IOException {
+        long res = 0;
         try (StreamInput streamInput = pagedBytes.streamInput()) {
-            for (int i = 0; i < reads; i++) {
-                res = res ^ streamInput.readLong();
+            for (int i = 0; i < entries; i++) {
+                res = res ^ streamInput.readVLong();
             }
         }
         return res;

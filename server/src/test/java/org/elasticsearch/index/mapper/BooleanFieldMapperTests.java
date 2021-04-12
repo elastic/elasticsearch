@@ -21,6 +21,8 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -177,5 +179,15 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             default:
                 throw new IllegalStateException();
         }
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 }

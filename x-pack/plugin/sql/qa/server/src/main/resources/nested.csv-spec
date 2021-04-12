@@ -8,25 +8,25 @@
 describeParent
 DESCRIBE test_emp;
 
-        column        |     type      |    mapping    
-----------------------+---------------+---------------
-birth_date            |TIMESTAMP      |datetime       
-birth_date_day_of_week|VARCHAR        |keyword        
-dep                   |STRUCT         |nested         
-dep.dep_id            |VARCHAR        |keyword        
-dep.dep_name          |VARCHAR        |text           
-dep.dep_name.keyword  |VARCHAR        |keyword        
-dep.from_date         |TIMESTAMP      |datetime       
-dep.to_date           |TIMESTAMP      |datetime       
-emp_no                |INTEGER        |integer        
-first_name            |VARCHAR        |text           
-first_name.keyword    |VARCHAR        |keyword        
-gender                |VARCHAR        |keyword        
-hire_date             |TIMESTAMP      |datetime       
-languages             |TINYINT        |byte           
-last_name             |VARCHAR        |text           
-last_name.keyword     |VARCHAR        |keyword        
-salary                |INTEGER        |integer        
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime       
+dep                 |STRUCT         |nested         
+dep.dep_id          |VARCHAR        |keyword        
+dep.dep_name        |VARCHAR        |text           
+dep.dep_name.keyword|VARCHAR        |keyword        
+dep.from_date       |TIMESTAMP      |datetime       
+dep.to_date         |TIMESTAMP      |datetime       
+emp_no              |INTEGER        |integer        
+first_name          |VARCHAR        |text           
+first_name.keyword  |VARCHAR        |keyword        
+gender              |VARCHAR        |keyword        
+hire_date           |TIMESTAMP      |datetime       
+languages           |TINYINT        |byte           
+last_name           |VARCHAR        |text           
+last_name.keyword   |VARCHAR        |keyword        
+name                |VARCHAR        |keyword        
+salary              |INTEGER        |integer
 ;
 
 nestedStar

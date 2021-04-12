@@ -33,7 +33,6 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
     private String string;
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
-    private boolean sortByPopularity;
     long taskStartTimeMillis;
     private QueryBuilder indexFilter;
 
@@ -46,7 +45,6 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
         field = in.readString();
         string = in.readString();
         caseInsensitive = in.readBoolean();
-        sortByPopularity = in.readBoolean();
         size = in.readVInt();
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
@@ -96,20 +94,6 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
      */
     public String string() {
         return string;
-    }
-
-    /**
-     * sort terms by popularity
-     */
-    public boolean sortByPopularity() {
-        return sortByPopularity;
-    }
-
-    /**
-     * sort terms by popularity
-     */
-    public void sortByPopularity(boolean sortByPopularity) {
-        this.sortByPopularity = sortByPopularity;
     }
 
     /**
@@ -164,7 +148,6 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
         out.writeString(field);
         out.writeString(string);
         out.writeBoolean(caseInsensitive);
-        out.writeBoolean(sortByPopularity);
         out.writeVInt(size);
         out.writeOptionalNamedWriteable(indexFilter);
     }
@@ -172,7 +155,7 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
     @Override
     public String toString() {
         return "[" + Arrays.toString(indices) + "] field[" + field + "], string[" + string + "] "  + " size=" + size + " timeout="
-            + timeout().getMillis()  + " sort_by_popularity = " + sortByPopularity + " case_insensitive="
+            + timeout().getMillis() + " case_insensitive="
             + caseInsensitive + " indexFilter = "+ indexFilter;
     }
 
@@ -184,7 +167,6 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
         builder.field("size", size);
         builder.field("timeout", timeout().getMillis());
         builder.field("case_insensitive", caseInsensitive);
-        builder.field("sort_by_popularity", sortByPopularity);
         if (indexFilter != null) {
             builder.field("index_filter", indexFilter);
         }        

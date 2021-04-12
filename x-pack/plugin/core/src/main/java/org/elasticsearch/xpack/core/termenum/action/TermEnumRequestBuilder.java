@@ -25,10 +25,6 @@ public class TermEnumRequestBuilder extends BroadcastOperationRequestBuilder<Ter
         return this;
     }
 
-    public TermEnumRequestBuilder setSortByPopularity(boolean sortByPopularity) {
-        request.sortByPopularity(sortByPopularity);
-        return this;
-    }
     public TermEnumRequestBuilder setSize(int size) {
         request.size(size);
         return this;

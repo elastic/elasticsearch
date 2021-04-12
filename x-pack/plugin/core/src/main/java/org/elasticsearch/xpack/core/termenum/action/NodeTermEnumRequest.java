@@ -30,7 +30,6 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
     private long taskStartedTimeMillis;
     private long nodeStartedTimeMillis;
     private boolean caseInsensitive;
-    private boolean sortByPopularity;
     private int size;
     private long timeout;
     private final QueryBuilder indexFilter;
@@ -46,7 +45,6 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
         field = in.readString();
         string = in.readString();
         caseInsensitive = in.readBoolean();
-        sortByPopularity = in.readBoolean();
         size = in.readVInt();
         timeout = in.readVLong();
         taskStartedTimeMillis = in.readVLong();
@@ -65,7 +63,6 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
         this.caseInsensitive = request.caseInsensitive();
         this.size = request.size();
         this.timeout = request.timeout().getMillis();
-        this.sortByPopularity = request.sortByPopularity();
         this.taskStartedTimeMillis = request.taskStartTimeMillis;
         this.indexFilter = request.indexFilter();
         this.nodeId = nodeId;
@@ -105,9 +102,6 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
         return caseInsensitive;
     }
 
-    public boolean sortByPopularity() {
-        return sortByPopularity;
-    }
     public int size() {
         return size;
     }
@@ -125,7 +119,6 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
         out.writeString(field);
         out.writeString(string);
         out.writeBoolean(caseInsensitive);
-        out.writeBoolean(sortByPopularity);
         out.writeVInt(size);
         // Adjust the amount of permitted time the shard has remaining to gather terms. 
         long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;

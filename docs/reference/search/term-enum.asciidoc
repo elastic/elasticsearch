@@ -82,7 +82,7 @@ How many matching terms to return. Defaults to 10
 `timeout`::
 (Optional, integer)
 The maximum length of time in milliseconds to spend collecting results. Defaults to 1000.
-If the timeout is exceeded a `timed_out` flag is set in the response and the results may
+If the timeout is exceeded the `complete` flag set to false in the response and the results may
 be partial or empty.
 
 [[term-enum-case_insensitive-param]]
@@ -90,14 +90,6 @@ be partial or empty.
 (Optional, boolean)
 When true the provided search string is matched against index terms without case sensitivity.
 Defaults to false.
-
-[[term-enum-sort_by_popularity-param]]
-`sort_by_popularity`::
-(Optional, boolean)
-When true terms are sorted by popularity, when false (the default) they are sorted alphabetically.
-Sorting by popularity can be more costly so nodes will only consider up to a few thousand matching
-terms to bound the cost of this calculation. If this term limit is reached in the analysis
-the final response will have the `complete` flag set to false.
 
 [[term-enum-index_filter-param]]
 `index_filter`::

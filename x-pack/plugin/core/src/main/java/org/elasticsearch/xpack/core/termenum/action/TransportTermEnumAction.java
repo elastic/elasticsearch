@@ -29,11 +29,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -138,13 +136,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         // Group targeted shards by nodeId
         Map<String, Set<ShardId>> fastNodeBundles = new HashMap<>();
         for (String indexName : concreteIndices) {
-
-            // TODO remove this node filtering - rely on clients index_filters on _tier field instead?
-            Settings settings = clusterState.metadata().index(indexName).getSettings();
-            if (IndexSettings.INDEX_SEARCH_THROTTLED.get(settings)) {
-                // ignore slow throttled indices (this includes frozen)
-                continue;
-            }
 
             String[] singleIndex = { indexName };
 
@@ -251,21 +242,12 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         int size = Math.min(request.size(), combinedResults.size());
         List<String> terms = new ArrayList<>(size);
         TermCount[] sortedCombinedResults = combinedResults.values().toArray(new TermCount[0]);
-        if (request.sortByPopularity()) {
-            // Sort by doc count descending
-            Arrays.sort(sortedCombinedResults, new Comparator<TermCount>() {
-                public int compare(TermCount t1, TermCount t2) {
-                    return Long.compare(t2.getDocCount(), t1.getDocCount());
-                }
-            });
-        } else {
-            // Sort alphabetically
-            Arrays.sort(sortedCombinedResults, new Comparator<TermCount>() {
-                public int compare(TermCount t1, TermCount t2) {
-                    return t1.getTerm().compareTo(t2.getTerm());
-                }
-            });
-        }
+        // Sort alphabetically
+        Arrays.sort(sortedCombinedResults, new Comparator<TermCount>() {
+            public int compare(TermCount t1, TermCount t2) {
+                return t1.getTerm().compareTo(t2.getTerm());
+            }
+        });
 
         for (TermCount term : sortedCombinedResults) {
             terms.add(term.getTerm());
@@ -274,19 +256,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             }
         }
         return new TermEnumResponse(terms, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
-    }
-
-    static class TermCountPriorityQueue extends PriorityQueue<TermCount> {
-
-        TermCountPriorityQueue(int maxSize) {
-            super(maxSize);
-        }
-
-        @Override
-        protected boolean lessThan(TermCount a, TermCount b) {
-            return a.getDocCount() < b.getDocCount();
-        }
-
     }
 
     protected NodeTermEnumResponse dataNodeOperation(NodeTermEnumRequest request, Task task) throws IOException {
@@ -335,56 +304,21 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
 
             int numTermsBetweenClockChecks = 100;
             int termCount = 0;
-            if (request.sortByPopularity()) {
-                // Collect most popular matches
-                TermCountPriorityQueue pq = new TermCountPriorityQueue(shard_size);
-                TermCount spare = null;
-                // TODO make this a setting (cluster or index level?)
-                int maxTermsConsidered = 10000;
-                while (te.next() != null) {
-                    termCount++;
-                    if (termCount >= maxTermsConsidered) {
-                        toList(pq, termsList);
+            // Collect in alphabetical order
+            while (te.next() != null) {
+                termCount++;
+                if (termCount > numTermsBetweenClockChecks) {
+                    if (System.currentTimeMillis() > scheduledEnd) {
                         boolean complete = te.next() == null;
                         return new NodeTermEnumResponse(request.nodeId(), termsList, error, complete);
                     }
-                    if (termCount % numTermsBetweenClockChecks == 0) {
-                        if (System.currentTimeMillis() > scheduledEnd) {
-                            // Gather what we have collected so far
-                            toList(pq, termsList);
-                            boolean complete = te.next() == null;
-                            return new NodeTermEnumResponse(request.nodeId(), termsList, error, complete);
-                        }
-                    }
-                    long df = te.docFreq();
-                    BytesRef bytes = te.term();
-
-                    if (spare == null) {
-                        spare = new TermCount(bytes.utf8ToString(), df);
-                    } else {
-                        spare.setTerm(bytes.utf8ToString());
-                        spare.setDocCount(df);
-                    }
-                    spare = pq.insertWithOverflow(spare);
+                    termCount = 0;
                 }
-                toList(pq, termsList);
-            } else {
-                // Collect in alphabetical order
-                while (te.next() != null) {
-                    termCount++;
-                    if (termCount > numTermsBetweenClockChecks) {
-                        if (System.currentTimeMillis() > scheduledEnd) {
-                            boolean complete = te.next() == null;
-                            return new NodeTermEnumResponse(request.nodeId(), termsList, error, complete);
-                        }
-                        termCount = 0;
-                    }
-                    long df = te.docFreq();
-                    BytesRef bytes = te.term();
-                    termsList.add(new TermCount(bytes.utf8ToString(), df));
-                    if (termsList.size() >= shard_size) {
-                        break;
-                    }
+                long df = te.docFreq();
+                BytesRef bytes = te.term();
+                termsList.add(new TermCount(bytes.utf8ToString(), df));
+                if (termsList.size() >= shard_size) {
+                    break;
                 }
             }
 
@@ -394,12 +328,6 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             IOUtils.close(openedResources);
         }
         return new NodeTermEnumResponse(request.nodeId(), termsList, error, true);
-    }
-
-    protected void toList(TermCountPriorityQueue pq, List<TermCount> termsList) {
-        while (pq.size() > 0) {
-            termsList.add(pq.pop());
-        }
     }
 
     // TODO remove this so we can shift code to server module - see https://github.com/elastic/elasticsearch/issues/70221

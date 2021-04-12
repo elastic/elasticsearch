@@ -39,7 +39,6 @@ public class TermEnumAction extends ActionType<TermEnumResponse> {
         PARSER.declareString(TermEnumRequest::string, new ParseField("string"));
         PARSER.declareInt(TermEnumRequest::size, new ParseField("size"));
         PARSER.declareBoolean(TermEnumRequest::caseInsensitive, new ParseField("case_insensitive"));
-        PARSER.declareBoolean(TermEnumRequest::sortByPopularity, new ParseField("sort_by_popularity"));
         PARSER.declareInt(TermEnumRequest::timeoutInMillis, new ParseField("timeout"));
         PARSER.declareObject(TermEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p),INDEX_FILTER);        
     }

@@ -46,15 +46,22 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
@@ -86,12 +93,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests.nestedObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
+    private List<ObjectMapper> objectMappers;
 
     @Override
     @Before
@@ -106,6 +115,8 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
         FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
+
+        objectMappers = new ArrayList<>();
     }
 
     @Override
@@ -113,6 +124,20 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         FIELD_TYPES = null;
+        objectMappers = null;
+    }
+
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return objectMappers;
+    }
+
+    @Override
+    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        if (false == objectMappers().isEmpty()) {
+            return wrapInMockESDirectoryReader(reader);
+        }
+        return  reader;
     }
 
     public void testUnmappedFieldWithTerms() throws Exception {
@@ -571,6 +596,155 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
             }
+        );
+    }
+
+    /**
+     * This is just a template for migrating to the test case execution in {@link AggregatorTestCase}, it doesn't test anything new.
+     */
+    public void testUsingTestCase() throws Exception {
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("keyword");
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("keyword", "a"),
+                createDocument("keyword", "c"),
+                createDocument("keyword", "a"),
+                createDocument("keyword", "d"),
+                createDocument("keyword", "c")
+            )
+        );
+        testCase(
+            new CompositeAggregationBuilder("name", Collections.singletonList(terms)),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document document = new Document();
+                int id = 0;
+                for (Map<String, List<Object>> fields : dataset) {
+                    document.clear();
+                    addToDocument(id, document, fields);
+                    iw.addDocument(document);
+                    id++;
+                }
+            },
+            (InternalComposite result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=d}", result.afterKey().toString());
+                assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            },
+            FIELD_TYPES
+        );
+    }
+
+    /**
+     * Test using Nested aggregation as a parent of composite
+     */
+    public void testSubAggregationOfNested() throws Exception {
+        final String nestedPath = "sellers";
+        objectMappers.add(nestedObject(nestedPath));
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        final String leafNameField = "name";
+        final String rootNameField = "name";
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
+        NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
+        builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
+        // Without after
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                // Sub-Docs
+                List<Document> documents = new ArrayList<>();
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price" , 10L));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price" , 9L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price" , 5L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price" , 7L));
+                // Root docs
+                Document root;
+                root = new Document();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(sequenceIDFields.primaryTerm);
+                root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
+                documents.add(root);
+
+                root = new Document();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
+                root.add(sequenceIDFields.primaryTerm);
+                documents.add(root);
+                iw.addDocuments(documents);
+            },
+            (InternalSingleBucketAggregation parent) -> {
+                assertEquals(1, parent.getAggregations().asList().size());
+                InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=Stationary}", result.afterKey().toString());
+                assertEquals("{keyword=Pen World}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{keyword=Pens and Stuff}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            },
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        );
+    }
+
+    /**
+     * Test aggregate after with top level nested aggregation
+     */
+    public void testSubAggregationOfNestedAggregateAfter() throws Exception {
+        final String nestedPath = "sellers";
+        objectMappers.add(nestedObject(nestedPath));
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        final String leafNameField = "name";
+        final String rootNameField = "name";
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
+        NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
+        builder.subAggregation(
+            new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms))
+                .aggregateAfter(createAfterKey("keyword", "Pens and Stuff")));
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                // Sub-Docs
+                List<Document> documents = new ArrayList<>();
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price" , 10L));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price" , 9L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price" , 5L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price" , 7L));
+                // Root docs
+                Document root;
+                root = new Document();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(sequenceIDFields.primaryTerm);
+                root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
+                documents.add(root);
+
+                root = new Document();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
+                root.add(sequenceIDFields.primaryTerm);
+                documents.add(root);
+                iw.addDocuments(documents);
+            },
+            (InternalSingleBucketAggregation parent) -> {
+                assertEquals(1, parent.getAggregations().asList().size());
+                InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{keyword=Stationary}", result.afterKey().toString());
+                assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            },
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
         );
     }
 
@@ -2402,6 +2576,10 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
 
     private void addToDocument(int id, Document doc, Map<String, List<Object>> keys) {
         doc.add(new StringField("id", Integer.toString(id), Field.Store.NO));
+        addToDocument(doc, keys);
+    }
+
+    private void addToDocument(Document doc, Map<String, List<Object>> keys) {
         for (Map.Entry<String, List<Object>> entry : keys.entrySet()) {
             final String name = entry.getKey();
             for (Object value : entry.getValue()) {
@@ -2455,6 +2633,21 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             }
         }
         return map;
+    }
+
+    private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
+        assert rawFields.length % 2 == 0;
+        Document doc = new Document();
+        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        Object[] fields = new Object[rawFields.length];
+        for (int i = 0; i < fields.length; i+=2) {
+            assert rawFields[i] instanceof String;
+            fields[i] = nestedPath + "."  + rawFields[i];
+            fields[i+1] = rawFields[i+1];
+        }
+        addToDocument(doc, createDocument(fields));
+        return doc;
     }
 
     private static long asLong(String dateTime) {

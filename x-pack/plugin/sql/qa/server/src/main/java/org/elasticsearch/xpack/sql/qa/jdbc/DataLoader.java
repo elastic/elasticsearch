@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -149,6 +148,20 @@ public class DataLoader {
                     createIndex.endObject();
                     createIndex.endObject();
                 }
+            }
+            createIndex.endObject();
+            // define the runtime field
+            createIndex.startObject("runtime");
+            {
+                createIndex.startObject("name").field("type", "keyword");
+                createIndex.startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['first_name.keyword'].size()==0) emit(' '.concat(doc['last_name.keyword'].value));"
+                            + " else emit(doc['first_name.keyword'].value.concat(' ').concat(doc['last_name.keyword'].value))"
+                    );
+                createIndex.endObject();
+                createIndex.endObject();
             }
             createIndex.endObject();
         }
@@ -369,7 +382,7 @@ public class DataLoader {
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        Response response = client.performRequest(request);
+        client.performRequest(request);
     }
 
     public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {

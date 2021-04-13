@@ -328,6 +328,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .map(IndexTemplateMetadata::name).collect(Collectors.toList()), contains("sneaky-hidden"));
     }
 
+    public void testFindTemplatesWithDateMathIndex() throws Exception {
+        client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
+        putTemplateDetail(new PutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        assertThat(MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false).stream()
+            .map(IndexTemplateMetadata::name).collect(Collectors.toList()), containsInAnyOrder("foo-1"));
+    }
+
     public void testPutGlobalTemplateWithIndexHiddenSetting() throws Exception {
         List<Throwable> errors = putTemplateDetail(new PutRequest("testPutGlobalTemplateWithIndexHiddenSetting", "sneaky-hidden")
             .patterns(singletonList("*")).settings(Settings.builder().put("index.hidden", true).build()));
@@ -785,6 +794,24 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addIndexTemplateV2(state, true, "my-template2", it2);
 
         String result = MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true);
+
+        assertThat(result, equalTo("my-template"));
+    }
+
+    public void testFindV2TemplatesForDateMathIndex() throws Exception {
+        String indexName = "<index-{now/d}>";
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+        assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true));
+
+        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        state = service.addComponentTemplate(state, true, "ct", ct);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("index-*"), null, List.of("ct"), 0L, 1L, null, null, null);
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+        ComposableIndexTemplate it2 = new ComposableIndexTemplate(List.of("*"), null, List.of("ct"), 10L, 2L, null, null, null);
+        state = service.addIndexTemplateV2(state, true, "my-template2", it2);
+
+        String result = MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true);
 
         assertThat(result, equalTo("my-template"));
     }

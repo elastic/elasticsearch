@@ -228,9 +228,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         } else {
             final long length = fileInfo.partSize().getBytes();
             assert range.start() % length == 0L : "start of range [" + range.start() + "] is not aligned with part start";
-            assert range.end() % length == 0L || (range.end() == fileInfo.length()) : "end of range ["
-                + range.end()
-                + "] is not aligned with part end or with file length";
+            assert range.end() % length == 0L || (range.end() == fileInfo.length())
+                : "end of range [" + range.end() + "] is not aligned with part end or with file length";
         }
         return true;
     }

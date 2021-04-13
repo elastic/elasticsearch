@@ -637,7 +637,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 InputStream encryptedInputStream = ChainingInputStream.chain(
                     dekIdBytes.streamInput(),
                     new EncryptionPacketsInputStream(
-                        inputStream,
+                        Streams.noCloseStream(inputStream),
                         singleUseNonceAndDEK.getKey(),
                         singleUseNonceAndDEK.getNonce(),
                         PACKET_LENGTH_IN_BYTES

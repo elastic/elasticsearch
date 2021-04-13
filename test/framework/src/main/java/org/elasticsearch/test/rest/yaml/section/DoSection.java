@@ -344,7 +344,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders());
+            checkWarningHeaders(response.getWarningHeaders(), executionContext.getClientYamlTestCandidate().getTestPath());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (Strings.hasLength(catchParam) == false) {
@@ -367,10 +367,14 @@ public class DoSection implements ExecutableSection {
         }
     }
 
+    void checkWarningHeaders(final List<String> warningHeaders) {
+        checkWarningHeaders(warningHeaders, null);
+    }
+
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders) {
+    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -434,7 +438,7 @@ public class DoSection implements ExecutableSection {
             if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
                 logger.warn(
                     "Test [{}] uses deprecated legacy index templates and should be updated to use composable templates",
-                    "need test name here" + getLocation()
+                    (testPath == null ? "<unknown>" : testPath) + ":" + getLocation().lineNumber
                 );
                 warnings.remove();
             }

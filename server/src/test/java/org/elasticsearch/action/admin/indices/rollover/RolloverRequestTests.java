@@ -225,6 +225,27 @@ public class RolloverRequestTests extends ESTestCase {
         }
     }
 
+    public void testTypedRequestWithoutIncludeTypeName() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("mappings")
+                    .startObject("_doc")
+                        .startObject("properties")
+                            .startObject("field1")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent,
+            BytesReference.bytes(builder).utf8ToString(), RestApiVersion.V_7)) {
+            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            expectThrows(IllegalArgumentException.class, () -> request.fromXContent(false, parser));
+        }
+    }
+
     private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();
     static {
         conditionsGenerator.add((request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()));

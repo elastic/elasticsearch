@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,7 +76,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 }
             } else {
                 // a type is not included, add a dummy _doc type
-                request.createIndexRequest.mapping(parser.map());
+                Map<String, Object> mappings = parser.map();
+                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+                    throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
+                        "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+                }
+                request.createIndexRequest.mapping(mappings);
             }
         }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {

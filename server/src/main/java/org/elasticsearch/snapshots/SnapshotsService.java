@@ -1336,7 +1336,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 final ClusterState res = readyDeletions(
                         changed ? ClusterState.builder(currentState).putCustom(
-                                SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(updatedSnapshotEntries))).build() :
+                                SnapshotsInProgress.TYPE, SnapshotsInProgress.of(updatedSnapshotEntries)).build() :
                                 currentState).v1();
                 for (SnapshotDeletionsInProgress.Entry delete
                         : res.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
@@ -1863,8 +1863,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         if (changed) {
-            result = ClusterState.builder(state).putCustom(
-                    SnapshotsInProgress.TYPE, SnapshotsInProgress.of(unmodifiableList(entries))).build();
+            result = ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(entries)).build();
         }
         return readyDeletions(result).v1();
     }

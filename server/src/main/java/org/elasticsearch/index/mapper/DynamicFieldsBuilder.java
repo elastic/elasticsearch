@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -183,7 +184,7 @@ final class DynamicFieldsBuilder {
                                                  String name,
                                                  DynamicTemplate.XContentFieldType matchType,
                                                  DateFormatter dateFormatter) throws IOException {
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return false;
         }
@@ -209,7 +210,7 @@ final class DynamicFieldsBuilder {
 
     private static Mapper.Builder findTemplateBuilderForObject(ParseContext context, String name) {
         DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
@@ -274,7 +275,7 @@ final class DynamicFieldsBuilder {
                 new NumberFieldMapper.Builder(
                     name,
                     NumberFieldMapper.NumberType.LONG,
-                    null,
+                    ScriptCompiler.NONE,
                     context.indexSettings().getSettings()
                 ), context);
         }
@@ -287,13 +288,13 @@ final class DynamicFieldsBuilder {
             createDynamicField(new NumberFieldMapper.Builder(
                 name,
                 NumberFieldMapper.NumberType.FLOAT,
-                null,
+                ScriptCompiler.NONE,
                 context.indexSettings().getSettings()), context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name), context);
+            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
         }
 
         @Override

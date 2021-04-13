@@ -499,6 +499,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 [[docs-reindex-api-request-body]]
 ==== {api-request-body-title}
 
+[[conflicts]]
 `conflicts`::
 (Optional, enum) Set to `proceed` to continue reindexing even if there are conflicts.
 Defaults to `abort`.

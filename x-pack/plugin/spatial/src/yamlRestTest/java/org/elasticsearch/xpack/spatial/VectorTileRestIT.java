@@ -132,7 +132,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 33, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 7);
+        assertLayer(tile, META_LAYER, 4096, 1, 9);
 
     }
 
@@ -152,7 +152,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 1);
             assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-            assertLayer(tile, META_LAYER, 4096, 1, 7);
+            assertLayer(tile, META_LAYER, 4096, 1, 9);
         }
         {
             final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
@@ -170,7 +170,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 1);
             assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-            assertLayer(tile, META_LAYER, 4096, 1, 7);
+            assertLayer(tile, META_LAYER, 4096, 1, 9);
         }
         {
             final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
@@ -179,7 +179,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 1);
             assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-            assertLayer(tile, META_LAYER, 4096, 1, 7);
+            assertLayer(tile, META_LAYER, 4096, 1, 9);
         }
         {
             final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
@@ -204,7 +204,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(2));
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 7);
+        assertLayer(tile, META_LAYER, 4096, 1, 9);
     }
 
     public void testBasicQueryGet() throws Exception {
@@ -222,7 +222,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 7);
+        assertLayer(tile, META_LAYER, 4096, 1, 9);
     }
 
     public void testBasicShape() throws Exception {
@@ -231,7 +231,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 7);
+        assertLayer(tile, META_LAYER, 4096, 1, 9);
     }
 
     public void testWithFields() throws Exception {
@@ -241,7 +241,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 3);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 7);
+        assertLayer(tile, META_LAYER, 4096, 1, 9);
     }
 
     public void testMinAgg() throws Exception {
@@ -259,7 +259,43 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
-        assertLayer(tile, META_LAYER, 4096, 1, 7);
+        assertLayer(tile, META_LAYER, 4096, 1, 11);
+    }
+
+    public void testUnsupportedAgg() {
+        {
+            final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\n" +
+                "  \"aggs\": {\n" +
+                "    \"minVal\": {\n" +
+                "      \"terms\": {\n" +
+                "         \"field\": \"name\"\n" +
+                "        }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}");
+            final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
+        {
+            final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_SHAPES + "/_mvt/location/"+ z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\n" +
+                "  \"aggs\": {\n" +
+                "    \"minVal\": {\n" +
+                "      \"min\": {\n" +
+                "         \"field\": \"value1\"\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"maxBucket\": {\n" +
+                "      \"max_bucket\": {\n" +
+                "         \"buckets_path\": \"minVal\"\n" +
+                "        }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}");
+            final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
     }
 
     private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags) {

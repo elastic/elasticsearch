@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -34,8 +35,12 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
+import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -49,8 +54,11 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
     private static final String GRID_FIELD = "grid";
     private static final String BOUNDS_FIELD = "bounds";
 
-    private static final String COUNT_TAG = "count";
-    private static final String ID_TAG = "id";
+    private static final String COUNT_TAG = "_count";
+    private static final String ID_TAG = "_id";
+
+    private static final String COUNT_MIN = "_count.min";
+    private static final String COUNT_MAX = "_count.max";
 
     public RestVectorTileAction() {
         super(Request::new);
@@ -112,6 +120,15 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
                 aBuilder.subAggregations(request.getAggBuilder());
             }
             searchRequestBuilder.addAggregation(aBuilder);
+            searchRequestBuilder.addAggregation(new MaxBucketPipelineAggregationBuilder(COUNT_MAX, GRID_FIELD + "._count"));
+            searchRequestBuilder.addAggregation(new MinBucketPipelineAggregationBuilder(COUNT_MIN, GRID_FIELD + "._count"));
+            final Collection<AggregationBuilder> aggregations = request.getAggregations();
+            for (AggregationBuilder aggregation : aggregations) {
+                searchRequestBuilder.addAggregation(
+                    new MaxBucketPipelineAggregationBuilder(aggregation.getName() + ".max", GRID_FIELD + ">" + aggregation.getName()));
+                searchRequestBuilder.addAggregation(
+                    new MinBucketPipelineAggregationBuilder(aggregation.getName() + ".min", GRID_FIELD + ">" + aggregation.getName()));
+            }
         }
         if (request.getExactBounds()) {
             final GeoBoundsAggregationBuilder boundsBuilder =
@@ -210,6 +227,27 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         addPropertyToFeature(featureBuilder, layerProps, "_shards.failed", response.getFailedShards());
         addPropertyToFeature(featureBuilder, layerProps, "hits.total.value", response.getHits().getTotalHits().value);
         addPropertyToFeature(featureBuilder, layerProps, "hits.total.relation", response.getHits().getTotalHits().relation.name());
+        if (response.getAggregations() != null) {
+            final InternalBucketMetricValue countMinVal = response.getAggregations().get(COUNT_MIN);
+            if (countMinVal != null && Double.isFinite(countMinVal.value())) {
+                addPropertyToFeature(featureBuilder, layerProps, countMinVal.getName(), (int) countMinVal.value());
+            }
+            final InternalBucketMetricValue countMaxVal = response.getAggregations().get(COUNT_MAX);
+            if (countMaxVal != null && Double.isFinite(countMaxVal.value())) {
+                addPropertyToFeature(featureBuilder, layerProps, countMaxVal.getName(), (int) countMaxVal.value());
+            }
+            final Collection<AggregationBuilder> aggregations = request.getAggregations();
+            for (AggregationBuilder aggregation : aggregations) {
+                final InternalBucketMetricValue aggMinVal = response.getAggregations().get(aggregation.getName() + ".min");
+                if (aggMinVal != null && Double.isFinite(aggMinVal.value())) {
+                    addPropertyToFeature(featureBuilder, layerProps, "aggs." + aggMinVal.getName(), aggMinVal.value());
+                }
+                final InternalBucketMetricValue aggMaxVal = response.getAggregations().get(aggregation.getName() + ".max");
+                if (aggMaxVal != null && Double.isFinite(aggMaxVal.value())) {
+                    addPropertyToFeature(featureBuilder, layerProps, "aggs." + aggMaxVal.getName(), aggMaxVal.value());
+                }
+            }
+        }
         metaLayerBuilder.addFeatures(featureBuilder);
         addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;

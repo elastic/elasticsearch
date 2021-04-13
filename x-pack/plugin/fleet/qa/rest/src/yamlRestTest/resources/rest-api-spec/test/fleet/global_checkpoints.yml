@@ -50,7 +50,7 @@ setup:
         index: "test-1-shard"
         wait_for_advance: true
         checkpoints: [100]
-        poll_timeout: "50ms"
+        timeout: "50ms"
 
   - match: { timed_out: true }
 
@@ -61,7 +61,7 @@ setup:
         index: "test-1-shard"
         wait_for_advance: true
         checkpoints: [0]
-        poll_timeout: "50ms"
+        timeout: "50ms"
 
   - match: { global_checkpoints.0: 1 }
   - match: { timed_out: false }

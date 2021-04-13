@@ -39,7 +39,7 @@ public class RestGetGlobalCheckpointsAction extends BaseRestHandler {
         for (int i = 0; i < stringCheckpoints.length; ++i) {
             checkpoints[i] = Long.parseLong(stringCheckpoints[i]);
         }
-        final TimeValue pollTimeout = request.paramAsTime("poll_timeout", TimeValue.timeValueSeconds(30));
+        final TimeValue pollTimeout = request.paramAsTime("timeout", TimeValue.timeValueSeconds(30));
         GetGlobalCheckpointsAction.Request getCheckpointsRequest = new GetGlobalCheckpointsAction.Request(
             index,
             waitForAdvance,

@@ -34,17 +34,17 @@ A single index or index alias that resolves to a single index.
 
 `wait_for_advance`::
 (Optional, Boolean) A boolean value which controls whether to wait (until the
-`poll_timeout`) for the global checkpoints to advance past the provided
+`timeout`) for the global checkpoints to advance past the provided
 `checkpoints`.
 
 `checkpoints`::
 (Optional, list) A comma separated list of previous global checkpoints.
 When used in combination with `wait_for_advance`, the API will only return once
 the global checkpoints advances past the `checkpoints`. Defaults to an empty list
-which will cause Elasticsearch to immediately return the global
+which will cause Elasticsearch to immediately return the current global
 checkpoints.
 
-`poll_timeout`::
+`timeout`::
 (Optional, <<time-units, time units>>)
 Period to wait for a global checkpoints to advance past `checkpoints`.
 Defaults to `30s`.
@@ -58,4 +58,4 @@ Defaults to `30s`.
 
 `timed_out`::
 (Boolean) If `false` the global checkpoints did not advance past the
-`checkpoints` within the specified `poll_timeout`.
+`checkpoints` within the specified `timeout`.

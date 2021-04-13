@@ -37,10 +37,10 @@
         "description":"Comma separated list of checkpoints",
         "default":""
       },
-      "poll_timeout":{
+      "timeout":{
         "type":"time",
         "description":"Timeout to wait for global checkpoint to advance",
-        "default":""
+        "default":"30s"
       }
     }
   }

@@ -292,7 +292,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
-            () -> false
+            () -> false,
+            q -> q
         );
         releasables.add(context);
         return context;

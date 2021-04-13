@@ -22,7 +22,7 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
  * it encodes the points as a long value.
  */
 public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

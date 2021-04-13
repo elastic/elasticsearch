@@ -342,6 +342,7 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
+    java.modularity.inferModulePath.set(false)
     eclipse.classpath.file.whenMerged { classpath ->
       /*
        * give each source folder a unique corresponding output folder

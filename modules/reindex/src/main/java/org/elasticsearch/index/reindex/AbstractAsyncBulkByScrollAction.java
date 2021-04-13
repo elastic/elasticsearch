@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 
@@ -111,7 +112,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * response, meaning that we have to take into account the total
      * in order to compute a correct scroll keep alive time.
      */
-    private int totalBatchSizeInSingleScrollResponse;
+    private final AtomicInteger totalBatchSizeInSingleScrollResponse = new AtomicInteger();
 
     AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
@@ -437,11 +438,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         this.lastBatchSize = batchSize;
-        this.totalBatchSizeInSingleScrollResponse += batchSize;
+        this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
 
         if (asyncResponse.response().hasRemainingHits() == false) {
-            int totalBatchSize = totalBatchSizeInSingleScrollResponse;
-            totalBatchSizeInSingleScrollResponse = 0;
+            int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
             asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
         } else {
             onScrollResponse(asyncResponse);

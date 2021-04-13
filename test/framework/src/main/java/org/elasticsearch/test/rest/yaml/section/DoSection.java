@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -343,7 +344,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
+            checkWarningHeaders(response.getWarningHeaders());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (Strings.hasLength(catchParam) == false) {
@@ -369,7 +370,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
+    void checkWarningHeaders(final List<String> warningHeaders) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -426,6 +427,16 @@ public class DoSection implements ExecutableSection {
         if (expectedRegex.isEmpty() == false) {
             for (final Pattern headerPattern : expectedRegex) {
                 missingRegex.add(headerPattern.pattern());
+            }
+        }
+
+        for (Iterator<String> warnings = unexpected.iterator(); warnings.hasNext();) {
+            if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
+                logger.warn(
+                    "Test [{}] uses deprecated legacy index templates and should be updated to use composable templates",
+                    "need test name here" + getLocation()
+                );
+                warnings.remove();
             }
         }
 

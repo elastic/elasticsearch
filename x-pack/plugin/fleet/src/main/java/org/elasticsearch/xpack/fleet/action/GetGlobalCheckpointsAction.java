@@ -172,6 +172,17 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             }
 
             final int numberOfShards = indexMetadata.getNumberOfShards();
+
+            if (request.waitForAdvance() && numberOfShards != 1) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "wait_for_advance only supports indices with one shard. " + "[shard count: " + numberOfShards + "]",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
+
             final long[] currentCheckpoints;
             final int currentCheckpointCount = request.currentCheckpoints().length;
             if (currentCheckpointCount != 0) {

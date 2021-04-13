@@ -13,7 +13,7 @@ The API has an optional polling mode enabled by with the `wait_for_advance` quer
 parameter. In polling mode, the API will only return after the global checkpoints
 advance past the specified `current_checkpoints`.
 
-Currently this API only supports one shard indices.
+Currently the `wait_for_advance` parameter is only supported for one shard indices.
 
 [[get-global-checkpoints-api-request]]
 ==== {api-request-title}

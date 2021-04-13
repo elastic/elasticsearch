@@ -171,7 +171,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             .setSettings(
                 Settings.builder()
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
             )
             .get();
@@ -190,8 +190,35 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            equalTo("current_checkpoints must equal number of shards. [shard count: 3, current_checkpoints: 2]")
+            equalTo("current_checkpoints must equal number of shards. [shard count: 1, current_checkpoints: 2]")
         );
+    }
+
+    public void testWaitForAdvanceOnlySupportsOneShard() throws Exception {
+        String indexName = "test_index";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 3)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
+
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            true,
+            new long[3],
+            TEN_SECONDS
+        );
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
+        );
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), equalTo("wait_for_advance only supports indices with one shard. [shard count: 3]"));
     }
 
     public void testIndexDoesNotExist() throws Exception {

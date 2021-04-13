@@ -570,11 +570,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (previousBest != metadata.generation()) {
                 assert wasBestEffortConsistency
                     || metadata.generation() == RepositoryData.CORRUPTED_REPO_GEN
-                    || previousBest < metadata.generation() : "Illegal move from repository generation ["
-                        + previousBest
-                        + "] to generation ["
-                        + metadata.generation()
-                        + "]";
+                    || previousBest < metadata.generation()
+                    : "Illegal move from repository generation [" + previousBest + "] to generation [" + metadata.generation() + "]";
                 logger.debug("Updated repository generation from [{}] to [{}]", previousBest, metadata.generation());
             }
         }
@@ -1251,9 +1248,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Function<ClusterState, ClusterState> stateTransformer,
         final ActionListener<RepositoryData> listener
     ) {
-        assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN : "Must finalize based on a valid repository generation but received ["
-            + repositoryStateId
-            + "]";
+        assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN
+            : "Must finalize based on a valid repository generation but received [" + repositoryStateId + "]";
         final Collection<IndexId> indices = shardGenerations.indices();
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
         // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
@@ -1475,9 +1471,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected void assertSnapshotOrGenericThread() {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
-            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') : "Expected current thread ["
-                + Thread.currentThread()
-                + "] to be the snapshot or generic thread.";
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']')
+            : "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";
     }
 
     @Override
@@ -2102,11 +2097,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // not offer any consistency guarantees when it comes to overwriting the same blob name with different content.
                     final long nextPendingGen = metadata.pendingGeneration() + 1;
                     newGen = uninitializedMeta ? Math.max(expectedGen + 1, nextPendingGen) : nextPendingGen;
-                    assert newGen > latestKnownRepoGen.get() : "Attempted new generation ["
-                        + newGen
-                        + "] must be larger than latest known generation ["
-                        + latestKnownRepoGen.get()
-                        + "]";
+                    assert newGen > latestKnownRepoGen.get()
+                        : "Attempted new generation ["
+                            + newGen
+                            + "] must be larger than latest known generation ["
+                            + latestKnownRepoGen.get()
+                            + "]";
                     return ClusterState.builder(currentState)
                         .metadata(
                             Metadata.builder(currentState.getMetadata())
@@ -2668,7 +2664,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 assert blobsToDelete.stream()
                     .mapToLong(b -> Long.parseLong(b.replaceFirst(SNAPSHOT_INDEX_PREFIX, "")))
                     .max()
-                    .orElse(-1L) < Long.parseLong(indexGeneration) : "Tried to delete an index-N blob newer than the current generation ["
+                    .orElse(-1L) < Long.parseLong(indexGeneration)
+                    : "Tried to delete an index-N blob newer than the current generation ["
                         + indexGeneration
                         + "] when deleting index-N blobs "
                         + blobsToDelete;

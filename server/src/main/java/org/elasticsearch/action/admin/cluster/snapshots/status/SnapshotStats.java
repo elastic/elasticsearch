@@ -321,13 +321,8 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             // Update duration
             time = endTime - startTime;
         }
-        assert time >= 0 : "Update with ["
-            + Strings.toString(stats)
-            + "]["
-            + updateTimestamps
-            + "] resulted in negative total time ["
-            + time
-            + "]";
+        assert time >= 0
+            : "Update with [" + Strings.toString(stats) + "][" + updateTimestamps + "] resulted in negative total time [" + time + "]";
     }
 
     @Override

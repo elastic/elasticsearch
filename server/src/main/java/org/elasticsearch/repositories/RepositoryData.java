@@ -169,16 +169,18 @@ public final class RepositoryData {
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
         this.clusterUUID = Objects.requireNonNull(clusterUUID);
-        assert uuid.equals(MISSING_UUID) == clusterUUID.equals(MISSING_UUID) : "Either repository- and cluster UUID must both be missing"
-            + " or neither of them must be missing but saw ["
-            + uuid
-            + "]["
-            + clusterUUID
-            + "]";
-        assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
-            + shardGenerations.indices()
-            + " but snapshots only reference indices "
-            + indices.values();
+        assert uuid.equals(MISSING_UUID) == clusterUUID.equals(MISSING_UUID)
+            : "Either repository- and cluster UUID must both be missing"
+                + " or neither of them must be missing but saw ["
+                + uuid
+                + "]["
+                + clusterUUID
+                + "]";
+        assert indices.values().containsAll(shardGenerations.indices())
+            : "ShardGenerations contained indices "
+                + shardGenerations.indices()
+                + " but snapshots only reference indices "
+                + indices.values();
         assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size())
             : "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
@@ -376,9 +378,8 @@ public final class RepositoryData {
         final IndexMetaDataGenerations newIndexMetaGenerations;
         if (indexMetaBlobs == null) {
             assert newIdentifiers == null : "Non-null new identifiers [" + newIdentifiers + "] for null lookup";
-            assert indexMetaDataGenerations.lookup.isEmpty() : "Index meta generations should have been empty but was ["
-                + indexMetaDataGenerations
-                + "]";
+            assert indexMetaDataGenerations.lookup.isEmpty()
+                : "Index meta generations should have been empty but was [" + indexMetaDataGenerations + "]";
             newIndexMetaGenerations = IndexMetaDataGenerations.EMPTY;
         } else {
             assert indexMetaBlobs.isEmpty() || shardGenerations.indices().equals(indexMetaBlobs.keySet())

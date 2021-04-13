@@ -92,9 +92,8 @@ public final class ShardGenerations {
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
             final List<String> updatedGenerations = shardGenerations.get(indexId);
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
-            assert updatedGenerations != null : "Index ["
-                + indexId
-                + "] present in previous shard generations, but missing from updated generations";
+            assert updatedGenerations != null
+                : "Index [" + indexId + "] present in previous shard generations, but missing from updated generations";
             for (int i = 0; i < Math.min(oldGens.size(), updatedGenerations.size()); i++) {
                 final String oldGeneration = oldGens.get(i);
                 final String updatedGeneration = updatedGenerations.get(i);

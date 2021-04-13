@@ -41,9 +41,8 @@ public final class RepositoriesStatsArchive {
      * @return {@code true} if the repository stats were archived, {@code false} otherwise.
      */
     synchronized boolean archive(final RepositoryStatsSnapshot repositoryStats) {
-        assert containsRepositoryStats(repositoryStats) == false : "A repository with ephemeral id "
-            + repositoryStats.getRepositoryInfo().ephemeralId
-            + " is already archived";
+        assert containsRepositoryStats(repositoryStats) == false
+            : "A repository with ephemeral id " + repositoryStats.getRepositoryInfo().ephemeralId + " is already archived";
         assert repositoryStats.isArchived();
 
         evict();

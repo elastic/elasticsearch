@@ -83,11 +83,8 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
         v -> {
             RestoreInfo restoreInfo = (RestoreInfo) v[0];
             Boolean accepted = (Boolean) v[1];
-            assert (accepted == null && restoreInfo != null) || (accepted != null && accepted && restoreInfo == null) : "accepted: ["
-                + accepted
-                + "], restoreInfo: ["
-                + restoreInfo
-                + "]";
+            assert (accepted == null && restoreInfo != null) || (accepted != null && accepted && restoreInfo == null)
+                : "accepted: [" + accepted + "], restoreInfo: [" + restoreInfo + "]";
             return new RestoreSnapshotResponse(restoreInfo);
         }
     );

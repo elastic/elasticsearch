@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -17,10 +18,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,10 +46,24 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class TransformUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private static final Logger logger = LogManager.getLogger(TransformUsageTransportAction.class);
+
+    /**
+     * Features we want to measure the usage of.
+     *
+     * Each feature corresponds to a field in {@link TransformConfig}.
+     * If the field exists in the config then we assume the feature is used.
+     */
+    private static final String[] FEATURES =
+        Stream.concat(
+                Stream.of(TransformConfig.Function.values()).map(TransformConfig.Function::getParseField),
+                Stream.of(TransformField.RETENTION_POLICY, TransformField.SYNC))
+            .map(ParseField::getPreferredName)
+            .toArray(String[]::new);
 
     private final Client client;
 
@@ -73,13 +91,13 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
     protected void masterOperation(
         Task task,
         XPackUsageRequest request,
-        ClusterState state,
+        ClusterState clusterState,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
+        PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null
             ? Collections.emptyList()
-            : taskMetadata.findTasks(TransformTaskParams.NAME, (t) -> true);
+            : taskMetadata.findTasks(TransformTaskParams.NAME, t -> true);
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {
@@ -89,9 +107,10 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
                 transformsCountByState.merge(taskState.value(), 1L, Long::sum);
             }
         }
+        final SetOnce<Map<String, Long>> transformsCountByFeature = new SetOnce<>();
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(statSummations -> {
-            var usage = new TransformFeatureSetUsage(transformsCountByState, statSummations);
+            var usage = new TransformFeatureSetUsage(transformsCountByState, transformsCountByFeature.get(), statSummations);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }, listener::onFailure);
 
@@ -104,11 +123,14 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
-                var usage = new TransformFeatureSetUsage(transformsCountByState, new TransformIndexerStats());
+                transformsCountByFeature.set(Collections.emptyMap());
+                var usage =
+                    new TransformFeatureSetUsage(transformsCountByState, transformsCountByFeature.get(), new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }
             transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
+            transformsCountByFeature.set(getFeatureCounts(transformCountSuccess.getHits()));
             TransformInfoTransportAction.getStatisticSummations(client, totalStatsListener);
         }, transformCountFailure -> {
             if (transformCountFailure instanceof ResourceNotFoundException) {
@@ -118,11 +140,13 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
         });
 
-        SearchRequest totalTransformCount = client.prepareSearch(
+        SearchRequest totalTransformCountSearchRequest = client.prepareSearch(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
         )
             .setTrackTotalHits(true)
+            // We don't need the whole configs but only fields related to features we want to measure the usage of.
+            .setFetchSource(FEATURES, null)
             .setQuery(
                 QueryBuilders.constantScoreQuery(
                     QueryBuilders.boolQuery()
@@ -134,9 +158,32 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClientHelper.executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ClientHelper.TRANSFORM_ORIGIN,
-            totalTransformCount,
+            totalTransformCountSearchRequest,
             totalTransformCountListener,
             client::search
         );
+    }
+
+    /**
+     * Returns the feature usage map.
+     * For each feature it counts the number of transforms using this feature.
+     * If the feature is not used by any transform, there is no corresponding entry in the returned map.
+     *
+     * TODO: Should the counts be obtained using ES query/aggregation instead? Which fields need to have mappings in order to allow that?
+     *
+     * @param hits hits returned by the search
+     * @return feature usage map
+     */
+    private static Map<String, Long> getFeatureCounts(SearchHits hits) {
+        Map<String, Long> transformsCountByFeature = new HashMap<>();
+        for (SearchHit hit : hits) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            for (String feature : FEATURES) {
+                if (source.containsKey(feature)) {
+                    transformsCountByFeature.merge(feature, 1L, Long::sum);
+                }
+            }
+        }
+        return transformsCountByFeature;
     }
 }

@@ -159,7 +159,7 @@ The following parameters are accepted by `date` fields:
 ==== Epoch seconds
 
 If you need to send dates as _seconds-since-the-epoch_ then make sure the
-`format` lists `epoch_seconds`:
+`format` lists `epoch_second`:
 
 [source,console,id=date-epoch-seconds-example]
 ----

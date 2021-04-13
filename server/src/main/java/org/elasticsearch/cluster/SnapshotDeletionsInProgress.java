@@ -101,6 +101,20 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
+     * Checks if there is an actively executing delete operation for the given repository
+     *
+     * @param repository repository name
+     */
+    public boolean hasExecutingDeletion(String repository) {
+        for (Entry entry : entries) {
+            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns {@code true} if there are snapshot deletions in progress in the cluster,
      * returns {@code false} otherwise.
      */

@@ -11,11 +11,13 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
 
-    public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("boolean_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -45,6 +47,14 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         execute();
     }
 
+    public final void runForDoc(int docId, Consumer<Boolean> consumer) {
+        runForDoc(docId);
+        int count = trues + falses;
+        for (int i = 0; i < count; i++) {
+            consumer.accept(i < falses ? false : true);
+        }
+    }
+
     /**
      * How many {@code true} values were returned for this document.
      */
@@ -59,7 +69,18 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         return falses;
     }
 
-    protected final void emit(boolean v) {
+    /**
+     * Reorders the values from the last time {@link #runForDoc(int)} was called to
+     * how this would appear in doc-values order.
+     */
+    public final boolean[] asDocValues() {
+        boolean[] values = new boolean[falses + trues];
+        Arrays.fill(values, 0, falses, false);
+        Arrays.fill(values, falses, falses + trues, true);
+        return values;
+    }
+
+    public final void emit(boolean v) {
         if (v) {
             trues++;
         } else {

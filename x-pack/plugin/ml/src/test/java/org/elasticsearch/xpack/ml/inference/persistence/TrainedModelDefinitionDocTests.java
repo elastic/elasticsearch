@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.persistence;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -14,7 +15,7 @@ import java.io.IOException;
 
 public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<TrainedModelDefinitionDoc> {
 
-    private boolean isLenient = randomBoolean();
+    private final boolean isLenient = randomBoolean();
 
     @Override
     protected TrainedModelDefinitionDoc doParseInstance(XContentParser parser) throws IOException {
@@ -28,12 +29,13 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
     @Override
     protected TrainedModelDefinitionDoc createTestInstance() {
-        int length = randomIntBetween(1, 10);
+        int length = randomIntBetween(4, 10);
+
         return new TrainedModelDefinitionDoc.Builder()
             .setModelId(randomAlphaOfLength(6))
             .setDefinitionLength(length)
             .setTotalDefinitionLength(randomIntBetween(length, length *2))
-            .setCompressedString(randomAlphaOfLength(length))
+            .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
             .setDocNum(randomIntBetween(0, 10))
             .setCompressionVersion(randomIntBetween(1, 5))
             .setEos(randomBoolean())

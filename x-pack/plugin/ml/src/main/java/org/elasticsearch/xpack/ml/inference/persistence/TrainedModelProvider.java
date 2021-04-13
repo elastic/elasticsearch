@@ -38,10 +38,9 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -302,14 +301,14 @@ public class TrainedModelProvider {
                         MAX_COMPRESSED_STRING_SIZE));
                 return;
             }
-            List<byte[]> chunkedDefinition = chunkDefinitionWithSize(compressedDefinition, COMPRESSED_STRING_CHUNK_SIZE);
+            List<BytesReference> chunkedDefinition = chunkDefinitionWithSize(compressedDefinition, COMPRESSED_STRING_CHUNK_SIZE);
             for(int i = 0; i < chunkedDefinition.size(); ++i) {
                 trainedModelDefinitionDocs.add(new TrainedModelDefinitionDoc.Builder()
                     .setDocNum(i)
                     .setModelId(trainedModelConfig.getModelId())
                     .setBinaryData(chunkedDefinition.get(i))
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                    .setDefinitionLength(chunkedDefinition.get(i).length)
+                    .setDefinitionLength(chunkedDefinition.get(i).length())
                     // If it is the last doc, it is the EOS
                     .setEos(i == chunkedDefinition.size() - 1)
                     .build());
@@ -1091,14 +1090,11 @@ public class TrainedModelProvider {
     private static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs,
                                                         String modelId) throws ElasticsearchException {
 
-        int size = docs.stream().map(doc -> doc.getBinaryData().length).reduce(0, Integer::sum);
-        ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(size);
-        int offset = 0;
-        for (TrainedModelDefinitionDoc doc : docs) {
-            byteArray.set(0L, doc.getBinaryData(), offset, doc.getBinaryData().length);
-            offset += doc.getBinaryData().length;
+        BytesReference[] bb = new BytesReference[docs.size()];
+        for (int i=0; i<docs.size(); i++) {
+            bb[i] = docs.get(i).getBinaryData();
         }
-        BytesReference bytes = BytesReference.fromByteArray(byteArray, size);
+        BytesReference bytes = CompositeBytesReference.of(bb);
 
         // BWC for when we tracked the total definition length
         // TODO: remove in 9
@@ -1116,11 +1112,11 @@ public class TrainedModelProvider {
         return bytes;
     }
 
-    public static List<byte[]> chunkDefinitionWithSize(BytesReference definition, int chunkSize) {
-        List<byte[]> chunks = new ArrayList<>((int)Math.ceil(definition.length()/(double)chunkSize));
+    public static List<BytesReference> chunkDefinitionWithSize(BytesReference definition, int chunkSize) {
+        List<BytesReference> chunks = new ArrayList<>((int)Math.ceil(definition.length()/(double)chunkSize));
         for (int i = 0; i < definition.length();i += chunkSize) {
             BytesReference chunk = definition.slice(i, Math.min(chunkSize, definition.length() - i));
-            chunks.add(chunk.array());
+            chunks.add(chunk);
         }
         return chunks;
     }

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,8 +52,8 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         parser.declareString((a, b) -> {}, InferenceIndexConstants.DOC_TYPE);  // type is hard coded but must be parsed
         parser.declareString(TrainedModelDefinitionDoc.Builder::setModelId, TrainedModelConfig.MODEL_ID);
         parser.declareString(TrainedModelDefinitionDoc.Builder::setCompressedString, DEFINITION);
-        parser.declareField(TrainedModelDefinitionDoc.Builder::setBinaryData, (p, c) -> p.binaryValue(),
-            BINARY_DEFINITION, ObjectParser.ValueType.VALUE_ARRAY);
+        parser.declareField(TrainedModelDefinitionDoc.Builder::setBinaryData, (p, c) -> new BytesArray(p.binaryValue()),
+            BINARY_DEFINITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setDocNum, DOC_NUM);
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setCompressionVersion, COMPRESSION_VERSION);
         parser.declareLong(TrainedModelDefinitionDoc.Builder::setDefinitionLength, DEFINITION_LENGTH);
@@ -69,7 +71,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return NAME + "-" + modelId + "-" + docNum;
     }
 
-    private final byte[] binaryData;
+    private final BytesReference binaryData;
     private final String modelId;
     private final int docNum;
     // for bwc
@@ -78,7 +80,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     private final int compressionVersion;
     private final boolean eos;
 
-    private TrainedModelDefinitionDoc(byte[] binaryData,
+    private TrainedModelDefinitionDoc(BytesReference binaryData,
                                       String modelId,
                                       int docNum,
                                       Long totalDefinitionLength,
@@ -103,7 +105,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         this.eos = eos;
     }
 
-    public byte[] getBinaryData() {
+    public BytesReference getBinaryData() {
         return binaryData;
     }
 
@@ -179,7 +181,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     public static class Builder {
 
         private String modelId;
-        private byte[] binaryData;
+        private BytesReference binaryData;
         private int docNum;
         private Long totalDefinitionLength;
         private long definitionLength;
@@ -192,11 +194,12 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         }
 
         public Builder setCompressedString(String compressedString) {
-            this.binaryData = Base64.getDecoder().decode(compressedString.getBytes(StandardCharsets.UTF_8));
+            this.binaryData = new BytesArray(Base64.getDecoder()
+                .decode(compressedString.getBytes(StandardCharsets.UTF_8)));
             return this;
         }
 
-        public Builder setBinaryData(byte [] binaryData) {
+        public Builder setBinaryData(BytesReference binaryData) {
             this.binaryData = binaryData;
             return this;
         }

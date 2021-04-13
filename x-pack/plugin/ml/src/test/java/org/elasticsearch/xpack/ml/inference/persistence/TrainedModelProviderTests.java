@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -150,13 +151,21 @@ public class TrainedModelProviderTests extends ESTestCase {
     }
 
     public void testChunkDefinitionWithSize() {
-        byte[] bytes = randomByteArrayOfLength(100);
-        List<byte[]> chunks = TrainedModelProvider.chunkDefinitionWithSize(new BytesArray(bytes), 30);
+        int totalLength = 100;
+        int size = 30;
+
+        byte[] bytes = randomByteArrayOfLength(totalLength);
+        List<BytesReference> chunks = TrainedModelProvider.chunkDefinitionWithSize(new BytesArray(bytes), size);
         assertThat(chunks, hasSize(4));
-        assertArrayEquals(Arrays.copyOfRange(bytes, 0, 30), chunks.get(0));
-        assertArrayEquals(Arrays.copyOfRange(bytes, 30, 60), chunks.get(1));
-        assertArrayEquals(Arrays.copyOfRange(bytes, 60, 90), chunks.get(2));
-        assertArrayEquals(Arrays.copyOfRange(bytes, 90, 100), chunks.get(3));
+        int start = 0;
+        int end = size;
+        for (BytesReference chunk : chunks) {
+            assertArrayEquals(Arrays.copyOfRange(bytes, start, end),
+                Arrays.copyOfRange(chunk.array(), chunk.arrayOffset(), chunk.arrayOffset() + chunk.length()));
+
+            start += size;
+            end = Math.min(end + size, totalLength);
+        }
     }
 
     @Override

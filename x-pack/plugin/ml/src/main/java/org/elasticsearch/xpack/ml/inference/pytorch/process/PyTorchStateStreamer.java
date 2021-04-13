@@ -80,7 +80,9 @@ public class PyTorchStateStreamer {
             modelSizeWritten = true;
         }
 
-        outputStream.write(doc.getBinaryData());
+        // The array backing the BytesReference may be bigger than what is
+        // referred to so write only what is after the offset
+        outputStream.write(doc.getBinaryData().array(), doc.getBinaryData().arrayOffset(), doc.getBinaryData().length());
         return true;
     }
 

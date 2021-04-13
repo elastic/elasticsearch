@@ -228,7 +228,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         TrainedModelDefinitionDoc truncatedDoc = new TrainedModelDefinitionDoc.Builder()
             .setDocNum(0)
-            .setBinaryData(config.getCompressedDefinition().slice(0, config.getCompressedDefinition().length() - 10).array())
+            .setBinaryData(config.getCompressedDefinition().slice(0, config.getCompressedDefinition().length() - 10))
             .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
             .setDefinitionLength(config.getCompressedDefinition().length())
             .setTotalDefinitionLength(config.getCompressedDefinition().length())
@@ -352,14 +352,15 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
     }
 
     private List<TrainedModelDefinitionDoc.Builder> createModelDefinitionDocs(BytesReference compressedDefinition, String modelId) {
-        List<byte[]> chunks = TrainedModelProvider.chunkDefinitionWithSize(compressedDefinition, compressedDefinition.length()/3);
+        List<BytesReference> chunks = TrainedModelProvider.chunkDefinitionWithSize(compressedDefinition, compressedDefinition.length()/3);
 
         return IntStream.range(0, chunks.size())
             .mapToObj(i -> new TrainedModelDefinitionDoc.Builder()
                 .setDocNum(i)
                 .setBinaryData(chunks.get(i))
                 .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                .setDefinitionLength(chunks.get(i).length)
+                .setDefinitionLength(chunks.get(i).length())
+                .setTotalDefinitionLength(compressedDefinition.length())
                 .setEos(i == chunks.size() - 1)
                 .setModelId(modelId))
             .collect(Collectors.toList());

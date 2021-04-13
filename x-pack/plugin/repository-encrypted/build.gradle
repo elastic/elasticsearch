@@ -18,9 +18,9 @@ dependencies {
     // required for integ tests of encrypted FS repository
     internalClusterTestImplementation project(":test:framework")
     // required for integ tests of encrypted cloud repositories
-    internalClusterTestImplementation project(path: ':plugins:repository-gcs', configuration: 'internalClusterTestArtifacts')
-    internalClusterTestImplementation project(path: ':plugins:repository-azure', configuration: 'internalClusterTestArtifacts')
-    internalClusterTestImplementation(project(path: ':plugins:repository-s3', configuration: 'internalClusterTestArtifacts')) {
+    internalClusterTestImplementation testArtifact(project(':plugins:repository-gcs'), 'internalClusterTest')
+    internalClusterTestImplementation testArtifact(project(':plugins:repository-azure'), 'internalClusterTest')
+    internalClusterTestImplementation(testArtifact(project(':plugins:repository-s3'), 'internalClusterTest')) {
         // HACK, resolves jar hell, such as:
         // jar1: jakarta.xml.bind/jakarta.xml.bind-api/2.3.2/8d49996a4338670764d7ca4b85a1c4ccf7fe665d/jakarta.xml.bind-api-2.3.2.jar
         // jar2: javax.xml.bind/jaxb-api/2.2.2/aeb3021ca93dde265796d82015beecdcff95bf09/jaxb-api-2.2.2.jar

@@ -69,14 +69,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
-     * Returns a new instance of {@link SnapshotDeletionsInProgress} with the given
-     * {@link Entry} added.
-     */
-    public static SnapshotDeletionsInProgress newInstance(Entry entry) {
-        return new SnapshotDeletionsInProgress(Collections.singletonList(entry));
-    }
-
-    /**
      * Returns a new instance of {@link SnapshotDeletionsInProgress} which adds
      * the given {@link Entry} to the invoking instance.
      */

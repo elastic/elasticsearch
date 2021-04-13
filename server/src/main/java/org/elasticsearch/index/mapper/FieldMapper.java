@@ -540,6 +540,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasValues() {
+                return copyToBuilders.isEmpty() == false;
+            }
+
             public CopyTo build() {
                 if (copyToBuilders.isEmpty()) {
                     return EMPTY;

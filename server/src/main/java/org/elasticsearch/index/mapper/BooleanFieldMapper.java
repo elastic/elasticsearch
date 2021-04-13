@@ -96,6 +96,9 @@ public class BooleanFieldMapper extends FieldMapper {
                 if (s != null && multiFieldsBuilder.hasMultiFields()) {
                     throw new MapperParsingException("Cannot define multifields on a field with a script");
                 }
+                if (s != null && copyTo.hasValues()) {
+                    throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
+                }
             });
         }
 

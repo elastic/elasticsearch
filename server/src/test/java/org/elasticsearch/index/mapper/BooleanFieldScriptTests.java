@@ -19,6 +19,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScript.Factory> {
     public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
@@ -41,6 +42,27 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
     @Override
     protected BooleanFieldScript.Factory dummyScript() {
         return DUMMY;
+    }
+
+    public void testAsDocValues() {
+        BooleanFieldScript script = new BooleanFieldScript(
+                "test",
+                Collections.emptyMap(),
+                new SearchLookup(field -> null, (ft, lookup) -> null),
+                null
+        ) {
+            @Override
+            public void execute() {
+                emit(true);
+                emit(false);
+                emit(true);
+                emit(true);
+                emit(false);
+            }
+        };
+        script.execute();
+
+        assertArrayEquals(new boolean[] {false, false, true, true, true}, script.asDocValues());
     }
 
     public void testTooManyValues() throws IOException {

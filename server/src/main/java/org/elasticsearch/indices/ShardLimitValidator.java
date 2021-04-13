@@ -213,17 +213,11 @@ public class ShardLimitValidator {
     }
 
     private static boolean hasFrozen(DiscoveryNode node) {
-        final List<DiscoveryNodeRole> dataRoles =
-            node.getRoles().stream().filter(DiscoveryNodeRole::canContainData).collect(Collectors.toUnmodifiableList());
-
-        return dataRoles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        return node.getRoles().contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
     }
 
     private static boolean hasNonFrozen(DiscoveryNode node) {
-        final List<DiscoveryNodeRole> dataRoles =
-            node.getRoles().stream().filter(DiscoveryNodeRole::canContainData).collect(Collectors.toUnmodifiableList());
-
-        return dataRoles.size() > 1 || dataRoles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+        return node.getRoles().stream().anyMatch(r -> r.canContainData() && r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
     }
 
 }

@@ -86,7 +86,7 @@ public abstract class ScrollableHitSource {
     }
 
     private void onResponse(Response response) {
-        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
+        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.remainingHits(), response.getScrollId());
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
@@ -235,13 +235,6 @@ public abstract class ScrollableHitSource {
          */
         public long getTotalHits() {
             return totalHits;
-        }
-
-        /**
-         * The documents returned in this batch.
-         */
-        public List<? extends Hit> getHits() {
-            return hits;
         }
 
         /**

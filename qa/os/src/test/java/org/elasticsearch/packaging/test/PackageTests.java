@@ -215,6 +215,7 @@ public class PackageTests extends PackagingTestCase {
     public void test60Reinstall() throws Exception {
         install();
         assertInstalled(distribution());
+        disableGeoIpDownloader(installation);
         verifyPackageInstallation(installation, distribution(), sh);
 
         remove(distribution());
@@ -225,6 +226,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             install();
             assertInstalled(distribution());
+            disableGeoIpDownloader(installation);
 
             startElasticsearch();
             restartElasticsearch(sh, installation);

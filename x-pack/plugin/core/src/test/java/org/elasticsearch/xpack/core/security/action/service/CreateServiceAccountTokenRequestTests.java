@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,7 +41,7 @@ public class CreateServiceAccountTokenRequestTests extends ESTestCase {
     public void testValidation() {
         final String namespace = randomAlphaOfLengthBetween(3, 8);
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
-        final String tokenName = randomAlphaOfLengthBetween(3, 8);
+        final String tokenName = ValidationTests.randomTokenName();
 
         final CreateServiceAccountTokenRequest request1 =
             new CreateServiceAccountTokenRequest(randomFrom("", null), serviceName, tokenName);
@@ -52,29 +54,12 @@ public class CreateServiceAccountTokenRequestTests extends ESTestCase {
         assertThat(validation2.validationErrors(), contains(containsString("service-name is required")));
 
         final CreateServiceAccountTokenRequest request3 =
-            new CreateServiceAccountTokenRequest(namespace, serviceName, randomFrom("", null));
+            new CreateServiceAccountTokenRequest(namespace, serviceName, ValidationTests.randomInvalidTokenName());
         final ActionRequestValidationException validation3 = request3.validate();
-        assertThat(validation3.validationErrors(), contains(containsString("token name is required")));
+        assertThat(validation3.validationErrors(), contains(containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE)));
 
-        final CreateServiceAccountTokenRequest request4 = new CreateServiceAccountTokenRequest(namespace, serviceName,
-            randomFrom(" " + tokenName, tokenName + " ", " " + tokenName + " "));
+        final CreateServiceAccountTokenRequest request4 = new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName);
         final ActionRequestValidationException validation4 = request4.validate();
-        assertThat(validation4.validationErrors(), contains(containsString(
-            "service account token name may not begin or end with whitespace")));
-
-        final CreateServiceAccountTokenRequest request5 = new CreateServiceAccountTokenRequest(namespace, serviceName, "_" + tokenName);
-        final ActionRequestValidationException validation5 = request5.validate();
-        assertThat(validation5.validationErrors(), contains(containsString(
-            "service account token name may not begin with an underscore")));
-
-        final CreateServiceAccountTokenRequest request6 = new CreateServiceAccountTokenRequest(namespace, serviceName,
-            randomAlphaOfLength(257));
-        final ActionRequestValidationException validation6 = request6.validate();
-        assertThat(validation6.validationErrors(), contains(containsString(
-            "service account token name may not be more than 256 characters long")));
-
-        final CreateServiceAccountTokenRequest request7 = new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName);
-        final ActionRequestValidationException validation7 = request7.validate();
-        assertThat(validation7, nullValue());
+        assertThat(validation4, nullValue());
     }
 }

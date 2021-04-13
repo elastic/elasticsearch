@@ -21,7 +21,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -43,36 +42,6 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         setupJarJdkClasspath(getProjectDir("elasticsearch.build"));
         BuildResult result = getGradleRunner("elasticsearch.build").withArguments("check", "assemble", "-s").build();
         assertTaskSuccessful(result, ":check");
-    }
-
-    public void testInsecureMavenRepository() throws IOException {
-        final String name = "elastic-maven";
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
-        // add an insecure maven repository to the build.gradle
-        final List<String> lines = Arrays.asList(
-            "repositories {",
-            "  maven {",
-            "    name \"elastic-maven\"",
-            "    url \"" + url + "\"\n",
-            "  }",
-            "}"
-        );
-        runInsecureArtifactRepositoryTest(name, url, lines);
-    }
-
-    public void testInsecureIvyRepository() throws IOException {
-        final String name = "elastic-ivy";
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/ivy";
-        // add an insecure ivy repository to the build.gradle
-        final List<String> lines = Arrays.asList(
-            "repositories {",
-            "  ivy {",
-            "    name \"elastic-ivy\"",
-            "    url \"" + url + "\"\n",
-            "  }",
-            "}"
-        );
-        runInsecureArtifactRepositoryTest(name, url, lines);
     }
 
     private void runInsecureArtifactRepositoryTest(final String name, final String url, final List<String> lines) throws IOException {

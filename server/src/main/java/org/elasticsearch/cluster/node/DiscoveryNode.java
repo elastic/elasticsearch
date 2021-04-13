@@ -20,12 +20,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -340,18 +338,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         } else {
             // an old node will only understand legacy roles since pluggable roles is a new concept
-            final List<DiscoveryNodeRole> rolesToWrite = new ArrayList<>(roles.size());
-            boolean foundDataContainingRole = false;
-            for (DiscoveryNodeRole role : roles) {
-                if (DiscoveryNodeRole.LEGACY_ROLES.contains(role)) {
-                    rolesToWrite.add(role);
-                } else if (foundDataContainingRole == false && role.canContainData()) {
-                    // we only want to write out one "data" role even if the node has multiple data tier node roles
-                    // (eg. data_hot and data_content)
-                    foundDataContainingRole = true;
-                    rolesToWrite.add(DiscoveryNodeRole.DATA_ROLE);
-                }
-            }
+            final Set<DiscoveryNodeRole> rolesToWrite = roles.stream()
+                .map(role -> role.getCompatibilityRole(out.getVersion()))
+                .filter(DiscoveryNodeRole.LEGACY_ROLES::contains)
+                .collect(Collectors.toSet());
 
             out.writeVInt(rolesToWrite.size());
             for (final DiscoveryNodeRole role : rolesToWrite) {

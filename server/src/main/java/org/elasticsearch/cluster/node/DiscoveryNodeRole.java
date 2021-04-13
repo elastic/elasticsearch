@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 

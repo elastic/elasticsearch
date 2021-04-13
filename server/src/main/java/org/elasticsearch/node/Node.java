@@ -111,6 +111,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -272,7 +273,8 @@ public class Node implements Closeable {
         boolean success = false;
         try {
             Settings tmpSettings = Settings.builder().put(initialEnvironment.settings())
-                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
+                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)
+                .build();
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -366,6 +368,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            additionalSettings.add(GeoIpSettings.ENABLED_SETTING);
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));

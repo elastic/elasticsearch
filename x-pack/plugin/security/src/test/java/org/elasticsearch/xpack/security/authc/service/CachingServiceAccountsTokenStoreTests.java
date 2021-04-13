@@ -104,14 +104,16 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
         store.authenticate(token2Invalid, future4);
         assertThat(future4.get(), is(false));
         assertThat(doAuthenticateInvoked.get(), is(true));
-        assertThat(cache.count(), equalTo(2));
+        assertThat(cache.count(), equalTo(1));  // invalid token not cached
         doAuthenticateInvoked.set(false); // reset
 
-        // 5th auth with the wrong token2 again should use cache
+        // 5th auth with the wrong token2 again does not use cache
         final PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
         store.authenticate(token2Invalid, future5);
         assertThat(future5.get(), is(false));
-        assertThat(doAuthenticateInvoked.get(), is(false));
+        assertThat(doAuthenticateInvoked.get(), is(true));
+        assertThat(cache.count(), equalTo(1));  // invalid token not cached
+        doAuthenticateInvoked.set(false); // reset
 
         // 6th auth with the right token2
         final PlainActionFuture<Boolean> future6 = new PlainActionFuture<>();

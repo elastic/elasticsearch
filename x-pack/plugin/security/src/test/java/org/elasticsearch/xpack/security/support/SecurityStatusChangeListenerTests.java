@@ -68,9 +68,9 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "built-in security features are not enabled",
             listener.getClass().getName(),
             Level.WARN,
-            "Elasticsearch built-in security features are not enabled, your cluster may be accessible without " +
-                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" +
-                Version.CURRENT.major + "." + Version.CURRENT.minor + "/get-started-enable-security.html for more information"
+            "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible " +
+                "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
         ));
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
@@ -99,9 +99,9 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "built-in security features are not enabled",
             listener.getClass().getName(),
             Level.WARN,
-            "Elasticsearch built-in security features are not enabled, your cluster may be accessible without " +
-                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" +
-                Version.CURRENT.major + "." + Version.CURRENT.minor + "/get-started-enable-security.html for more information"
+            "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible " +
+                "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
         ));
         listener.licenseStateChanged();
 

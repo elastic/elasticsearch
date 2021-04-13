@@ -67,6 +67,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -212,6 +213,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public Collection<MappedFieldType> getFieldTypes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public boolean isFieldMapped(String field) {
             return field.startsWith("int");
         }
@@ -243,6 +249,11 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query filterQuery(Query query) {
             throw new UnsupportedOperationException();
         }
 

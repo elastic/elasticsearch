@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -88,7 +89,8 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
                                 Consumer<InternalMappedTerms> verify, ValueType valueType) throws IOException {
-        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, randomBoolean(), true, null);
+        MappedFieldType keywordFieldType
+            = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, randomBoolean(), true, Collections.emptyMap());
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();

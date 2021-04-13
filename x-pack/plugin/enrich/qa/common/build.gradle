@@ -4,3 +4,9 @@ tasks.named("test").configure { enabled = false }
 dependencies {
   api project(':test:framework')
 }
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'false'
+}

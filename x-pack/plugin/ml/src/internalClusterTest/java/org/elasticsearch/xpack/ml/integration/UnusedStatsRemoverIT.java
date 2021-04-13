@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -53,7 +53,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(),
-            new IndexNameExpressionResolver(client.threadPool().getThreadContext()), future);
+            TestIndexNameExpressionResolver.newInstance(client().threadPool().getThreadContext()), future);
         future.actionGet();
     }
 

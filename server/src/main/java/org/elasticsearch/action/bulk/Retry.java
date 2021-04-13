@@ -111,7 +111,7 @@ public class Retry {
                 retry(currentBulkRequest);
             } else {
                 try {
-                    delegate.onFailure(e);
+                    super.onFailure(e);
                 } finally {
                     if (retryCancellable != null) {
                         retryCancellable.cancel();

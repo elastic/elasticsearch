@@ -13,6 +13,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 
 import java.net.InetAddress;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -53,6 +54,22 @@ final class GeoIpCache {
     AbstractResponse get(InetAddress ip, String databasePath) {
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         return cache.get(cacheKey);
+    }
+
+    public int purgeCacheEntriesForDatabase(Path databaseFile) {
+        String databasePath = databaseFile.toString();
+        int counter = 0;
+        for (CacheKey key : cache.keys()) {
+            if (key.databasePath.equals(databasePath)) {
+                cache.invalidate(key);
+                counter++;
+            }
+        }
+        return counter;
+    }
+
+    public int count() {
+        return cache.count();
     }
 
     /**

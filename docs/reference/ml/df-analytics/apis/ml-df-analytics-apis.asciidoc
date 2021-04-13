@@ -5,6 +5,7 @@
 
 You can use the following APIs to perform {ml} {dfanalytics} activities.
 
+* <<preview-dfanalytics,Preview {dfanalytics}>>
 * <<put-dfanalytics,Create {dfanalytics-jobs}>>
 * <<update-dfanalytics,Update {dfanalytics-jobs}>>
 * <<delete-dfanalytics,Delete {dfanalytics-jobs}>>

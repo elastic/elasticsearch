@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -30,15 +29,16 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -182,6 +182,23 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
     }
 
+    public void testGetAssignment_GivenResetInProgress() {
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        Metadata.Builder metadata = Metadata.builder();
+        MlMetadata mlMetadata = new MlMetadata.Builder().isResetMode(true).build();
+        csBuilder.metadata(metadata.putCustom(MlMetadata.TYPE, mlMetadata));
+
+        OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
+
+        Job job = mock(Job.class);
+        OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
+        params.setJob(job);
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.build());
+        assertNotNull(assignment);
+        assertNull(assignment.getExecutorNode());
+        assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());
+    }
+
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder) {
         addJobTask(jobId, nodeId, jobState, builder, false);
     }
@@ -243,6 +260,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {
         return new OpenJobPersistentTasksExecutor(
             settings, clusterService, autodetectProcessManager, datafeedConfigProvider, mlMemoryTracker, client,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            TestIndexNameExpressionResolver.newInstance());
     }
 }

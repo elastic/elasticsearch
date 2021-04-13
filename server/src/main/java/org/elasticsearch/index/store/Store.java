@@ -90,6 +90,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.LongUnaryOperator;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -337,10 +338,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     * @param localSizeFunction to calculate the local size of the shard based on the shard size.
      */
-    public StoreStats stats(long reservedBytes) throws IOException {
+    public StoreStats stats(long reservedBytes, LongUnaryOperator localSizeFunction) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize(), reservedBytes);
+        long sizeInBytes = directory.estimateSize();
+        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), sizeInBytes, reservedBytes);
     }
 
     /**

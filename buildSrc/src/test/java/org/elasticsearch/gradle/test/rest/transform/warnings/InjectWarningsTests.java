@@ -82,6 +82,6 @@ public class InjectWarningsTests extends InjectFeatureTests {
 
     @Override
     protected boolean getHumanDebug() {
-        return true;
+        return false;
     }
 }

@@ -407,14 +407,6 @@ public class DataCounts implements ToXContentObject, Writeable {
         this.latestRecordTimeStamp = latestRecordTimeStamp;
     }
 
-    public void updateLatestRecordTimeStamp(Date latestRecordTimeStamp) {
-        if (latestRecordTimeStamp != null &&
-                (this.latestRecordTimeStamp == null ||
-                latestRecordTimeStamp.after(this.latestRecordTimeStamp))) {
-            this.latestRecordTimeStamp = latestRecordTimeStamp;
-        }
-    }
-
     /**
      * The wall clock time the latest record was seen.
      *

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,16 +42,11 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("formattedSortValues and sortValueFormats must hold the same number of items");
         }
         this.rawSortValues = rawSortValues;
-        this.formattedSortValues = Arrays.copyOf(rawSortValues, rawSortValues.length);
+        this.formattedSortValues = new Object[rawSortValues.length];
         for (int i = 0; i < rawSortValues.length; ++i) {
-            Object sortValue = rawSortValues[i];
-            if (sortValue instanceof BytesRef) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
-            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
-            } else {
-                this.formattedSortValues[i] = sortValue;
-            }
+            final Object v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean: v + " was not formatted";
+            formattedSortValues[i] = v;
         }
     }
 

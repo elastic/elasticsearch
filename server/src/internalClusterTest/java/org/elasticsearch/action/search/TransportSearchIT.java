@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -101,9 +100,9 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("indices.breaker.request.type", "memory")
             .build();
     }
@@ -575,7 +574,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
         @Override

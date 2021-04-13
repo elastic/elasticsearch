@@ -277,9 +277,6 @@ public class TransformContinuousIT extends ESRestTestCase {
             waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
 
-            // TODO: the transform dest index requires a refresh, see gh#51154
-            refreshAllIndices();
-
             // test the output
             for (ContinuousTestCase testCase : transformTestCases) {
                 try {

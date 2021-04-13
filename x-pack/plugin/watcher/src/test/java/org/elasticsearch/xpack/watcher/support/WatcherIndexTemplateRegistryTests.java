@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -251,26 +250,6 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
             assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
         }
-    }
-
-    // if a node is newer than the master node, the template needs to be applied as well
-    // otherwise a rolling upgrade would not work as expected, when the node has a .watches shard on it
-    public void testThatTemplatesAreAppliedOnNewerNodes() {
-        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(),
-            VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
-
-        Map<String, Integer> existingTemplates = new HashMap<>();
-        existingTemplates.put(".watch-history-6", 6);
-        ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
-        registry.clusterChanged(event);
-
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor =
-            ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
-        assertTrue(argumentCaptor.getAllValues().stream()
-            .anyMatch(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME)));
     }
 
     public void testThatTemplatesAreNotAppliedOnSameVersionNodes() {

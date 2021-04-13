@@ -304,7 +304,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
             final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
             segmentDocCounts = bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
-            assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
+            assert sub.isNoop();
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             mapping = valuesSource.globalOrdinalsMapping(ctx);
             // Dense mode doesn't support include/exclude so we don't have to check it here.

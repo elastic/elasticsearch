@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-put-lifecycle]]
-=== Create lifecycle policy API
+=== Create or update lifecycle policy API
 ++++
-<titleabbrev>Create policy</titleabbrev>
+<titleabbrev>Create or update lifecycle policy</titleabbrev>
 ++++
 
 Creates or updates lifecycle policy. See <<ilm-policy-definition>> for

@@ -9,7 +9,11 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -25,4 +29,33 @@ public interface FieldValues<T> {
      * @param consumer  called with each document value
      */
     void valuesForDoc(SearchLookup lookup, LeafReaderContext ctx, int doc, Consumer<T> consumer);
+
+    /**
+     * Creates a {@link ValueFetcher} that fetches values from a {@link FieldValues} instance
+     * @param fieldValues the source of the values
+     * @param context the search execution context
+     * @return the value fetcher
+     */
+    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, SearchExecutionContext context) {
+        return new ValueFetcher() {
+            LeafReaderContext ctx;
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                this.ctx = context;
+            }
+
+            @Override
+            public List<Object> fetchValues(SourceLookup lookup)  {
+                List<Object> values = new ArrayList<>();
+                try {
+                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), values::add);
+                } catch (Exception e) {
+                    // ignore errors - if they exist here then they existed at index time
+                    // and so on_script_error must have been set to `ignore`
+                }
+                return values;
+            }
+        };
+    }
 }

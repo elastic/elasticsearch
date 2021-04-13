@@ -174,7 +174,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeMap(metadata);
         }
     }

@@ -22,8 +22,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -53,7 +51,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -129,7 +126,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -161,16 +157,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
-
-        @Override
-        public boolean isEnabledByDefault(final Settings settings) {
-            // don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            return (DiscoveryNode.hasDataRole(settings) || DataTier.isExplicitDataTier(settings));
-        }
-
-    };
 
     public Transform(Settings settings) {
         this.settings = settings;
@@ -320,11 +306,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(NUM_FAILURE_RETRIES_SETTING);
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(TRANSFORM_ROLE);
     }
 
     @Override

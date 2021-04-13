@@ -24,5 +24,6 @@ Responds with a fixed required capacity. This decider is intended for testing on
 
 include::deciders/reactive-storage-decider.asciidoc[]
 include::deciders/proactive-storage-decider.asciidoc[]
+include::deciders/frozen-shards-decider.asciidoc[]
 include::deciders/machine-learning-decider.asciidoc[]
 include::deciders/fixed-decider.asciidoc[]

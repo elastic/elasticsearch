@@ -78,7 +78,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     private void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
-        if (Strings.hasLength(response.getScrollId()) && response.hasRemainingHits() == false) {
+        if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
             doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);
         } else {

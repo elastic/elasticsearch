@@ -253,6 +253,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void onScrollResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
+        onScrollResponse(new ScrollConsumableHitsResponse(asyncResponse));
+    }
+
+    void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
         // lastBatchStartTime is essentially unused (see WorkerBulkByScrollTaskState.throttleWaitTime. Leaving it for now, since it seems
         // like a bug?
         onScrollResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
@@ -264,9 +268,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param lastBatchSize the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from ScrollableHitSource
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSize, ScrollableHitSource.AsyncResponse asyncResponse) {
+    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSize, ScrollConsumableHitsResponse asyncResponse) {
         ScrollableHitSource.Response response = asyncResponse.response();
-        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), response.remainingHits());
+        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
@@ -309,15 +313,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
      */
-    void prepareBulkRequest(long thisBatchStartTimeNS, ScrollableHitSource.AsyncResponse asyncResponse) {
-        ScrollableHitSource.Response response = asyncResponse.response();
+    void prepareBulkRequest(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
-        if (response.hasRemainingHits() == false) {
+        if (asyncResponse.hasRemainingHits() == false) {
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }
@@ -327,10 +330,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
             // Truncate the hits if we have more than the request max docs
             long remainingDocsToProcess = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
-            hits = remainingDocsToProcess < response.remainingHits() ? response.consumeHits((int) remainingDocsToProcess)
-                                                                     : response.consumeRemainingHits();
+            hits = remainingDocsToProcess < asyncResponse.remainingHits() ? asyncResponse.consumeHits((int) remainingDocsToProcess)
+                                                                          : asyncResponse.consumeRemainingHits();
         } else {
-            hits = response.consumeRemainingHits();
+            hits = asyncResponse.consumeRemainingHits();
         }
 
         BulkRequest request = buildBulk(hits);
@@ -430,7 +433,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     void notifyDone(long thisBatchStartTimeNS,
-                    ScrollableHitSource.AsyncResponse asyncResponse,
+                    ScrollConsumableHitsResponse asyncResponse,
                     int batchSize) {
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
@@ -440,7 +443,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.lastBatchSize = batchSize;
         this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
 
-        if (asyncResponse.response().hasRemainingHits() == false) {
+        if (asyncResponse.hasRemainingHits() == false) {
             int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
             asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
         } else {
@@ -868,6 +871,53 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public String toString() {
             return id.toLowerCase(Locale.ROOT);
+        }
+    }
+
+    static class ScrollConsumableHitsResponse {
+        private final ScrollableHitSource.AsyncResponse asyncResponse;
+        private final List<? extends ScrollableHitSource.Hit> hits;
+        private final AtomicInteger consumedOffset = new AtomicInteger(0);
+
+        ScrollConsumableHitsResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
+            this.asyncResponse = asyncResponse;
+            this.hits = asyncResponse.response().getHits();
+        }
+
+        ScrollableHitSource.Response response() {
+            return asyncResponse.response();
+        }
+
+        List<? extends ScrollableHitSource.Hit> consumeRemainingHits() {
+            return consumeHits(remainingHits());
+        }
+
+        List<? extends ScrollableHitSource.Hit> consumeHits(int numberOfHits) {
+            if (numberOfHits < 0) {
+                throw new IllegalArgumentException("Invalid number of hits to consume [" + numberOfHits + "]");
+            }
+
+            if (numberOfHits > remainingHits()) {
+                throw new IllegalArgumentException(
+                    "Unable to provide [" + numberOfHits + "] hits as there are only [" + remainingHits() + "] hits available"
+                );
+            }
+
+            int start = consumedOffset.get();
+            int end = consumedOffset.addAndGet(numberOfHits);
+            return hits.subList(start, end);
+        }
+
+        boolean hasRemainingHits() {
+            return remainingHits() > 0;
+        }
+
+        int remainingHits() {
+            return hits.size() - consumedOffset.get();
+        }
+
+        void done(TimeValue extraKeepAlive) {
+            asyncResponse.done(extraKeepAlive);
         }
     }
 }

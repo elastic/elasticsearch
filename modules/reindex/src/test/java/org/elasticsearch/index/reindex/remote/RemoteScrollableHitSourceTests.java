@@ -58,7 +58,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -156,12 +155,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertThat(hits, hasSize(1));
-            assertEquals("test", hits.get(0).getIndex());
-            assertEquals("AVToMiC250DjIiBO3yJ_", hits.get(0).getId());
-            assertEquals("{\"test\":\"test2\"}", hits.get(0).getSource().utf8ToString());
-            assertNull(hits.get(0).getRouting());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().get(0).getIndex());
+            assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test2\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertNull(r.getHits().get(0).getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -174,12 +172,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertThat(hits, hasSize(1));
-            assertEquals("test", hits.get(0).getIndex());
-            assertEquals("AVToMiDL50DjIiBO3yKA", hits.get(0).getId());
-            assertEquals("{\"test\":\"test3\"}", hits.get(0).getSource().utf8ToString());
-            assertNull(hits.get(0).getRouting());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().get(0).getIndex());
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertNull(r.getHits().get(0).getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -191,10 +188,9 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testParseScrollFullyLoaded() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("scroll_fully_loaded.json").doStartNextScroll("", timeValueMillis(0), wrapAsListener(r -> {
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertEquals("AVToMiDL50DjIiBO3yKA", hits.get(0).getId());
-            assertEquals("{\"test\":\"test3\"}", hits.get(0).getSource().utf8ToString());
-            assertEquals("testrouting", hits.get(0).getRouting());
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertEquals("testrouting", r.getHits().get(0).getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -206,10 +202,9 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testParseScrollFullyLoadedFrom1_7() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doStartNextScroll("", timeValueMillis(0), wrapAsListener(r -> {
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertEquals("AVToMiDL50DjIiBO3yKA", hits.get(0).getId());
-            assertEquals("{\"test\":\"test3\"}", hits.get(0).getSource().utf8ToString());
-            assertEquals("testrouting", hits.get(0).getRouting());
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertEquals("testrouting", r.getHits().get(0).getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -226,12 +221,11 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertThat(hits, hasSize(1));
-            assertEquals("test", hits.get(0).getIndex());
-            assertEquals("AVToMiDL50DjIiBO3yKA", hits.get(0).getId());
-            assertEquals("{\"test\":\"test3\"}", hits.get(0).getSource().utf8ToString());
-            assertNull(hits.get(0).getRouting());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().get(0).getIndex());
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertNull(r.getHits().get(0).getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -254,11 +248,10 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                     + "EsThreadPoolExecutor[search, queue capacity = 1000, org.elasticsearch.common.util.concurrent."
                     + "EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
                     + "completed tasks = 4182]]", r.getFailures().get(0).getReason().getMessage());
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertThat(hits, hasSize(1));
-            assertEquals("test", hits.get(0).getIndex());
-            assertEquals("AVToMiC250DjIiBO3yJ_", hits.get(0).getId());
-            assertEquals("{\"test\":\"test1\"}", hits.get(0).getSource().utf8ToString());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().get(0).getIndex());
+            assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test1\"}", r.getHits().get(0).getSource().utf8ToString());
             called.set(true);
         };
         sourceWithMockedRemoteCall("rejection.json").doStart(wrapAsListener(checkResponse));
@@ -283,11 +276,10 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             assertThat(r.getFailures().get(0).getReason(), instanceOf(RuntimeException.class));
             assertEquals("Unknown remote exception with reason=[SearchContextMissingException[No search context found for id [82]]]",
                     r.getFailures().get(0).getReason().getMessage());
-            final List<? extends ScrollableHitSource.Hit> hits = r.consumeRemainingHits();
-            assertThat(hits, hasSize(1));
-            assertEquals("test", hits.get(0).getIndex());
-            assertEquals("10000", hits.get(0).getId());
-            assertEquals("{\"test\":\"test10000\"}", hits.get(0).getSource().utf8ToString());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().get(0).getIndex());
+            assertEquals("10000", r.getHits().get(0).getId());
+            assertEquals("{\"test\":\"test10000\"}", r.getHits().get(0).getSource().utf8ToString());
             called.set(true);
         };
         sourceWithMockedRemoteCall("failure_with_status.json").doStart(wrapAsListener(checkResponse));

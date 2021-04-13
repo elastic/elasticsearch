@@ -11,6 +11,10 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.standalone-test'
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 testClusters.matching { it.name == "integTest" }.configureEach {
   /**
    * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch

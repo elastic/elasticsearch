@@ -109,7 +109,7 @@ public abstract class Node<T extends Node<T>> {
     protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
         for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
-            if (prop != children && !children.contains(prop) && typeToken.isInstance(prop)) {
+            if (prop != children && children.contains(prop) == false && typeToken.isInstance(prop)) {
                 rule.accept((E) prop);
             }
         }

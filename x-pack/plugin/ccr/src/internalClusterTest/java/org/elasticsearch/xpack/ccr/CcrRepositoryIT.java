@@ -604,6 +604,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     ) {
                         simulatedFailures.incrementAndGet();
                         channel.sendResponse(new ElasticsearchException("simulated"));
+                        return;
                     }
                 }
                 handler.messageReceived(request, channel, task);

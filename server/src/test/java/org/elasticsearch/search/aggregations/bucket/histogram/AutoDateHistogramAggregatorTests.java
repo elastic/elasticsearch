@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -27,7 +28,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -272,6 +275,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
                     new SortedSetDocValuesField("k1", aBytes),
                     new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
+                    new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
+                    new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                     new SortedNumericDocValuesField("n", n++)
                 ));
             }
@@ -396,6 +401,22 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 assertEquals(0, histogram.getBuckets().size());
                 assertFalse(AggregationInspectionHelper.hasValue(histogram));
             }, fieldType);
+    }
+
+    public void testBooleanFieldDeprecated() throws IOException {
+        final String fieldName = "bogusBoolean";
+        testCase(
+            new AutoDateHistogramAggregationBuilder("name").field(fieldName),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField(fieldName, 0));
+                iw.addDocument(d);
+            },
+            a -> {},
+            new BooleanFieldMapper.BooleanFieldType(fieldName)
+        );
+        assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testUnmappedMissing() throws IOException {

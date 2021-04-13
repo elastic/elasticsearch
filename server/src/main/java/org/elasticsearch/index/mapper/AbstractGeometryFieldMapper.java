@@ -72,9 +72,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         /**
          * Parses the given value, then formats it according to the 'format' string.
          *
-         * By default, this method simply parses the value using {@link Parser#parse}, then formats
-         * it with {@link Parser#format}. However some {@link Parser} implementations override this
-         * as they can avoid parsing the value if it is already in the right format.
+         * Used by value fetchers to validate and format geo objects
          */
         public Object parseAndFormatObject(Object value, String format) {
             Parsed geometry;
@@ -144,7 +142,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
                                           Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.indexer = indexer;

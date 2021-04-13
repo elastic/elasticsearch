@@ -13,7 +13,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -32,18 +31,12 @@ public class PrecommitTaskPlugin implements Plugin<Project> {
                 "lifecycle-base",
                 p -> project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit))
             );
-        project.getPluginManager()
-            .withPlugin(
-                "java",
-                p -> {
-                    // run compilation as part of precommit
-                    for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
-                        precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName()));
-                    }
+        project.getPluginManager().withPlugin("java", p -> {
+            // run compilation as part of precommit
+            GradleUtils.getJavaSourceSets(project).all(sourceSet -> precommit.configure(t -> t.dependsOn(sourceSet.getClassesTaskName())));
 
-                    // make sure tests run after all precommit tasks
-                    project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
-                }
-            );
+            // make sure tests run after all precommit tasks
+            project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
+        });
     }
 }

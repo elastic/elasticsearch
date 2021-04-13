@@ -19,8 +19,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
-
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
 public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 

@@ -379,7 +379,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 logger.error("error executing bulk", failure);
             }
-        })
+        }, "watcher")
             .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
             .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
@@ -530,7 +530,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(final Settings settings) {
-        return getWatcherThreadPoolSize(DiscoveryNode.isDataNode(settings), EsExecutors.allocatedProcessors(settings));
+        return getWatcherThreadPoolSize(DiscoveryNode.canContainData(settings), EsExecutors.allocatedProcessors(settings));
     }
 
     static int getWatcherThreadPoolSize(final boolean isDataNode, final int allocatedProcessors) {

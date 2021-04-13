@@ -37,8 +37,8 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static final String INDEX_NAME = "index";
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
-        return BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+        return BulkProcessor.builder((request, bulkListener)
+                -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener, "BulkProcessorRetryIT");
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Exception {

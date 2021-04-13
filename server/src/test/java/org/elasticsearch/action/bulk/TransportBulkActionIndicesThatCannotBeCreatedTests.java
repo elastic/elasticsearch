@@ -29,7 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -108,16 +108,17 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
 
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
-            @Override
-            public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
-                return shouldAutoCreate.apply(indexAbstraction) == false;
-            }
+        final IndexNameExpressionResolver indexNameExpressionResolver =
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
+                @Override
+                public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
+                    return shouldAutoCreate.apply(indexAbstraction) == false;
+                }
         };
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
             null, null, mock(ActionFilters.class), indexNameExpressionResolver,
-            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of())) {
+            new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

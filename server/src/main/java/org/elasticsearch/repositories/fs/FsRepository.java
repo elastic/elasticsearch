@@ -103,4 +103,11 @@ public class FsRepository extends BlobStoreRepository {
     protected ByteSizeValue chunkSize() {
         return chunkSize;
     }
+
+    @Override
+    public boolean hasAtomicOverwrites() {
+        // We overwrite a file by deleting the old file and then renaming the new file into place, which is not atomic.
+        // Also on Windows the overwrite may fail if the file is opened for reading at the time.
+        return false;
+    }
 }

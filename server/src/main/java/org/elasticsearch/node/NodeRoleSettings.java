@@ -27,7 +27,11 @@ public class NodeRoleSettings {
             .filter(role -> role.isEnabledByDefault(settings))
             .map(DiscoveryNodeRole::roleName)
             .collect(Collectors.toList()),
-        roles -> {},
+        roles -> {
+            for (final DiscoveryNodeRole role : roles) {
+                role.validateRoles(roles);
+            }
+        },
         Property.NodeScope
     );
 

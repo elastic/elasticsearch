@@ -8,11 +8,10 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -20,7 +19,7 @@ import java.util.SortedSet;
 /**
  * Represents a node role.
  */
-public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
+public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private final String roleName;
 
@@ -59,7 +58,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     private final boolean isKnownRole;
 
     public boolean isEnabledByDefault(final Settings settings) {
-        return legacySetting() != null && legacySetting().get(settings);
+        return true;
+    }
+
+    /**
+     * Validate this role against all configured roles. Implementors are expected to throw an {@link IllegalArgumentException} when the
+     * combination of configured roles is invalid with this role.
+     *
+     * @param roles the complete set of configured roles
+     */
+    public void validateRoles(final List<DiscoveryNodeRole> roles) {
+
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
@@ -68,8 +77,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
         this(true, roleName, roleNameAbbreviation, canContainData);
-        assert canContainData == isDataRoleBasedOnNamingConvention(roleName) :
-            "Role '" + roleName + "' not compliant to data role naming convention";
     }
 
     private DiscoveryNodeRole(
@@ -83,8 +90,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
         this.canContainData = canContainData;
     }
-
-    public abstract Setting<Boolean> legacySetting();
 
     @Override
     public final boolean equals(Object o) {
@@ -120,56 +125,81 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * Represents the role for a data node.
      */
-    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true) {
+    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true);
+
+    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
 
         @Override
-        public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
-            return Setting.boolSetting("node.data", true, Property.Deprecated, Property.NodeScope);
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
         }
 
     };
 
-    /**
-     * Allows determining the "data" property without the need to load plugins, but does this purely based on
-     * naming conventions.
-     */
-    static boolean isDataRoleBasedOnNamingConvention(String role) {
-        return role.equals("data") || role.startsWith("data_");
-    }
+    public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+    };
+
+    public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+    };
+
+    public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+    };
+
+    public static DiscoveryNodeRole DATA_FROZEN_NODE_ROLE = new DiscoveryNodeRole("data_frozen", "f", true) {
+
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+        }
+
+    };
 
     /**
      * Represents the role for an ingest node.
      */
-    public static final DiscoveryNodeRole INGEST_ROLE = new DiscoveryNodeRole("ingest", "i") {
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
-            return Setting.boolSetting("node.ingest", true, Property.Deprecated, Property.NodeScope);
-        }
-
-    };
+    public static final DiscoveryNodeRole INGEST_ROLE = new DiscoveryNodeRole("ingest", "i");
 
     /**
      * Represents the role for a master-eligible node.
      */
-    public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m") {
+    public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m");
+
+    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r");
+
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
+
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
+
+    public static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
 
         @Override
-        public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
-            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+        public boolean isEnabledByDefault(final Settings settings) {
+            return false;
         }
 
-    };
-
-    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
-
         @Override
-        public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.elasticsearch.node.Node
-            return Setting.boolSetting("node.remote_cluster_client", true, Property.Deprecated, Property.NodeScope);
+        public void validateRoles(final List<DiscoveryNodeRole> roles) {
+            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false) {
+                throw new IllegalArgumentException("voting-only node must be master-eligible");
+            }
         }
 
     };
@@ -178,7 +208,20 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
      * The built-in node roles.
      */
     public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
-        Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE).stream().collect(Sets.toUnmodifiableSortedSet());
+        Set.of(
+            DATA_ROLE,
+            INGEST_ROLE,
+            MASTER_ROLE,
+            REMOTE_CLUSTER_CLIENT_ROLE,
+            DATA_CONTENT_NODE_ROLE,
+            DATA_HOT_NODE_ROLE,
+            DATA_WARM_NODE_ROLE,
+            DATA_COLD_NODE_ROLE,
+            DATA_FROZEN_NODE_ROLE,
+            ML_ROLE,
+            TRANSFORM_ROLE,
+            VOTING_ONLY_NODE_ROLE
+        ).stream().collect(Sets.toUnmodifiableSortedSet());
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -195,13 +238,6 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
          */
         UnknownRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
             super(false, roleName, roleNameAbbreviation, canContainData);
-        }
-
-        @Override
-        public Setting<Boolean> legacySetting() {
-            // since this setting is not registered, it will always return false when testing if the local node has the role
-            assert false;
-            return Setting.boolSetting("node. " + roleName(), false, Setting.Property.NodeScope);
         }
 
     }

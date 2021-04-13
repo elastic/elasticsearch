@@ -1,13 +1,18 @@
 ---
 setup:
   - skip:
-      features: warnings
+      features:
+        - warnings
+        - warnings_regex
 ---
 "Test warnings":
   - do:
       warnings:
         - "a"
         - "b"
+      warnings_regex:
+        - "c"
+        - "d"
       something:
         id: "something"
   - match: { acknowledged: true }
@@ -17,6 +22,9 @@ setup:
       warnings:
         - "a"
         - "b"
+      warnings_regex:
+        - "c"
+        - "d"
       something:
         id: "something"
   - match: { acknowledged: true }

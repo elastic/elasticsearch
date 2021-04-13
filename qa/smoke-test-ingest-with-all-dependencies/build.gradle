@@ -19,6 +19,10 @@ dependencies {
   testImplementation project(':modules:reindex')
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("testingConventions").configure {
   naming {
     IT {

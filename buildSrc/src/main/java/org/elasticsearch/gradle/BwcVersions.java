@@ -169,12 +169,13 @@ public class BwcVersions {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
-        List<UnreleasedVersionInfo> collect = getUnreleased().stream()
-            .filter(version -> version.equals(currentVersion) == false)
+        List<UnreleasedVersionInfo> collect = filterSupportedVersions(
+            getUnreleased().stream().filter(version -> version.equals(currentVersion) == false).collect(Collectors.toList())
+        ).stream()
             .map(version -> new UnreleasedVersionInfo(version, getBranchFor(version), getGradleProjectPathFor(version)))
             .collect(Collectors.toList());
 
-        collect.forEach(uvi -> consumer.accept(uvi));
+        collect.forEach(consumer::accept);
     }
 
     private String getGradleProjectPathFor(Version version) {

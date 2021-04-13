@@ -110,23 +110,24 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
+JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 15 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions IntelliJ 2019.2 and
+We support development in IntelliJ versions IntelliJ 2020.1 and
 onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
@@ -150,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+Elasticsearch builds using Java 15. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
+"15"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -215,7 +216,7 @@ automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >

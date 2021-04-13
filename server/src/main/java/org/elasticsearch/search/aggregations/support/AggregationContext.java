@@ -41,6 +41,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -111,6 +112,11 @@ public abstract class AggregationContext implements Releasable {
     public abstract MappedFieldType getFieldType(String path);
 
     /**
+     * Returns the registered mapped field types.
+     */
+    public abstract Collection<MappedFieldType> getFieldTypes();
+
+    /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
      */
     public abstract boolean isFieldMapped(String field);
@@ -152,6 +158,13 @@ public abstract class AggregationContext implements Releasable {
      * Build a query.
      */
     public abstract Query buildQuery(QueryBuilder builder) throws IOException;
+
+    /**
+     * Add filters from slice or filtered aliases. If you make a new query
+     * and don't combine it with the {@link #query() top level query} then
+     * you must provide it to this method.
+     */
+    public abstract Query filterQuery(Query query);
 
     /**
      * The settings for the index against which this search is running.
@@ -250,6 +263,7 @@ public abstract class AggregationContext implements Releasable {
         private final int randomSeed;
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
+        private final Function<Query, Query> filterQuery;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
@@ -264,7 +278,8 @@ public abstract class AggregationContext implements Releasable {
             BitsetFilterCache bitsetFilterCache,
             int randomSeed,
             LongSupplier relativeTimeInMillis,
-            Supplier<Boolean> isCancelled
+            Supplier<Boolean> isCancelled,
+            Function<Query, Query> filterQuery
         ) {
             this.context = context;
             if (bytesToPreallocate == 0) {
@@ -294,6 +309,7 @@ public abstract class AggregationContext implements Releasable {
             this.randomSeed = randomSeed;
             this.relativeTimeInMillis = relativeTimeInMillis;
             this.isCancelled = isCancelled;
+            this.filterQuery = filterQuery;
         }
 
         @Override
@@ -330,6 +346,11 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
+        public Collection<MappedFieldType> getFieldTypes() {
+            return context.getFieldTypes();
+        }
+
+        @Override
         public boolean isFieldMapped(String field) {
             return context.isFieldMapped(field);
         }
@@ -362,6 +383,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
             return Rewriteable.rewrite(builder, context, true).toQuery(context);
+        }
+
+        @Override
+        public Query filterQuery(Query query) {
+            return filterQuery.apply(query);
         }
 
         @Override

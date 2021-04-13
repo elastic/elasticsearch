@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -265,6 +267,35 @@ public class DataTierIT extends ESIntegTestCase {
                 .put("index.number_of_replicas", 0))
             .setWaitForActiveShards(0)
             .get();
+    }
+
+    public void testIllegalOnFrozen() {
+        startDataNode();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex(index, Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_FROZEN)
+                .build()));
+        assertThat(e.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+
+        String initialTier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
+        createIndex(index, Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, initialTier)
+            .build());
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> updatePreference(DataTier.DATA_FROZEN));
+        assertThat(e2.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+
+        updatePreference(randomValueOtherThan(initialTier, () -> randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD)));
+    }
+
+    private void updatePreference(String tier) {
+        client().admin().indices().updateSettings(new UpdateSettingsRequest(index)
+            .settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))).actionGet();
     }
 
     private DataTiersFeatureSetUsage getUsage() {

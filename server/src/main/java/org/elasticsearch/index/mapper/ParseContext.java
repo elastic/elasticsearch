@@ -274,12 +274,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             in.addDynamicRuntimeField(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return in.getDynamicRuntimeFields();
         }
 
@@ -305,7 +305,7 @@ public abstract class ParseContext {
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
-        private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
+        private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
@@ -380,7 +380,7 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return this.mappingLookup.getMapping().root();
+            return this.mappingLookup.getMapping().getRoot();
         }
 
         @Override
@@ -390,7 +390,7 @@ public abstract class ParseContext {
 
         @Override
         public MetadataFieldMapper getMetadataMapper(String mapperName) {
-            return mappingLookup.getMapping().getMetadataMapper(mapperName);
+            return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
         }
 
         @Override
@@ -437,12 +437,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             dynamicRuntimeFields.add(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return Collections.unmodifiableList(dynamicRuntimeFields);
         }
 
@@ -662,10 +662,33 @@ public abstract class ParseContext {
     /**
      * Add a new runtime field dynamically created while parsing.
      */
-    public abstract void addDynamicRuntimeField(RuntimeFieldType runtimeField);
+    public abstract void addDynamicRuntimeField(RuntimeField runtimeField);
 
     /**
      * Get dynamic runtime fields created while parsing.
      */
-    public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
+    public abstract List<RuntimeField> getDynamicRuntimeFields();
+
+    /**
+     * Find a dynamic mapping template for the given field and its matching type
+     *
+     * @param fieldName the name of the field
+     * @param matchType the expecting matchType of the field
+     * @return the matching template; otherwise returns null
+     * @throws MapperParsingException if the given field has a dynamic template name specified, but no template matches that name.
+     */
+    public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
+        final String pathAsString = path().pathAsText(fieldName);
+        final String matchTemplateName = sourceToParse().dynamicTemplates().get(pathAsString);
+        for (DynamicTemplate template : root().dynamicTemplates()) {
+            if (template.match(matchTemplateName, pathAsString, fieldName, matchType)) {
+                return template;
+            }
+        }
+        if (matchTemplateName != null) {
+            throw new MapperParsingException(
+                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]");
+        }
+        return null;
+    }
 }

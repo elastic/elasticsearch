@@ -22,8 +22,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore 'indices', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'repositories-metering-api'
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
   }
 }
 
@@ -47,6 +46,10 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(fixture.path, 'azure-fixture-repositories-metering')
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("integTest") {

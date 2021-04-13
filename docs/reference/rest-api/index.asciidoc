@@ -14,6 +14,7 @@ not be included yet.
 * <<autoscaling-apis, Autoscaling APIs>>
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
+* <<features-apis,Features APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-stream-apis,Data stream APIs>>
 * <<docs, Document APIs>>
@@ -50,6 +51,7 @@ include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
+include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
 include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]

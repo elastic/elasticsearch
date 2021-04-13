@@ -1165,6 +1165,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     private Document stringValueRollupDoc(String stringValue, long docCount) {
         Document doc = new Document();
         doc.add(new SortedSetDocValuesField("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue)));
+        doc.add(new Field("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new SortedNumericDocValuesField("stringfield.terms." + RollupField.COUNT_FIELD, docCount));
         return doc;
     }

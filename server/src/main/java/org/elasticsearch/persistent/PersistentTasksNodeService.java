@@ -170,33 +170,17 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             return;
         }
 
-        boolean processed = false;
-        Exception initializationException = null;
         try {
             task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
             logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was created", task.getAction(),
-                    task.getPersistentTaskId(), task.getAllocationId());
-            try {
-                runningTasks.put(taskInProgress.getAllocationId(), task);
-                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
-            } catch (Exception e) {
-                // Submit task failure
-                task.markAsFailed(e);
-            }
-            processed = true;
-        }
-        catch (Exception e) {
-            initializationException = e;
-        } finally {
-            if (processed == false) {
-                // something went wrong - unregistering task
-                logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
-                        task.getPersistentTaskId(), task.getAllocationId());
-                taskManager.unregister(task);
-                if (initializationException != null) {
-                    notifyMasterOfFailedTask(taskInProgress, initializationException);
-                }
-            }
+                task.getPersistentTaskId(), task.getAllocationId());
+            runningTasks.put(taskInProgress.getAllocationId(), task);
+            nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
+        } catch (Exception e) {
+            // something went wrong - unregistering task
+            logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
+                task.getPersistentTaskId(), task.getAllocationId());
+            task.markAsFailed(e);
         }
     }
 

@@ -34,7 +34,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
 
-public class PersistentTaskInitializationFailureTests extends ESIntegTestCase {
+public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(FailingInitializationPersistentTasksPlugin.class);

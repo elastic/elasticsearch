@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDo
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -82,9 +80,7 @@ public class PyTorchStateStreamer {
             modelSizeWritten = true;
         }
 
-        byte[] rawBytes = Base64.getDecoder().decode(doc.getCompressedString().getBytes(StandardCharsets.UTF_8));
-        outputStream.write(rawBytes);
-
+        outputStream.write(doc.getBinaryData());
         return true;
     }
 

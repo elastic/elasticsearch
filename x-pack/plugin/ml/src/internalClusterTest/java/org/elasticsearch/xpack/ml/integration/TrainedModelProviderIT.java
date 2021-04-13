@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -46,7 +47,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
-import static org.elasticsearch.xpack.ml.integration.ChunkedTrainedModelPersisterIT.chunkStringWithSize;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -228,7 +228,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         TrainedModelDefinitionDoc truncatedDoc = new TrainedModelDefinitionDoc.Builder()
             .setDocNum(0)
-            .setCompressedString(config.getCompressedDefinition().substring(0, config.getCompressedDefinition().length() - 10))
+            .setBinaryData(config.getCompressedDefinition().slice(0, config.getCompressedDefinition().length() - 10).array())
             .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
             .setDefinitionLength(config.getCompressedDefinition().length())
             .setTotalDefinitionLength(config.getCompressedDefinition().length())
@@ -351,15 +351,15 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(definitionHolder.get(), is(not(nullValue())));
     }
 
-    private List<TrainedModelDefinitionDoc.Builder> createModelDefinitionDocs(String compressedDefinition, String modelId) {
-        List<String> chunks = chunkStringWithSize(compressedDefinition, compressedDefinition.length()/3);
+    private List<TrainedModelDefinitionDoc.Builder> createModelDefinitionDocs(BytesReference compressedDefinition, String modelId) {
+        List<byte[]> chunks = TrainedModelProvider.chunkDefinitionWithSize(compressedDefinition, compressedDefinition.length()/3);
 
         return IntStream.range(0, chunks.size())
             .mapToObj(i -> new TrainedModelDefinitionDoc.Builder()
                 .setDocNum(i)
-                .setCompressedString(chunks.get(i))
+                .setBinaryData(chunks.get(i))
                 .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                .setDefinitionLength(chunks.get(i).length())
+                .setDefinitionLength(chunks.get(i).length)
                 .setEos(i == chunks.size() - 1)
                 .setModelId(modelId))
             .collect(Collectors.toList());

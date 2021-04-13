@@ -115,8 +115,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 
@@ -170,7 +169,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         assertThat(reference.utf8ToString(), containsString("\"definition\""));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
-    
+
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
@@ -263,9 +262,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         xContentTester(this::createParser,
             () -> {
             try {
-                String compressedString = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
+                BytesReference bytes = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
                 return createTestInstance(randomAlphaOfLength(10))
-                    .setDefinitionFromString(compressedString)
+                    .setDefinitionFromBytes(bytes)
                     .build();
             } catch (IOException ex) {
                 fail(ex.getMessage());
@@ -294,10 +293,10 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         xContentTester(this::createParser,
             () -> {
                 try {
-                    String compressedString =
+                    BytesReference bytes =
                         InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
                     return createTestInstance(randomAlphaOfLength(10))
-                        .setDefinitionFromString(compressedString)
+                        .setDefinitionFromBytes(bytes)
                         .build();
                 } catch (IOException ex) {
                     fail(ex.getMessage());

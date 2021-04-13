@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -25,9 +26,11 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -144,6 +147,16 @@ public class TrainedModelProviderTests extends ESTestCase {
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> trainedModelProvider.loadModelFromResource("missing_model", randomBoolean()));
         assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, "missing_model")));
+    }
+
+    public void testChunkDefinitionWithSize() {
+        byte[] bytes = randomByteArrayOfLength(100);
+        List<byte[]> chunks = TrainedModelProvider.chunkDefinitionWithSize(new BytesArray(bytes), 30);
+        assertThat(chunks, hasSize(4));
+        assertArrayEquals(Arrays.copyOfRange(bytes, 0, 30), chunks.get(0));
+        assertArrayEquals(Arrays.copyOfRange(bytes, 30, 60), chunks.get(1));
+        assertArrayEquals(Arrays.copyOfRange(bytes, 60, 90), chunks.get(2));
+        assertArrayEquals(Arrays.copyOfRange(bytes, 90, 100), chunks.get(3));
     }
 
     @Override

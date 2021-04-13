@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,8 +38,10 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -248,15 +252,15 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     @Nullable
-    public String getCompressedDefinition() throws IOException {
+    public BytesReference getCompressedDefinition() throws IOException {
         if (definition == null) {
             return null;
         }
-        return definition.getCompressedString();
+        return definition.compressedRepresentation;
     }
 
     public void clearCompressed() {
-        definition.compressedString = null;
+        definition.compressedRepresentation = null;
     }
 
     public TrainedModelConfig ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
@@ -348,7 +352,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
                 builder.field(DEFINITION.getPreferredName(), definition);
             } else {
-                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedString());
+                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.compressedRepresentation);
             }
         }
         builder.field(TAGS.getPreferredName(), tags);
@@ -564,11 +568,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setDefinitionFromString(String definitionFromString) {
-            if (definitionFromString == null) {
+        public Builder setDefinitionFromBytes(BytesReference definition) {
+            if (definition == null) {
                 return this;
             }
-            this.definition = LazyModelDefinition.fromCompressedString(definitionFromString);
+            this.definition = LazyModelDefinition.fromCompressedData(definition);
             return this;
         }
 
@@ -605,7 +609,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     DEFINITION.getPreferredName())
                     .getFormattedMessage());
             }
-            this.definition = LazyModelDefinition.fromCompressedString(compressedString);
+            this.definition = LazyModelDefinition.fromBase64String(compressedString);
             return this;
         }
 
@@ -762,54 +766,61 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public static class LazyModelDefinition implements ToXContentObject, Writeable {
 
-        private String compressedString;
+        private BytesReference compressedRepresentation;
         private TrainedModelDefinition parsedDefinition;
 
         public static LazyModelDefinition fromParsedDefinition(TrainedModelDefinition definition) {
             return new LazyModelDefinition(null, definition);
         }
 
-        public static LazyModelDefinition fromCompressedString(String compressedString) {
-            return new LazyModelDefinition(compressedString, null);
+        public static LazyModelDefinition fromCompressedData(BytesReference compressed) {
+            return new LazyModelDefinition(compressed, null);
+        }
+
+        public static LazyModelDefinition fromBase64String(String base64String) {
+            byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+            return new LazyModelDefinition(new BytesArray(decodedBytes), null);
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            return new LazyModelDefinition(input.readString(), null);
+            if (input.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
+                return new LazyModelDefinition(input.readBytesReference(), null);
+            } else {
+                return fromBase64String(input.readString());
+            }
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
             if (definition != null) {
-                this.compressedString = definition.compressedString;
+                this.compressedRepresentation = definition.compressedRepresentation;
                 this.parsedDefinition = definition.parsedDefinition;
             }
         }
 
-        private LazyModelDefinition(String compressedString, TrainedModelDefinition trainedModelDefinition) {
-            if (compressedString == null && trainedModelDefinition == null) {
+        private LazyModelDefinition(BytesReference compressedRepresentation, TrainedModelDefinition trainedModelDefinition) {
+            if (compressedRepresentation == null && trainedModelDefinition == null) {
                 throw new IllegalArgumentException("unexpected null model definition");
             }
-            this.compressedString = compressedString;
+            this.compressedRepresentation = compressedRepresentation;
             this.parsedDefinition = trainedModelDefinition;
         }
 
         public void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
             if (parsedDefinition == null) {
-                parsedDefinition = InferenceToXContentCompressor.inflate(compressedString,
+                parsedDefinition = InferenceToXContentCompressor.inflate(compressedRepresentation,
                     parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
                     xContentRegistry);
             }
         }
 
-        public String getCompressedString() throws IOException {
-            if (compressedString == null) {
-                compressedString = InferenceToXContentCompressor.deflate(parsedDefinition);
-            }
-            return compressedString;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getCompressedString());
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
+                out.writeBytesReference(compressedRepresentation);
+            } else {
+                String base64String = new String(Base64.getEncoder().encode(compressedRepresentation.array()), StandardCharsets.UTF_8);
+                out.writeString(base64String);
+            }
         }
 
         @Override
@@ -817,7 +828,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (parsedDefinition != null) {
                 return parsedDefinition.toXContent(builder, params);
             }
-            Map<String, Object> map = InferenceToXContentCompressor.inflateToMap(compressedString);
+            Map<String, Object> map = InferenceToXContentCompressor.inflateToMap(compressedRepresentation);
             return builder.map(map);
         }
 
@@ -826,13 +837,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LazyModelDefinition that = (LazyModelDefinition) o;
-            return Objects.equals(compressedString, that.compressedString) &&
+            return Objects.equals(compressedRepresentation, that.compressedRepresentation) &&
                 Objects.equals(parsedDefinition, that.parsedDefinition);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(compressedString, parsedDefinition);
+            return Objects.hash(compressedRepresentation, parsedDefinition);
         }
 
     }

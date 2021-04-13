@@ -59,6 +59,7 @@ testClusters.integTest {
   }
 
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'false'
 
   if (useFixture) {
     def fixtureAddress = { fixtureName ->

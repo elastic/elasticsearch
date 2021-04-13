@@ -21,7 +21,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
 
-
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
     @Override

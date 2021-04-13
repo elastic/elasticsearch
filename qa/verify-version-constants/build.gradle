@@ -22,6 +22,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     "${baseName}" {
       version = bwcVersion.toString()
       setting 'http.content_type.required', 'true'
+      setting 'xpack.security.enabled', 'true'
+      user username: 'admin', password: 'admin-password', role: 'superuser'
     }
   }
 

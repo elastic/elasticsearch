@@ -1,8 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.xpack.ingest;
@@ -144,6 +145,37 @@ public class UriPartsProcessorTests extends ESTestCase {
             true,
             "http://www.google.com:88/foo#bar",
             Map.of("scheme", "http", "domain", "www.google.com", "fragment", "bar", "path", "/foo", "port", 88)
+        );
+    }
+
+    public void testUrlWithCharactersNotToleratedByUri()  throws Exception {
+        testUriParsing(
+            "http://www.google.com/path with spaces",
+            Map.of("scheme", "http", "domain", "www.google.com", "path", "/path with spaces")
+        );
+
+        testUriParsing(
+            "https://user:pw@testing.google.com:8080/foo with space/bar?foo1=bar1&foo2=bar2#anchorVal",
+            Map.of(
+                "scheme",
+                "https",
+                "domain",
+                "testing.google.com",
+                "fragment",
+                "anchorVal",
+                "path",
+                "/foo with space/bar",
+                "port",
+                8080,
+                "username",
+                "user",
+                "password",
+                "pw",
+                "user_info",
+                "user:pw",
+                "query",
+                "foo1=bar1&foo2=bar2"
+            )
         );
     }
 

@@ -301,7 +301,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             // restart ES with password and mounted keystore
             Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
-            Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename,
+                "geoip.downloader.enabled", "false");
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 

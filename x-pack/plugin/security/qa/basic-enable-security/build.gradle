@@ -4,6 +4,9 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
+//randomise between implicitly and explicitly disabled security
+boolean implicitlyDisabledSecurity = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -11,6 +14,9 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   description = "Run tests against a cluster that doesn't have security"
+  if (!implicitlyDisabledSecurity) {
+    systemProperty 'tests.has_security', 'false'
+  }
 }
 
 if (BuildParams.inFipsJvm){
@@ -24,37 +30,14 @@ testClusters {
     numberOfNodes = 2
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
-  }
-}
-
-tasks.register("javaRestTestWithSecurityDisabled", StandaloneRestIntegTestTask) {
-  mustRunAfter("javaRestTest")
-  description = "Run tests against a cluster that has security explicitly disabled"
-  dependsOn "javaRestTest"
-  useCluster testClusters.javaRestTest
-  systemProperty 'tests.has_security', 'false'
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath
-  onlyIf {
-    BuildParams.inFipsJvm == false
-  }
-  doFirst {
-    testClusters.javaRestTest {
-      // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.
-      // Reconfigure cluster to explicitly disable security
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.license.self_generated.type', 'basic'
+    if (!implicitlyDisabledSecurity) {
       setting 'xpack.security.enabled', 'false'
-
-      restart()
     }
-    nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.javaRestTest.getAllHttpSocketURI().join(",")}"
   }
 }
-tasks.named("check").configure { dependsOn("javaRestTestWithSecurityDisabled") }
 
 tasks.register("javaRestTestWithSecurityEnabled", StandaloneRestIntegTestTask) {
-  mustRunAfter("javaRestTestWithSecurityDisabled")
+  mustRunAfter("javaRestTest")
   description = "Run tests against a cluster that has security enabled"
   dependsOn "javaRestTest"
   useCluster testClusters.javaRestTest

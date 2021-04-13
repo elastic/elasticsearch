@@ -97,7 +97,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         checkAllowedWrite("index_allowed");
         // Security runs third, and should see the docs from the first two (non-security) runs
         // Security explicitly disabled runs second and should see the doc from the first (implicitly disabled) run
-        final int expectedIndexCount = securityEnabled ? 3 : securityExplicitlySet ? 2 : 1;
+        final int expectedIndexCount = securityEnabled ? 2 : 1;
         checkIndexCount("index_allowed", expectedIndexCount);
 
         final String otherIndex = "index_" + randomAlphaOfLengthBetween(2, 6).toLowerCase(Locale.ROOT);

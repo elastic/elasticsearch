@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.reindex.ReindexPlugin;
-import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -60,7 +59,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     public void disableDownloader() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpSettings.ENABLED_SETTING.getKey(), (String) null))
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
     }
@@ -79,7 +78,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
 
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpSettings.ENABLED_SETTING.getKey(), true))
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
 

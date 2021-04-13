@@ -79,7 +79,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(CACHE_SIZE, GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING);
+        return Arrays.asList(CACHE_SIZE, GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING,
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING);
     }
 
     @Override

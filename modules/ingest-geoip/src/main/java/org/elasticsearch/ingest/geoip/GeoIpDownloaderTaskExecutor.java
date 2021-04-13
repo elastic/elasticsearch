@@ -16,8 +16,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.GeoIpSettings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -37,6 +37,10 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
  */
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
+    private static final boolean DISABLED_IN_TESTS = "true".equals(System.getProperty("es.geoip_v2_disabled_in_tests"));
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", DISABLED_IN_TESTS == false,
+        Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
     private final Client client;
@@ -55,10 +59,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
         persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        if (GeoIpSettings.ENABLED_SETTING.get(settings)) {
+        if (ENABLED_SETTING.get(settings)) {
             clusterService.addListener(this);
         }
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(GeoIpSettings.ENABLED_SETTING, this::setEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
     }
 
     private void setEnabled(boolean enabled) {
@@ -96,7 +100,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     public void clusterChanged(ClusterChangedEvent event) {
         //bootstrap downloader after first cluster start
         clusterService.removeListener(this);
-        if (event.localNodeMaster() && GeoIpSettings.ENABLED_SETTING.get(event.state().getMetadata().settings())) {
+        if (event.localNodeMaster() && ENABLED_SETTING.get(event.state().getMetadata().settings())) {
             startTask(() -> clusterService.addListener(this));
         }
     }

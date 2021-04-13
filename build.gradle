@@ -520,8 +520,7 @@ subprojects {
 subprojects { Project subproj ->
   plugins.withType(TestClustersPlugin).whenPluginAdded {
     testClusters.all {
-      systemProperty "es.geoip_v2_feature_flag_enabled", "true"
-      setting "geoip.downloader.enabled", "false"
+      systemProperty "es.geoip_v2_disabled_in_tests", "true"
     }
   }
 }

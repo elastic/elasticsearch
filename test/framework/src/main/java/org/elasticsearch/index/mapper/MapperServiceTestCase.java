@@ -397,6 +397,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Query filterQuery(Query query) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
                 return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -63,7 +64,14 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             Level.INFO,
             "Active license is now [PLATINUM]; Security is enabled"
         ));
-
+        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            "built-in security features are not enabled",
+            listener.getClass().getName(),
+            Level.WARN,
+            "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible " +
+                "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
+        ));
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
@@ -86,6 +94,14 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             listener.getClass().getName(),
             Level.INFO,
             "Active license is now [TRIAL]; Security is disabled"
+        ));
+        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            "built-in security features are not enabled",
+            listener.getClass().getName(),
+            Level.WARN,
+            "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible " +
+                "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
         ));
         listener.licenseStateChanged();
 

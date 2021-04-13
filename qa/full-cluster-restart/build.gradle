@@ -26,6 +26,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '60m'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
     }
   }
 

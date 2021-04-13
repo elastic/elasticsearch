@@ -228,6 +228,7 @@ public class Constants {
         "cluster:monitor/data_frame/stats/get",
         "cluster:monitor/eql/async/status",
         "cluster:monitor/health",
+        "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
         "cluster:monitor/nodes/hot_threads",
         "cluster:monitor/nodes/info",

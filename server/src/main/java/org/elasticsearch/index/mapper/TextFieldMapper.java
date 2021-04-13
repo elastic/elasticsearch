@@ -311,8 +311,9 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
-            TextFieldType ft = new TextFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), tsi, meta.getValue());
-            ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
+            TextFieldType ft = new TextFieldType(
+                buildFullName(contentPath), index.getValue(), store.getValue(), tsi, meta.getValue());
+            ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
             }
@@ -572,6 +573,7 @@ public class TextFieldMapper extends FieldMapper {
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
+        private boolean eagerGlobalOrdinals = false;
 
         public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
             super(name, indexed, stored, false, tsi, meta);
@@ -592,6 +594,11 @@ public class TextFieldMapper extends FieldMapper {
 
         public boolean fielddata() {
             return fielddata;
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return eagerGlobalOrdinals;
         }
 
         public void setFielddata(boolean fielddata, FielddataFrequencyFilter filter) {
@@ -785,7 +792,7 @@ public class TextFieldMapper extends FieldMapper {
                               SubFieldInfo prefixFieldInfo,
                               SubFieldInfo phraseFieldInfo,
                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
@@ -958,8 +965,9 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         // this is a pain, but we have to do this to maintain BWC
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
         builder.field("type", contentType());
         this.builder.index.toXContent(builder, includeDefaults);
         this.builder.store.toXContent(builder, includeDefaults);

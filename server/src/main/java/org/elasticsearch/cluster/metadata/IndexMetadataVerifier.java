@@ -25,6 +25,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.AbstractMap;
@@ -50,15 +51,15 @@ public class IndexMetadataVerifier {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final ScriptService scriptService;
+    private final ScriptCompiler scriptService;
 
     public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                 IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
+                                 IndexScopedSettings indexScopedSettings, ScriptCompiler scriptCompiler) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.scriptService = scriptService;
+        this.scriptService = scriptCompiler;
     }
 
     /**
@@ -71,9 +72,11 @@ public class IndexMetadataVerifier {
     public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
 
-        // we have to run this first otherwise in we try to create IndexSettings
-        // with broken settings and fail in checkMappingsCompatibility
-        IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
+        // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
+        IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
+        // Next we have to run this otherwise if we try to create IndexSettings
+        // with broken settings it would fail in checkMappingsCompatibility
+        newMetadata = archiveBrokenIndexSettings(newMetadata);
         checkMappingsCompatibility(newMetadata);
         return newMetadata;
     }
@@ -183,6 +186,32 @@ public class IndexMetadataVerifier {
                 indexMetadata.getIndex(), e.getKey(), e.getValue()), ex));
         if (newSettings != settings) {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
+        } else {
+            return indexMetadata;
+        }
+    }
+
+    /**
+     * Convert shared_cache searchable snapshot indices to only specify
+     * _tier_preference: data_frozen, removing any pre-existing tier allocation rules.
+     */
+    IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
+        // Only remove these settings for a shared_cache searchable snapshot
+        if ("snapshot".equals(settings.get("index.store.type", "")) && settings.getAsBoolean("index.store.snapshot.partial", false)) {
+            final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+            // Clear any allocation rules other than preference for tier
+            settingsBuilder.remove("index.routing.allocation.include._tier");
+            settingsBuilder.remove("index.routing.allocation.exclude._tier");
+            settingsBuilder.remove("index.routing.allocation.require._tier");
+            // Override the tier preference to be only on frozen nodes, regardless of its current setting
+            settingsBuilder.put("index.routing.allocation.include._tier_preference", "data_frozen");
+            final Settings newSettings = settingsBuilder.build();
+            if (settings.equals(newSettings)) {
+                return indexMetadata;
+            } else {
+                return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
+            }
         } else {
             return indexMetadata;
         }

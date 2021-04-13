@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -100,10 +99,6 @@ public class MetadataMigrateToDataStreamService {
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
-            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_7_11_0);
-        }
-
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
 

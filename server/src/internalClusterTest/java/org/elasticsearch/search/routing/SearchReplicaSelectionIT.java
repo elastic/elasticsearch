@@ -33,11 +33,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), true).build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70621")
     public void testNodeSelection() {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();

@@ -486,8 +486,6 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 if (response.isNotFound()) {
                     if (request.readEarly) {
                         nodeFailure = null; // "not found" is legitimate iff we tried to read it before the write completed
-                    } else if (request.writeAndOverwrite) {
-                        nodeFailure = null; // overwrites surprisingly not necessarily atomic, e.g. in a FsBlobContainer
                     } else {
                         nodeFailure = new RepositoryVerificationException(
                             request.getRepositoryName(),

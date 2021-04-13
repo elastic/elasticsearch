@@ -49,11 +49,11 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
@@ -188,9 +188,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build();
     }

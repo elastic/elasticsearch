@@ -113,7 +113,7 @@ automatically bootstrap a cluster based on the nodes that could be discovered to
 be running on the same host within a short time after startup. This means that
 by default it is possible to start up several nodes on a single machine and have
 them automatically form a cluster which is very useful for development
-environments and experimentation.  However, since nodes may not always
+environments and experimentation. However, since nodes may not always
 successfully discover each other quickly enough this automatic bootstrapping
 cannot be relied upon and cannot be used in production deployments.
 

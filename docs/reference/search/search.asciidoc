@@ -484,6 +484,7 @@ POST _search?size=1&filter_path=hits.hits
     "hits": [
       {
         "_index": $body.hits.hits.0._index,
+        "_type": "_doc",
         "_id": $body.hits.hits.0._id,
         "_score": $body.hits.hits.0._score,
         "_source": $body.hits.hits.0._source,

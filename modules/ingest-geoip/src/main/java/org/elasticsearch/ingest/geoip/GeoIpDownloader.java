@@ -81,8 +81,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
 
     GeoIpDownloader(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool, Settings settings,
-                    long id, String type, String action, String description, TaskId parentTask,
-                    Map<String, String> headers) {
+                    long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
@@ -139,9 +138,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
-            int lastChunk = indexChunks(name, is, firstChunk, md5);
+            int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
-                state = state.put(name, new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5));
+                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
@@ -180,11 +179,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     //visible for testing
-    int indexChunks(String name, InputStream is, int chunk, String expectedMd5) throws IOException {
+    int indexChunks(String name, InputStream is, int chunk, String expectedMd5, long timestamp) throws IOException {
         MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
-            client.prepareIndex(DATABASES_INDEX, "_doc").setId(name + "_" + chunk)
+            client.prepareIndex(DATABASES_INDEX, "_doc").setId(name + "_" + chunk + "_" + timestamp)
                 .setCreate(true)
                 .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

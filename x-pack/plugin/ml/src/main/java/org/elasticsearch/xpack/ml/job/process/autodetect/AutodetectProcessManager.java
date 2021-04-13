@@ -176,14 +176,20 @@ public class AutodetectProcessManager implements ClusterStateListener {
             awaitCompletion,
             reason
         ));
+        jobTask.closing();
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
-            processContext.newKillBuilder()
+            processContext.tryLock();
+            try {
+                processContext.newKillBuilder()
                     .setAwaitCompletion(awaitCompletion)
                     .setFinish(true)
                     .setReason(reason)
                     .setShouldFinalizeJob(upgradeInProgress == false && resetInProgress == false)
                     .kill();
+            } finally {
+                processContext.unlock();
+            }
         } else {
             // If the process is missing but the task exists this is most likely
             // due to 2 reasons. The first is because the job went into the failed

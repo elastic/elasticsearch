@@ -62,7 +62,7 @@ public class EcsJsonLayout extends AbstractStringLayout {
         map.put("elasticsearch.node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
         map.put("data_stream.type", inQuotes("logs"));
-        map.put("data_stream.dataset", inQuotes("elasticsearch.deprecation"));
+        map.put("data_stream.dataset", inQuotes("deprecation.elasticsearch"));
         map.put("data_stream.namespace", inQuotes("default"));
         map.put("ecs.version", inQuotes(ECS_VERSION));
 
@@ -75,7 +75,9 @@ public class EcsJsonLayout extends AbstractStringLayout {
             map.put(ecsKeyReplacements.getOrDefault(key, key), inQuotes("%ESMessageField{" + key + "}"));
         }
 
-        return createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
+        final String pattern = createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
+        System.err.println("ARSE: " + pattern);
+        return pattern;
     }
 
 

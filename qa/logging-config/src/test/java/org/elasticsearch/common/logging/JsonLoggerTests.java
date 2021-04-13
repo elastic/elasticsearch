@@ -96,7 +96,7 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         // deprecation log for field deprecated_name
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "o.e.d.c.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
@@ -105,7 +105,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("x-opaque-id", "someId")
                         ),
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "o.e.d.c.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
@@ -141,7 +141,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
@@ -170,7 +170,7 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "deprecation"),
+                    hasEntry("type", "deprecation.elasticsearch"),
                     hasEntry("level", "DEPRECATION"),
                     hasEntry("component", "o.e.d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
@@ -314,7 +314,7 @@ public class JsonLoggerTests extends ESTestCase {
 
                 assertThat(jsonLogs, contains(
                     allOf(
-                        hasEntry("type", "deprecation"),
+                        hasEntry("type", "deprecation.elasticsearch"),
                         hasEntry("level", "DEPRECATION"),
                         hasEntry("component", "o.e.d.test"),
                         hasEntry("cluster.name", "elasticsearch"),
@@ -348,7 +348,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
@@ -357,7 +357,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("x-opaque-id", "ID1")
                         ),
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "DEPRECATION"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),

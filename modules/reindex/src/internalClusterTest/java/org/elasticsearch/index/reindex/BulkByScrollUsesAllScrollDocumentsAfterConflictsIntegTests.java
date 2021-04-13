@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -50,6 +51,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -275,18 +278,42 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         resultConsumer.apply(bulkByScrollResponse, maxDocs, conflictingUpdates);
     }
 
-    private void createIndexWithSingleShard(String index) {
+    private void createIndexWithSingleShard(String index) throws Exception {
         final Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
+        final XContentBuilder mappings = jsonBuilder();
+        {
+            mappings.startObject();
+            {
+                mappings.startObject(SINGLE_MAPPING_NAME);
+                mappings.field("dynamic", "strict");
+                {
+                    mappings.startObject("properties");
+                    {
+                        mappings.startObject(SORTING_FIELD);
+                        mappings.field("type", "integer");
+                        mappings.endObject();
+                    }
+                    {
+                        mappings.startObject(RETURN_NOOP_FIELD);
+                        mappings.field("type", "boolean");
+                        mappings.endObject();
+                    }
+                    mappings.endObject();
+                }
+                mappings.endObject();
+            }
+            mappings.endObject();
+        }
+
         // Use explicit mappings so we don't have to create those on demands and the task ordering
         // can change to wait for mapping updates
         assertAcked(
             prepareCreate(index)
                 .setSettings(indexSettings)
-                .setMapping(SORTING_FIELD, "type=integer,store=true")
-                .setMapping(RETURN_NOOP_FIELD, "type=boolean,store=true")
+                .setMapping(mappings)
         );
     }
 

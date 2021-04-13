@@ -262,6 +262,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public Query filterQuery(Query query) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public IndexSettings getIndexSettings() {
             throw new UnsupportedOperationException();
         }

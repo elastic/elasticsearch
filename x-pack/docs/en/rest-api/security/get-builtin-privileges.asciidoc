@@ -66,6 +66,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "cancel_task",
     "create_snapshot",
     "delegate_pki",
+    "enroll",
     "grant_api_key",
     "manage",
     "manage_api_key",
@@ -73,6 +74,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_ccr",
     "manage_data_frame_transforms",
     "manage_enrich",
+    "manage_enrollment"
     "manage_ilm",
     "manage_index_templates",
     "manage_ingest_pipelines",

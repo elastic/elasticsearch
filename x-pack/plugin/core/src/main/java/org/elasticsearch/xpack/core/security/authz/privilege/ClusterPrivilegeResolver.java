@@ -134,6 +134,8 @@ public class ClusterPrivilegeResolver {
         "manage_autoscaling",
         Set.of("cluster:admin/autoscaling/*")
     );
+    private static final Set<String> MANAGE_ENROLLMENT_PATTERN = Set.of("cluster:admin/xpack/security/enrollment/*");
+
     public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
     public static final NamedClusterPrivilege CREATE_SNAPSHOT = new ActionClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_PATTERN);
@@ -153,6 +155,11 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
         Set.of("cluster:admin/tasks/cancel"));
+
+    public static final NamedClusterPrivilege MANAGE_ENROLLMENT = new ActionClusterPrivilege("manage_enrollment",
+        MANAGE_ENROLLMENT_PATTERN);
+    public static final NamedClusterPrivilege ENROLL = new ActionClusterPrivilege("enroll",
+        Set.of("cluster:admin/xpack/security/enrollment/enroll"));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,
@@ -195,7 +202,9 @@ public class ClusterPrivilegeResolver {
         MANAGE_OWN_API_KEY,
         MANAGE_ENRICH,
         MANAGE_LOGSTASH_PIPELINES,
-        CANCEL_TASK));
+        CANCEL_TASK,
+        MANAGE_ENROLLMENT,
+        ENROLL));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

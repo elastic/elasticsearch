@@ -20,6 +20,10 @@ See <<delete-async-search,delete async search>> API for more informations.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
+`enroll`::
+The privilege to call the APIs to enroll a node in a cluster and to allow Kibana to
+configure itself to communicate with an Elasticsearch cluster.
+
 `grant_api_key`::
 Privileges to create {es} API keys on behalf of other users.
 
@@ -53,6 +57,10 @@ All {ccr} operations related to managing follower indices and auto-follow
 patterns. It also includes the authority to grant the privileges necessary to
 manage follower indices and auto-follow patterns. This privilege is necessary
 only on clusters that contain follower indices.
+
+`manage_enrollment`::
+The privilege to call the create enrollment token API and to call
+the Enroll Node and Enroll Token API. `enroll` is also included in `manage_enrollment`.
 
 `manage_ilm`::
 All {Ilm} operations related to managing policies.

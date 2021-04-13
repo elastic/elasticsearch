@@ -8,6 +8,7 @@ JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a number representing _milliseconds-since-the-epoch_.
+* a number representing _seconds-since-the-epoch_ (<<date-epoch-seconds, configuration>>).
 
 NOTE: Values for _milliseconds-since-the-epoch_ must be non-negative. Use a
 formatted date to represent dates before 1970.
@@ -37,7 +38,7 @@ or milliseconds-since-the-epoch.
 
 For instance:
 
-[source,console]
+[source,console,id=date-example]
 --------------------------------------------------
 PUT my-index-000001
 {
@@ -89,7 +90,7 @@ Each format will be tried in turn until a matching format is found. The first
 format will be used to convert the _milliseconds-since-the-epoch_ value back
 into a string.
 
-[source,console]
+[source,console,id=date-format-example]
 --------------------------------------------------
 PUT my-index-000001
 {
@@ -152,3 +153,55 @@ The following parameters are accepted by `date` fields:
 <<mapping-field-meta,`meta`>>::
 
     Metadata about the field.
+
+
+[[date-epoch-seconds]]
+==== Epoch seconds
+
+If you need to send dates as _seconds-since-the-epoch_ then make sure the
+`format` lists `epoch_seconds`:
+
+[source,console,id=date-epoch-seconds]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "strict_date_optional_time||epoch_second"
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/example?refresh
+{ "date": 1618321898 }
+
+POST my-index-000001/_search
+{
+  "fields": [ {"field": "date"}],
+  "_source": false
+}
+----
+// TEST[s/_search/_search?filter_path=hits.hits/]
+
+Which will reply with a date like:
+
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "example",
+        "_index": "my-index-000001",
+        "_score": 1.0,
+        "fields": {
+          "date": ["2021-04-13T13:51:38.000Z"]
+        }
+      }
+    ]
+  }
+}
+----

@@ -20,6 +20,10 @@ public final class MeanMetric {
         sum.add(n);
     }
 
+    /**
+     * Returns the current count of this metric. This metric supports only {@link #inc(long)} that increases the counter
+     * whenever it's invoked; hence, the returned count is always non-negative.
+     */
     public long count() {
         final long count = counter.sum();
         assert count >= 0 : "Count of MeanMetric must always be non-negative; got " + count;

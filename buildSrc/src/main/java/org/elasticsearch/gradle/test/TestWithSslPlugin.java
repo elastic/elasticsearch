@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin;
+import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
@@ -22,6 +24,9 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
+
+import static org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin.FILEPERMISSIONS_TASK_NAME;
+import static org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin.FORBIDDEN_PATTERNS_TASK_NAME;
 
 public class TestWithSslPlugin implements Plugin<Project> {
 
@@ -38,14 +43,19 @@ public class TestWithSslPlugin implements Plugin<Project> {
                 t.copy("test/ssl/test-node.jks");
                 t.setOutputDir(keyStoreDir);
             });
-
+        project.getPlugins()
+            .withType(ForbiddenPatternsPrecommitPlugin.class)
+            .configureEach(plugin -> project.getTasks().named(FORBIDDEN_PATTERNS_TASK_NAME).configure(t -> t.dependsOn(exportKeyStore)));
+        project.getPlugins()
+            .withType(FilePermissionsPrecommitPlugin.class)
+            .configureEach(
+                filePermissionPlugin -> project.getTasks().named(FILEPERMISSIONS_TASK_NAME).configure(t -> t.dependsOn(exportKeyStore))
+            );
         project.getPlugins().withType(StandaloneRestTestPlugin.class).configureEach(restTestPlugin -> {
             SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
             testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
-            testSourceSet.compiledBy(exportKeyStore);
-
+            project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(exportKeyStore));
             project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
-
             // Tell the tests we're running with ssl enabled
             project.getTasks()
                 .withType(RestIntegTestTask.class)

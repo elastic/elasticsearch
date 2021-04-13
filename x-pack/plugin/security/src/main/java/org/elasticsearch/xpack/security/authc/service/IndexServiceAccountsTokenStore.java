@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -175,7 +176,8 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
                 listener.onResponse(false);
                 return;
             }
-            final String qualifiedTokenName = ServiceAccountToken.buildQualifiedName(accountId, request.getTokenName());
+            final ServiceAccountTokenId accountTokenId = new ServiceAccountTokenId(accountId, request.getTokenName());
+            final String qualifiedTokenName = accountTokenId.getQualifiedName();
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final DeleteRequest deleteRequest = client.prepareDelete(SECURITY_MAIN_ALIAS, docIdForToken(qualifiedTokenName)).request();
                 deleteRequest.setRefreshPolicy(request.getRefreshPolicy());

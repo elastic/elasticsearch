@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
+import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.geometry.Point;
@@ -68,6 +70,7 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
         final FeatureFactory featureFactory = new FeatureFactory(z, x, y, POLYGON_EXTENT);
         final PointFactory pointFactory = new PointFactory();
         final CustomFieldsVisitor visitor = new CustomFieldsVisitor(Set.of(), true);
+        IUserDataConverter ignoreData = new UserDataIgnoreConverter();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -99,7 +102,7 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
                                     final Object lines = lookup.get(fieldName);
                                     if (lines != null) {
                                         addLineFeatures(visitor.id(),
-                                            featureFactory.getFeatures(parser.parseGeometry(lines)));
+                                            featureFactory.getFeatures(parser.parseGeometry(lines), ignoreData));
                                     }
                                 }
                                 break;
@@ -114,7 +117,8 @@ public class VectorTileGeoShapeAggregator extends AbstractVectorTileAggregator {
                                     lookup.setSource(visitor.source());
                                     final Object polygons = lookup.get(fieldName);
                                     if (polygons != null) {
-                                        addPolygonFeatures(visitor.id(), featureFactory.getFeatures(parser.parseGeometry(polygons)));
+                                        addPolygonFeatures(visitor.id(),
+                                            featureFactory.getFeatures(parser.parseGeometry(polygons), ignoreData));
                                     }
                                 }
                                 break;

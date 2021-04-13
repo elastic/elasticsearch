@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
+import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -40,11 +42,12 @@ public class InternalVectorTileTests extends InternalAggregationTestCase<Interna
         layerBuilder.setName(AbstractVectorTileAggregator.POLYGON_LAYER);
         layerBuilder.setExtent(AbstractVectorTileAggregator.POLYGON_EXTENT);
         final FeatureFactory factory = new FeatureFactory(0, 0, 0, AbstractVectorTileAggregator.POLYGON_EXTENT);
+        final IUserDataConverter ignoreData = new UserDataIgnoreConverter();
         for (int i =0; i < shapes; i++) {
             int count = layerBuilder.getFeaturesCount();
             while(true) {
                 Geometry geometry = GeometryTestUtils.randomPolygon(false);
-                List<VectorTile.Tile.Feature> features = factory.getFeatures(geometry);
+                List<VectorTile.Tile.Feature> features = factory.getFeatures(geometry, ignoreData);
                 for (VectorTile.Tile.Feature feature : features) {
                     layerBuilder.addFeatures(feature);
                 }
@@ -54,7 +57,6 @@ public class InternalVectorTileTests extends InternalAggregationTestCase<Interna
             }
         }
         return layerBuilder.build();
-
     }
 
     static VectorTile.Tile.Layer randomLineLayer(int shapes) {
@@ -63,11 +65,12 @@ public class InternalVectorTileTests extends InternalAggregationTestCase<Interna
         layerBuilder.setName(AbstractVectorTileAggregator.POLYGON_LAYER);
         layerBuilder.setExtent(AbstractVectorTileAggregator.POLYGON_EXTENT);
         final FeatureFactory factory = new FeatureFactory(0, 0, 0, AbstractVectorTileAggregator.POLYGON_EXTENT);
+        final IUserDataConverter ignoreData = new UserDataIgnoreConverter();
         for (int i =0; i < shapes; i++) {
             int count = layerBuilder.getFeaturesCount();
             while(true) {
                 Geometry geometry = GeometryTestUtils.randomLine(false);
-                List<VectorTile.Tile.Feature> features = factory.getFeatures(geometry);
+                List<VectorTile.Tile.Feature> features = factory.getFeatures(geometry, ignoreData);
                 for (VectorTile.Tile.Feature feature : features) {
                     layerBuilder.addFeatures(feature);
                 }

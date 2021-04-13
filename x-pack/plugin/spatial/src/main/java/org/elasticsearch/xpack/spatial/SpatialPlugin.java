@@ -44,9 +44,6 @@ import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
-import org.elasticsearch.xpack.spatial.search.aggregations.InternalVectorTile;
-import org.elasticsearch.xpack.spatial.search.aggregations.VectorTileAggregationBuilder;
-import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -54,6 +51,8 @@ import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
+import org.elasticsearch.xpack.spatial.search.aggregations.InternalVectorTile;
+import org.elasticsearch.xpack.spatial.search.aggregations.VectorTileAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -63,9 +62,9 @@ import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoSha
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
-import org.elasticsearch.xpack.spatial.vectortile.RestAggregatedVectorTileAction;
 import org.elasticsearch.xpack.spatial.vectortile.RestVectorTileAction;
 
 import java.util.Arrays;
@@ -100,8 +99,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-            new RestVectorTileAction(),
-            new RestAggregatedVectorTileAction());
+            new RestVectorTileAction());
     }
 
     @Override

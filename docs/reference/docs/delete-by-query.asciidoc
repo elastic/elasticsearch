@@ -84,7 +84,9 @@ and all failed requests are returned in the response. Any delete requests that
 completed successfully still stick, they are not rolled back.
 
 You can opt to count version conflicts instead of halting and returning by
-setting `conflicts` to `proceed`.
+setting `conflicts` to `proceed`. Note that if you opt to count
+version conflicts it is possible that the operation end up deleting less
+than `max_docs` documents if there are concurrent conflicting updates.
 
 ===== Refreshing shards
 

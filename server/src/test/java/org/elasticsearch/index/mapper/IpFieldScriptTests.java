@@ -47,6 +47,32 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
         return DUMMY;
     }
 
+    public void testAsDocValues() {
+        IpFieldScript script = new IpFieldScript(
+                "test",
+                Map.of(),
+                new SearchLookup(field -> null, (ft, lookup) -> null),
+                null
+        ) {
+            @Override
+            public void execute() {
+                emit("192.168.0.1");
+                emit("127.0.0.1");
+                emit("255.255.255.255");
+                emit("0.0.0.0");
+            }
+        };
+        script.execute();
+
+        assertArrayEquals(new BytesRef[] {
+                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,0,0,0,0}),
+                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,127,0,0,1}),
+                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,-64,-88,0,1}),
+                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,-1,-1,-1,-1})},
+                script.asDocValues()
+        );
+    }
+
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

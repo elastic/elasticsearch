@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
 
@@ -34,40 +35,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
     private ImmutableOpenMap<String, Long> fileSizes = ImmutableOpenMap.of();
-
-    /*
-     * A map to provide a best-effort approach describing Lucene index files.
-     *
-     * Ideally this should be in sync to what the current version of Lucene is using, but it's harmless to leave extensions out,
-     * they'll just miss a proper description in the stats
-     */
-    static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
-            .fPut("si", "Segment Info")
-            .fPut("fnm", "Fields")
-            .fPut("fdm", "Field Metadata")
-            .fPut("fdx", "Field Index")
-            .fPut("fdt", "Field Data")
-            .fPut("tmd", "Term Dictionary Metadata")
-            .fPut("tim", "Term Dictionary")
-            .fPut("tip", "Term Index")
-            .fPut("doc", "Frequencies")
-            .fPut("pos", "Positions")
-            .fPut("pay", "Payloads")
-            .fPut("nvd", "Norms")
-            .fPut("nvm", "Norms metadata")
-            .fPut("kdm", "Points Metadata")
-            .fPut("kdi", "Points Index")
-            .fPut("kdm", "Points Metadata")
-            .fPut("kdi", "Points Index")   // old extension
-            .fPut("kdd", "Points")         // old extension
-            .fPut("dvd", "DocValues")
-            .fPut("dvm", "DocValues Metadata")
-            .fPut("tvm", "Term Vector Metadata")
-            .fPut("tvx", "Term Vector Index")
-            .fPut("tvd", "Term Vector Documents")
-            .fPut("tvf", "Term Vector Fields")
-            .fPut("liv", "Live Documents")
-            .build();
 
     public SegmentsStats() {}
 
@@ -321,7 +288,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         for (ObjectObjectCursor<String, Long> entry : fileSizes) {
             builder.startObject(entry.key);
             builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(entry.value));
-            builder.field(Fields.DESCRIPTION, FILE_DESCRIPTIONS.getOrDefault(entry.key, "Others"));
+            LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(entry.key);
+            builder.field(Fields.DESCRIPTION, extension != null ? extension.getDescription() : "Others");
             builder.endObject();
         }
         builder.endObject();

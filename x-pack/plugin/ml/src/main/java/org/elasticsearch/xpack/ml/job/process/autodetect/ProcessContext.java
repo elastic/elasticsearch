@@ -116,10 +116,12 @@ final class ProcessContext {
         }
 
         void kill() {
+            String jobId = jobTask.getJobId();
+
             if (autodetectCommunicator == null) {
+                LOGGER.trace("Killing job [{}] when autodetect communicator was null", jobId);
                 return;
             }
-            String jobId = jobTask.getJobId();
 
             if (silent == false) {
                 String extraInfo = (state.getName() == ProcessStateName.DYING) ? " while closing" : "";

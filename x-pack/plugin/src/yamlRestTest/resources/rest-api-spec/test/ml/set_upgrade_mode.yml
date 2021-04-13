@@ -68,6 +68,7 @@ setup:
               "logger.org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction": "TRACE",
               "logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction": "TRACE",
               "logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager": "TRACE"
+              "logger.org.elasticsearch.xpack.ml.job.process.autodetect.ProcessContext": "TRACE"
             }
           }
 

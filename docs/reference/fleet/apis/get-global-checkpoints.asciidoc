@@ -6,12 +6,13 @@
 ++++
 
 The purpose of the get global checkpoints api is to return the current global
-checkpoints for an index. This API allows fleet-server to know the what documents
-have been safely persisted into Elasticsearch.
+checkpoints for an index. This API allows users to know the what sequence numbers
+have been safely persisted in Elasticsearch.
 
-The API has an optional polling mode enabled by with the `wait_for_advance` query
+The API has an optional polling mode enabled by the `wait_for_advance` query
 parameter. In polling mode, the API will only return after the global checkpoints
-advance past the specified `current_checkpoints`.
+advance past the provided `current_checkpoints`. By default, `current_checkpoints`
+is an empty array, which will lead to the API returning immediately.
 
 Currently the `wait_for_advance` parameter is only supported for one shard indices.
 
@@ -33,11 +34,11 @@ A single index or index alias that resolves to a single index.
 
 `wait_for_advance`::
 (Optional, Boolean) A boolean value which controls whether to wait (until the
-poll_timeout provided) for the global checkpoints to advance past the provided
+`poll_timeout`) for the global checkpoints to advance past the provided
 `current_checkpoints`.
 
 `current_checkpoints`::
-(Optional, list) A comma separated list of the client's `current_checkpoints`.
+(Optional, list) A comma separated list of previous global checkpoints.
 When used in combination with `wait_for_advance`, the API will only return once
 the global checkpoints advances past the `current_checkpoints`. Defaults to an
 empty list which will cause Elasticsearch to immediately return the global
@@ -53,8 +54,8 @@ Defaults to `30s`.
 ==== {api-response-body-title}
 
 `global_checkpoints`::
-    (array of integers) The global checkpoints for the index.
+(array of integers) The global checkpoints for the index.
 
 `timed_out`::
-	(Boolean) If `false` the global checkpoints did not advance past the
-	`current_checkpoints` within the specified `poll_timeout`.
+(Boolean) If `false` the global checkpoints did not advance past the
+`current_checkpoints` within the specified `poll_timeout`.

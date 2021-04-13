@@ -1120,3 +1120,44 @@ setup:
   - match: { aggregations.courses.sessions.names.buckets.0.doc_count: 4}
   - match: { aggregations.courses.sessions.names.buckets.1.key.kw: "spr2021" }
   - match: { aggregations.courses.sessions.names.buckets.1.doc_count: 4}
+
+---
+"Nested then filter then nested then terms":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: verynested
+        body:
+          "aggregations": {
+              "courses": {
+                  "nested": { "path": "courses" },
+                  "aggregations": {
+                      "highpass_filter": {
+                          "filter": { "range": {"courses.credits": { "gt": 1 }}},
+                          "aggregations": {
+                              "sessions": {
+                                  "nested": { "path": "courses.sessions" },
+                                  "aggregations": {
+                                      "names": {
+                                          "composite": {
+                                              "sources": [
+                                                  "kw": {"terms": { "field": "courses.sessions.semester" }}
+                                              ]
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+  - match: {hits.total: 2}
+  - match: {aggregations.courses.doc_count: 4}
+  - match: {aggregations.courses.highpass_filter.doc_count: 3}
+  - match: {aggregations.courses.highpass_filter.sessions.doc_count: 6}
+  - length: { aggregations.courses.highpass_filter.sessions.names.buckets: 2 }
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.0.key.kw: "fall2020" }
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.0.doc_count: 3}
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.key.kw: "spr2021" }
+  - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.doc_count: 3}

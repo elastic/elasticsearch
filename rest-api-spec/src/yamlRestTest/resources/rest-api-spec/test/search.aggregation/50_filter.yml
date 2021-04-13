@@ -117,8 +117,8 @@ setup:
   - do:
       indices.stats: { index: test, metric: request_cache}
   - match: { _shards.total: 1 }
-  - match: { _all.total.request_cache.hit_count: 0 }
-  - match: { _all.total.request_cache.miss_count: 1 }
+  - match: { indices.test.total.request_cache.hit_count: 0 }
+  - match: { indices.test.total.request_cache.miss_count: 1 }
   - is_true: indices.test
 
   # Try again - it'll cache

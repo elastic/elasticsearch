@@ -48,6 +48,10 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-repositories-metering')
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("integTest") {
   dependsOn ":plugins:repository-azure:bundlePlugin"
   systemProperty 'test.azure.container', azureContainer

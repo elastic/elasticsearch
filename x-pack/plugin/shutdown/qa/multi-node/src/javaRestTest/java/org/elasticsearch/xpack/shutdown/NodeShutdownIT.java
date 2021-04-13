@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -61,5 +64,14 @@ public class NodeShutdownIT extends ESRestTestCase {
         Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
         assertThat(nodesArray, empty());
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(
+            System.getProperty("tests.rest.cluster.username"),
+            new SecureString(System.getProperty("tests.rest.cluster.password").toCharArray())
+        );
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

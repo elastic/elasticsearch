@@ -21,6 +21,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   testClusters {
     "${baseName}" {
       version = bwcVersion.toString()
+      setting 'xpack.security.enabled', 'true'
+      user username: 'admin', password: 'admin-password', role: 'superuser'
     }
   }
 

@@ -8,8 +8,8 @@ singlePercentileWithoutComma
 SELECT gender, PERCENTILE(emp_no, 90 + 7) p1 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d
-null                 |10019.0
-F                    |10099.51
+null                 |10019.0           
+F                    |10099.51          
 M                    |10095.789999999999
 ;
 
@@ -17,8 +17,8 @@ singlePercentileWithComma
 SELECT gender, PERCENTILE(emp_no, 97.76) p1 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d
-null                 |10019.0
-F                    |10099.7608
+null                 |10019.0           
+F                    |10099.7608          
 M                    |10096.2232
 ;
 
@@ -64,16 +64,16 @@ SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test
 gender:s             | p1:d                 | p2:d
 null                 |10018.745             |10018.599999999999
 F                    |10098.0085            |10096.119999999999
-M                    |10091.393             |10090.37
+M                    |10091.393             |10090.37       
 ;
 
 multiplePercentilesWithoutComma
 SELECT gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d                 | p2:d
-null                 |10018.599999999999    |10018.4
-F                    |10096.119999999999    |10093.74
-M                    |10090.37              |10086.92
+null                 |10018.599999999999    |10018.4        
+F                    |10096.119999999999    |10093.74       
+M                    |10090.37              |10086.92       
 ;
 
 multiplePercentilesWithComma
@@ -81,15 +81,15 @@ SELECT gender, PERCENTILE(emp_no, 85.7) p1, PERCENTILE(emp_no, 94.3) p2 FROM tes
 
 gender:s             | p1:d                 | p2:d
 null                 |10018.070000000002    |10018.929999999998
-F                    |10091.343             |10098.619
-M                    |10084.349             |10093.502
+F                    |10091.343             |10098.619         
+M                    |10084.349             |10093.502         
 ;
 
 percentileRank
 SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25) rank FROM test_emp GROUP BY gender;
 
 gender:s             | rank:d
-null                 |100.0
+null                 |100.0             
 F                    |17.424242424242426
 M                    |15.350877192982457
 ;
@@ -116,7 +116,7 @@ multiplePercentileRanks
 SELECT gender, PERCENTILE_RANK(emp_no, 10030.0) rank1, PERCENTILE_RANK(emp_no, 10025) rank2 FROM test_emp GROUP BY gender;
 
 gender:s             | rank1:d              | rank2:d
-null                 |100.0                 |100.0
+null                 |100.0                 |100.0             
 F                    |21.445221445221442    |17.424242424242426
 M                    |21.929824561403507    |15.350877192982457
 ;
@@ -125,7 +125,7 @@ multiplePercentilesAndPercentileRank
 SELECT gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d                 | p2:d                 | rank:d
-null                 |10019.0               |10018.83              |100.0
+null                 |10019.0               |10018.83              |100.0             
 F                    |10099.7608            |10098.289             |17.424242424242426
 M                    |10096.2232            |10092.362             |15.350877192982457
 ;
@@ -183,23 +183,23 @@ SELECT gender, KURTOSIS(salary) k, SKEWNESS(salary) s FROM test_emp GROUP BY gen
 gender:s             | k:d                  | s:d
 
 null                 |2.2215791166941923    |-0.03373126000214023
-F                    |1.7873117044424276    |0.05504995122217512
+F                    |1.7873117044424276    |0.05504995122217512 
 M                    |2.280646181070106     |0.44302407229580243
 ;
 
 nullAggs
 SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages) avg,
-       PERCENTILE(languages, 80) percent, PERCENTILE_RANK(languages, 3) percent_rank,
-       KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness
+       PERCENTILE(languages, 80) percent, PERCENTILE_RANK(languages, 3) percent_rank, 
+       KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness  
        FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
 
       max:bt   |      min:bt   |      sum:l    |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d
 ---------------+---------------+---------------+--------------+---------------+---------------+---------------+---------------
-null           |null           |null           |null          |null           |null           |null           |null
-1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN
-2              |2              |38             |2             |2.0            |100.0          |NaN            |NaN
-3              |3              |51             |3             |3.0            |100.0          |NaN            |NaN
-4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN
+null           |null           |null           |null          |null           |null           |null           |null           
+1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN            
+2              |2              |38             |2             |2.0            |100.0          |NaN            |NaN            
+3              |3              |51             |3             |3.0            |100.0          |NaN            |NaN            
+4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
 ;
 
 aggSumWithColumnRepeated
@@ -234,39 +234,39 @@ SELECT SUM(1) AS c FROM test_emp WHERE 'a'='a' HAVING COUNT(1) > 0;
 
       c:l
 ---------------
-100
-;
+100     
+;       
 
 sumLiteralWithTwoConditionsAndGroupByField
 SELECT SUM(10) AS s10, birth_date, SUM(1) AS c FROM test_emp WHERE (birth_date >= {ts '1959-01-01 00:00:00'}) AND (birth_date <= {ts '1959-12-31 23:59:59'}) GROUP BY 2;
 
-    s10:l      |      birth_date:ts     |       c:l
+    s10:l      |      birth_date:ts     |       c:l       
 ---------------+------------------------+---------------
-10             |1959-01-27T00:00:00.000Z|1
-10             |1959-04-07T00:00:00.000Z|1
-20             |1959-07-23T00:00:00.000Z|2
-10             |1959-08-10T00:00:00.000Z|1
-10             |1959-08-19T00:00:00.000Z|1
-10             |1959-10-01T00:00:00.000Z|1
-10             |1959-12-03T00:00:00.000Z|1
-10             |1959-12-25T00:00:00.000Z|1
+10             |1959-01-27T00:00:00.000Z|1              
+10             |1959-04-07T00:00:00.000Z|1              
+20             |1959-07-23T00:00:00.000Z|2              
+10             |1959-08-10T00:00:00.000Z|1              
+10             |1959-08-19T00:00:00.000Z|1              
+10             |1959-10-01T00:00:00.000Z|1              
+10             |1959-12-03T00:00:00.000Z|1              
+10             |1959-12-25T00:00:00.000Z|1              
 ;
 
 sumLiteralWithGroupByAndTwoConditionsOnSum
 SELECT first_name, SUM(1) AS c FROM test_emp GROUP BY 1 HAVING ((SUM(1) >= 0) AND (SUM(1) <= 577)) LIMIT 10;
 
- first_name:s  |       c:l
+ first_name:s  |       c:l       
 ---------------+---------------
-null           |10
-Alejandro      |1
-Amabile        |1
-Anneke         |1
-Anoosh         |1
-Arumugam       |1
-Basil          |1
-Berhard        |1
-Berni          |1
-Bezalel        |1
+null           |10             
+Alejandro      |1              
+Amabile        |1              
+Anneke         |1              
+Anoosh         |1              
+Arumugam       |1              
+Basil          |1              
+Berhard        |1              
+Berni          |1              
+Bezalel        |1              
 ;
 
 sumFieldWithSumLiteralAsCondition
@@ -274,35 +274,35 @@ SELECT first_name, last_name, SUM(salary) AS s, birth_date AS y, COUNT(1) FROM t
 
   first_name:s |   last_name:s |       s:l     |           y:ts         |   COUNT(1):l
 ---------------+---------------+---------------+------------------------+---------------
-null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1
-null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1
-null           |Lortz          |35222          |1960-07-20T00:00:00.000Z|1
-null           |Makrucki       |37691          |1963-07-22T00:00:00.000Z|1
-null           |Swan           |39878          |1962-12-29T00:00:00.000Z|1
-Alejandro      |McAlpine       |44307          |1953-09-19T00:00:00.000Z|1
-Amabile        |Gomatam        |38645          |1955-10-04T00:00:00.000Z|1
-Basil          |Tramer         |37853          |null                    |1
-Berhard        |McFarlin       |38376          |1954-10-01T00:00:00.000Z|1
-Berni          |Genin          |37137          |1956-02-12T00:00:00.000Z|1
-Chirstian      |Koblick        |36174          |1954-05-01T00:00:00.000Z|1
-Domenick       |Tempesti       |39356          |1963-11-26T00:00:00.000Z|1
-Hilari         |Morton         |37702          |1965-01-03T00:00:00.000Z|1
-Hisao          |Lipner         |40612          |1958-01-21T00:00:00.000Z|1
-Jayson         |Mandell        |43889          |1954-09-16T00:00:00.000Z|1
-Jungsoon       |Syrzycki       |39638          |1954-02-25T00:00:00.000Z|1
-Kendra         |Hofting        |44956          |1961-05-30T00:00:00.000Z|1
-Kenroku        |Malabarba      |35742          |1962-11-07T00:00:00.000Z|1
-Margareta      |Bierman        |41933          |1960-09-06T00:00:00.000Z|1
-Mayuko         |Warwick        |40031          |1952-12-24T00:00:00.000Z|1
-Mingsen        |Casley         |39728          |null                    |1
-Mokhtar        |Bernatsky      |38992          |1955-08-28T00:00:00.000Z|1
-Saniya         |Kalloufi       |43906          |1958-02-19T00:00:00.000Z|1
-Sreekrishna    |Servieres      |44817          |1961-09-23T00:00:00.000Z|1
-Sudharsan      |Flasterstein   |43602          |1963-03-21T00:00:00.000Z|1
-Vishv          |Zockler        |39110          |1959-07-23T00:00:00.000Z|1
-Weiyi          |Meriste        |37112          |null                    |1
-Yinghua        |Dredge         |43026          |1958-05-21T00:00:00.000Z|1
-Zvonko         |Nyanchama      |42716          |null                    |1
+null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1              
+null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1              
+null           |Lortz          |35222          |1960-07-20T00:00:00.000Z|1              
+null           |Makrucki       |37691          |1963-07-22T00:00:00.000Z|1              
+null           |Swan           |39878          |1962-12-29T00:00:00.000Z|1              
+Alejandro      |McAlpine       |44307          |1953-09-19T00:00:00.000Z|1              
+Amabile        |Gomatam        |38645          |1955-10-04T00:00:00.000Z|1              
+Basil          |Tramer         |37853          |null                    |1              
+Berhard        |McFarlin       |38376          |1954-10-01T00:00:00.000Z|1              
+Berni          |Genin          |37137          |1956-02-12T00:00:00.000Z|1              
+Chirstian      |Koblick        |36174          |1954-05-01T00:00:00.000Z|1              
+Domenick       |Tempesti       |39356          |1963-11-26T00:00:00.000Z|1              
+Hilari         |Morton         |37702          |1965-01-03T00:00:00.000Z|1              
+Hisao          |Lipner         |40612          |1958-01-21T00:00:00.000Z|1              
+Jayson         |Mandell        |43889          |1954-09-16T00:00:00.000Z|1              
+Jungsoon       |Syrzycki       |39638          |1954-02-25T00:00:00.000Z|1              
+Kendra         |Hofting        |44956          |1961-05-30T00:00:00.000Z|1              
+Kenroku        |Malabarba      |35742          |1962-11-07T00:00:00.000Z|1              
+Margareta      |Bierman        |41933          |1960-09-06T00:00:00.000Z|1              
+Mayuko         |Warwick        |40031          |1952-12-24T00:00:00.000Z|1              
+Mingsen        |Casley         |39728          |null                    |1              
+Mokhtar        |Bernatsky      |38992          |1955-08-28T00:00:00.000Z|1              
+Saniya         |Kalloufi       |43906          |1958-02-19T00:00:00.000Z|1              
+Sreekrishna    |Servieres      |44817          |1961-09-23T00:00:00.000Z|1              
+Sudharsan      |Flasterstein   |43602          |1963-03-21T00:00:00.000Z|1              
+Vishv          |Zockler        |39110          |1959-07-23T00:00:00.000Z|1              
+Weiyi          |Meriste        |37112          |null                    |1              
+Yinghua        |Dredge         |43026          |1958-05-21T00:00:00.000Z|1              
+Zvonko         |Nyanchama      |42716          |null                    |1              
 ;
 
 mirrorIifForNumericAggregate
@@ -310,7 +310,7 @@ SELECT IIF(COUNT(1)=0, NULL, 123)+5, AVG(123), MIN(123)+5, IIF(COUNT(1)=0, NULL,
 
 IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l
 ------------------------------+-----------------+-----------------+------------------------------------+---------------
-128                           |123              |128              |3000                                |3000
+128                           |123              |128              |3000                                |3000           
 ;
 
 
@@ -318,28 +318,28 @@ aggByComplexCastedValue
 SELECT CONVERT(CONCAT(LTRIM(CONVERT("emp_no", SQL_VARCHAR)), LTRIM(CONVERT("languages", SQL_VARCHAR))), SQL_BIGINT) AS "TEMP"
 FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;
 
-    TEMP:l
+    TEMP:l      
 ---------------
-10020
-10021
-10022
-10023
-10024
-10025
-10026
-10027
-10028
-10029
-100012
-100025
-100034
-100045
-100051
-100063
-100074
-100082
-100091
-100104
+10020          
+10021          
+10022          
+10023          
+10024          
+10025          
+10026          
+10027          
+10028          
+10029          
+100012         
+100025         
+100034         
+100045         
+100051         
+100063         
+100074         
+100082         
+100091         
+100104         
 ;
 
 aggAndOrderByCastedValue
@@ -593,73 +593,73 @@ F              |51130,48
 histogramNumeric
 SELECT HISTOGRAM(salary, 5000) AS h FROM test_emp GROUP BY h;
 
-       h
+       h       
 ---------------
-25000
-30000
-35000
-40000
-45000
-50000
-55000
-60000
-65000
-70000
+25000          
+30000          
+35000          
+40000          
+45000          
+50000          
+55000          
+60000          
+65000          
+70000  
 ;
 
 histogramDateTime
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h;
 
-           h            |       c
+           h            |       c       
 ------------------------+---------------
-null                    |10
-1952-01-01T00:00:00.000Z|8
-1953-01-01T00:00:00.000Z|11
-1954-01-01T00:00:00.000Z|8
-1955-01-01T00:00:00.000Z|4
-1956-01-01T00:00:00.000Z|5
-1957-01-01T00:00:00.000Z|4
-1958-01-01T00:00:00.000Z|7
-1959-01-01T00:00:00.000Z|9
-1960-01-01T00:00:00.000Z|8
-1961-01-01T00:00:00.000Z|8
-1962-01-01T00:00:00.000Z|6
-1963-01-01T00:00:00.000Z|7
-1964-01-01T00:00:00.000Z|4
-1965-01-01T00:00:00.000Z|1
+null                    |10             
+1952-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1954-01-01T00:00:00.000Z|8              
+1955-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1957-01-01T00:00:00.000Z|4              
+1958-01-01T00:00:00.000Z|7              
+1959-01-01T00:00:00.000Z|9              
+1960-01-01T00:00:00.000Z|8              
+1961-01-01T00:00:00.000Z|8              
+1962-01-01T00:00:00.000Z|6              
+1963-01-01T00:00:00.000Z|7              
+1964-01-01T00:00:00.000Z|4              
+1965-01-01T00:00:00.000Z|1              
 ;
 
 histogramDateTimeWithCountAndOrder
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
-           h            |       c
+           h            |       c       
 ------------------------+---------------
-1965-01-01T00:00:00.000Z|1
-1964-01-01T00:00:00.000Z|4
-1963-01-01T00:00:00.000Z|7
-1962-01-01T00:00:00.000Z|6
-1961-01-01T00:00:00.000Z|8
-1960-01-01T00:00:00.000Z|8
-1959-01-01T00:00:00.000Z|9
-1958-01-01T00:00:00.000Z|7
-1957-01-01T00:00:00.000Z|4
-1956-01-01T00:00:00.000Z|5
-1955-01-01T00:00:00.000Z|4
-1954-01-01T00:00:00.000Z|8
-1953-01-01T00:00:00.000Z|11
-1952-01-01T00:00:00.000Z|8
-null                    |10
+1965-01-01T00:00:00.000Z|1              
+1964-01-01T00:00:00.000Z|4              
+1963-01-01T00:00:00.000Z|7              
+1962-01-01T00:00:00.000Z|6              
+1961-01-01T00:00:00.000Z|8              
+1960-01-01T00:00:00.000Z|8              
+1959-01-01T00:00:00.000Z|9              
+1958-01-01T00:00:00.000Z|7              
+1957-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1955-01-01T00:00:00.000Z|4              
+1954-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1952-01-01T00:00:00.000Z|8              
+null                    |10             
 ;
 
 histogramOneMonth
 schema::h:ts|c:l|birth_date:ts
 SELECT HISTOGRAM(birth_date, INTERVAL 1 MONTH) AS h, COUNT(*) as c, birth_date FROM test_emp GROUP BY h, birth_date HAVING c >= 1 ORDER BY h ASC LIMIT 20;
 
-           h            |       c       |       birth_date
+           h            |       c       |       birth_date       
 ------------------------+---------------+------------------------
-null                    |10             |null
+null                    |10             |null                    
 1952-02-01T00:00:00.000Z|1              |1952-02-27T00:00:00.000Z
 1952-04-01T00:00:00.000Z|1              |1952-04-19T00:00:00.000Z
 1952-05-01T00:00:00.000Z|1              |1952-05-15T00:00:00.000Z
@@ -685,7 +685,7 @@ histogramOneDay
 schema::h:ts|c:l|birth_date:ts
 SELECT HISTOGRAM(birth_date, INTERVAL 1 DAY) AS h, COUNT(*) as c, birth_date FROM test_emp WHERE YEAR(birth_date) BETWEEN 1959 AND 1960 GROUP BY h, birth_date ORDER BY h ASC;
 
-           h            |       c       |       birth_date
+           h            |       c       |       birth_date       
 ------------------------+---------------+------------------------
 1959-01-27T00:00:00.000Z|1              |1959-01-27T00:00:00.000Z
 1959-04-07T00:00:00.000Z|1              |1959-04-07T00:00:00.000Z
@@ -709,31 +709,31 @@ histogramDateTimeWithMonthOnTop
 schema::h:i|c:l
 SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
-       h       |       c
+       h       |       c       
 ---------------+---------------
-12             |7
-10             |17
-8              |16
-6              |16
-4              |18
-2              |10
-0              |6
-null           |10
+12             |7              
+10             |17             
+8              |16             
+6              |16             
+4              |18             
+2              |10             
+0              |6              
+null           |10    
 ;
 
 histogramDateTimeWithYearOnTop
 schema::h:i|c:l
 SELECT HISTOGRAM(YEAR(birth_date), 2) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
-       h       |       c
+       h       |       c       
 ---------------+---------------
-1964           |5
-1962           |13
-1960           |16
-1958           |16
-1956           |9
-1954           |12
-1952           |19
-null           |10
+1964           |5              
+1962           |13             
+1960           |16             
+1958           |16             
+1956           |9              
+1954           |12             
+1952           |19             
+null           |10   
 ;
 
 histogramDateTimeWithScalars
@@ -776,41 +776,41 @@ histogramNumericWithExpression
 schema::h:i|c:l
 SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h ORDER BY h DESC;
 
-       h       |       c
+       h       |       c       
 ---------------+---------------
-90             |10
-80             |10
-70             |10
-60             |10
-50             |10
-40             |10
-30             |10
-20             |10
-10             |10
-0              |10
+90             |10             
+80             |10             
+70             |10             
+60             |10             
+50             |10             
+40             |10             
+30             |10             
+20             |10             
+10             |10             
+0              |10   
 ;
 
 histogramGroupByWithoutAlias
 schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY HISTOGRAM(birth_date, INTERVAL 1 YEAR) ORDER BY h DESC;
 
-           h            |       c
+           h            |       c       
 ------------------------+---------------
-1965-01-01T00:00:00.000Z|1
-1964-01-01T00:00:00.000Z|4
-1963-01-01T00:00:00.000Z|7
-1962-01-01T00:00:00.000Z|6
-1961-01-01T00:00:00.000Z|8
-1960-01-01T00:00:00.000Z|8
-1959-01-01T00:00:00.000Z|9
-1958-01-01T00:00:00.000Z|7
-1957-01-01T00:00:00.000Z|4
-1956-01-01T00:00:00.000Z|5
-1955-01-01T00:00:00.000Z|4
-1954-01-01T00:00:00.000Z|8
-1953-01-01T00:00:00.000Z|11
-1952-01-01T00:00:00.000Z|8
-null                    |10
+1965-01-01T00:00:00.000Z|1              
+1964-01-01T00:00:00.000Z|4              
+1963-01-01T00:00:00.000Z|7              
+1962-01-01T00:00:00.000Z|6              
+1961-01-01T00:00:00.000Z|8              
+1960-01-01T00:00:00.000Z|8              
+1959-01-01T00:00:00.000Z|9              
+1958-01-01T00:00:00.000Z|7              
+1957-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1955-01-01T00:00:00.000Z|4              
+1954-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1952-01-01T00:00:00.000Z|8              
+null                    |10             
 ;
 
 countAll
@@ -819,18 +819,18 @@ SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
 
    all_names   |       c
 ---------------+---------------
-90             |100
+90             |100 
 ;
 
 countDistinctAndLiteral
 schema::ln:l|ccc:l
 SELECT COUNT(last_name) ln, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING ln>5 AND ccc>5;
 
-      ln       |     ccc
+      ln       |     ccc     
 ---------------+-------------
-10             |10
+10             |10           
 33             |33
-57             |57
+57             |57                
 ;
 
 countSmallCountTypesWithHaving
@@ -876,14 +876,14 @@ aggCountWithNull
 schema::COUNT(NULL):l|COUNT(*):l|COUNT(DISTINCT languages):l|languages:bt
 SELECT COUNT(NULL), COUNT(*), COUNT(DISTINCT languages), languages FROM test_emp GROUP BY languages ORDER BY languages DESC;
 
-  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)|   languages
+  COUNT(NULL)  |   COUNT(*)    |COUNT(DISTINCT languages)|   languages   
 ---------------+---------------+-------------------------+---------------
-null           |21             |1                        |5
-null           |18             |1                        |4
-null           |17             |1                        |3
-null           |19             |1                        |2
-null           |15             |1                        |1
-null           |10             |0                        |null
+null           |21             |1                        |5              
+null           |18             |1                        |4              
+null           |17             |1                        |3              
+null           |19             |1                        |2              
+null           |15             |1                        |1              
+null           |10             |0                        |null          
 ;
 
 aggCountZeroDocuments
@@ -899,9 +899,9 @@ aggCountAllEquality
 schema::areEqual:b|afn:l
 SELECT COUNT(first_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn FROM test_emp;
 
-   areEqual    |      afn
+   areEqual    |      afn      
 ---------------+---------------
-true           |90
+true           |90             
 ;
 
 aggCountAllDifferentFields
@@ -1010,33 +1010,33 @@ medianAbsoluteDeviation
 schema::gender:s|mad:d
 SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY gender;
 
-    gender     |      mad
+    gender     |      mad      
 ---------------+---------------
-null           |10789.0
-F              |12719.0
-M              |8905.0
+null           |10789.0        
+F              |12719.0        
+M              |8905.0         
 ;
 
 medianAbsoluteDeviationOnTwoFields
 schema::gender:s|avg:l|mad_s:l|mad_l:d
 SELECT gender, FLOOR(AVG(salary)) AS avg, FLOOR(MAD(salary)) AS mad_s, MAD(languages) AS mad_l FROM test_emp GROUP BY gender ORDER BY gender;
 
-    gender     |      avg      |     mad_s     |     mad_l
+    gender     |      avg      |     mad_s     |     mad_l     
 ---------------+---------------+---------------+---------------
-null           |48760          |10789          |2.0
-F              |50490          |12719          |1.5
-M              |46860          |8905           |1.0
+null           |48760          |10789          |2.0            
+F              |50490          |12719          |1.5            
+M              |46860          |8905           |1.0     
 ;
 
 medianAbsoluteDeviationOnSecondaryFieldWithOrder
 schema::gender:s|mad:d
 SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender ORDER BY mad ASC;
 
-    gender     |      mad
+    gender     |      mad      
 ---------------+---------------
-M              |8905.0
-null           |10789.0
-F              |12719.0
+M              |8905.0         
+null           |10789.0        
+F              |12719.0         
 ;
 
 
@@ -1044,10 +1044,10 @@ medianAbsoluteDeviationOnSecondaryFieldWithOrderAndHaving
 schema::gender:s|mad:d
 SELECT gender, MAD(salary) AS mad FROM test_emp GROUP BY gender HAVING mad > 10000 ORDER BY mad ASC;
 
-    gender     |      mad
+    gender     |      mad      
 ---------------+---------------
-null           |10789.0
-F              |12719.0
+null           |10789.0        
+F              |12719.0         
 ;
 
 
@@ -1252,7 +1252,7 @@ aggWithMinOfDatesAndCastAsDate
 schema::g:s|m:date
 SELECT gender g, MIN(CAST(birth_date AS DATE)) m FROM test_emp GROUP BY gender HAVING MIN(CAST(birth_date AS DATE)) < NOW() ORDER BY g;
 
-       g       |           m
+       g       |           m            
 ---------------+------------------------
 null           |1953-01-23T00:00:00.000Z
 F              |1952-04-19T00:00:00.000Z
@@ -1263,7 +1263,7 @@ aggWithMinOfDatetime
 schema::g:s|m:ts
 SELECT gender g, MIN(birth_date) m FROM test_emp GROUP BY gender HAVING m < NOW() ORDER BY gender;
 
-       g       |           m
+       g       |           m            
 ---------------+------------------------
 null           |1953-01-23T00:00:00.000Z
 F              |1952-04-19T00:00:00.000Z
@@ -1274,7 +1274,7 @@ aggWithMinOfDatetimeAndDate
 schema::g:s|mc:date|m:ts
 SELECT gender g, MIN(CAST(birth_date AS DATE)) mc, MIN(birth_date) m FROM test_emp GROUP BY gender HAVING MIN(CAST(birth_date AS DATE)) < NOW() AND MIN(birth_date) <= CURRENT_TIMESTAMP() ORDER BY g;
 
-       g       |           mc           |           m
+       g       |           mc           |           m            
 ---------------+------------------------+------------------------
 null           |1953-01-23T00:00:00.000Z|1953-01-23T00:00:00.000Z
 F              |1952-04-19T00:00:00.000Z|1952-04-19T00:00:00.000Z
@@ -1285,7 +1285,7 @@ aggWithMaxOfDatetime
 schema::g:s|m:ts
 SELECT gender g, MAX(birth_date) m FROM test_emp GROUP BY gender HAVING m < NOW() ORDER BY gender;
 
-       g       |           m
+       g       |           m            
 ---------------+------------------------
 null           |1963-06-07T00:00:00.000Z
 F              |1964-10-18T00:00:00.000Z
@@ -1296,7 +1296,7 @@ aggWithMaxOfDate
 schema::g:s|m:date
 SELECT gender g, MAX(CAST(birth_date AS DATE)) m FROM test_emp GROUP BY gender HAVING m < CAST('2020-01-01' AS DATE) ORDER BY gender;
 
-       g       |           m
+       g       |           m            
 ---------------+------------------------
 null           |1963-06-07T00:00:00.000Z
 F              |1964-10-18T00:00:00.000Z
@@ -1307,7 +1307,7 @@ aggWithMinMaxOfDatetime
 schema::g:s|mx:ts|mn:ts
 SELECT gender g, MAX(birth_date) mx, MIN(birth_date) mn FROM test_emp GROUP BY gender HAVING mn < NOW() AND mx > CAST('1950-01-01' AS DATE) ORDER BY gender;
 
-       g       |           mx           |           mn
+       g       |           mx           |           mn           
 ---------------+------------------------+------------------------
 null           |1963-06-07T00:00:00.000Z|1953-01-23T00:00:00.000Z
 F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
@@ -1318,7 +1318,7 @@ aggWithMinMaxOfDate
 schema::g:s|mx:date|mn:date
 SELECT gender g, MAX(CAST(birth_date AS DATE)) mx, MIN(CAST(birth_date AS DATE)) mn FROM test_emp GROUP BY gender HAVING mn < CAST('2020-01-01' AS DATE) OR mx < CAST('1980-01-01T12:00:00' AS DATETIME) ORDER BY gender;
 
-       g       |           mx           |           mn
+       g       |           mx           |           mn           
 ---------------+------------------------+------------------------
 null           |1963-06-07T00:00:00.000Z|1953-01-23T00:00:00.000Z
 F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
@@ -1334,9 +1334,9 @@ allZerosWithFirst
 schema::FIRST_AllZeros:i
 SELECT FIRST(bytes_in) as "FIRST_AllZeros" FROM logs WHERE bytes_in = 0;
 
-FIRST_AllZeros
+FIRST_AllZeros 
 ---------------
-0
+0              
 ;
 
 
@@ -1344,9 +1344,9 @@ allNullsWithFirst
 schema::FIRST_AllNulls:i
 SELECT FIRST(bytes_out) as "FIRST_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
-FIRST_AllNulls
+FIRST_AllNulls 
 ---------------
-null
+null           
 ;
 
 
@@ -1354,9 +1354,9 @@ allZerosWithLast
 schema::LAST_AllZeros:i
 SELECT LAST(bytes_in) as "LAST_AllZeros" FROM logs WHERE bytes_in = 0;
 
- LAST_AllZeros
+ LAST_AllZeros 
 ---------------
-0
+0              
 ;
 
 
@@ -1364,9 +1364,9 @@ allNullsWithLast
 schema::LAST_AllNulls:i
 SELECT LAST(bytes_out) as "LAST_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
- LAST_AllNulls
+ LAST_AllNulls 
 ---------------
-null
+null           
 ;
 
 
@@ -1374,9 +1374,9 @@ allZerosWithCount
 schema::COUNT_AllZeros:l
 SELECT COUNT(bytes_in) as "COUNT_AllZeros" FROM logs WHERE bytes_in = 0;
 
-COUNT_AllZeros
+COUNT_AllZeros 
 ---------------
-2
+2              
 ;
 
 
@@ -1384,9 +1384,9 @@ allNullsWithCount
 schema::COUNT_AllNulls:l
 SELECT COUNT(bytes_out) as "COUNT_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
-COUNT_AllNulls
+COUNT_AllNulls 
 ---------------
-0
+0              
 ;
 
 
@@ -1395,9 +1395,9 @@ allZerosWithAvg
 schema::AVG_AllZeros:d
 SELECT AVG(bytes_in) as "AVG_AllZeros" FROM logs WHERE bytes_in = 0;
 
- AVG_AllZeros
+ AVG_AllZeros  
 ---------------
-0.0
+0.0            
 ;
 
 
@@ -1405,9 +1405,9 @@ allNullsWithAvg
 schema::AVG_AllNulls:d
 SELECT AVG(bytes_out) as "AVG_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
- AVG_AllNulls
+ AVG_AllNulls  
 ---------------
-null
+null           
 ;
 
 
@@ -1415,9 +1415,9 @@ allZerosWithMin
 schema::MIN_AllZeros:i
 SELECT MIN(bytes_in) as "MIN_AllZeros" FROM logs WHERE bytes_in = 0;
 
- MIN_AllZeros
+ MIN_AllZeros  
 ---------------
-0
+0              
 ;
 
 
@@ -1425,9 +1425,9 @@ allNullsWithMin
 schema::MIN_AllNulls:i
 SELECT MIN(bytes_out) as "MIN_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
- MIN_AllNulls
+ MIN_AllNulls  
 ---------------
-null
+null           
 ;
 
 
@@ -1435,9 +1435,9 @@ allZerosWithMax
 schema::MAX_AllZeros:i
 SELECT MAX(bytes_in) as "MAX_AllZeros" FROM logs WHERE bytes_in = 0;
 
- MAX_AllZeros
+ MAX_AllZeros  
 ---------------
-0
+0              
 ;
 
 
@@ -1445,9 +1445,9 @@ allNullsWithMax
 schema::MAX_AllNulls:i
 SELECT MAX(bytes_out) as "MAX_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
- MAX_AllNulls
+ MAX_AllNulls  
 ---------------
-null
+null           
 ;
 
 
@@ -1455,9 +1455,9 @@ allZerosWithSum
 schema::SUM_AllZeros:l
 SELECT SUM(bytes_in) as "SUM_AllZeros" FROM logs WHERE bytes_in = 0;
 
- SUM_AllZeros
+ SUM_AllZeros  
 ---------------
-0
+0              
 ;
 
 
@@ -1465,9 +1465,9 @@ allNullsWithSum
 schema::SUM_AllNulls:l
 SELECT SUM(bytes_out) as "SUM_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
- SUM_AllNulls
+ SUM_AllNulls  
 ---------------
-null
+null           
 ;
 
 
@@ -1477,7 +1477,7 @@ SELECT PERCENTILE(bytes_in, 0) as "PERCENTILE_AllZeros" FROM logs WHERE bytes_in
 
 PERCENTILE_AllZeros
 -------------------
-0.0
+0.0                
 ;
 
 
@@ -1487,7 +1487,7 @@ SELECT PERCENTILE(bytes_out, 0) as "PERCENTILE_AllNulls" FROM logs WHERE bytes_o
 
 PERCENTILE_AllNulls
 -------------------
-null
+null               
 ;
 
 
@@ -1497,7 +1497,7 @@ SELECT PERCENTILE_RANK(bytes_in, 0) as "PERCENTILE_RANK_AllZeros" FROM logs WHER
 
 PERCENTILE_RANK_AllZeros
 ------------------------
-100.0
+100.0                   
 ;
 
 
@@ -1507,7 +1507,7 @@ SELECT PERCENTILE_RANK(bytes_out, 0) as "PERCENTILE_RANK_AllNulls" FROM logs WHE
 
 PERCENTILE_RANK_AllNulls
 ------------------------
-null
+null                    
 ;
 
 
@@ -1517,7 +1517,7 @@ SELECT SUM_OF_SQUARES(bytes_in) as "SUM_OF_SQUARES_AllZeros" FROM logs WHERE byt
 
 SUM_OF_SQUARES_AllZeros
 -----------------------
-0.0
+0.0                    
 ;
 
 
@@ -1527,7 +1527,7 @@ SELECT SUM_OF_SQUARES(bytes_out) as "SUM_OF_SQUARES_AllNulls" FROM logs WHERE by
 
 SUM_OF_SQUARES_AllNulls
 -----------------------
-null
+null                   
 ;
 
 
@@ -1537,7 +1537,7 @@ SELECT STDDEV_POP(bytes_in) as "STDDEV_POP_AllZeros" FROM logs WHERE bytes_in = 
 
 STDDEV_POP_AllZeros
 -------------------
-0.0
+0.0                
 ;
 
 
@@ -1547,7 +1547,7 @@ SELECT STDDEV_POP(bytes_out) as "STDDEV_POP_AllNulls" FROM logs WHERE bytes_out 
 
 STDDEV_POP_AllNulls
 -------------------
-null
+null               
 ;
 
 
@@ -1557,7 +1557,7 @@ SELECT STDDEV_SAMP(bytes_in) as "STDDEV_SAMP_AllZeros" FROM logs WHERE bytes_in 
 
 STDDEV_SAMP_AllZeros
 --------------------
-0.0
+0.0                 
 ;
 
 
@@ -1567,7 +1567,7 @@ SELECT STDDEV_SAMP(bytes_out) as "STDDEV_SAMP_AllNulls" FROM logs WHERE bytes_ou
 
 STDDEV_SAMP_AllNulls
 --------------------
-null
+null                
 ;
 
 
@@ -1577,7 +1577,7 @@ SELECT VAR_SAMP(bytes_in) as "VAR_SAMP_AllZeros" FROM logs WHERE bytes_in = 0;
 
 VAR_SAMP_AllZeros
 -----------------
-0.0
+0.0              
 ;
 
 
@@ -1587,7 +1587,7 @@ SELECT VAR_SAMP(bytes_out) as "VAR_SAMP_AllNulls" FROM logs WHERE bytes_out IS N
 
 VAR_SAMP_AllNulls
 -----------------
-null
+null             
 ;
 
 
@@ -1597,7 +1597,7 @@ SELECT VAR_POP(bytes_in) as "VAR_POP_AllZeros" FROM logs WHERE bytes_in = 0;
 
 VAR_POP_AllZeros
 ----------------
-0.0
+0.0             
 ;
 
 
@@ -1607,7 +1607,7 @@ SELECT VAR_POP(bytes_out) as "VAR_POP_AllNulls" FROM logs WHERE bytes_out IS NUL
 
 VAR_POP_AllNulls
 ----------------
-null
+null            
 ;
 
 
@@ -1617,7 +1617,7 @@ SELECT SKEWNESS(bytes_in) as "SKEWNESS_AllZeros" FROM logs WHERE bytes_in = 0;
 
 SKEWNESS_AllZeros
 -----------------
-NaN
+NaN              
 ;
 
 
@@ -1627,7 +1627,7 @@ SELECT SKEWNESS(bytes_out) as "SKEWNESS_AllNulls" FROM logs WHERE bytes_out IS N
 
 SKEWNESS_AllNulls
 -----------------
-null
+null             
 ;
 
 
@@ -1635,9 +1635,9 @@ allZerosWithMad
 schema::MAD_AllZeros:d
 SELECT MAD(bytes_in) as "MAD_AllZeros" FROM logs WHERE bytes_in = 0;
 
- MAD_AllZeros
+ MAD_AllZeros  
 ---------------
-0.0
+0.0            
 ;
 
 
@@ -1645,9 +1645,9 @@ allNullsWithMad
 schema::MAD_AllNulls:d
 SELECT MAD(bytes_out) as "MAD_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
- MAD_AllNulls
+ MAD_AllNulls  
 ---------------
-NaN
+NaN            
 ;
 
 
@@ -1657,7 +1657,7 @@ SELECT KURTOSIS(bytes_in) as "KURTOSIS_AllZeros" FROM logs WHERE bytes_in = 0;
 
 KURTOSIS_AllZeros
 -----------------
-NaN
+NaN              
 ;
 
 
@@ -1667,46 +1667,46 @@ SELECT KURTOSIS(bytes_out) as "KURTOSIS_AllNulls" FROM logs WHERE bytes_out IS N
 
 KURTOSIS_AllNulls
 -----------------
-null
+null             
 ;
 
 nullsAndZerosCombined
 schema::COUNT(*):l|COUNT_AllZeros:l|COUNT_AllNulls:l|FIRST_AllZeros:i|FIRST_AllNulls:i|SUM_AllZeros:l|SUM_AllNulls:l
 SELECT
-    COUNT(*),
-    COUNT(bytes_in) AS "COUNT_AllZeros",
-    COUNT(bytes_out) AS "COUNT_AllNulls",
-    FIRST(bytes_in) AS "FIRST_AllZeros",
-    FIRST(bytes_out) AS "FIRST_AllNulls",
-    SUM(bytes_in) AS "SUM_AllZeros",
+    COUNT(*), 
+    COUNT(bytes_in) AS "COUNT_AllZeros", 
+    COUNT(bytes_out) AS "COUNT_AllNulls", 
+    FIRST(bytes_in) AS "FIRST_AllZeros", 
+    FIRST(bytes_out) AS "FIRST_AllNulls", 
+    SUM(bytes_in) AS "SUM_AllZeros", 
     SUM(bytes_out) AS "SUM_AllNulls"
 FROM logs
 WHERE bytes_in = 0 AND bytes_out IS NULL;
 
-   COUNT(*)    |COUNT(bytes_in)|COUNT(bytes_out)|FIRST_AllZeros |FIRST_AllNulls | SUM_AllZeros  | SUM_AllNulls
+   COUNT(*)    |COUNT(bytes_in)|COUNT(bytes_out)|FIRST_AllZeros |FIRST_AllNulls | SUM_AllZeros  | SUM_AllNulls  
 ---------------+---------------+----------------+---------------+---------------+---------------+---------------
-1              |1              |0               |0              |null           |0              |null
+1              |1              |0               |0              |null           |0              |null           
 ;
 
 
 groupedByNullsAndZeros
 schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):l|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):d
 SELECT
-    bytes_in,
-    COUNT(*),
-    SUM(bytes_in),
-    MIN(bytes_in),
-    MAX(bytes_in),
+    bytes_in, 
+    COUNT(*), 
+    SUM(bytes_in), 
+    MIN(bytes_in), 
+    MAX(bytes_in), 
     AVG(bytes_in)
 FROM logs
 WHERE NVL(bytes_in, 0) = 0
 GROUP BY bytes_in
 ORDER BY bytes_in DESC NULLS LAST;
 
-   bytes_in    |   COUNT(*)    | SUM(bytes_in) | MIN(bytes_in) | MAX(bytes_in) | AVG(bytes_in)
+   bytes_in    |   COUNT(*)    | SUM(bytes_in) | MIN(bytes_in) | MAX(bytes_in) | AVG(bytes_in) 
 ---------------+---------------+---------------+---------------+---------------+---------------
-0              |2              |0              |0              |0              |0.0
-null           |1              |null           |null           |null           |null
+0              |2              |0              |0              |0              |0.0            
+null           |1              |null           |null           |null           |null           
 ;
 
 groupedByMultipleSumsWithNullsAndZeros
@@ -1721,24 +1721,24 @@ WHERE client_ip = '10.0.0.0/16' AND NVL(bytes_out, 0) = 0
 GROUP BY client_ip
 ORDER BY c DESC, SUM(bytes_in) ASC NULLS FIRST;
 
- SUM(bytes_in) |SUM(bytes_out) |   client_ip   |       c
+ SUM(bytes_in) |SUM(bytes_out) |   client_ip   |       c       
 ---------------+---------------+---------------+---------------
-232            |null           |10.0.1.199     |10
-124            |null           |10.0.1.166     |7
-336            |null           |10.0.1.122     |7
-8              |null           |10.0.1.205     |2
-16             |null           |10.0.1.201     |2
-16             |null           |10.0.1.203     |2
-28             |null           |10.0.1.207     |2
-40             |null           |10.0.1.222     |2
-56             |null           |10.0.0.130     |2
-null           |null           |10.0.2.129     |1
-8              |null           |10.0.1.202     |1
-8              |null           |10.0.1.206     |1
-8              |null           |10.0.1.208     |1
-16             |null           |10.0.1.13      |1
-28             |null           |10.0.0.107     |1
-30             |null           |10.0.0.147     |1
-32             |null           |10.0.1.177     |1
-48             |null           |10.0.0.109     |1
+232            |null           |10.0.1.199     |10             
+124            |null           |10.0.1.166     |7              
+336            |null           |10.0.1.122     |7              
+8              |null           |10.0.1.205     |2              
+16             |null           |10.0.1.201     |2              
+16             |null           |10.0.1.203     |2              
+28             |null           |10.0.1.207     |2              
+40             |null           |10.0.1.222     |2              
+56             |null           |10.0.0.130     |2              
+null           |null           |10.0.2.129     |1              
+8              |null           |10.0.1.202     |1              
+8              |null           |10.0.1.206     |1              
+8              |null           |10.0.1.208     |1              
+16             |null           |10.0.1.13      |1              
+28             |null           |10.0.0.107     |1              
+30             |null           |10.0.0.147     |1              
+32             |null           |10.0.1.177     |1              
+48             |null           |10.0.0.109     |1              
 ;

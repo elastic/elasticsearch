@@ -42,13 +42,13 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
 
     public void testCountFrozenShards() {
         final Metadata.Builder builder = Metadata.builder();
-        long count = 0;
+        int count = 0;
         for (int i = 0; i < randomInt(20); ++i) {
             int shards = between(1, 3);
             int replicas = between(0, 2);
             String tierPreference = randomBoolean() ? DataTier.DATA_FROZEN : randomNonFrozenTierPreference();
             if (Objects.equals(tierPreference, DataTier.DATA_FROZEN)) {
-                count += (long) shards * (replicas + 1);
+                count += shards * (replicas + 1);
             }
             builder.put(
                 IndexMetadata.builder("index" + i).settings(indexSettings(tierPreference)).numberOfShards(shards).numberOfReplicas(replicas)

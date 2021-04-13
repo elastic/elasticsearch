@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,24 +33,17 @@ public final class FieldStats extends IndexFeatureStats {
 
     FieldStats(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            scriptCount = in.readVInt();
-            scriptLangs = in.readSet(StreamInput::readString);
-            fieldScriptStats = new FieldScriptStats(in);
-        } else {
-            scriptLangs = new HashSet<>();
-            fieldScriptStats = new FieldScriptStats();
-        }
+        scriptCount = in.readVInt();
+        scriptLangs = in.readSet(StreamInput::readString);
+        fieldScriptStats = new FieldScriptStats(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVInt(scriptCount);
-            out.writeCollection(scriptLangs, StreamOutput::writeString);
-            fieldScriptStats.writeTo(out);
-        }
+        out.writeVInt(scriptCount);
+        out.writeCollection(scriptLangs, StreamOutput::writeString);
+        fieldScriptStats.writeTo(out);
     }
 
     @Override

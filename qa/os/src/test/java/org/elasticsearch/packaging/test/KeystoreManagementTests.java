@@ -94,7 +94,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution(), builder().envVars("geoip.downloader.enabled", "false"));
+        installation = Docker.runContainer(distribution(), builder().envVars(Map.of("geoip.downloader.enabled", "false")));
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));

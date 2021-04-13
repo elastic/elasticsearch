@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.ql.expression.function.scalar;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,6 +29,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -112,43 +116,56 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        String template = basicTemplate(aggregate);
-        return new ScriptTemplate(processScript(template),
-                paramsBuilder().agg(aggregate).build(),
-                dataType());
+        Tuple<String, Integer> template = basicTemplate(aggregate);
+        return new ScriptTemplate(processScript(template.v1()),
+            repeatedParamBuilder(template.v2(), p -> p.agg(aggregate)).build(),
+            dataType());
     }
 
     // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        String template = basicTemplate(grouping);
-        return new ScriptTemplate(processScript(template),
-                paramsBuilder().grouping(grouping).build(),
-                dataType());
+        Tuple<String, Integer> template = basicTemplate(grouping);
+        return new ScriptTemplate(processScript(template.v1()),
+            repeatedParamBuilder(template.v2(), p -> p.grouping(grouping)).build(),
+            dataType());
     }
 
     // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
-    private String basicTemplate(Function function) {
+    private Tuple<String, Integer> basicTemplate(Function function) {
         if (function.dataType().name().equals("DATE") || function.dataType() == DATETIME ||
             // Aggregations on date_nanos are returned as string
             (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
 
-            return "{sql}.asDateTime({})";
+            return new Tuple<>("{sql}.asDateTime({})", 1);
         } else if (function instanceof AggregateFunction) {
             DataType dt = function.dataType();
             if (dt.isInteger()) {
                 // MAX, MIN, SUM need to retain field's data type, so that possible operations on integral types (like division) work
-                // correctly -> perform a cast
+                // correctly -> perform a cast in the aggs filtering script, the bucket selector for HAVING.
                 // SQL function classes not available in QL: filter by name
                 String fn = function.functionName();
                 if ("MAX".equals(fn) || "MIN".equals(fn)) {
-                    return "(" + (dt == INTEGER ? "int" : dt.esType()) + "){}";
+                    return new Tuple<>(safeCastNumericParamTemplate(dt), 2);
                 } else if ("SUM".equals(fn)) {
-                    return "(long){}";
+                    return new Tuple<>(safeCastNumericParamTemplate(LONG), 2);
                 }
             }
         }
-        return "{}";
+        return new Tuple<>("{}", 1);
+    }
+
+    private static String safeCastNumericParamTemplate(DataType dataType) {
+        String type = dataType == INTEGER ? "int" : dataType.esType();
+        return "Double.NaN.compareTo({}) == 0 ? null : ((Number) {})." + type + "Value()";
+    }
+
+    private static ParamsBuilder repeatedParamBuilder(int count, Consumer<ParamsBuilder> consumer) {
+        ParamsBuilder builder = paramsBuilder();
+        for (int i = 0; i < count; i ++) {
+            consumer.accept(builder);
+        }
+        return builder;
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

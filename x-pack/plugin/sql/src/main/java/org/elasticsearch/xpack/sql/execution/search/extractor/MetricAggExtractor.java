@@ -63,7 +63,7 @@ public class MetricAggExtractor implements BucketExtractor {
         name = in.readString();
         property = in.readString();
         innerKey = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_12_1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             String typeName = in.readOptionalString();
             if (typeName != null) {
                 dataType = SqlDataTypes.fromTypeName(typeName);
@@ -82,7 +82,11 @@ public class MetricAggExtractor implements BucketExtractor {
         out.writeString(name);
         out.writeString(property);
         out.writeOptionalString(innerKey);
-        out.writeOptionalString(dataType == null ? null : dataType.name());
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeOptionalString(dataType == null ? null : dataType.name());
+        } else {
+            out.writeBoolean(isDateBased(dataType));
+        }
     }
 
     String name() {
@@ -140,7 +144,7 @@ public class MetricAggExtractor implements BucketExtractor {
                 return DateUtils.asDateTimeWithMillis(((Number) object).longValue(), zoneId);
             } else if (dataType.isInteger()) {
                 // MIN and MAX need to return the same type as field's and SUM a long for integral types, but ES returns them always as
-                // floating points -> convert them if needed
+                // floating points -> convert them in the the SELECT pipeline, if needed
                 return convert(object, dataType);
             }
         }

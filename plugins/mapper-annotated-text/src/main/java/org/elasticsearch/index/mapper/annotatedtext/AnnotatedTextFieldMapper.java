@@ -116,7 +116,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             if (fieldType.indexOptions() == IndexOptions.NONE ) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
-            if (analyzers.positionIncrementGap.get() != TextParams.POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
                         + name + "] without positions enabled");

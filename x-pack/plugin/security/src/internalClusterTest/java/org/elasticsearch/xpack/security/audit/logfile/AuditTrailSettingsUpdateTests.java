@@ -57,9 +57,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(super.nodeSettings(nodeOrdinal));
+        settingsBuilder.put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         // enable auditing
         settingsBuilder.put("xpack.security.audit.enabled", "true");
@@ -96,7 +96,8 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final String[] allSettingsKeys = new String[] { "xpack.security.audit.logfile.events.ignore_filters.invalid.users",
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.realms",
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.roles",
-                "xpack.security.audit.logfile.events.ignore_filters.invalid.indices" };
+                "xpack.security.audit.logfile.events.ignore_filters.invalid.indices",
+                "xpack.security.audit.logfile.events.ignore_filters.invalid.actions"};
         settingsBuilder.put(randomFrom(allSettingsKeys), invalidLuceneRegex);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder.build()).get());
@@ -222,6 +223,12 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 // filter by indices
                 final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
                 settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".indices", filteredIndices);
+            }
+            if (randomBoolean()) {
+                // filter by actions
+                final List<String> filteredActions = randomNonEmptyListOfFilteredNames();
+                settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".actions",
+                    filteredActions);
             }
         } while (settingsBuilder.build().isEmpty());
 

@@ -180,7 +180,7 @@ public class TermVectorsService  {
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
             if (fieldType.getTextSearchInfo().termVectors() != TextSearchInfo.TermVector.NONE &&
-                    (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
+                    (request.perFieldAnalyzer() == null || request.perFieldAnalyzer().containsKey(field) == false)) {
                 continue;
             }
             validFields.add(field);
@@ -324,7 +324,7 @@ public class TermVectorsService  {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
-                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing));
+                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing, Map.of()));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

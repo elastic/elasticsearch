@@ -31,8 +31,19 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
      */
     private static final List BAD_LANGUAGES = ['json', 'javascript']
 
+    /**
+     * Test setups defined in the build instead of the docs so they can be
+     * shared between many doc files.
+     */
     @Input
     Map<String, String> setups = new HashMap()
+
+    /**
+     * Test teardowns defined in the build instead of the docs so they can be
+     * shared between many doc files.
+     */
+    @Input
+    Map<String, String> teardowns = new HashMap()
 
     /**
      * A list of files that contain snippets that *probably* should be
@@ -281,16 +292,37 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
             }
 
             body(test, false)
+
+            if (test.teardown != null) {
+                teardown(test)
+            }
         }
 
         private void setup(final Snippet snippet) {
             // insert a setup defined outside of the docs
-            for (final String setupName : snippet.setup.split(',')) {
-                final String setup = setups[setupName]
+            for (final String name : snippet.setup.split(',')) {
+                final String setup = setups[name]
                 if (setup == null) {
-                    throw new InvalidUserDataException("Couldn't find setup for $snippet")
+                    throw new InvalidUserDataException(
+                        "Couldn't find named setup $name for $snippet"
+                    )
                 }
+                current.println("# Named setup ${name}")
                 current.println(setup)
+            }
+        }
+
+        private void teardown(final Snippet snippet) {
+            // insert a teardown defined outside of the docs
+            for (final String name : snippet.teardown.split(',')) {
+                final String teardown = teardowns[name]
+                if (teardown == null) {
+                    throw new InvalidUserDataException(
+                        "Couldn't find named teardown $name for $snippet"
+                    )
+                }
+                current.println("# Named teardown ${name}")
+                current.println(teardown)
             }
         }
 

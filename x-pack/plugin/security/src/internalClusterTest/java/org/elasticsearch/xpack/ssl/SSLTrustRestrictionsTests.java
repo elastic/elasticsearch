@@ -117,9 +117,9 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
-        Settings parentSettings = super.nodeSettings(nodeOrdinal);
+        Settings parentSettings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
                 .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
                 .put(nodeSSL);

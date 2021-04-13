@@ -35,10 +35,6 @@ public class DeprecationLogger {
 
     private final Logger logger;
 
-    private DeprecationLogger(Logger parentLogger) {
-        this.logger = parentLogger;
-    }
-
     /**
      * Creates a new deprecation logger for the supplied class. Internally, it delegates to
      * {@link #getLogger(String)}, passing the full class name.
@@ -54,16 +50,20 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public static DeprecationLogger getLogger(String name) {
-        return new DeprecationLogger(getDeprecatedLoggerForName(name));
+        return new DeprecationLogger(name);
     }
 
-    private static Logger getDeprecatedLoggerForName(String name) {
+    private DeprecationLogger(String parentLoggerName) {
+        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName));
+    }
+
+    private static String getLoggerName(String name) {
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }
-        return LogManager.getLogger(name);
+        return name;
     }
 
     private static String toLoggerName(final Class<?> cls) {
@@ -75,23 +75,27 @@ public class DeprecationLogger {
      * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLoggerBuilder deprecate(
+    public DeprecationLogger deprecate(
         final DeprecationCategory category,
         final String key,
         final String msg,
         final Object... params
     ) {
-        return new DeprecationLoggerBuilder().withDeprecation(category, key, msg, params);
+        assert category != DeprecationCategory.COMPATIBLE_API :
+            "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
+        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
+        logger.log(DEPRECATION, deprecationMessage);
+        return this;
     }
 
-    public class DeprecationLoggerBuilder {
-
-        public DeprecationLoggerBuilder withDeprecation(DeprecationCategory category, String key, String msg, Object[] params) {
-            ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-
-            logger.log(DEPRECATION, deprecationMessage);
-
-            return this;
-        }
+    public DeprecationLogger compatibleApiWarning(
+        final String key,
+        final String msg,
+        final Object... params) {
+        String opaqueId = HeaderWarning.getXOpaqueId();
+        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
+        logger.log(DEPRECATION, deprecationMessage);
+        return this;
     }
+
 }

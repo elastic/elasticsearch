@@ -1,7 +1,7 @@
 [[slm-api-put-policy]]
-=== Put snapshot lifecycle policy API
+=== Create or update snapshot lifecycle policy API
 ++++
-<titleabbrev>Put policy</titleabbrev>
+<titleabbrev>Create or update policy</titleabbrev>
 ++++
 
 Creates or updates a snapshot lifecycle policy.
@@ -23,7 +23,7 @@ For more information, see <<security-privileges>>.
 [[slm-api-put-desc]]
 ==== {api-description-title}
 
-Use the put snapshot lifecycle policy API
+Use the create or update snapshot lifecycle policy API
 to create or update a snapshot lifecycle policy.
 
 If the policy already exists,

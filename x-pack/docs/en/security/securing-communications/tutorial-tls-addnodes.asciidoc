@@ -14,7 +14,7 @@ Let's add two nodes to our cluster!
 nodes using a shared installation. In this tutorial, however, we're keeping
 things simple by using the `zip` or `tar.gz` packages and by putting each copy
 in a separate folder. You can simply repeat the steps that you used to install
-{es} in the 
+{es} in the
 {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Getting started with the {stack}]
 tutorial.
 
@@ -29,7 +29,7 @@ For example, run the following command:
 --ca elastic-stack-ca.p12 \ <1>
 --multiple
 ----------------------------------------------------------------------
-<1> Use the certificate authority that you created in <<encrypting-communications-certificates>>.
+<1> Use the certificate authority that you created in <<generate-certificates>>.
 
 You are prompted for information about each new node. Specify `node-2` and
 `node-3` for the instance names. For the purposes of this tutorial, specify the
@@ -47,15 +47,15 @@ which contains the generated certificates and keys.
 --
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------------
-unzip certificate-bundle.zip 
+unzip certificate-bundle.zip
 
 Archive:  certificate-bundle.zip
    creating: node-2/
-  inflating: node-2/node-2.p12       
+  inflating: node-2/node-2.p12
    creating: node-3/
-  inflating: node-3/node-3.p12   
+  inflating: node-3/node-3.p12
 ----------------------------------------------------------------------
-  
+
 The `certificate-bundle.zip` file contains a folder for each of your nodes. Each
 folder contains a single PKCS#12 keystore that includes a node certificate,
 node key, and CA certificate.
@@ -165,10 +165,10 @@ node:
 [source,console]
 ----------------------------------
 GET _cat/nodes?v=true
----------------------------------- 
+----------------------------------
 
 The node that has an asterisk(*) in the `master` column is the elected master
-node. 
+node.
 --
 
 Now that you have multiple nodes, your data can be distributed across the
@@ -181,7 +181,7 @@ concepts of clusters, nodes, and shards, see
 === What's next?
 
 Congratulations! You've encrypted communications between the nodes in your
-cluster and can pass the 
+cluster and can pass the
 <<bootstrap-checks-tls,TLS bootstrap check>>.
 
 If you want to encrypt communications between other products in the {stack}, see

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.snapshots.SnapshotFeatureInfoTests.randomSnapshotFeatureInfo;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -70,9 +72,11 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             String reason = randomBoolean() ? null : "reason";
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
+            List<SnapshotFeatureInfo> featureInfos = randomList(0, () -> randomSnapshotFeatureInfo());
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
-                System.currentTimeMillis(), reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTests.randomUserMetadata()));
+                featureInfos, reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
+                SnapshotInfoTests.randomUserMetadata(), System.currentTimeMillis()
+            ));
 
         }
         return snapshots;

@@ -58,7 +58,7 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for `DeleteStoredScriptResponse` looks like:
+A typical listener for `AcknowledgedResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -71,7 +71,7 @@ provided as an argument
 [[java-rest-high-delete-stored-script-response]]
 ==== Delete Stored Script Response
 
-The returned `DeleteStoredScriptResponse` allows to retrieve information about the
+The returned `AcknowledgedResponse` allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

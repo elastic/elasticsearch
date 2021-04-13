@@ -379,6 +379,11 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
+    @Override
+    public boolean hasAtomicOverwrites() {
+        return delegatedRepository.hasAtomicOverwrites();
+    }
+
     // pkg-private for tests
     static final class EncryptedBlobStore implements BlobStore {
         private final BlobStore delegatedBlobStore;

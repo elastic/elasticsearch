@@ -79,6 +79,7 @@ import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -95,8 +96,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
@@ -147,10 +148,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, Version version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesRepositoryUuid(version) == false) {
-            return repositoryData.withoutRepositoryUUID().withoutClusterUUID();
-        } else if (SnapshotsService.includesClusterUUID(version) == false) {
-            return repositoryData.withoutClusterUuid();
+        if (SnapshotsService.includesUUIDs(version) == false) {
+            return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;
         }
@@ -382,6 +381,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .prepareCreateSnapshot(repositoryName, snapshot)
                 .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
                 .setWaitForCompletion(true)
+                .setFeatureStates(NO_FEATURE_STATES_VALUE) // Exclude all feature states to ensure only specified indices are included
                 .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
@@ -437,9 +437,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 Collections.emptyList(), Collections.emptyList(),
-                SnapshotState.FAILED, "failed on purpose",
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
-                randomBoolean(), metadata);
+                Collections.emptyList(), "failed on purpose", SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L, 0L, 0, 0, Collections.emptyList(),
+                randomBoolean(), metadata, SnapshotState.FAILED
+        );
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));

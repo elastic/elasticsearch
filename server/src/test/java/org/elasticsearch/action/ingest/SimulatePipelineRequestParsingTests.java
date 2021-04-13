@@ -101,7 +101,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
     }
 
-    public void innerTestParseWithProvidedPipeline() throws Exception {
+    public void testParseWithProvidedPipeline() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -113,12 +113,22 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> expectedDoc = new HashMap<>();
             List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, IF_PRIMARY_TERM);
             for(IngestDocument.Metadata field : fields) {
-                if (field == VERSION_TYPE) {
+                if (field == VERSION) {
+                    Object value = randomBoolean() ? randomLong() : randomInt();
+                    doc.put(field.getFieldName(), randomBoolean() ? value : value.toString());
+                    long longValue = (long) value;
+                    expectedDoc.put(field.getFieldName(), longValue);
+                } else if (field == VERSION_TYPE) {
                     String value = VersionType.toString(
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE)
                     );
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
+                } else if (field == IF_SEQ_NO || field == IF_PRIMARY_TERM) {
+                    Object value = randomBoolean() ? randomNonNegativeLong() : randomInt(1000);
+                    doc.put(field.getFieldName(), randomBoolean() ? value : value.toString());
+                    long longValue = (long) value;
+                    expectedDoc.put(field.getFieldName(), longValue);
                 } else {
                     if (randomBoolean()) {
                         String value = randomAlphaOfLengthBetween(1, 10);

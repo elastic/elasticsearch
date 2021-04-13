@@ -241,6 +241,8 @@ public class MatchQueryParser {
         assert analyzer != null;
 
         MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+        String resolvedFieldName = fieldType.name();
+        String stringValue = value.toString();
 
         /*
          * If a keyword analyzer is used, we know that further analysis isn't
@@ -249,7 +251,7 @@ public class MatchQueryParser {
          * a prefix query instead
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
-            final Term term = new Term(fieldType.name(), value.toString());
+            final Term term = new Term(resolvedFieldName, stringValue);
             if (type == Type.BOOLEAN_PREFIX
                     && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
@@ -258,32 +260,23 @@ public class MatchQueryParser {
             }
         }
 
-        return parseInternal(type, fieldType.name(), builder, value);
-    }
-
-    protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {
-        final Query query;
+        Query query;
         switch (type) {
             case BOOLEAN:
-                query = builder.createBooleanQuery(fieldName, value.toString(), occur);
+                query = builder.createBooleanQuery(resolvedFieldName, stringValue, occur);
                 break;
-
             case BOOLEAN_PREFIX:
-                query = builder.createBooleanPrefixQuery(fieldName, value.toString(), occur);
+                query = builder.createBooleanPrefixQuery(resolvedFieldName, stringValue, occur);
                 break;
-
             case PHRASE:
-                query = builder.createPhraseQuery(fieldName, value.toString(), phraseSlop);
+                query = builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
                 break;
-
             case PHRASE_PREFIX:
-                query = builder.createPhrasePrefixQuery(fieldName, value.toString(), phraseSlop);
+                query = builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
                 break;
-
             default:
                 throw new IllegalStateException("No type found for [" + type + "]");
         }
-
         return query == null ? zeroTermsQuery() : query;
     }
 

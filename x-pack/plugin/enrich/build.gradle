@@ -11,11 +11,11 @@ archivesBaseName = 'x-pack-enrich'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:reindex')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:geo')
-  testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 
 addQaCheckDependencies()

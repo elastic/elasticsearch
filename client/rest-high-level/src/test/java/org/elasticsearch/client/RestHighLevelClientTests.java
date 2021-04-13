@@ -807,6 +807,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70041")
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
@@ -819,7 +820,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "scripts_painless_execute",
             "indices.simulate_template",
             "indices.resolve_index",
-            "indices.add_block"
+            "indices.add_block",
+            "open_point_in_time",
+            "close_point_in_time"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -855,7 +858,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
 
-        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
+        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
         Set<String> apiUnsupported = new HashSet<>(apiSpec);
         Set<String> apiNotFound = new HashSet<>();
@@ -918,6 +921,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
                                 apiName.startsWith("text_structure.") == false &&
+                                apiName.startsWith("searchable_snapshots.") == false &&
                                 apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&

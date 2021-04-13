@@ -173,8 +173,8 @@ public class MasterService extends AbstractLifecycleComponent {
         return clusterStateSupplier.get();
     }
 
-    private static boolean isMasterUpdateThread() {
-        return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
+    public static boolean isMasterUpdateThread() {
+        return Thread.currentThread().getName().contains('[' + MASTER_UPDATE_THREAD_NAME + ']');
     }
 
     public static boolean assertNotMasterUpdateThread(String reason) {

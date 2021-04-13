@@ -8,6 +8,9 @@ grant {
 
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
+
+  // needed because of problems in unbound LDAP library
+  permission java.util.PropertyPermission "*", "read,write";
 };
 
 grant codeBase "${codebase.netty-common}" {

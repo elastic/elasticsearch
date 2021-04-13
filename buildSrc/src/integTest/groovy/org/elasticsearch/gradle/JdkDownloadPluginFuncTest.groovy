@@ -32,7 +32,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static final String ADOPT_JDK_VERSION_11 = "11.0.10+9"
     private static final String ADOPT_JDK_VERSION_15 = "15.0.2+7"
     private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
-    private static final String AZUL_AARCH_VERSION = "15.0.1+99@123456789123456789123456789abcde"
+    private static final String AZUL_AARCH_VERSION = "16.0.1+99@123456789123456789123456789abcde"
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
 
     @Unroll
@@ -215,7 +215,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         } else if (vendor.equals(VENDOR_AZUL)) {
             final String module = isMac(platform) ? "macosx" : platform;
             // we only test zulu 15 darwin aarch64 for now
-            return "/zulu${module.equals('linux') ? '-embedded' : ''}/bin/zulu15.29.15-ca-jdk15.0.2-${module}_${arch}.tar.gz";
+            return "/zulu${module.equals('linux') ? '-embedded' : ''}/bin/zulu16.28.11-ca-jdk16.0.0-${module}_${arch}.tar.gz";
         }
     }
 

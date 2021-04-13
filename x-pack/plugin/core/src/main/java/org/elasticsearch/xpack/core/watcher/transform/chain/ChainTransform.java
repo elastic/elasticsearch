@@ -150,8 +150,8 @@ public class ChainTransform implements Transform {
             return this;
         }
 
-        public Builder add(Transform.Builder... transforms) {
-            for (Transform.Builder transform: transforms) {
+        public Builder add(Transform.Builder<?>... transforms) {
+            for (Transform.Builder<?> transform: transforms) {
                 this.transforms.add(transform.build());
             }
             return this;

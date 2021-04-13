@@ -21,8 +21,6 @@ import java.io.FileNotFoundException;
 import java.net.URL;
 import java.nio.file.Path;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";

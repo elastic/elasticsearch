@@ -250,14 +250,7 @@ public final class DateFieldMapper extends FieldMapper {
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
 
             this.script.precludesParameters(nullValue, ignoreMalformed);
-            this.script.setValidator(s -> {
-                if (s != null && index.get() == false && docValues.get() == false) {
-                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
-                }
-                if (s != null && multiFieldsBuilder.hasMultiFields()) {
-                    throw new MapperParsingException("Cannot define multifields on a field with a script");
-                }
-            });
+            addScriptValidation(script, index, docValues);
 
             DateFormatter defaultFormat = resolution == Resolution.MILLISECONDS ?
                 DEFAULT_DATE_TIME_FORMATTER : DEFAULT_DATE_TIME_NANOS_FORMATTER;

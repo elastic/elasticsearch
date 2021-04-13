@@ -192,6 +192,10 @@ public class ShardLimitValidatorTests extends ESTestCase {
         if (ShardLimitValidator.FROZEN_GROUP.equals(group)) {
             when(mock.getRoles()).thenReturn(randomBoolean() ? DiscoveryNodeRole.BUILT_IN_ROLES :
                 Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
+        } else {
+            when(mock.getRoles()).thenReturn(randomBoolean() ? DiscoveryNodeRole.BUILT_IN_ROLES :
+                Set.of(randomFrom(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+                    DiscoveryNodeRole.DATA_WARM_NODE_ROLE, DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
         }
         return mock;
     }

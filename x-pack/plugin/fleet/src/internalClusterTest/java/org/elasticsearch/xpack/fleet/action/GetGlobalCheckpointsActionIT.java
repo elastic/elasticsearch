@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package fleet.action;
+package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -20,7 +20,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.fleet.Fleet;
-import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -122,7 +121,6 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             for (int i = 0; i < totalDocuments; ++i) {
                 client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
             }
-
         }).start();
 
         final GetGlobalCheckpointsAction.Request request2 = new GetGlobalCheckpointsAction.Request(
@@ -132,6 +130,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             TimeValue.timeValueSeconds(30)
         );
         final GetGlobalCheckpointsAction.Response response2 = client().execute(GetGlobalCheckpointsAction.INSTANCE, request2).get();
+        assertFalse(response.timedOut());
         assertEquals(totalDocuments - 1, response2.globalCheckpoints()[0]);
     }
 

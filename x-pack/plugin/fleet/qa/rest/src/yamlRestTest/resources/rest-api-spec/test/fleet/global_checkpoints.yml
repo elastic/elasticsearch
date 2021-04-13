@@ -16,7 +16,12 @@ setup:
   - do:
       index:
         index:  test-1-shard
-        body:   { max: 2 }
+        body:   { }
+
+  - do:
+      index:
+        index: test-1-shard
+        body: { }
 
   - do:
       indices.refresh: {}
@@ -36,7 +41,7 @@ setup:
       fleet.global_checkpoints:
         index: "test-1-shard"
 
-  - match: { global_checkpoints.0: 0 }
+  - match: { global_checkpoints.0: 1 }
 
 ---
 "Advance timeout":
@@ -48,3 +53,15 @@ setup:
         poll_timeout: "50ms"
 
   - match: { timed_out: true }
+
+---
+"Advance no timeout":
+  - do:
+      fleet.global_checkpoints:
+        index: "test-1-shard"
+        wait_for_advance: true
+        current_checkpoints: [0]
+        poll_timeout: "50ms"
+
+  - match: { global_checkpoints.0: 1 }
+  - match: { timed_out: false }

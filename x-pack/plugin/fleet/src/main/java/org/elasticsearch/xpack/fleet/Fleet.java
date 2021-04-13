@@ -205,10 +205,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.TransportGetGlobalCheckpointsAction.class),
-            new ActionHandler<>(
-                GetGlobalCheckpointsShardAction.INSTANCE,
-                GetGlobalCheckpointsShardAction.TransportGetGlobalCheckpointAction.class
-            )
+            new ActionHandler<>(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class)
         );
     }
 

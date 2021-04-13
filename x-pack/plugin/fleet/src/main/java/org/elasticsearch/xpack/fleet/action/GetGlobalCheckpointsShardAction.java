@@ -125,12 +125,12 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
     }
 
-    public static class TransportGetGlobalCheckpointAction extends TransportSingleShardAction<Request, Response> {
+    public static class TransportAction extends TransportSingleShardAction<Request, Response> {
 
         private final IndicesService indicesService;
 
         @Inject
-        public TransportGetGlobalCheckpointAction(
+        public TransportAction(
             ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
@@ -178,7 +178,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                         @Override
                         public void accept(final long g, final Exception e) {
                             if (g != UNASSIGNED_SEQ_NO) {
-                                assert request.currentCheckpoint() <= g : shardId
+                                assert request.currentCheckpoint() < g : shardId
                                     + " only advanced to ["
                                     + g
                                     + "] while waiting for ["

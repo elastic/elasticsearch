@@ -730,22 +730,26 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testFrozenLegalForPartialSnapshot() {
-        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
-        if (tierList.contains(DATA_FROZEN) == false) {
-            tierList.add(DATA_FROZEN);
-        }
-        Randomness.shuffle(tierList);
-
-        String value = Strings.join(tierList, ",");
         Setting<String> setting = randomTierSetting();
-        Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
+        Settings.Builder builder = Settings.builder().put(setting.getKey(), DATA_FROZEN);
         builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
 
         // validate do not throw
-        assertThat(setting.get(settings), equalTo(value));
+        assertThat(setting.get(settings), equalTo(DATA_FROZEN));
+    }
+
+    public void testDefaultValueForPreference() {
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(Settings.EMPTY), equalTo(""));
+
+        Settings.Builder builder = Settings.builder();
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+        Settings settings = builder.build();
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(DATA_FROZEN));
     }
 
     public Setting<String> randomTierSetting() {

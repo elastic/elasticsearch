@@ -31,8 +31,9 @@ beginning of the realm chain in that order. To opt-out from the automatic behavi
 you can explicitly configure the `file` and `native` realms with the `order`
 and `enabled` settings.
 
-The following snippet configures a realm chain that includes the `file` and
-`native` realms, as well as two LDAP realms and an Active Directory realm.
+The following snippet configures a realm chain that enables the `file` realm
+as well as two LDAP realms and an Active Directory realm, but disables the
+`native` realm.
 
 [source,yaml]
 ----------------------------------------
@@ -40,23 +41,23 @@ xpack.security.authc.realms:
   file.file1:
       order: 0
 
-  native.native1:
-      order: 1
-
   ldap.ldap1:
-      order: 2
+      order: 1
       enabled: false
       url: 'url_to_ldap1'
       ...
 
   ldap.ldap2:
-      order: 3
+      order: 2
       url: 'url_to_ldap2'
       ...
 
   active_directory.ad1:
-      order: 4
+      order: 3
       url: 'url_to_ad'
+
+  native.native1:
+      enabled: false
 ----------------------------------------
 
 As can be seen above, each realm has a unique name that identifies it. Each type

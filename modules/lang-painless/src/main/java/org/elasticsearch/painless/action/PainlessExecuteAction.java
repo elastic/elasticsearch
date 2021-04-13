@@ -78,7 +78,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -115,13 +114,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 "painless_test", PainlessTestScript.CONTEXT,
                 "filter", FilterScript.CONTEXT,
                 "score", ScoreScript.CONTEXT,
-                "boolean_script_field_script_field", BooleanFieldScript.CONTEXT,
-                "date_script_field", DateFieldScript.CONTEXT,
-                "double_script_field_script_field", DoubleFieldScript.CONTEXT,
-                "geo_point_script_field_script_field", GeoPointFieldScript.CONTEXT,
-                "ip_script_field_script_field", IpFieldScript.CONTEXT,
-                "long_script_field_script_field", LongFieldScript.CONTEXT,
-                "string_script_field_script_field", StringFieldScript.CONTEXT)
+                "boolean_field", BooleanFieldScript.CONTEXT,
+                "date_field", DateFieldScript.CONTEXT,
+                "double_field", DoubleFieldScript.CONTEXT,
+                "geo_point_field", GeoPointFieldScript.CONTEXT,
+                "ip_field", IpFieldScript.CONTEXT,
+                "long_field", LongFieldScript.CONTEXT,
+                "string_field", StringFieldScript.CONTEXT)
         ;
 
         static ScriptContext<?> fromScriptContextName(String name) {
@@ -542,71 +541,64 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     BooleanFieldScript.Factory factory = scriptService.compile(request.script, BooleanFieldScript.CONTEXT);
                     BooleanFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("boolean_runtime_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory("boolean_field", request.getScript().getParams(), context.lookup());
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
-                    booleanFieldScript.setDocument(0);
-                    booleanFieldScript.execute();
-                    return new Response(Map.of("trues", booleanFieldScript.trues(), "falses", booleanFieldScript.falses()));
+                    booleanFieldScript.runForDoc(0);
+                    return new Response(booleanFieldScript.asDocValues());
                 }, indexService);
             } else if (scriptContext == DateFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DateFieldScript.Factory factory = scriptService.compile(request.script, DateFieldScript.CONTEXT);
-                    DateFieldScript.LeafFactory leafFactory = factory.newFactory("date_runtime_field",
+                    DateFieldScript.LeafFactory leafFactory = factory.newFactory("date_field",
                             request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
-                    dateFieldScript.setDocument(0);
-                    dateFieldScript.execute();
-                    return new Response(Arrays.copyOf(dateFieldScript.values(), dateFieldScript.count()));
+                    dateFieldScript.runForDoc(0);
+                    return new Response(dateFieldScript.asDocValues());
                 }, indexService);
             } else if (scriptContext == DoubleFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DoubleFieldScript.Factory factory = scriptService.compile(request.script, DoubleFieldScript.CONTEXT);
                     DoubleFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("double_runtime_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory("double_field", request.getScript().getParams(), context.lookup());
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
-                    doubleFieldScript.setDocument(0);
-                    doubleFieldScript.execute();
-                    return new Response(Arrays.copyOf(doubleFieldScript.values(), doubleFieldScript.count()));
+                    doubleFieldScript.runForDoc(0);
+                    return new Response(doubleFieldScript.asDocValues());
                 }, indexService);
             } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     GeoPointFieldScript.Factory factory = scriptService.compile(request.script, GeoPointFieldScript.CONTEXT);
                     GeoPointFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("geo_point_runtime_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory("geo_point_field", request.getScript().getParams(), context.lookup());
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
-                    geoPointFieldScript.setDocument(0);
-                    geoPointFieldScript.execute();
-                    return new Response(Arrays.copyOf(geoPointFieldScript.values(), geoPointFieldScript.count()));
+                    geoPointFieldScript.runForDoc(0);
+                    return new Response(geoPointFieldScript.asDocValues());
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     IpFieldScript.Factory factory = scriptService.compile(request.script, IpFieldScript.CONTEXT);
                     IpFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("ip_runtime_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory("ip_field", request.getScript().getParams(), context.lookup());
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
-                    ipFieldScript.setDocument(0);
-                    ipFieldScript.execute();
-                    return new Response(Arrays.copyOf(ipFieldScript.values(), ipFieldScript.count()));
+                    ipFieldScript.runForDoc(0);
+                    return new Response(ipFieldScript.asDocValues());
                 }, indexService);
             } else if (scriptContext == LongFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     LongFieldScript.Factory factory = scriptService.compile(request.script, LongFieldScript.CONTEXT);
                     LongFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("long_runtime_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory("long_field", request.getScript().getParams(), context.lookup());
                     LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
-                    longFieldScript.setDocument(0);
-                    longFieldScript.execute();
-                    return new Response(Arrays.copyOf(longFieldScript.values(), longFieldScript.count()));
+                    longFieldScript.runForDoc(0);
+                    return new Response(longFieldScript.asDocValues());
                 }, indexService);
             } else if (scriptContext == StringFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     StringFieldScript.Factory factory = scriptService.compile(request.script, StringFieldScript.CONTEXT);
                     StringFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("string_runtime_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory("string_field", request.getScript().getParams(), context.lookup());
                     StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
-                    stringFieldScript.setDocument(0);
-                    stringFieldScript.execute();
-                    return new Response(stringFieldScript.resultsForDoc(0));
+                    stringFieldScript.resultsForDoc(0);
+                    return new Response(stringFieldScript.asDocValues());
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");

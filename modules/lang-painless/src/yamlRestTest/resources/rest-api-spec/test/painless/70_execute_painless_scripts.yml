@@ -81,101 +81,12 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(doc['rank'].value < params.max_rank)"
+            source: "emit(doc['rank'].value < params.max_rank); emit(false); emit(false); emit(true);"
             params:
               max_rank: 5.0
-          context: "boolean_script_field_script_field"
+          context: "boolean_field"
           context_setup:
             document:
               rank: 4
             index: "my-index"
-  - match: { result: { trues: 1, falses: 0 } }
-
----
-"Execute with date field context":
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "emit(doc['date'].value.toInstant().toEpochMilli())"
-          context: "double_script_field_script_field"
-          context_setup:
-            document:
-              date: "2015-01-01T12:10:30Z"
-            index: "my-index"
-  - match: { result: [ 1.42011423E12 ] }
-
----
-"Execute with double field context":
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "emit(doc['rank'].value * params.max_rank)"
-            params:
-              max_rank: 5.0
-          context: "double_script_field_script_field"
-          context_setup:
-            document:
-              rank: 4
-            index: "my-index"
-  - match: { result: [ 20.0 ] }
-
----
-"Execute with geo point field context":
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "emit(doc['point'].value.lat + 1.0, doc['point'].value.lon - 1.0)"
-          context: "geo_point_script_field_script_field"
-          context_setup:
-            document:
-              point: "30.0,40.0"
-            index: "my-index"
-  - match: { result: [ 3176939252927413179 ] }
-
----
-"Execute with ip field context":
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "emit(doc['ip'].value);"
-          context: "ip_script_field_script_field"
-          context_setup:
-            document:
-              ip: "192.168.1.254"
-            index: "my-index"
-
----
-"Execute with long field context":
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "emit(doc['rank'].value * (long)params.max_rank)"
-            params:
-              max_rank: 5.0
-          context: "long_script_field_script_field"
-          context_setup:
-            document:
-              rank: 4
-            index: "my-index"
-  - match: { result: [ 20 ] }
-
----
-"Execute with string field context":
-  - do:
-      scripts_painless_execute:
-        body:
-          script:
-            source: "emit(doc['point'].value.lat.toString().substring(0, 5));
-                     emit(doc['point'].value.lon.toString().substring(0, 5));"
-          context: "string_script_field_script_field"
-          context_setup:
-            document:
-              point: "30.2,40.2"
-            index: "my-index"
-  - match: { result.0: "30.19" }
-  - match: { result.1: "40.19" }
+  - match: { result: [ false, false, true, true ] }

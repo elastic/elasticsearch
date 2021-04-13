@@ -805,7 +805,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             {
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : shards) {
                     ShardId shardId = shardEntry.key;
-                    addShardId(builder, shardId.getIndex(), shardId.getId(), shardEntry.value);
+                    writeShardSnapshotStatus(builder, shardId.getIndex(), shardId.getId(), shardEntry.value);
                 }
             }
             builder.endArray();
@@ -822,7 +822,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 {
                     for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shardEntry : clones) {
                         RepositoryShardId shardId = shardEntry.key;
-                        addShardId(builder, shardId.index(), shardId.shardId(), shardEntry.value);
+                        writeShardSnapshotStatus(builder, shardId.index(), shardId.shardId(), shardEntry.value);
                     }
                 }
                 builder.endArray();
@@ -832,7 +832,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return builder;
         }
 
-        private void addShardId(XContentBuilder builder, ToXContent indexId, int shardId, ShardSnapshotStatus status) throws IOException {
+        private void writeShardSnapshotStatus(XContentBuilder builder, ToXContent indexId, int shardId,
+                                              ShardSnapshotStatus status) throws IOException {
             builder.startObject();
             builder.field("index", indexId);
             builder.field("shard", shardId);

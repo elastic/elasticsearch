@@ -29,6 +29,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -165,6 +166,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<IndexResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
             assertEquals(OpType.CREATE, request.opType());
+            assertThat(request.id(), Matchers.startsWith("test_" + (chunk + 15) + "_"));
             assertEquals(XContentType.SMILE, request.getContentType());
             Map<String, Object> source = request.sourceAsMap();
             assertEquals("test", source.get("name"));

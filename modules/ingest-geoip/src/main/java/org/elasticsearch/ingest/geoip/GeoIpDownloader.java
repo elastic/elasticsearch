@@ -144,7 +144,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
-                deleteOldChunks(name, state.getDatabases().get(name).getFirstChunk());
+                deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
@@ -183,9 +183,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
-            client.prepareIndex(DATABASES_INDEX)
+            client.prepareIndex(DATABASES_INDEX).setId(name + "_" + chunk + "_" + timestamp)
                 .setCreate(true)
-                .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf, "timestamp", timestamp)
+                .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .get();

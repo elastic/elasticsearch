@@ -38,8 +38,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -85,7 +83,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -261,7 +258,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
 
-        Map<SearchRequest, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
+        Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
             SearchHit hit = new SearchHit(i);
@@ -280,24 +277,13 @@ public class DatabaseRegistryTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenReturn(searchResponse);
-            SearchRequest expectedSearchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-            expectedSearchRequest.source().query(new BoolQueryBuilder()
-                .filter(new TermQueryBuilder("name", databaseName))
-                .filter(new TermQueryBuilder("chunk", i)));
-            requestMap.put(expectedSearchRequest, actionFuture);
-            when(client.search(eq(expectedSearchRequest))).thenReturn(actionFuture);
+            requestMap.put(databaseName + "_" + i, actionFuture);
         }
         when(client.search(any())).thenAnswer(invocationOnMock -> {
             SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
-            BoolQueryBuilder query = (BoolQueryBuilder) req.source().query();
-            List<QueryBuilder> filters = query.filter();
-            //remove timestamp filter, no way to get correct value upfront
-            filters.remove(2);
-            query = new BoolQueryBuilder();
-            filters.forEach(query::filter);
-            req = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-            req.source().query(query);
-            return requestMap.get(req);
+            TermQueryBuilder term = (TermQueryBuilder) req.source().query();
+            String id = (String) term.value();
+            return requestMap.get(id.substring(0, id.lastIndexOf('_')));
         });
 
         MessageDigest md = MessageDigests.md5();

@@ -26,7 +26,7 @@ then it waits for the next timer.
 +
 If changes are found a checkpoint is created.
 
-. Identifies which entities have changed.
+. Identifies which entities and/or time buckets have changed.
 +
 The {transform} searches to see which entities or time buckets have changed 
 between the last and the new checkpoint. The {transform} uses the values to

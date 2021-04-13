@@ -178,7 +178,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                                     MappedFieldType mappedFieldType,
                                     Map<String, ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals, List<Relations> relations) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty(), false, null);
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;

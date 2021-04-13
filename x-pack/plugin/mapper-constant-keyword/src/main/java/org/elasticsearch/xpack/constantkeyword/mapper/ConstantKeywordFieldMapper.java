@@ -223,7 +223,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     @Override

@@ -388,7 +388,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final FieldType fieldType;
 
         PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
-            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
             this.fieldType = fieldType;
         }
 
@@ -427,7 +427,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         private final FieldType fieldType;
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype) {
-            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty());
+            super(mappedFieldtype.name(), mappedFieldtype, MultiFields.empty(), CopyTo.empty(), false, null);
             this.fieldType = fieldType;
         }
 

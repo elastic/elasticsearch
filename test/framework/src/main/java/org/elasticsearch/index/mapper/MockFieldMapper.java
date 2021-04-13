@@ -35,7 +35,7 @@ public class MockFieldMapper extends FieldMapper {
                            MappedFieldType fieldType,
                            MultiFields multifields,
                            CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo);
+        super(findSimpleName(fullName), fieldType, multifields, copyTo, false, null);
     }
 
     @Override

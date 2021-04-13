@@ -68,18 +68,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
-     */
-    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                          MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, false, null);
-    }
-
-    /**
-     * Create a FieldMapper with no index analyzers
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
@@ -89,21 +77,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, hasScript, onScriptError);
     }
 
-
-    /**
-     * Create a FieldMapper with a single associated index analyzer
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param indexAnalyzer     the index-time analyzer to use for this field
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
-     */
-    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                          NamedAnalyzer indexAnalyzer,
-                          MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo,
-             false, null);
-    }
 
     /**
      * Create a FieldMapper with a single associated index analyzer

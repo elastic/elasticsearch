@@ -878,7 +878,7 @@ final class DocumentParser {
                 public Query termQuery(Object value, SearchExecutionContext context) {
                     throw new UnsupportedOperationException();
                 }
-            }, MultiFields.empty(), CopyTo.empty());
+            }, MultiFields.empty(), CopyTo.empty(), false, null);
         }
 
         @Override

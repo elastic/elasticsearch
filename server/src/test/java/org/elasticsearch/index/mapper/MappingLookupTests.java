@@ -166,7 +166,7 @@ public class MappingLookupTests extends ESTestCase {
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
             super(fieldType.name(), fieldType,
                 new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
-                MultiFields.empty(), CopyTo.empty());
+                MultiFields.empty(), CopyTo.empty(), false, null);
             this.indexedValue = indexedValue;
         }
 

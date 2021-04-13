@@ -100,7 +100,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType,
                                     MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, defaultFieldType, multiFields, copyTo);
+        super(simpleName, defaultFieldType, multiFields, copyTo, false, null);
         this.analyzer = builder.analyzer.getValue();
         this.enablePositionIncrements = builder.enablePositionIncrements.getValue();
         this.nullValue = builder.nullValue.getValue();

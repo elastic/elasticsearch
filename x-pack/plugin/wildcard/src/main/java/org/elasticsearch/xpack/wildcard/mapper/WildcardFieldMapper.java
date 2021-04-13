@@ -925,7 +925,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private WildcardFieldMapper(String simpleName, WildcardFieldType mappedFieldType,
                                 int ignoreAbove, MultiFields multiFields, CopyTo copyTo,
                                 String nullValue, Version indexVersionCreated) {
-        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo, false, null);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;

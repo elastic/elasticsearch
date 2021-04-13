@@ -71,7 +71,7 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     protected FakeStringFieldMapper(MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo);
+        super(mappedFieldType.name(), mappedFieldType, Lucene.STANDARD_ANALYZER, multiFields, copyTo, false, null);
     }
 
     @Override

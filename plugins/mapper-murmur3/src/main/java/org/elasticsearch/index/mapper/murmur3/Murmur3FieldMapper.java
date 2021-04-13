@@ -107,7 +107,7 @@ public class Murmur3FieldMapper extends FieldMapper {
                                  MappedFieldType mappedFieldType,
                                  MultiFields multiFields,
                                  CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
     }
 
     @Override

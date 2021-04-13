@@ -269,7 +269,7 @@ public class RangeFieldMapper extends FieldMapper {
         CopyTo copyTo,
         RangeType type,
         Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.type = type;
         this.index = builder.index.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

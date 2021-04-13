@@ -326,7 +326,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo, false, null);
         this.fieldType = fieldType;
     }
 

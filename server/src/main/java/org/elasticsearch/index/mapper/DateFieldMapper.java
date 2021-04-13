@@ -616,7 +616,7 @@ public final class DateFieldMapper extends FieldMapper {
             Long nullValue,
             Resolution resolution,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();

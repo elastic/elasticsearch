@@ -300,7 +300,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo, false, null);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
     }

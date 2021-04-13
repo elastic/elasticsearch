@@ -131,7 +131,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
     }

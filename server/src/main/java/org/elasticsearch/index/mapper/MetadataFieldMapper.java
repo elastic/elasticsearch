@@ -126,11 +126,11 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
-        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
+        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     @Override

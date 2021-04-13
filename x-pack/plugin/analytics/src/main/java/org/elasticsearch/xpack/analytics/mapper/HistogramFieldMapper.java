@@ -99,7 +99,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
     }

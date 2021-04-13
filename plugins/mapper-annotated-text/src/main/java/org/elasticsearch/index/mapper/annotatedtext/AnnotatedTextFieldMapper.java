@@ -509,7 +509,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     protected AnnotatedTextFieldMapper(String simpleName, FieldType fieldType, AnnotatedTextFieldType mappedFieldType,
                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, wrapAnalyzer(builder.analyzers.getIndexAnalyzer()), multiFields, copyTo);
+        super(simpleName, mappedFieldType, wrapAnalyzer(builder.analyzers.getIndexAnalyzer()), multiFields, copyTo, false, null);
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;

@@ -87,7 +87,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     protected ParentIdFieldMapper(String name, boolean eagerGlobalOrdinals) {
-        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
+        super(name, new ParentIdFieldType(name, eagerGlobalOrdinals), Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty(),
+            false, null);
     }
 
     @Override

@@ -150,7 +150,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
                                    Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.indexCreatedVersion = indexCreatedVersion;
         this.dims = dims;
     }

@@ -124,7 +124,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     private RankFeatureFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                    MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo, false, null);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 

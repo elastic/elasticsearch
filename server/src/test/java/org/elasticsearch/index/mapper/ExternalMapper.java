@@ -122,7 +122,7 @@ public class ExternalMapper extends FieldMapper {
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           AbstractShapeGeometryFieldMapper<?, ?> shapeMapper, FieldMapper stringMapper,
                           MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, new ExternalFieldType(contextName, true, true, false), multiFields, copyTo);
+        super(simpleName, new ExternalFieldType(contextName, true, true, false), multiFields, copyTo, false, null);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;

@@ -275,7 +275,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();

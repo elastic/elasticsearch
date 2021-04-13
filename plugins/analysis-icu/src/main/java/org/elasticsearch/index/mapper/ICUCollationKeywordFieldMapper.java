@@ -406,7 +406,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                                              MappedFieldType mappedFieldType,
                                              MultiFields multiFields, CopyTo copyTo,
                                              Collator collator, Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo, false, null);
         assert collator.isFrozen();
         this.fieldType = fieldType;
         this.params = builder.collatorParams();

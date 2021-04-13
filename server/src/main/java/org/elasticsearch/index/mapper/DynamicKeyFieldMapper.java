@@ -33,7 +33,7 @@ public abstract class DynamicKeyFieldMapper extends FieldMapper {
                                  MappedFieldType defaultFieldType,
                                  NamedAnalyzer indexAnalyzer,
                                  CopyTo copyTo) {
-        super(simpleName, defaultFieldType, indexAnalyzer, MultiFields.empty(), copyTo);
+        super(simpleName, defaultFieldType, indexAnalyzer, MultiFields.empty(), copyTo, false, null);
     }
 
     public abstract MappedFieldType keyedFieldType(String key);

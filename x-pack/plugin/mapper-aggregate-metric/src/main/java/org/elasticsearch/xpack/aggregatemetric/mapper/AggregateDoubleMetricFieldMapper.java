@@ -478,7 +478,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         EnumMap<Metric, NumberFieldMapper> metricFieldMappers,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
         this.metrics = builder.metrics.getValue();

@@ -1,0 +1,60 @@
+[role="xpack"]
+[[fleet-get-global-checkpoints]]
+=== Get global checkpoints API
+++++
+<titleabbrev>Get global checkpoints</titleabbrev>
+++++
+
+The purpose of the get global checkpoints api is to return the current global
+checkpoints for an index. This API allows fleet-server to know the what documents
+have been safely persisted into Elasticsearch.
+
+The API has an optional polling mode enabled by with the `wait_for_advance` query
+parameter. In polling mode, the API will only return after the global checkpoints
+advance past the specified `current_checkpoints`.
+
+Currently this API only supports one shard indices.
+
+[[get-global-checkpoints-api-request]]
+==== {api-request-title}
+
+`GET /<index>/_fleet/global_checkpoints`
+
+[[get-global-checkpoints-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Required, string)
+A single index or index alias that resolves to a single index.
+
+[role="child_attributes"]
+[[get-global-checkpoints-api-query-parms]]
+==== {api-query-parms-title}
+
+`wait_for_advance`::
+(Optional, Boolean) A boolean value which controls whether to wait (until the
+poll_timeout provided) for the global checkpoints to advance past the provided
+`current_checkpoints`.
+
+`current_checkpoints`::
+(Optional, list) A comma separated list of the client's `current_checkpoints`.
+When used in combination with `wait_for_advance`, the API will only return once
+the global checkpoints advances past the `current_checkpoints`. Defaults to an
+empty list which will cause Elasticsearch to immediately return the global
+checkpoints.
+
+`poll_timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for a global checkpoints to advance past `current_checkpoints`.
+Defaults to `30s`.
+
+[role="child_attributes"]
+[[get-global-checkpoints-api-response-body]]
+==== {api-response-body-title}
+
+`global_checkpoints`::
+    (array of integers) The global checkpoints for the index.
+
+`timed_out`::
+	(Boolean) If `false` the global checkpoints did not advance past the
+	`current_checkpoints` within the specified `poll_timeout`.

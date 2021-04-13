@@ -161,7 +161,7 @@ The following parameters are accepted by `date` fields:
 If you need to send dates as _seconds-since-the-epoch_ then make sure the
 `format` lists `epoch_seconds`:
 
-[source,console,id=date-epoch-seconds]
+[source,console,id=date-epoch-seconds-example]
 ----
 PUT my-index-000001
 {

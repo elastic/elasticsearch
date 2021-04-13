@@ -730,13 +730,14 @@ public class FrozenCacheService implements Releasable {
                     rangeToRead.start(),
                     rangeToRead.length()
                 );
-                assert read == rangeToRead.length() : "partial read ["
-                    + read
-                    + "] does not match the range to read ["
-                    + rangeToRead.end()
-                    + '-'
-                    + rangeToRead.start()
-                    + ']';
+                assert read == rangeToRead.length()
+                    : "partial read ["
+                        + read
+                        + "] does not match the range to read ["
+                        + rangeToRead.end()
+                        + '-'
+                        + rangeToRead.start()
+                        + ']';
                 listener.onResponse(read);
             }, listener::onFailure);
         }

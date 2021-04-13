@@ -284,7 +284,7 @@ allprojects {
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
-      project.configurations.compile.dependencies
+      project.configurations.compileClasspath.dependencies
         .findAll()
         .toSorted(sortClosure)
         .each({ c -> depJavadocClosure(hasShadow, c) })
@@ -344,6 +344,7 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
+    java.modularity.inferModulePath.set(false)
     eclipse.classpath.file.whenMerged { classpath ->
       /*
        * give each source folder a unique corresponding output folder

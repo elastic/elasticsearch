@@ -11,8 +11,8 @@ have been safely persisted in Elasticsearch.
 
 The API has an optional polling mode enabled by the `wait_for_advance` query
 parameter. In polling mode, the API will only return after the global checkpoints
-advance past the provided `current_checkpoints`. By default, `current_checkpoints`
-is an empty array, which will lead to the API returning immediately.
+advance past the provided `checkpoints`. By default, `checkpoints` is an empty
+array, which will lead to the API returning immediately.
 
 Currently the `wait_for_advance` parameter is only supported for one shard indices.
 
@@ -35,18 +35,18 @@ A single index or index alias that resolves to a single index.
 `wait_for_advance`::
 (Optional, Boolean) A boolean value which controls whether to wait (until the
 `poll_timeout`) for the global checkpoints to advance past the provided
-`current_checkpoints`.
+`checkpoints`.
 
-`current_checkpoints`::
+`checkpoints`::
 (Optional, list) A comma separated list of previous global checkpoints.
 When used in combination with `wait_for_advance`, the API will only return once
-the global checkpoints advances past the `current_checkpoints`. Defaults to an
-empty list which will cause Elasticsearch to immediately return the global
+the global checkpoints advances past the `checkpoints`. Defaults to an empty list
+which will cause Elasticsearch to immediately return the global
 checkpoints.
 
 `poll_timeout`::
 (Optional, <<time-units, time units>>)
-Period to wait for a global checkpoints to advance past `current_checkpoints`.
+Period to wait for a global checkpoints to advance past `checkpoints`.
 Defaults to `30s`.
 
 [role="child_attributes"]
@@ -58,4 +58,4 @@ Defaults to `30s`.
 
 `timed_out`::
 (Boolean) If `false` the global checkpoints did not advance past the
-`current_checkpoints` within the specified `poll_timeout`.
+`checkpoints` within the specified `poll_timeout`.

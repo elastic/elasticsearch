@@ -49,7 +49,7 @@ setup:
       fleet.global_checkpoints:
         index: "test-1-shard"
         wait_for_advance: true
-        current_checkpoints: [100]
+        checkpoints: [100]
         poll_timeout: "50ms"
 
   - match: { timed_out: true }
@@ -60,7 +60,7 @@ setup:
       fleet.global_checkpoints:
         index: "test-1-shard"
         wait_for_advance: true
-        current_checkpoints: [0]
+        checkpoints: [0]
         poll_timeout: "50ms"
 
   - match: { global_checkpoints.0: 1 }

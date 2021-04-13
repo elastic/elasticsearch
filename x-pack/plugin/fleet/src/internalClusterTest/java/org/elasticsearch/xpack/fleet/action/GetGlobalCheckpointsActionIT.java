@@ -189,7 +189,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            equalTo("current_checkpoints must equal number of shards. [shard count: 1, current_checkpoints: 2]")
+            equalTo("number of checkpoints must equal number of shards. [shard count: 1, checkpoint count: 2]")
         );
     }
 

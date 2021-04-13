@@ -32,9 +32,9 @@
         "description":"Whether to wait for the global checkpoint to advance past the specified current checkpoints",
         "default":"false"
       },
-      "current_checkpoints":{
+      "checkpoints":{
         "type":"list",
-        "description":"Comma separated list of current checkpoints",
+        "description":"Comma separated list of checkpoints",
         "default":""
       },
       "poll_timeout":{

@@ -34,16 +34,16 @@ public class RestGetGlobalCheckpointsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final String index = request.param("index");
         final boolean waitForAdvance = request.paramAsBoolean("wait_for_advance", false);
-        final String[] currentStringCheckpoints = request.paramAsStringArray("current_checkpoints", new String[0]);
-        final long[] currentCheckpoints = new long[currentStringCheckpoints.length];
-        for (int i = 0; i < currentStringCheckpoints.length; ++i) {
-            currentCheckpoints[i] = Long.parseLong(currentStringCheckpoints[i]);
+        final String[] stringCheckpoints = request.paramAsStringArray("checkpoints", new String[0]);
+        final long[] checkpoints = new long[stringCheckpoints.length];
+        for (int i = 0; i < stringCheckpoints.length; ++i) {
+            checkpoints[i] = Long.parseLong(stringCheckpoints[i]);
         }
         final TimeValue pollTimeout = request.paramAsTime("poll_timeout", TimeValue.timeValueSeconds(30));
         GetGlobalCheckpointsAction.Request getCheckpointsRequest = new GetGlobalCheckpointsAction.Request(
             index,
             waitForAdvance,
-            currentCheckpoints,
+            checkpoints,
             pollTimeout
         );
         return channel -> client.execute(GetGlobalCheckpointsAction.INSTANCE, getCheckpointsRequest, new RestToXContentListener<>(channel));

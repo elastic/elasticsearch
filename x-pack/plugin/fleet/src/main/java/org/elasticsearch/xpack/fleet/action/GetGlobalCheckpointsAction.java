@@ -101,13 +101,13 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         private final String index;
         private final boolean waitForAdvance;
-        private final long[] currentCheckpoints;
+        private final long[] checkpoints;
         private final TimeValue pollTimeout;
 
-        public Request(String index, boolean waitForAdvance, long[] currentCheckpoints, TimeValue pollTimeout) {
+        public Request(String index, boolean waitForAdvance, long[] checkpoints, TimeValue pollTimeout) {
             this.index = index;
             this.waitForAdvance = waitForAdvance;
-            this.currentCheckpoints = currentCheckpoints;
+            this.checkpoints = checkpoints;
             this.pollTimeout = pollTimeout;
         }
 
@@ -124,8 +124,8 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             return waitForAdvance;
         }
 
-        public long[] currentCheckpoints() {
-            return currentCheckpoints;
+        public long[] checkpoints() {
+            return checkpoints;
         }
 
         @Override
@@ -183,16 +183,16 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 return;
             }
 
-            final long[] currentCheckpoints;
-            final int currentCheckpointCount = request.currentCheckpoints().length;
+            final long[] checkpoints;
+            final int currentCheckpointCount = request.checkpoints().length;
             if (currentCheckpointCount != 0) {
                 if (currentCheckpointCount != numberOfShards) {
                     listener.onFailure(
                         new ElasticsearchStatusException(
-                            "current_checkpoints must equal number of shards. "
+                            "number of checkpoints must equal number of shards. "
                                 + "[shard count: "
                                 + numberOfShards
-                                + ", current_checkpoints: "
+                                + ", checkpoint count: "
                                 + currentCheckpointCount
                                 + "]",
                             RestStatus.BAD_REQUEST
@@ -200,11 +200,11 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     );
                     return;
                 }
-                currentCheckpoints = request.currentCheckpoints();
+                checkpoints = request.checkpoints();
             } else {
-                currentCheckpoints = new long[numberOfShards];
+                checkpoints = new long[numberOfShards];
                 for (int i = 0; i < numberOfShards; ++i) {
-                    currentCheckpoints[i] = SequenceNumbers.NO_OPS_PERFORMED;
+                    checkpoints[i] = SequenceNumbers.NO_OPS_PERFORMED;
                 }
             }
 
@@ -215,7 +215,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 GetGlobalCheckpointsShardAction.Request shardChangesRequest = new GetGlobalCheckpointsShardAction.Request(
                     new ShardId(indexMetadata.getIndex(), shardIndex),
                     request.waitForAdvance(),
-                    currentCheckpoints[shardIndex],
+                    checkpoints[shardIndex],
                     request.pollTimeout()
                 );
 

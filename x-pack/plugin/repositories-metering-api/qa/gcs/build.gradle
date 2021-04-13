@@ -50,6 +50,10 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 tasks.register("createServiceAccountFile") {
   doLast {

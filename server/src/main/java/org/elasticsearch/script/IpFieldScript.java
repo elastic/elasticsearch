@@ -21,6 +21,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Script producing IP addresses. Unlike the other {@linkplain AbstractFieldScript}s
@@ -66,6 +67,13 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         execute();
     }
 
+    public final void runForDoc(int docId, Consumer<InetAddress> consumer) {
+        runForDoc(docId);
+        for (int i = 0; i < count; i++) {
+            consumer.accept(InetAddressPoint.decode(values[i].bytes));
+        }
+    }
+
     /**
      * Values from the last time {@link #runForDoc(int)} was called. This array
      * is mutable and will change with the next call of {@link #runForDoc(int)}.
@@ -97,7 +105,7 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         return count;
     }
 
-    protected final void emit(String v) {
+    public final void emit(String v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);

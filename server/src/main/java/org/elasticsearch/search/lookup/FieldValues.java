@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Represents values for a given document
@@ -37,6 +38,17 @@ public interface FieldValues<T> {
      * @return the value fetcher
      */
     static ValueFetcher valueFetcher(FieldValues<?> fieldValues, SearchExecutionContext context) {
+        return valueFetcher(fieldValues, v -> v, context);
+    }
+
+    /**
+     * Creates a {@link ValueFetcher} that fetches values from a {@link FieldValues} instance
+     * @param fieldValues the source of the values
+     * @param formatter   a function to format the values
+     * @param context the search execution context
+     * @return the value fetcher
+     */
+    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, Function<Object, Object> formatter, SearchExecutionContext context) {
         return new ValueFetcher() {
             LeafReaderContext ctx;
 
@@ -49,7 +61,7 @@ public interface FieldValues<T> {
             public List<Object> fetchValues(SourceLookup lookup)  {
                 List<Object> values = new ArrayList<>();
                 try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), values::add);
+                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
                 } catch (Exception e) {
                     // ignore errors - if they exist here then they existed at index time
                     // and so on_script_error must have been set to `ignore`

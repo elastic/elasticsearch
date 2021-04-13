@@ -60,7 +60,7 @@ tasks.named("forbiddenApisMain").configure { enabled = false }
 tasks.named("thirdPartyAudit").configure { enabled = false }
 
 // TODO: shouldn't be part of BuildPlugin, should be tested separately
-tasks.named("validateNebulaPom").configure {enabled = false }
+tasks.named("validateElasticPom").configure {enabled = false }
 // This requires an additional Jar not part of build-tools
 tasks.named("loggerUsageCheck").configure {enabled = false }
 tasks.register("hello") {

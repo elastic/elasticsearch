@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
-    nebula {
+    elastic {
       artifactId 'elasticsearch'
     }
   }

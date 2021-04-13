@@ -220,6 +220,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createTemplate = new Request("PUT", "/_template/template_1");
             createTemplate.setJsonEntity(Strings.toString(mappingsAndSettings));
+            createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             client().performRequest(createTemplate);
             client().performRequest(new Request("PUT", "/" + index));
         }

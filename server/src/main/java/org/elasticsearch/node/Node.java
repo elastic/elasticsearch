@@ -273,8 +273,7 @@ public class Node implements Closeable {
         boolean success = false;
         try {
             Settings tmpSettings = Settings.builder().put(initialEnvironment.settings())
-                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)
-                .build();
+                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -368,6 +367,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            additionalSettings.add(GeoIpSettings.ENABLED_SETTING);
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));

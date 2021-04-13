@@ -81,6 +81,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        disableGeoIpDownloader(installation);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -272,7 +273,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
+        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password, "geoip.downloader.enabled", "false");
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();

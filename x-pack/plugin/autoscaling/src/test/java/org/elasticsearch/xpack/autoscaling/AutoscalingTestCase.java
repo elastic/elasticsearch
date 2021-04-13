@@ -188,7 +188,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static SortedSet<String> randomRoles() {
-        return randomSubsetOf(DiscoveryNodeRole.ROLE_MAP.keySet()).stream().collect(Sets.toUnmodifiableSortedSet());
+        return randomSubsetOf(DiscoveryNodeRole.roleNames()).stream().collect(Sets.toUnmodifiableSortedSet());
     }
 
     public static NamedWriteableRegistry getAutoscalingNamedWriteableRegistry() {

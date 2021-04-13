@@ -194,7 +194,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
      * over to an older master before it is also upgraded, one of the roles might not be known.
      */
     private boolean hasUnknownRoles(AutoscalingPolicy policy) {
-        return DiscoveryNodeRole.ROLE_MAP.keySet().containsAll(policy.roles()) == false;
+        return DiscoveryNodeRole.roleNames().containsAll(policy.roles()) == false;
     }
 
     private AutoscalingDeciderResult calculateForDecider(String name, Settings configuration, AutoscalingDeciderContext context) {

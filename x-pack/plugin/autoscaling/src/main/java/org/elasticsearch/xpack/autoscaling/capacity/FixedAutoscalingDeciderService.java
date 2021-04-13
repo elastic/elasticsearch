@@ -72,7 +72,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return DiscoveryNodeRole.ROLES.stream().collect(Collectors.toUnmodifiableList());
+        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
     }
 
     @Override

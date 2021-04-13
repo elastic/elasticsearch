@@ -277,6 +277,6 @@ public class WatcherServiceTests extends ESTestCase {
 
     private static DiscoveryNode newNode() {
         return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 }

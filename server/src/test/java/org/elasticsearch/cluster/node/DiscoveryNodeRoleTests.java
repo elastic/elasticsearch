@@ -13,14 +13,14 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class DiscoveryNodeRoleTests extends ESTestCase {
 
-    public void testBuiltInRolesIsImmutable() {
-        expectThrows(UnsupportedOperationException.class, () -> DiscoveryNodeRole.ROLES.add(DiscoveryNodeRole.DATA_ROLE));
+    public void testRolesIsImmutable() {
+        expectThrows(UnsupportedOperationException.class, () -> DiscoveryNodeRole.roles().add(DiscoveryNodeRole.DATA_ROLE));
     }
 
-    public void testRoleMapIsImmutable() {
+    public void testRoleNamesIsImmutable() {
         expectThrows(
             UnsupportedOperationException.class,
-            () -> DiscoveryNodeRole.ROLE_MAP.put(DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.DATA_ROLE)
+            () -> DiscoveryNodeRole.roleNames().add(DiscoveryNodeRole.DATA_ROLE.roleName())
         );
     }
 
@@ -52,7 +52,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     }
 
     public void testUnknownRoleIsDistinctFromKnownRoles() {
-        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.ROLES) {
+        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.roles()) {
             final DiscoveryNodeRole.UnknownRole unknownDataRole = new DiscoveryNodeRole.UnknownRole(
                 buildInRole.roleName(),
                 buildInRole.roleNameAbbreviation(),

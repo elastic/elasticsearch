@@ -142,7 +142,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             ActionRequestValidationException exception = null;
             if (roles != null) {
                 List<String> errors = roles.stream()
-                    .filter(Predicate.not(DiscoveryNodeRole.ROLE_MAP.keySet()::contains))
+                    .filter(Predicate.not(DiscoveryNodeRole.roleNames()::contains))
                     .collect(Collectors.toList());
                 if (errors.isEmpty() == false) {
                     exception = new ActionRequestValidationException();

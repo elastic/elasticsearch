@@ -22,6 +22,7 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -106,7 +107,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.ROLES, version);
+        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
     /**
@@ -187,7 +188,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.version = version;
         }
         this.attributes = Collections.unmodifiableMap(attributes);
-        assert DiscoveryNodeRole.ROLE_MAP.values().stream().noneMatch(role -> attributes.containsKey(role.roleName())) :
+        assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey) :
                 "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
@@ -223,10 +224,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
             final boolean canContainData = in.readBoolean();
-            final DiscoveryNodeRole role = DiscoveryNodeRole.ROLE_MAP.get(roleName);
-            if (role == null) {
+            final Optional<DiscoveryNodeRole> maybeRole = DiscoveryNodeRole.maybeGetRoleFromRoleName(roleName);
+            if (maybeRole.isEmpty()) {
                 roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
             } else {
+                final DiscoveryNodeRole role = maybeRole.get();
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
                         : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";

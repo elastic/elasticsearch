@@ -753,6 +753,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     private static DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 }

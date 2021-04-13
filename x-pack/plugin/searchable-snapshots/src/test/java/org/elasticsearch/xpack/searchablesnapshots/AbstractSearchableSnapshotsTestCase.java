@@ -95,7 +95,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             "node",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            DiscoveryNodeRole.ROLES,
+            DiscoveryNodeRole.roles(),
             Version.CURRENT
         );
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders(Settings.EMPTY));

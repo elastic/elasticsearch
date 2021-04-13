@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.SortedSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -227,15 +229,19 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     }
 
+    public static final SortedSet<DiscoveryNodeRole> ROLES;
+
     /**
      * The possible node roles.
      */
-    public static final SortedSet<DiscoveryNodeRole> ROLES;
+    public static SortedSet<DiscoveryNodeRole> roles() {
+        return ROLES;
+    }
 
     /**
      * A map from role names to their role representations.
      */
-    public static final Map<String, DiscoveryNodeRole> ROLE_MAP;
+    private static final Map<String, DiscoveryNodeRole> ROLE_MAP;
 
     static {
         final List<Field> roleFields = Arrays.stream(DiscoveryNodeRole.class.getFields())
@@ -253,22 +259,34 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             .collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity()));
         assert roleMap.size() == roleFields.size() :
             "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
-        final SortedSet<DiscoveryNodeRole> builtInRoles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
+        final SortedSet<DiscoveryNodeRole> roles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
-        final Map<String, DiscoveryNodeRole> abbreviations = builtInRoles
+        final Map<String, DiscoveryNodeRole> abbreviations = roles
             .stream()
             .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
         assert roleMap.size() == abbreviations.size() :
             "roles by name [" + roleMap + "], roles by name abbreviation [" + abbreviations + "]";
-        ROLES = builtInRoles;
+        ROLES = roles;
         ROLE_MAP = Map.copyOf(roleMap); // this ensures ROLE_MAP is immutable
     }
 
-    public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
+    public static SortedSet<String> roleNames() {
+        return ROLE_MAP.keySet().stream().collect(Sets.toUnmodifiableSortedSet());
+    }
+
+    public static Optional<DiscoveryNodeRole> maybeGetRoleFromRoleName(final String roleName) {
         if (ROLE_MAP.containsKey(roleName) == false) {
+            return Optional.empty();
+        }
+        return Optional.of(ROLE_MAP.get(roleName));
+    }
+
+    public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
+        final Optional<DiscoveryNodeRole> maybeRole = maybeGetRoleFromRoleName(roleName);
+        if (maybeRole.isEmpty()) {
             throw new IllegalArgumentException("unknown role [" + roleName + "]");
         }
-        return ROLE_MAP.get(roleName);
+        return maybeRole.get();
     }
 
 }

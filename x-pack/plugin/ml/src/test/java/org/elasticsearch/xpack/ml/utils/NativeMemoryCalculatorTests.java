@@ -199,7 +199,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             "node",
             ESTestCase.buildNewFakeTransportAddress(),
             attrs,
-            DiscoveryNodeRole.ROLES,
+            DiscoveryNodeRole.roles(),
             Version.CURRENT
         );
     }

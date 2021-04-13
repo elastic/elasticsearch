@@ -55,7 +55,7 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
 
     @Override
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
-        final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.ROLES
+        final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
             .stream()
             .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
             .collect(Collectors.toUnmodifiableSet());

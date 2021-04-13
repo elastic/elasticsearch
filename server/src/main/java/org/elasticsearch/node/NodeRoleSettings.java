@@ -21,7 +21,7 @@ public class NodeRoleSettings {
         "node.roles",
         null,
         DiscoveryNodeRole::getRoleFromRoleName,
-        settings -> DiscoveryNodeRole.ROLES
+        settings -> DiscoveryNodeRole.roles()
             .stream()
             .filter(role -> role.isEnabledByDefault(settings))
             .map(DiscoveryNodeRole::roleName)

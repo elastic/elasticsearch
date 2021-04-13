@@ -322,10 +322,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         worker.countBatch();
         final List<? extends ScrollableHitSource.Hit> hits;
-        long remaining = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
-        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES && remaining < response.remainingHits()) {
+
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
             // Truncate the hits if we have more than the request max docs
-            hits = response.consumeHits((int) remaining);
+            long remainingDocsToProcess = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
+            hits = remainingDocsToProcess < response.remainingHits() ? response.consumeHits((int) remainingDocsToProcess)
+                                                                     : response.consumeRemainingHits();
         } else {
             hits = response.consumeRemainingHits();
         }

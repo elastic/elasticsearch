@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +50,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -266,7 +268,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         final BulkResponse bulkItemResponses = bulkFuture.actionGet();
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
-            assertThat(bulkItemResponse.isFailed(), is(false));
+            assertThat(Strings.toString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
         }
 
         final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();
@@ -274,10 +276,18 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
     }
 
     private void createIndexWithSingleShard(String index) {
-        createIndex(index, Settings.builder()
+        final Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+            .build();
+        // Use explicit mappings so we don't have to create those on demands and the task ordering
+        // can change to wait for mapping updates
+        assertAcked(
+            prepareCreate(index)
+                .setSettings(indexSettings)
+                .setMapping(SORTING_FIELD, "type=integer,store=true")
+                .setMapping(RETURN_NOOP_FIELD, "type=boolean,store=true")
+        );
     }
 
     private IndexRequest createUpdatedIndexRequest(SearchHit searchHit, String targetIndex, boolean useOptimisticUpdate) {
@@ -290,6 +300,8 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         if (useOptimisticUpdate) {
             indexRequest.setIfSeqNo(searchHit.getSeqNo());
             indexRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
+        } else {
+            indexRequest.version(MATCH_DELETED);
         }
         return indexRequest;
     }

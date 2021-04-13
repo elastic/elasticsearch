@@ -120,18 +120,18 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -1423,7 +1423,8 @@ public class RestHighLevelClient implements Closeable {
         return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
                 emptySet());
     }
-    
+
+
     /**
      * Executes a request using the Multi Search Template API.
      *
@@ -1465,7 +1466,7 @@ public class RestHighLevelClient implements Closeable {
             RankEvalResponse::fromXContent, listener,
                 emptySet());
     }
-    
+
     /**
      * Executes a request using the Field Capabilities API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API

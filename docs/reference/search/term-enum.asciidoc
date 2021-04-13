@@ -31,7 +31,6 @@ The API returns the following response:
   "complete" : true
 }
 --------------------------------------------------
-// TESTRESPONSE[s/8/$body.terms.0.doc_count/]
 
 The "complete" flag is false if time or space constraints were met and the
 set of terms examined was not the full set of available values.

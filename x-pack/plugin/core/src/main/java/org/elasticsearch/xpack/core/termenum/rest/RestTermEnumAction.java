@@ -43,11 +43,6 @@ public class RestTermEnumAction extends BaseRestHandler {
             return channel ->
             client.execute(TermEnumAction.INSTANCE, termEnumRequest, new RestToXContentListener<>(channel));
         }        
-        
-        
-        
-        
     }
-  
     
 }

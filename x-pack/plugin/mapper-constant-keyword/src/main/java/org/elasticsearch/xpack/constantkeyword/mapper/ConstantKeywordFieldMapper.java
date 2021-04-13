@@ -155,7 +155,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             if (matches == false) {
                 return null;
             }
-            int docCount = queryShardContext.searcher().getIndexReader().numDocs();
+            int docCount = queryShardContext.searcher().getIndexReader().maxDoc();
             return new SimpleTermCountEnum(new TermCount(value, docCount));
         }
 

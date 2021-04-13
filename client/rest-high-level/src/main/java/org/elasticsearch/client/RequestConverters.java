@@ -536,7 +536,7 @@ final class RequestConverters {
         request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
-    
+
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         return prepareReindexRequest(reindexRequest, true);
     }

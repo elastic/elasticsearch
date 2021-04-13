@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 
 public class MultiShardTermsEnumTests extends ESTestCase {
     
@@ -89,7 +90,7 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
                         ArrayList<TermCount> termCounts = new ArrayList<>();
-                        while(te.next()!=null) {
+                        while (te.next() != null) {
                             termCounts.add(new TermCount(te.term().utf8ToString(), te.docFreq()));
                         }
                         SimpleTermCountEnum simpleEnum = new SimpleTermCountEnum(termCounts.toArray(new TermCount[0]));
@@ -101,10 +102,10 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TermsEnum[0]));
                 HashMap<String, Integer> expecteds = new HashMap<>();
 
-                for (String term : globalTermCounts.keySet()) {
-                    if(term.startsWith(searchPrefix)) {
-                        expecteds.put(term, globalTermCounts.get(term));
-                    }                    
+                for (Entry<String, Integer> termCount : globalTermCounts.entrySet()) {
+                    if (termCount.getKey().startsWith(searchPrefix)) {
+                        expecteds.put(termCount.getKey(), termCount.getValue());
+                    }
                 }
                 
                 while (mte.next() != null) {

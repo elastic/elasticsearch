@@ -23,6 +23,10 @@ testClusters.integTest {
   setting 'path.repo', repo.absolutePath
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 integTest {
   doFirst {
     project.delete(repo)

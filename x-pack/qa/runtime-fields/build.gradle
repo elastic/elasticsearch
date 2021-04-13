@@ -29,6 +29,7 @@ subprojects {
     testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
+      setting 'xpack.security.enabled', 'false'
     }
 
     tasks.named("yamlRestTest").configure {

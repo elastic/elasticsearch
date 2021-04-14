@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -92,13 +93,42 @@ public final class Expressions {
         return false;
     }
 
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
     public static Nullability nullable(List<? extends Expression> exps) {
-        return Nullability.and(exps.stream().map(Expression::nullable).toArray(Nullability[]::new));
+        Nullability value = Nullability.FALSE;
+        for (Expression exp : exps) {
+            switch (exp.nullable()) {
+                case UNKNOWN:
+                    return Nullability.UNKNOWN;
+                case TRUE:
+                    value = Nullability.TRUE;
+                    break;
+                default:
+                    // not nullable
+                    break;
+            }
+        }
+        return value;
+    }
+
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
     }
 
     public static boolean foldable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (!exp.foldable()) {
+            if (exp.foldable() == false) {
                 return false;
             }
         }
@@ -155,7 +185,7 @@ public final class Expressions {
     }
 
     public static boolean equalsAsAttribute(Expression left, Expression right) {
-        if (!left.semanticEquals(right)) {
+        if (left.semanticEquals(right) == false) {
             Attribute l = attribute(left);
             return (l != null && l.semanticEquals(attribute(right)));
         }
@@ -193,7 +223,7 @@ public final class Expressions {
                 if (a instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) a;
                     // skip nested fields and seen multi-fields
-                    if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
+                    if (fa.isNested() == false && seenMultiFields.contains(fa.parent()) == false) {
                         filtered.add(a);
                         seenMultiFields.add(a);
                     }

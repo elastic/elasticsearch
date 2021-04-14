@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
@@ -23,6 +24,13 @@ import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTranspor
 import java.util.Collections;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
+
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
+    @Override
+    public void testThreadContext() {
+        // This empty method is here just for the purpose of muting the
+        // test defined in the base class
+    }
 
     @Override
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {

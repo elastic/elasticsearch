@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
@@ -31,7 +32,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,9 +47,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -84,7 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -129,7 +130,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
         Instant now = Instant.now(Clock.systemUTC());
@@ -284,7 +285,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         defaultIndicesResolver =
-            new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            new IndicesAndAliasesResolver(settings, clusterService, indexNameExpressionResolver);
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {
@@ -1828,13 +1829,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // and the authorized name should be in the list
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices, not(hasItem("logs-foobar")));
-        assertThat(authorizedIndices, contains(".ds-logs-foobar-000001"));
+        assertThat(authorizedIndices, contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
 
         // only the single backing index will be in the resolved list since the request does not support data streams
         // but one of the backing indices matched the requested pattern
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
-        assertThat(resolvedIndices.getLocal(), contains(".ds-logs-foobar-000001"));
+        assertThat(resolvedIndices.getLocal(), contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
     }
 
     public void testDataStreamNotAuthorizedWhenBackingIndicesAreAuthorizedViaWildcardAndRequestThatExcludesDataStreams() {
@@ -1874,13 +1875,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // and the authorized name should be in the list
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices, not(hasItem("logs-foobar")));
-        assertThat(authorizedIndices, contains(".ds-logs-foobar-000001"));
+        assertThat(authorizedIndices, contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
 
         // only the single backing index will be in the resolved list since the request does not support data streams
         // but one of the backing indices matched the requested pattern
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
-        assertThat(resolvedIndices.getLocal(), contains(".ds-logs-foobar-000001"));
+        assertThat(resolvedIndices.getLocal(), contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
     }
 
     private List<String> buildAuthorizedIndices(User user, String action) {

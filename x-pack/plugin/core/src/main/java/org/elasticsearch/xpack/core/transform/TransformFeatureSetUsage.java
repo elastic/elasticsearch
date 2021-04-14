@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform;
@@ -31,9 +32,9 @@ public class TransformFeatureSetUsage extends Usage {
         this.accumulatedStats = new TransformIndexerStats(in);
     }
 
-    public TransformFeatureSetUsage(boolean available, Map<String, Long> transformCountByState,
+    public TransformFeatureSetUsage(Map<String, Long> transformCountByState,
             TransformIndexerStats accumulatedStats) {
-        super(XPackField.TRANSFORM, available, true);
+        super(XPackField.TRANSFORM, true, true);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.accumulatedStats = Objects.requireNonNull(accumulatedStats);
     }

@@ -1,18 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.is;
 
 public class SchemaUtilTests extends ESTestCase {
 
@@ -69,6 +92,149 @@ public class SchemaUtilTests extends ESTestCase {
         assertThat(value, instanceOf(BigInteger.class));
 
         assertEquals(new BigInteger("18446744073709551615").doubleValue(), ((BigInteger) value).doubleValue(), 0.0);
+    }
+
+    public void testGetSourceFieldMappings() throws InterruptedException {
+        try (Client client = new FieldCapsMockClient(getTestName())) {
+            // fields is null
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, null, emptyMap(), listener),
+                mappings -> {
+                    assertNotNull(mappings);
+                    assertTrue(mappings.isEmpty());
+                }
+            );
+
+            // fields is empty
+            this.<Map<String, String>>assertAsync(
+                listener ->
+                    SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, new String[] {}, emptyMap(), listener),
+                mappings -> {
+                    assertNotNull(mappings);
+                    assertTrue(mappings.isEmpty());
+                }
+            );
+
+            // indices is null
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(client, null, new String[] { "field-1", "field-2" }, emptyMap(), listener),
+                mappings -> {
+                    assertNotNull(mappings);
+                    assertTrue(mappings.isEmpty());
+                }
+            );
+
+            // indices is empty
+            this.<Map<String, String>>assertAsync(
+                listener ->
+                    SchemaUtil.getSourceFieldMappings(client, new String[] {}, new String[] { "field-1", "field-2" }, emptyMap(), listener),
+                mappings -> {
+                    assertNotNull(mappings);
+                    assertTrue(mappings.isEmpty());
+                }
+            );
+
+            // good use
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    new String[] { "index-1", "index-2" },
+                    new String[] { "field-1", "field-2" },
+                    emptyMap(),
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(mappings);
+                    assertEquals(2, mappings.size());
+                    assertEquals("long", mappings.get("field-1"));
+                    assertEquals("long", mappings.get("field-2"));
+                }
+            );
+        }
+    }
+
+    public void testGetSourceFieldMappingsWithRuntimeMappings() throws InterruptedException {
+        Map<String, Object> runtimeMappings = new HashMap<>() {{
+            put("field-2", singletonMap("type", "keyword"));
+            put("field-3", singletonMap("type", "boolean"));
+        }};
+        try (Client client = new FieldCapsMockClient(getTestName())) {
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    new String[] { "index-1", "index-2" },
+                    new String[] { "field-1", "field-2" },
+                    runtimeMappings,
+                    listener
+                ),
+                mappings -> {
+                    assertThat(mappings, is(aMapWithSize(3)));
+                    assertThat(
+                        mappings,
+                        allOf(hasEntry("field-1", "long"), hasEntry("field-2", "keyword"), hasEntry("field-3", "boolean")));
+                }
+            );
+        }
+    }
+
+    private static class FieldCapsMockClient extends NoOpClient {
+        FieldCapsMockClient(String testName) {
+            super(testName);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            if (request instanceof FieldCapabilitiesRequest) {
+                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+                Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+                for (String field : fieldCapsRequest.fields()) {
+                    responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));
+                }
+                for (Map.Entry<String, Object> runtimeField : fieldCapsRequest.runtimeFields().entrySet()) {
+                    String field = runtimeField.getKey();
+                    String type = (String)((Map) runtimeField.getValue()).get("type");
+                    responseMap.put(field, singletonMap(field, createFieldCapabilities(field, type)));
+                }
+
+                final FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(fieldCapsRequest.indices(), responseMap);
+                listener.onResponse((Response) response);
+                return;
+            }
+
+            super.doExecute(action, request, listener);
+        }
+    }
+
+    private static FieldCapabilities createFieldCapabilities(String name, String type) {
+        return new FieldCapabilities(
+            name,
+            type,
+            false,
+            true,
+            true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Collections.emptyMap()
+        );
+    }
+
+    private <T> void assertAsync(Consumer<ActionListener<T>> function, Consumer<T> furtherTests) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+            furtherTests.accept(r);
+        }, e -> { fail("got unexpected exception: " + e); }), latch);
+
+        function.accept(listener);
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 
 }

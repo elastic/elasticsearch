@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -47,24 +36,36 @@ import java.util.stream.Collectors;
 public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
+    private static final ParseField FAILURES_FIELD = new ParseField("failures");
 
     private final String[] indices;
     private final Map<String, Map<String, FieldCapabilities>> responseMap;
+    private final List<FieldCapabilitiesFailure> failures;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
-    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
-        this(indices, responseMap, Collections.emptyList());
+    public FieldCapabilitiesResponse(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities>> responseMap,
+        List<FieldCapabilitiesFailure> failures
+    ) {
+        this(indices, responseMap, Collections.emptyList(), failures);
     }
 
-    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses);
+    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
+        this(indices, responseMap, Collections.emptyList(), Collections.emptyList());
+    }
+
+    FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
     }
 
     private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,
-                                      List<FieldCapabilitiesIndexResponse> indexResponses) {
+                                      List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
+        this.failures = failures;
     }
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
@@ -76,22 +77,26 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         }
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
         indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            this.failures = in.readList(FieldCapabilitiesFailure::new);
+        } else {
+            this.failures = Collections.emptyList();
+        }
     }
 
     /**
-     * Used for serialization
-     */
-    FieldCapabilitiesResponse() {
-        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), Collections.emptyList());
-    }
-
-    /**
-     * Get the concrete list of indices that were requested.
+     * Get the concrete list of indices that were requested and returned a response.
      */
     public String[] getIndices() {
         return indices;
     }
 
+    /**
+     * Get the concrete list of indices that failed
+     */
+    public String[] getFailedIndices() {
+        return this.failures.stream().map(FieldCapabilitiesFailure::getIndices).flatMap(s -> Arrays.stream(s)).toArray(String[]::new);
+    }
 
     /**
      * Get the field capabilities map.
@@ -100,6 +105,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return responseMap;
     }
 
+    /**
+     * Get possible request failures keyed by index name
+     */
+    public List<FieldCapabilitiesFailure> getFailures() {
+        return failures;
+    }
 
     /**
      * Returns the actual per-index field caps responses
@@ -116,6 +127,17 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return responseMap.get(field);
     }
 
+    /**
+     * Returns <code>true</code> if the provided field is a metadata field.
+     */
+    public boolean isMetadataField(String field) {
+        Map<String, FieldCapabilities> caps = getField(field);
+        if (caps == null) {
+            return false;
+        }
+        return caps.values().stream().anyMatch(FieldCapabilities::isMetadataField);
+    }
+
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
         return in.readMap(StreamInput::readString, FieldCapabilities::new);
     }
@@ -127,6 +149,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         }
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         out.writeList(indexResponses);
+        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            out.writeList(failures);
+        }
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
@@ -141,6 +166,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         builder.startObject();
         builder.field(INDICES_FIELD.getPreferredName(), indices);
         builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
+        if (this.failures.size() > 0) {
+            builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
+            builder.field(FAILURES_FIELD.getPreferredName(), failures);
+        }
         builder.endObject();
         return builder;
     }
@@ -151,19 +180,27 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER =
-        new ConstructingObjectParser<>("field_capabilities_response", true,
-            a -> {
-                List<String> indices = a[0] == null ? Collections.emptyList() : (List<String>) a[0];
-                return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new),
-                    ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-            });
+        new ConstructingObjectParser<>("field_capabilities_response", true, a -> {
+            Map<String, Map<String, FieldCapabilities>> responseMap = ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
+                .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
+            List<FieldCapabilitiesFailure> failures = a[2] == null
+                ? Collections.emptyList()
+                : (List<FieldCapabilitiesFailure>) a[2];
+            return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new), responseMap, failures);
+        });
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
             Map<String, FieldCapabilities> typeToCapabilities = parseTypeToCapabilities(p, n);
             return new Tuple<>(n, typeToCapabilities);
         }, FIELDS_FIELD);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> FieldCapabilitiesFailure.fromXContent(p),
+            FAILURES_FIELD
+        );
     }
 
     private static Map<String, FieldCapabilities> parseTypeToCapabilities(XContentParser parser, String name) throws IOException {
@@ -187,12 +224,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
         return Arrays.equals(indices, that.indices) &&
             Objects.equals(responseMap, that.responseMap) &&
-            Objects.equals(indexResponses, that.indexResponses);
+            Objects.equals(indexResponses, that.indexResponses) &&
+            Objects.equals(failures, that.failures);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(responseMap, indexResponses);
+        int result = Objects.hash(responseMap, indexResponses, failures);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

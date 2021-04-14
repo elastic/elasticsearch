@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.history;
 
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure per-action conditions are honored.
@@ -106,7 +108,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -151,7 +153,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -202,7 +204,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // all actions should be successful
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());

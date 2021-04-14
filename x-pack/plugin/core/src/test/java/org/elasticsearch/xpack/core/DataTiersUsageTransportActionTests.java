@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core;
@@ -42,10 +43,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testSeparateTiers() {
-        NodeStats hotStats = fakeStats(DataTier.DATA_HOT_NODE_ROLE);
-        NodeStats coldStats = fakeStats(DataTier.DATA_COLD_NODE_ROLE);
-        NodeStats warmStats = fakeStats(DataTier.DATA_WARM_NODE_ROLE);
-        NodeStats warmStats2 = fakeStats(DataTier.DATA_WARM_NODE_ROLE);
+        NodeStats hotStats = fakeStats(DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
+        NodeStats coldStats = fakeStats(DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
+        NodeStats warmStats = fakeStats(DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
+        NodeStats warmStats2 = fakeStats(DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
 
         NodesStatsResponse nodesStats = new NodesStatsResponse(new ClusterName("cluster"),
             Arrays.asList(hotStats, coldStats, warmStats, warmStats2), Collections.emptyList());

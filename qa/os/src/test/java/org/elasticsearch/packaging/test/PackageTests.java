@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -94,7 +83,7 @@ public class PackageTests extends PackagingTestCase {
     private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
             runElasticsearchTests();
             stopElasticsearch();
@@ -133,31 +122,14 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test34CustomJvmOptionsDirectoryFile() throws Exception {
-        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
-        try {
-            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+        setHeap("512m");
 
-            startElasticsearch();
+        startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
-            stopElasticsearch();
-        } finally {
-            rm(heapOptions);
-        }
-    }
-
-    public void test42BundledJdkRemoved() throws Exception {
-        assumeThat(distribution().hasJdk, is(true));
-
-        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-        try {
-            mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
-        } finally {
-            mv(relocatedJdk, installation.bundledJdk);
-        }
+        stopElasticsearch();
     }
 
     public void test40StartServer() throws Exception {
@@ -175,6 +147,18 @@ public class PackageTests extends PackagingTestCase {
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
+    }
+
+    public void test42BundledJdkRemoved() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test50Remove() throws Exception {
@@ -300,12 +284,12 @@ public class PackageTests extends PackagingTestCase {
         stopElasticsearch();
 
         withCustomConfig(tempConf -> {
-            append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
+            append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
             stopElasticsearch();
@@ -366,9 +350,11 @@ public class PackageTests extends PackagingTestCase {
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             runElasticsearchStartCommand(null, true, false);
-            final Result logs = journald.getLogs();
 
-            assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            assertBusy(() -> {
+                final Result logs = journald.getLogs();
+                assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            });
         });
     }
 }

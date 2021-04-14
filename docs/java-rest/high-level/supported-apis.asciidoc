@@ -226,6 +226,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
 * <<java-rest-high-snapshot-restore-snapshot>>
+* <<java-rest-high-snapshot-clone-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
@@ -236,6 +237,7 @@ include::snapshot/get_snapshots.asciidoc[]
 include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
 include::snapshot/restore_snapshot.asciidoc[]
+include::snapshot/clone_snapshot.asciidoc[]
 
 == Tasks APIs
 
@@ -298,10 +300,10 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-delete-forecast>>
 * <<{upid}-delete-model-snapshot>>
 * <<{upid}-delete-trained-models>>
+* <<{upid}-delete-trained-model-alias>>
 * <<{upid}-estimate-model-memory>>
 * <<{upid}-evaluate-data-frame>>
 * <<{upid}-explain-data-frame-analytics>>
-* <<{upid}-find-file-structure>>
 * <<{upid}-flush-job>>
 * <<{upid}-forecast-job>>
 * <<{upid}-get-job>>
@@ -333,6 +335,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-put-datafeed>>
 * <<{upid}-put-filter>>
 * <<{upid}-put-trained-model>>
+* <<{upid}-put-trained-model-alias>>
 * <<{upid}-revert-model-snapshot>>
 * <<{upid}-set-upgrade-mode>>
 * <<{upid}-start-data-frame-analytics>>
@@ -360,14 +363,13 @@ include::ml/delete-filter.asciidoc[]
 include::ml/delete-forecast.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 include::ml/delete-trained-models.asciidoc[]
+include::ml/delete-trained-model-alias.asciidoc[]
 // ESTIMATE
 include::ml/estimate-model-memory.asciidoc[]
 // EVALUATE
 include::ml/evaluate-data-frame.asciidoc[]
 // EXPLAIN
 include::ml/explain-data-frame-analytics.asciidoc[]
-// FIND
-include::ml/find-file-structure.asciidoc[]
 // FLUSH
 include::ml/flush-job.asciidoc[]
 // FORECAST
@@ -406,6 +408,7 @@ include::ml/put-data-frame-analytics.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/put-trained-model.asciidoc[]
+include::ml/put-trained-model-alias.asciidoc[]
 // REVERT
 include::ml/revert-model-snapshot.asciidoc[]
 // SET
@@ -526,8 +529,20 @@ include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
 include::security/put-privileges.asciidoc[]
 include::security/create-api-key.asciidoc[]
+include::security/grant-api-key.asciidoc[]
 include::security/get-api-key.asciidoc[]
 include::security/invalidate-api-key.asciidoc[]
+
+[role="xpack"]
+== Text Structure APIs
+:upid: {mainid}-text-structure
+:doc-tests-file: {doc-tests}/TextStructureClientDocumentationIT.java
+
+The Java High Level REST Client supports the following Text Structure APIs:
+
+* <<{upid}-find-structure>>
+
+include::textstructure/find-structure.asciidoc[]
 
 [role="xpack"]
 == Watcher APIs

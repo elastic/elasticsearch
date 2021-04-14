@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar;
 
@@ -9,7 +10,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,7 +17,6 @@ import java.util.Locale;
 
 public abstract class BinaryScalarFunction extends ScalarFunction {
 
-    private static final int PKG_LENGTH = "org.elasticsearch.xpack.".length();
     private final Expression left, right;
 
     protected BinaryScalarFunction(Source source, Expression left, Expression right) {
@@ -28,9 +27,6 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
 
     @Override
     public final BinaryScalarFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         Expression newLeft = newChildren.get(0);
         Expression newRight = newChildren.get(1);
 
@@ -61,10 +57,7 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        String prefix = getClass().getPackageName().substring(PKG_LENGTH);
-        int index = prefix.indexOf('.');
-        Check.isTrue(index > 0, "invalid package {}", prefix);
-        return Scripts.binaryMethod("{" + prefix.substring(0, index) + "}", scriptMethodName(), leftScript, rightScript, dataType());
+        return Scripts.binaryMethod(Scripts.classPackageAsPrefix(getClass()), scriptMethodName(), leftScript, rightScript, dataType());
     }
 
     protected String scriptMethodName() {

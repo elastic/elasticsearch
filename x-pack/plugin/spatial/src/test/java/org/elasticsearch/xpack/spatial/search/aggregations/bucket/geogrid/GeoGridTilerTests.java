@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
@@ -9,6 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +47,7 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.encodeDecodeLon;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.randomBBox;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GeoGridTilerTests extends ESTestCase {
     private static final GeoTileGridTiler GEOTILE = new GeoTileGridTiler();
@@ -143,6 +146,8 @@ public class GeoGridTilerTests extends ESTestCase {
             int numTiles = GEOTILE.setValues(unboundedCellValues, value, precision);
             int expected = numTiles(value, precision);
             assertThat(numTiles, equalTo(expected));
+            // make sure we are not over-allocating
+            assertThat(4 * numTiles + 1, greaterThanOrEqualTo(unboundedCellValues.getValues().length));
         }
     }
 
@@ -208,6 +213,39 @@ public class GeoGridTilerTests extends ESTestCase {
             int count = GEOHASH.setValues(values, value, 7);
             assertThat(count, equalTo(1024));
         }
+    }
+
+    public void testGeoTileShapeContainsBound() throws Exception {
+        Rectangle tile = GeoTileUtils.toBoundingBox(44140, 44140, 16);
+        Rectangle shapeRectangle = new Rectangle(tile.getMinX() - 15, tile.getMaxX() + 15,
+            tile.getMaxY() + 15, tile.getMinY() - 15);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
+
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
+            new GeoPoint(tile.getMinLat(), tile.getMaxLon())
+        );
+        GeoShapeCellValues values = new GeoShapeCellValues(null, 24, GEOTILE, NOOP_BREAKER);
+        int numTiles = new BoundedGeoTileGridTiler(boundingBox).setValues(values, value, 24);
+        int expectedTiles =
+            (int) GeoTileGridTiler.numTilesFromPrecision(24, tile.getMinX(), tile.getMaxX(), tile.getMinY(), tile.getMaxY());
+        assertThat(expectedTiles, equalTo(numTiles));
+    }
+
+    public void testGeoTileShapeContainsBoundDateLine() throws Exception {
+        Rectangle tile = new Rectangle(178, -178, 2, -2);
+        Rectangle shapeRectangle = new Rectangle(170, -170, 10, -10);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
+
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
+            new GeoPoint(tile.getMinLat(), tile.getMaxLon())
+        );
+        GeoShapeCellValues values = new GeoShapeCellValues(null, 13, GEOTILE, NOOP_BREAKER);
+        int numTiles = new BoundedGeoTileGridTiler(boundingBox).setValues(values, value, 13);
+        int expectedTiles = (int) (GeoTileGridTiler.numTilesFromPrecision(13, 178, 180, -2, 2)
+            + GeoTileGridTiler.numTilesFromPrecision(13, -180, -178, -2, 2));
+        assertThat(expectedTiles, equalTo(numTiles));
     }
 
     private boolean tileIntersectsBounds(int x, int y, int precision, GeoBoundingBox bounds) {
@@ -312,7 +350,7 @@ public class GeoGridTilerTests extends ESTestCase {
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
         int recursiveCount;
         {
-            recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0, precision, value);
+            recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0, precision, value, Long.MAX_VALUE);
         }
         GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, precision, GEOTILE, NOOP_BREAKER);
         int bruteForceCount;

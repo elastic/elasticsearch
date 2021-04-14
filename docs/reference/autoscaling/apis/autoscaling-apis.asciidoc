@@ -1,7 +1,9 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-apis]]
 == Autoscaling APIs
+
+NOTE: {cloud-only}
 
 You can use the following APIs to perform autoscaling operations.
 
@@ -10,12 +12,13 @@ You can use the following APIs to perform autoscaling operations.
 === Top-Level
 
 * <<autoscaling-get-autoscaling-capacity,Get autoscaling capacity>>
+* <<autoscaling-put-autoscaling-policy,Create or update autoscaling policy>>
 * <<autoscaling-delete-autoscaling-policy,Delete autoscaling policy>>
 * <<autoscaling-get-autoscaling-policy,Get autoscaling policy>>
-* <<autoscaling-put-autoscaling-policy,Put autoscaling policy>>
 
 // top-level
+include::put-autoscaling-policy.asciidoc[]
 include::get-autoscaling-capacity.asciidoc[]
 include::delete-autoscaling-policy.asciidoc[]
 include::get-autoscaling-policy.asciidoc[]
-include::put-autoscaling-policy.asciidoc[]
+

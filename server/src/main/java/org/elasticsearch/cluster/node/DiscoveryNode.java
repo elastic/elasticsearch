@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
@@ -24,7 +13,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -34,7 +22,6 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
@@ -61,8 +48,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
          */
         if (settings.hasValue("node.roles")) {
             return settings.getAsList("node.roles").contains(role.roleName());
-        } else if (role.legacySetting() != null && settings.hasValue(role.legacySetting().getKey())) {
-            return role.legacySetting().get(settings);
         } else {
             return role.isEnabledByDefault(settings);
         }
@@ -73,11 +58,27 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Due to the way that plugins may not be available when settings are being initialized,
-     * not all roles may be available from a static/initializing context such as a {@link Setting}
-     * default value function. In that case, be warned that this may not include all plugin roles.
+     * Check if the given settings are indicative of having the top-level data role.
+     *
+     * Note that if you want to test for whether or not the given settings are indicative of any role that can contain data, you should use
+     * {@link #canContainData(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having the top-level data role, otherwise false
      */
-    public static boolean isDataNode(final Settings settings) {
+    public static boolean hasDataRole(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
+    }
+
+    /**
+     * Check if the given settings are indicative of any role that can contain data.
+     *
+     * Note that if you want to test for exactly the data role, you should use {@link #hasDataRole(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having any role that can contain data, otherwise false
+     */
+    public static boolean canContainData(final Settings settings) {
         return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
@@ -208,29 +209,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
-        if (NODE_ROLES_SETTING.exists(settings)) {
-            validateLegacySettings(settings, roleMap);
-            return Set.copyOf(NODE_ROLES_SETTING.get(settings));
-        } else {
-            return roleMap.values()
-                .stream()
-                .filter(s -> s.legacySetting() != null && s.legacySetting().get(settings))
-                .collect(Collectors.toUnmodifiableSet());
-        }
-    }
-
-    private static void validateLegacySettings(final Settings settings, final Map<String, DiscoveryNodeRole> roleMap) {
-        for (final DiscoveryNodeRole role : roleMap.values()) {
-            if (role.legacySetting() != null && role.legacySetting().exists(settings)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "can not explicitly configure node roles and use legacy role setting [%s]=[%s]",
-                    role.legacySetting().getKey(),
-                    role.legacySetting().get(settings)
-                );
-                throw new IllegalArgumentException(message);
-            }
-        }
+        return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
     /**
@@ -251,12 +230,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
-            final boolean canContainData;
-            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-                canContainData = in.readBoolean();
-            } else {
-                canContainData = roleName.equals(DiscoveryNodeRole.DATA_ROLE.roleName());
-            }
+            final boolean canContainData = in.readBoolean();
             final DiscoveryNodeRole role = roleMap.get(roleName);
             if (role == null) {
                 roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
@@ -284,9 +258,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (final DiscoveryNodeRole role : roles) {
             out.writeString(role.roleName());
             out.writeString(role.roleNameAbbreviation());
-            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-                out.writeBoolean(role.canContainData());
-            }
+            out.writeBoolean(role.canContainData());
         }
         Version.writeVersion(version, out);
     }
@@ -333,7 +305,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean isDataNode() {
+    public boolean canContainData() {
         return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
@@ -408,22 +380,26 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (nodeName.length() > 0) {
-            sb.append('{').append(nodeName).append('}');
-        }
-        sb.append('{').append(nodeId).append('}');
-        sb.append('{').append(ephemeralId).append('}');
-        sb.append('{').append(hostName).append('}');
-        sb.append('{').append(address).append('}');
-        if (roles.isEmpty() == false) {
-            sb.append('{');
-            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(sb::append);
-            sb.append('}');
-        }
-        if (!attributes.isEmpty()) {
+        appendDescriptionWithoutAttributes(sb);
+        if (attributes.isEmpty() == false) {
             sb.append(attributes);
         }
         return sb.toString();
+    }
+
+    public void appendDescriptionWithoutAttributes(StringBuilder stringBuilder) {
+        if (nodeName.length() > 0) {
+            stringBuilder.append('{').append(nodeName).append('}');
+        }
+        stringBuilder.append('{').append(nodeId).append('}');
+        stringBuilder.append('{').append(ephemeralId).append('}');
+        stringBuilder.append('{').append(hostName).append('}');
+        stringBuilder.append('{').append(address).append('}');
+        if (roles.isEmpty() == false) {
+            stringBuilder.append('{');
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+            stringBuilder.append('}');
+        }
     }
 
     @Override
@@ -438,6 +414,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
+
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : roles) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
 
         builder.endObject();
         return builder;
@@ -461,7 +443,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {
-        assert additionalRoles.stream().allMatch(r -> r.legacySetting() == null || r.legacySetting().isDeprecated()) : additionalRoles;
         final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles =
             rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()));
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations

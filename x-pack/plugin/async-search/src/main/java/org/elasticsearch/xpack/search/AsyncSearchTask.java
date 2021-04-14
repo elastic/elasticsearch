@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -349,12 +350,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     /**
-     * Returns the status of {@link AsyncSearchTask}
+     * Returns the status from {@link AsyncSearchTask}
      */
-    public AsyncStatusResponse getStatusResponse() {
-        MutableSearchResponse mutableSearchResponse = searchResponse.get();
+    public static AsyncStatusResponse getStatusResponse(AsyncSearchTask asyncTask) {
+        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
         assert mutableSearchResponse != null;
-        return mutableSearchResponse.toStatusResponse(searchId.getEncoded(), getStartTime(), expirationTimeMillis);
+        return mutableSearchResponse.toStatusResponse(
+            asyncTask.searchId.getEncoded(),
+            asyncTask.getStartTime(),
+            asyncTask.expirationTimeMillis
+        );
     }
 
     class Listener extends SearchProgressActionListener {

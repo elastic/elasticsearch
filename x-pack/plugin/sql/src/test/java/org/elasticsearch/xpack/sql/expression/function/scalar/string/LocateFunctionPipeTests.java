@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
@@ -29,11 +30,11 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
     protected LocateFunctionPipe randomInstance() {
         return randomLocateFunctionPipe();
     }
-    
+
     private Expression randomLocateFunctionExpression() {
         return randomLocateFunctionPipe().expression();
     }
-    
+
     public static LocateFunctionPipe randomLocateFunctionPipe() {
         return (LocateFunctionPipe) (new Locate(randomSource(),
                             randomStringLiteral(),
@@ -55,8 +56,8 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
             b1.input(),
             b1.start());
 
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         LocateFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new LocateFunctionPipe(
@@ -67,7 +68,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
                 b2.start());
 
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -76,10 +77,10 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
         Pipe newPattern = randomValueOtherThan(b.pattern(), () -> pipe(randomStringLiteral()));
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
         Pipe newStart = b.start() == null ? null : randomValueOtherThan(b.start(), () -> pipe(randomIntLiteral()));
-        
+
         LocateFunctionPipe newB = new LocateFunctionPipe(b.source(), b.expression(), b.pattern(), b.input(), b.start());
         LocateFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
@@ -88,7 +89,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
                         comb.get(0) ? newPattern : b.pattern(),
                         comb.get(1) ? newInput : b.input(),
                         tempNewStart);
-                
+
                 assertEquals(transformed.pattern(), comb.get(0) ? newPattern : b.pattern());
                 assertEquals(transformed.input(), comb.get(1) ? newInput : b.input());
                 assertEquals(transformed.start(), tempNewStart);
@@ -122,7 +123,7 @@ public class LocateFunctionPipeTests extends AbstractNodeTestCase<LocateFunction
                 }
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

@@ -1,10 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
+
+import java.time.OffsetTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -14,10 +19,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
-import java.time.OffsetTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.fromTypeName;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.types;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
-import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTimeWithNanos;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 
 public class SqlDataTypeConverterTests extends ESTestCase {
@@ -75,8 +76,9 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(asDateTime(123456789101L)));
-            assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(asDateTime(-123456789101L)));
+            assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)));
+            assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)));
+            assertEquals("2020-05-01T10:20:30.123456789Z", conversion.convert(asDateTimeWithNanos("2020-05-01T10:20:30.123456789Z")));
         }
     }
 
@@ -123,8 +125,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(123456789101L, conversion.convert(asDateTime(123456789101L)));
-            assertEquals(-123456789101L, conversion.convert(asDateTime(-123456789101L)));
+            assertEquals(123456789101L, conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)));
+            assertEquals(-123456789101L, conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)));
+            // Nanos are ignored, only millis are used
+            assertEquals(1588328430123L, conversion.convert(asDateTimeWithNanos("2020-05-01T10:20:30.123456789Z")));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -165,8 +169,8 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(date(123456780000L), conversion.convert(asDateTime(123456789101L)));
-            assertEquals(date(-123456789101L), conversion.convert(asDateTime(-123456789101L)));
+            assertEquals(date(123456780000L), conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)));
+            assertEquals(date(-123456789101L), conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -240,8 +244,8 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(time(77589101L), conversion.convert(asDateTime(123456789101L)));
-            assertEquals(time(8810899L), conversion.convert(asDateTime(-123456789101L)));
+            assertEquals(time(77589101L), conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)));
+            assertEquals(time(8810899L), conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -365,8 +369,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(1.23456789101E11f, (float) conversion.convert(asDateTime(123456789101L)), 0);
-            assertEquals(-1.23456789101E11f, (float) conversion.convert(asDateTime(-123456789101L)), 0);
+            assertEquals(1.23456789101E11f, (float) conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)), 0);
+            assertEquals(-1.23456789101E11f, (float) conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)), 0);
+            // Nanos are ignored, only millis are used
+            assertEquals(1.5883284E12f, conversion.convert(asDateTimeWithNanos("2020-05-01T10:20:30.123456789Z")));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -417,8 +423,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(1.23456789101E11, (double) conversion.convert(asDateTime(123456789101L)), 0);
-            assertEquals(-1.23456789101E11, (double) conversion.convert(asDateTime(-123456789101L)), 0);
+            assertEquals(1.23456789101E11, (double) conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)), 0);
+            assertEquals(-1.23456789101E11, (double) conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)), 0);
+            // Nanos are ignored, only millis are used
+            assertEquals(1.588328430123E12, conversion.convert(asDateTimeWithNanos("2020-05-01T10:20:30.123456789Z")));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -478,9 +486,9 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(true, conversion.convert(asDateTime(123456789101L)));
-            assertEquals(true, conversion.convert(asDateTime(-123456789101L)));
-            assertEquals(false, conversion.convert(asDateTime(0L)));
+            assertEquals(true, conversion.convert(DateUtils.asDateTimeWithMillis(123456789101L)));
+            assertEquals(true, conversion.convert(DateUtils.asDateTimeWithMillis(-123456789101L)));
+            assertEquals(false, conversion.convert(DateUtils.asDateTimeWithMillis(0L)));
         }
         {
             Converter conversion = converterFor(KEYWORD, to);
@@ -539,10 +547,15 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals(12345678, conversion.convert(asDateTime(12345678L)));
-            assertEquals(223456789, conversion.convert(asDateTime(223456789L)));
-            assertEquals(-123456789, conversion.convert(asDateTime(-123456789L)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Long.MAX_VALUE)));
+            assertEquals(12345678, conversion.convert(DateUtils.asDateTimeWithMillis(12345678L)));
+            assertEquals(223456789, conversion.convert(DateUtils.asDateTimeWithMillis(223456789L)));
+            assertEquals(-123456789, conversion.convert(DateUtils.asDateTimeWithMillis(-123456789L)));
+            // Nanos are ignored, only millis are used
+            assertEquals(62123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:01:02.123456789Z")));
+            Exception e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> conversion.convert(DateUtils.asDateTimeWithMillis(Long.MAX_VALUE))
+            );
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
         }
     }
@@ -577,9 +590,14 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals((short) 12345, conversion.convert(asDateTime(12345L)));
-            assertEquals((short) -12345, conversion.convert(asDateTime(-12345L)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
+            assertEquals((short) 12345, conversion.convert(DateUtils.asDateTimeWithMillis(12345L)));
+            assertEquals((short) -12345, conversion.convert(DateUtils.asDateTimeWithMillis(-12345L)));
+            // Nanos are ignored, only millis are used
+            assertEquals((short) 1123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:00:01.123456789Z")));
+            Exception e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE))
+            );
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
         }
     }
@@ -614,9 +632,14 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
-            assertEquals((byte) 123, conversion.convert(asDateTime(123L)));
-            assertEquals((byte) -123, conversion.convert(asDateTime(-123L)));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
+            assertEquals((byte) 123, conversion.convert(DateUtils.asDateTimeWithMillis(123L)));
+            assertEquals((byte) -123, conversion.convert(DateUtils.asDateTimeWithMillis(-123L)));
+            // Nanos are ignored, only millis are used
+            assertEquals((byte) 123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:00:00.123456789Z")));
+            Exception e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE))
+            );
             assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());
         }
     }
@@ -711,9 +734,9 @@ public class SqlDataTypeConverterTests extends ESTestCase {
                 .filter(SqlDataTypes::isInterval)
                 .collect(toList()));
     }
-    
+
     static ZonedDateTime dateTime(long millisSinceEpoch) {
-        return DateUtils.asDateTime(millisSinceEpoch);
+        return DateUtils.asDateTimeWithMillis(millisSinceEpoch);
     }
 
     static ZonedDateTime date(long millisSinceEpoch) {

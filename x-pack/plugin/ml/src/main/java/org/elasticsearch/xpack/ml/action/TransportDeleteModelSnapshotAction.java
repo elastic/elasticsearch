@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
@@ -84,24 +84,15 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                                 // Delete the snapshot and any associated state files
                                 JobDataDeleter deleter = new JobDataDeleter(client, request.getJobId());
                                 deleter.deleteModelSnapshots(Collections.singletonList(deleteCandidate),
-                                        new ActionListener<BulkByScrollResponse>() {
-                                            @Override
-                                            public void onResponse(BulkByScrollResponse bulkResponse) {
-                                                String msg = Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
-                                                        deleteCandidate.getSnapshotId(), deleteCandidate.getDescription());
+                                        listener.delegateFailure((l, bulkResponse) -> {
+                                            String msg = Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
+                                                    deleteCandidate.getSnapshotId(), deleteCandidate.getDescription());
 
-                                                auditor.info(request.getJobId(), msg);
-                                                logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
-                                                // We don't care about the bulk response, just that it succeeded
-                                                listener.onResponse(AcknowledgedResponse.TRUE);
-                                            }
-
-                                            @Override
-                                            public void onFailure(Exception e) {
-                                                listener.onFailure(e);
-                                            }
-                                        });
-
+                                            auditor.info(request.getJobId(), msg);
+                                            logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
+                                            // We don't care about the bulk response, just that it succeeded
+                                            l.onResponse(AcknowledgedResponse.TRUE);
+                                        }));
                             },
                             listener::onFailure
                     ));

@@ -1,10 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -21,11 +26,13 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,6 +48,8 @@ import org.elasticsearch.repositories.ShardGenerations;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -70,6 +79,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         .NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
         .Property.IndexScope, Setting.Property.Final, Setting.Property.PrivateIndex);
+
+    private static final Logger logger = LogManager.getLogger(SourceOnlySnapshotRepository.class);
 
     private static final String SNAPSHOT_DIR_NAME = "_snapshot";
 
@@ -144,8 +155,16 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
-            snapshot.syncSnapshot(snapshotIndexCommit);
+            SourceOnlySnapshot snapshot;
+            snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
+            try {
+                snapshot.syncSnapshot(snapshotIndexCommit);
+            } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
+                logger.warn(() -> new ParameterizedMessage(
+                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.", snapPath), e);
+                Lucene.cleanLuceneIndex(overlayDir);
+                snapshot.syncSnapshot(snapshotIndexCommit);
+            }
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
@@ -172,13 +191,17 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
      */
     public static EngineFactory getEngineFactory() {
         return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
-            reader -> {
-                try {
-                    return SeqIdGeneratingFilterReader.wrap(reader, config.getPrimaryTermSupplier().getAsLong());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }, true);
+            readerWrapper(config), true, false);
+    }
+
+    public static Function<DirectoryReader, DirectoryReader> readerWrapper(EngineConfig engineConfig) {
+        return reader -> {
+            try {
+                return SeqIdGeneratingFilterReader.wrap(reader, engineConfig.getPrimaryTermSupplier().getAsLong());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
     }
 
     /**

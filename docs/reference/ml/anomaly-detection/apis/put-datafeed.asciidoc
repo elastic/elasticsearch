@@ -18,7 +18,7 @@ Instantiates a {dfeed}.
 [[ml-put-datafeed-prereqs]]
 == {api-prereq-title}
 
-* You must create an {anomaly-job} before you create a {dfeed}.  
+* You must create an {anomaly-job} before you create a {dfeed}.
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See <<security-privileges>> and
 {ml-docs-setup-privileges}.
@@ -35,7 +35,7 @@ each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed dat
 
 [IMPORTANT]
 ====
-* You must use {kib} or this API to create a {dfeed}. Do not put a
+* You must use {kib} or this API to create a {dfeed}. Do not add a
 {dfeed} directly to the `.ml-config` index using the {es} index API. If {es}
 {security-features} are enabled, do not give users `write` privileges on the
 `.ml-config` index.
@@ -84,7 +84,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `max_empty_searches`::
 (Optional,integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
- 
+
 `query`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
@@ -105,6 +105,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
+`runtime_mappings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
 
 [[ml-put-datafeed-example]]
 == {api-examples-title}

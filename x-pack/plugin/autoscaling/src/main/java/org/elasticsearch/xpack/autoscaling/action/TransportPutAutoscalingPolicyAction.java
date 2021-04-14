@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -18,17 +19,21 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -37,6 +42,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
     private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     private final PolicyValidator policyValidator;
+    private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
     @Inject
     public TransportPutAutoscalingPolicyAction(
@@ -45,9 +51,19 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder
+        final AllocationDeciders allocationDeciders,
+        final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
+        final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
-        this(transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, policyValidatorHolder.get());
+        this(
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            policyValidatorHolder.get(allocationDeciders),
+            autoscalingLicenseChecker
+        );
     }
 
     TransportPutAutoscalingPolicyAction(
@@ -56,7 +72,8 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final PolicyValidator policyValidator
+        final PolicyValidator policyValidator,
+        final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
         super(
             PutAutoscalingPolicyAction.NAME,
@@ -69,6 +86,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             ThreadPool.Names.SAME
         );
         this.policyValidator = policyValidator;
+        this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
     @Override
@@ -78,6 +96,11 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        if (autoscalingLicenseChecker.isAutoscalingAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException("autoscaling"));
+            return;
+        }
+
         clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {

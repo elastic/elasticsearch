@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -52,7 +41,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     /**
      * Create {@link AnalysisStats} from the given cluster state.
      */
-    public static AnalysisStats of(Metadata metadata) {
+    public static AnalysisStats of(Metadata metadata, Runnable ensureNotCancelled) {
         final Map<String, IndexFeatureStats> usedCharFilterTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenizerTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenFilterTypes = new HashMap<>();
@@ -63,6 +52,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
         for (IndexMetadata indexMetadata : metadata) {
+            ensureNotCancelled.run();
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about analysis,
                 // we care about the user's indices.
@@ -71,7 +61,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Set<String> indexAnalyzers = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {
-                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), fieldMapping -> {
+                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
                     for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
                         Object analyzerO = fieldMapping.get(key);
                         if (analyzerO != null) {

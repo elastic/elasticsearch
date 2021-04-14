@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -26,9 +27,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<RolloverStep> {
 
@@ -158,6 +160,46 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
+        String dataStreamName = "test-datastream";
+        IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        RolloverStep step = createRandomInstance();
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder().put(firstGenerationIndex, true)
+                    .put(writeIndex, true)
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                        List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+            )
+            .build();
+        step.performAction(firstGenerationIndex, clusterState, null, new AsyncActionStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                actionCompleted.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, actionCompleted.get());
+
+        verifyZeroInteractions(client);
+        verifyZeroInteractions(adminClient);
+        verifyZeroInteractions(indicesClient);
     }
 
     private void mockClientRolloverCall(String rolloverTarget) {

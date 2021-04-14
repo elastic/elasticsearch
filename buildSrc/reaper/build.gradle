@@ -1,4 +1,4 @@
-jar {
+tasks.named("jar").configure {
   archiveFileName = "${project.name}.jar"
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'

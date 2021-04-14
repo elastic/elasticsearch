@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal;
@@ -83,7 +72,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
-                if (!distribution.getBundledJdk()) {
+                if (distribution.getBundledJdk() == false) {
                     throw new GradleException(
                         "Configuring a snapshot bwc distribution ('"
                             + distribution.getName()
@@ -125,6 +114,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
 
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 projectPath += ":docker:";
                 projectPath += distributionProjectName(distribution);
                 break;
@@ -158,34 +148,28 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
             ? ""
             : "-" + architecture.toString().toLowerCase();
 
-        if (distribution.getFlavor() == ElasticsearchDistribution.Flavor.OSS) {
-            projectName += "oss-";
-        }
-
         if (distribution.getBundledJdk() == false) {
             projectName += "no-jdk-";
         }
 
         switch (distribution.getType()) {
             case ARCHIVE:
-                projectName += platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+                return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
                     ? "-zip"
                     : "-tar");
-                break;
 
             case DOCKER:
-                projectName += "docker" + archString + "-export";
-                break;
+                return projectName + "docker" + archString + "-export";
 
             case DOCKER_UBI:
-                projectName += "ubi-docker" + archString + "-export";
-                break;
+                return projectName + "ubi-docker" + archString + "-export";
+
+            case DOCKER_IRON_BANK:
+                return projectName + "ironbank-docker" + archString + "-export";
 
             default:
-                projectName += distribution.getType();
-                break;
+                return projectName + distribution.getType();
         }
-        return projectName;
     }
 
     private static class ProjectBasedDistributionDependency implements DistributionDependency {

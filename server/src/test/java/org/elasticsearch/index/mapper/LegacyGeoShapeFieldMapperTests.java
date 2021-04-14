@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -24,6 +13,7 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -32,13 +22,15 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -104,6 +96,28 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsMeta() {
         return false;
+    }
+
+    public void testLegacySwitches() throws IOException {
+        // if one of the legacy parameters is added to a 'type':'geo_shape' config then
+        // that will select the legacy field mapper
+        testLegacySwitch("strategy", b -> b.field("strategy", "term"));
+        testLegacySwitch("tree", b -> b.field("tree", "geohash"));
+        testLegacySwitch("tree_levels", b -> b.field("tree_levels", 5));
+        testLegacySwitch("precision", b -> b.field("precision", 10));
+        testLegacySwitch("points_only", b -> b.field("points_only", true));
+        testLegacySwitch("distance_error_pct", b -> b.field("distance_error_pct", 0.8));
+    }
+
+    private void testLegacySwitch(String field, CheckedConsumer<XContentBuilder, IOException> config) throws IOException {
+        createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            config.accept(b);
+        }));
+        Set<String> warnings = new HashSet<>();
+        warnings.add(field);
+        warnings.add("strategy");
+        assertFieldWarnings(warnings.toArray(String[]::new));
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -568,8 +582,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisallowExpensiveQueries() throws IOException {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree")));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
@@ -577,7 +591,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> geoShapeFieldMapper.fieldType().geoShapeQuery(
-                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
+                        new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, searchExecutionContext));
         assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());
         assertFieldWarnings("tree", "strategy");
@@ -619,5 +633,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

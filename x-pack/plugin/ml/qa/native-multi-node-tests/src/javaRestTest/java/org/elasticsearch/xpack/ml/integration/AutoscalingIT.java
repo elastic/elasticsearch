@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.integration;
@@ -11,7 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -43,13 +43,6 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     private static final long BASIC_REQUIREMENT_MB = 10;
     private static final long NATIVE_PROCESS_OVERHEAD_MB = 30;
     private static final long BASELINE_OVERHEAD_MB = BASIC_REQUIREMENT_MB + NATIVE_PROCESS_OVERHEAD_MB;
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        return Settings.builder().put(super.externalClusterClientSettings())
-            .put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true)
-            .build();
-    }
 
     // This test assumes that xpack.ml.max_machine_memory_percent is 30
     // and that xpack.ml.use_auto_machine_memory_percent is false
@@ -107,11 +100,11 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .collect(Collectors.toList());
         NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
         expectedTierBytes = (long)Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASIC_REQUIREMENT_MB).getBytes()
+            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASELINE_OVERHEAD_MB).getBytes()
                 + currentScale.getTier()
             ) * 100 / 30.0
         );
-        expectedNodeBytes = (long)Math.ceil(ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
 
         assertMlCapacity(
@@ -158,7 +151,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
         AutoscalingDeciderResult autoscalingDeciderResult = autoscalingDeciderResults.results().get("ml");
         assertThat(autoscalingDeciderResult.reason().summary(), containsString(reason));
-        assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(), equalTo(tierBytes));
+        assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(), equalTo(tierBytes));
         assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(), equalTo(nodeBytes));
     }
 

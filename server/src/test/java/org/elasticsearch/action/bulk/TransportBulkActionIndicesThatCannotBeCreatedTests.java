@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -40,7 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -119,16 +108,17 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
 
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
-            @Override
-            public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
-                return shouldAutoCreate.apply(indexAbstraction) == false;
-            }
+        final IndexNameExpressionResolver indexNameExpressionResolver =
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
+                @Override
+                public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
+                    return shouldAutoCreate.apply(indexAbstraction) == false;
+                }
         };
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
             null, null, mock(ActionFilters.class), indexNameExpressionResolver,
-            new IndexingPressure(Settings.EMPTY), new SystemIndices(Map.of())) {
+            new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

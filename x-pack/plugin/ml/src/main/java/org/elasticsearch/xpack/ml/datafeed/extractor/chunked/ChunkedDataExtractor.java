@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
@@ -102,7 +103,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -264,9 +265,9 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     private class ScrolledDataSummary implements DataSummary {
 
-        private long earliestTime;
-        private long latestTime;
-        private long totalHits;
+        private final long earliestTime;
+        private final long latestTime;
+        private final long totalHits;
 
         private ScrolledDataSummary(long earliestTime, long latestTime, long totalHits) {
             this.earliestTime = earliestTime;
@@ -308,7 +309,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
     }
 
-    private class AggregatedDataSummary implements DataSummary {
+    private static class AggregatedDataSummary implements DataSummary {
 
         private final double earliestTime;
         private final double latestTime;

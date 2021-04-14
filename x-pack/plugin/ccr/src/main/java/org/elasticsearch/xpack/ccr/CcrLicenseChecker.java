@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
@@ -40,7 +41,7 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -61,7 +62,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Encapsulates licensing checking for CCR.
@@ -381,18 +381,15 @@ public class CcrLicenseChecker {
         if (headers.isEmpty()) {
             return client;
         } else {
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            Map<String, String> filteredHeaders = headers.entrySet().stream()
-                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(headers);
+            if (filteredHeaders.isEmpty()) {
+                return client;
+            }
             return new FilterClient(client) {
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse>
                 void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-                    }
+                    ClientHelper.executeWithHeadersAsync(filteredHeaders, null, client, action, request, listener);
                 }
             };
         }

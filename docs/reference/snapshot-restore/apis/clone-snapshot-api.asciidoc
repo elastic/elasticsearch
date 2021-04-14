@@ -20,6 +20,12 @@ PUT /_snapshot/my_repository/source_snapshot/_clone/target_snapshot
 
 `PUT /_snapshot/<repository>/<source_snapshot>/_clone/<target_snapshot>`
 
+[[clone-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[clone-snapshot-api-desc]]
 ==== {api-description-title}
 

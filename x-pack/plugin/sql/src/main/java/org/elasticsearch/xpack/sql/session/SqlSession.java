@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
@@ -44,7 +45,7 @@ public class SqlSession implements Session {
     private final Optimizer optimizer;
     private final Planner planner;
     private final PlanExecutor planExecutor;
-    
+
     private final SqlConfiguration configuration;
 
     public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
@@ -86,7 +87,7 @@ public class SqlSession implements Session {
     public Optimizer optimizer() {
         return optimizer;
     }
-    
+
     public Verifier verifier() {
         return verifier;
     }
@@ -135,12 +136,12 @@ public class SqlSession implements Session {
 
             String cluster = table.cluster();
 
-            if (Strings.hasText(cluster) && !indexResolver.clusterName().equals(cluster)) {
+            if (Strings.hasText(cluster) && indexResolver.clusterName().equals(cluster) == false) {
                 listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
             }
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
+            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

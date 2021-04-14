@@ -12,7 +12,7 @@ more about the Painless scripting language in the
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
-* <<painless-group-by>>
+// * <<painless-group-by>>
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>
@@ -153,6 +153,7 @@ type field.
 <7> Sets `date` based on the timestamp of the document.
 <8> Returns the month value from `date`.
 
+////
 [[painless-group-by]]
 == Using Painless in `group_by`
 
@@ -288,6 +289,8 @@ them. The table below shows how normalization modifies the output of the
 | "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
 | "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
 |===
+////
+
 
 [[painless-bucket-script]]
 == Getting duration by using bucket script

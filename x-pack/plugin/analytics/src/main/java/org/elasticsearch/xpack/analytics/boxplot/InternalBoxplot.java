@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.boxplot;
@@ -17,10 +18,12 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -164,9 +167,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
-    public static List<String> metricNames = Stream.of(Metrics.values())
-        .map(m -> m.name().toLowerCase(Locale.ROOT))
-        .collect(Collectors.toList());
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
+    );
 
     private final TDigestState state;
 
@@ -253,7 +256,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     @Override
     public Iterable<String> valueNames() {
-        return metricNames;
+        return METRIC_NAMES;
     }
 
     // for testing only

@@ -7,12 +7,22 @@ each new index in the series is replicated automatically. Whenever the name of
 a new index on the remote cluster matches the auto-follow pattern, a
 corresponding follower index is added to the local cluster.
 
+NOTE: Auto-follow patterns only match open indices on the remote cluster that
+have all primary shards started. Auto-follow patterns do not match indices that
+can't be used for {ccr-init} such as <<open-index-api-desc,closed indices>> or
+<<searchable-snapshots,{search-snaps}>>. Avoid using an auto-follow pattern
+that matches indices with a <<index-block-settings, read or write block>>. These
+blocks prevent follower indices from replicating such indices.
+
 You can also create auto-follow patterns for data streams. When a new backing
 index is generated on a remote cluster, that index and its data stream are
 automatically followed if the data stream name matches an auto-follow
 pattern. If you create a data stream after creating the auto-follow pattern,
 all backing indices are followed automatically.
 
+The data streams replicated from a remote cluster by CCR are protected from
+local rollovers. The <<promote-data-stream-api,promote data stream API>>
+can be used to turn these data streams into regular data streams.
 
 Auto-follow patterns are especially useful with
 <<index-lifecycle-management,{ilm-cap}>>, which might continually create

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -283,11 +284,11 @@ public final class UriUtils {
         if (segment == null || segment.isEmpty() || "/".equals(segment)) {
             return uri;
         }
-        
+
         String path = uri.getPath();
         String concatenatedPath = "";
         String cleanSegment = segment.startsWith("/") ? segment.substring(1) : segment;
-        
+
         if (path == null || path.isEmpty()) {
             path = "/";
         }

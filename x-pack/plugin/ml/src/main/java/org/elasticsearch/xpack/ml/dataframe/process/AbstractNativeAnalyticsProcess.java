@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -56,5 +57,20 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     @Override
     public Iterator<Result> readAnalyticsResults() {
         return resultsParser.parseResults(processOutStream());
+    }
+
+    @Override
+    public void close() throws IOException {
+        try {
+            super.close();
+        } finally {
+            // Unlike autodetect where closing the process input stream initiates
+            // termination and additional output from the process which forces us
+            // to close the output stream after we've finished processing its results,
+            // in analytics we wait until we've read all results and then we close the
+            // process. Thus, we can take care of consuming and closing the output
+            // stream within close itself.
+            consumeAndCloseOutputStream();
+        }
     }
 }

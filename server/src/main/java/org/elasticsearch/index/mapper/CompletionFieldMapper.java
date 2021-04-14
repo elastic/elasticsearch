@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -31,6 +20,7 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
@@ -40,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -197,7 +187,7 @@ public class CompletionFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecate("excessive_completion_contexts",
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "excessive_completion_contexts",
                         "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                             " in the mapping for field [" + name() + "]. " +
                             "The maximum allowed number of completion contexts in a mapping will be limited to " +
@@ -286,7 +276,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -426,7 +416,7 @@ public class CompletionFieldMapper extends FieldMapper {
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
+                    if (ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName) == false) {
                         throw new IllegalArgumentException("unknown field name [" + currentFieldName
                             + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
@@ -484,7 +474,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                     contextMapping = contextMappings.get(fieldName);
                                 } else {
                                     assert fieldName != null;
-                                    assert !contextsMap.containsKey(fieldName);
+                                    assert contextsMap.containsKey(fieldName) == false;
                                     contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
                                 }
                             }
@@ -536,7 +526,7 @@ public class CompletionFieldMapper extends FieldMapper {
     public void doValidate(MappingLookup mappers) {
         if (fieldType().hasContextMappings()) {
             for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
-                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypes().get(s));
+                contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypesLookup().get(s));
             }
         }
     }

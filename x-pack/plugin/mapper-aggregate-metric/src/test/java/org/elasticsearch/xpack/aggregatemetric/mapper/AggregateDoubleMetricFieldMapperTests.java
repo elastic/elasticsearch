@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
@@ -526,5 +527,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
         assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

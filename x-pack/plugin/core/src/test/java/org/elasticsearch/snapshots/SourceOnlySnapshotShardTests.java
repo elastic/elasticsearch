@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
@@ -73,6 +74,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -227,9 +229,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(snapshotId,
                         shardGenerations.indices().stream()
-                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L,
-                        shardGenerations.totalShards(),
-                        Collections.emptyList(), true, Collections.emptyMap()),
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), Collections.emptyList(), null, 1L,
+                        shardGenerations.totalShards(), Collections.emptyList(), true, Collections.emptyMap(), 0L
+                    ),
                     Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });
@@ -281,7 +283,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             }
             expectThrows(UnsupportedOperationException.class, () -> searcher.search(new TermQuery(new Term("boom", "boom")), 1));
             targetShard = reindex(searcher.getDirectoryReader(), new MappingMetadata("_doc",
-                restoredShard.mapperService().documentMapper().meta()));
+                restoredShard.mapperService().documentMapper().mapping().getMeta()));
         }
 
         for (int i = 0; i < numInitialDocs; i++) {
@@ -333,7 +335,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
                             new SourceToParse(index, id, source, XContentHelper.xContentType(source),
-                                rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
+                                rootFieldsVisitor.routing(), Map.of()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                             throw new IllegalStateException("failed applying post restore operation result: " + result

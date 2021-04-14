@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -32,14 +21,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.internal.SearchContext;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -82,6 +74,22 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }, false
         );
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    public void testBooleanFieldDeprecated() throws IOException {
+        final String fieldName = "bogusBoolean";
+        testCase(
+            new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField(fieldName, 0));
+                iw.addDocument(d);
+            },
+            a -> {},
+            new BooleanFieldMapper.BooleanFieldType(fieldName)
+        );
+        assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testMatchNoDocs() throws IOException {
@@ -1196,9 +1204,44 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testExtendedBoundsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            List.of("2016", "2017", "2018", "2019"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .extendedBounds(new LongBounds("2016", "2019"))
+                .minDocCount(0),
+            true
+        );
+    }
+
+    public void testHardBoundsUsesFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2016", "2017", "2018", "2019"),
+            List.of("2017", "2018"),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .hardBounds(new LongBounds("2017", "2019")),
+            true
+        );
+    }
+
     private void aggregationImplementationChoiceTestCase(
         DateFieldMapper.DateFieldType ft,
         List<String> data,
+        DateHistogramAggregationBuilder builder,
+        boolean usesFromRange
+    ) throws IOException {
+        aggregationImplementationChoiceTestCase(ft, data, data, builder, usesFromRange);
+    }
+
+    private void aggregationImplementationChoiceTestCase(
+        DateFieldMapper.DateFieldType ft,
+        List<String> data,
+        List<String> resultingBucketKeys,
         DateHistogramAggregationBuilder builder,
         boolean usesFromRange
     ) throws IOException {
@@ -1210,7 +1253,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 );
             }
             try (IndexReader reader = indexWriter.getReader()) {
-                SearchContext context = createSearchContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {
@@ -1220,7 +1263,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 agg.preCollection();
                 context.searcher().search(context.query(), agg);
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
-                assertThat(result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()), equalTo(data));
+                result = (InternalDateHistogram) result.reduce(
+                    List.of(result),
+                    ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY)
+                );
+                assertThat(
+                    result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),
+                    equalTo(resultingBucketKeys)
+                );
             }
         }
     }
@@ -1233,6 +1283,25 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         ));
         assertThat(e.getMessage(), equalTo("Unable to parse interval [foobar]"));
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    public void testBuildEmpty() throws IOException {
+        withAggregator(
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).offset(10),
+            new MatchAllDocsQuery(),
+            iw -> {},
+            (searcher, aggregator) -> {
+                InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
+                /*
+                 * There was a time where we including the offset in the
+                 * rounding in the emptyBucketInfo which would cause us to
+                 * include the offset twice. This verifies that we don't do
+                 * that.
+                 */
+                assertThat(histo.emptyBucketInfo.rounding.prepareForUnknown().round(0), equalTo(0L));
+            },
+            aggregableDateFieldType(false, true)
+        );
     }
 
     private void testSearchCase(Query query, List<String> dataset,

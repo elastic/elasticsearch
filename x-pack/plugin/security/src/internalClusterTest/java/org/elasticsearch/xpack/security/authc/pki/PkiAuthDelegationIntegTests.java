@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.pki;
@@ -49,9 +50,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 // pki1 does not allow delegation
                 .put("xpack.security.authc.realms.pki.pki1.order", "2")
@@ -76,8 +77,8 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(
-            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        final Hasher passwdHasher = getFastStoredHashAlgoForTests();
+        final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
             "user_manage:" + usersPasswdHashed + "\n" +
             "user_manage_security:" + usersPasswdHashed + "\n" +

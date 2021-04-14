@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -61,6 +63,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -69,6 +72,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -187,8 +191,17 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(EvaluateDataFrameAction.INSTANCE, request).actionGet();
     }
 
-    protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
-                                                             @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
+    protected PreviewDataFrameAnalyticsAction.Response previewDataFrame(String id) {
+        List<DataFrameAnalyticsConfig> analytics = getAnalytics(id);
+        assertThat(analytics, hasSize(1));
+        return client().execute(
+            PreviewDataFrameAnalyticsAction.INSTANCE,
+            new PreviewDataFrameAnalyticsAction.Request(analytics.get(0))
+        ).actionGet();
+    }
+
+    static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
+                                                   @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
         return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
     }
 
@@ -197,7 +210,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                                                              QueryBuilder queryBuilder) throws Exception {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
+            .setSource(new DataFrameAnalyticsSource(
+                new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();
@@ -253,11 +267,22 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .get();
     }
 
-    protected void assertInferenceModelPersisted(String jobId) {
+    protected void assertExactlyOneInferenceModelPersisted(String jobId) {
+        assertInferenceModelPersisted(jobId, equalTo(1));
+    }
+
+    protected void assertAtLeastOneInferenceModelPersisted(String jobId) {
+        assertInferenceModelPersisted(jobId, greaterThanOrEqualTo(1));
+    }
+
+    private void assertInferenceModelPersisted(String jobId, Matcher<? super Integer> modelHitsArraySizeMatcher) {
         SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
             .get();
-        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
+        // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
+        // were persisted as there is no way currently for the process to be certain the model was persisted.
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(),
+            is(arrayWithSize(modelHitsArraySizeMatcher)));
     }
 
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {
@@ -272,6 +297,14 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().admin().cluster().prepareListTasks().setActions(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME + "[c]").get().getTasks();
     }
 
+    protected void waitUntilSomeProgressHasBeenMadeForPhase(String jobId, String phase) throws Exception {
+        assertBusy(() -> {
+            List<PhaseProgress> progress = getAnalyticsStats(jobId).getProgress();
+            Optional<PhaseProgress> phaseProgress = progress.stream().filter(p -> phase.equals(p.getPhase())).findFirst();
+            assertThat("unexpected phase [" + phase + "]; progress was " + progress, phaseProgress.isEmpty(), is(false));
+            assertThat(phaseProgress.get().getProgressPercent(), greaterThan(1));
+        }, 60, TimeUnit.SECONDS);
+    }
     /**
      * Asserts whether the audit messages fetched from index match provided prefixes.
      * More specifically, in order to pass:

@@ -9,7 +9,6 @@
 
 Retrieves usage information for {dfanalytics-jobs}.
 
-beta::[]
 
 [[ml-get-dfanalytics-stats-request]]
 == {api-request-title}
@@ -515,8 +514,7 @@ percentage.
 
 `state`:::
 (string) The status of the {dfanalytics-job}, which can be one of the following
-values: `analyzing`, `failed`, `reindexing`, `started`, `starting`,`stopping`, 
-`stopped`.
+values: `failed`, `started`, `starting`,`stopping`, `stopped`.
 ====
 //End of data_frame_analytics
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.annotations;
 
@@ -189,7 +190,7 @@ public class AnnotationPersisterTests extends ESTestCase {
             .persistAnnotation("1", AnnotationTests.randomAnnotation(JOB_ID))
             .persistAnnotation("2", AnnotationTests.randomAnnotation(JOB_ID));
         ElasticsearchException e = expectThrows(ElasticsearchException.class, persisterBuilder::executeRequest);
-        assertThat(e.getMessage(), containsString("failed to index after"));
+        assertThat(e.getMessage(), containsString("Failed execution"));
 
         verify(client, atLeastOnce()).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 

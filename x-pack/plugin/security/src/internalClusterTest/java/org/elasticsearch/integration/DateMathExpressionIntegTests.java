@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -16,12 +17,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 
 import java.util.Collections;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 
 public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Override
     protected String configUsers() {
@@ -61,8 +61,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
 
     public void testDateMathExpressionsCanBeAuthorized() throws Exception {
         final String expression = "<datemath-{now/M}>";
-        final String expectedIndexName =
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)).resolveDateMathExpression(expression);
+        final String expectedIndexName = TestIndexNameExpressionResolver.newInstance().resolveDateMathExpression(expression);
         final boolean refeshOnOperation = randomBoolean();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue("user1", USERS_PASSWD)));
 

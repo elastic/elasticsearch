@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -165,7 +167,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        Settings customSettings = customSecuritySettingsSource.nodeSettings(0);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(0, Settings.EMPTY);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");
@@ -206,6 +208,14 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
      */
     protected String configRoles() {
         return SECURITY_DEFAULT_SETTINGS.configRoles();
+    }
+
+    protected String configOperatorUsers() {
+        return SECURITY_DEFAULT_SETTINGS.configOperatorUsers();
+    }
+
+    protected String configServiceTokens() {
+        return SECURITY_DEFAULT_SETTINGS.configServiceTokens();
     }
 
     /**
@@ -251,6 +261,16 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         }
 
         @Override
+        protected String configOperatorUsers() {
+            return SecuritySingleNodeTestCase.this.configOperatorUsers();
+        }
+
+        @Override
+        protected String configServiceTokens() {
+            return SecuritySingleNodeTestCase.this.configServiceTokens();
+        }
+
+        @Override
         protected String nodeClientUsername() {
             return SecuritySingleNodeTestCase.this.nodeClientUsername();
         }
@@ -288,6 +308,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         return createRestClient(client(), httpClientConfigCallback, protocol);
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
+            : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
     }
 
     private static synchronized RestClient getRestClient(Client client) {

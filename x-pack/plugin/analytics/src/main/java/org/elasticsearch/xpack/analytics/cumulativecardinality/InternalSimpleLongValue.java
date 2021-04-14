@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
@@ -68,7 +69,7 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
+        boolean hasValue = (Double.isInfinite(value) || Double.isNaN(value)) == false;
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());

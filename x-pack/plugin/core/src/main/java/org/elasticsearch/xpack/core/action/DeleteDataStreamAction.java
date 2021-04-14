@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -67,22 +66,16 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
-            this.wildcardExpressionsOriginallySpecified = in.getVersion().onOrAfter(Version.V_7_10_0) && in.readBoolean();
-            if (in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
-                this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            }
+            this.wildcardExpressionsOriginallySpecified = in.readBoolean();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(names);
-            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-                out.writeBoolean(wildcardExpressionsOriginallySpecified);
-            }
-            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
-                indicesOptions.writeIndicesOptions(out);
-            }
+            out.writeBoolean(wildcardExpressionsOriginallySpecified);
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override

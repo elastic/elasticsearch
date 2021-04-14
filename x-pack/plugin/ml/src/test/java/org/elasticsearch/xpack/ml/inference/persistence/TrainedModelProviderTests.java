@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
@@ -42,7 +43,10 @@ public class TrainedModelProviderTests extends ESTestCase {
         // Should be OK as we don't make any client calls
         trainedModelProvider.deleteTrainedModel("lang_ident_model_1", future);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, "lang_ident_model_1")));
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(
+            Messages.INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL,
+            "lang_ident_model_1"
+        )));
     }
 
     public void testPutModelThatExistsAsResource() {

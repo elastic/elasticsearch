@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
@@ -301,7 +302,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
         indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
-        indicesCommonStats.getStore().add(new StoreStats(++iota, no));
+        indicesCommonStats.getStore().add(new StoreStats(++iota, no, no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, ++iota, no, no, no, no, no, false, ++iota);
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));

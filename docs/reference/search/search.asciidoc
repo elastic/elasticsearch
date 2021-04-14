@@ -23,6 +23,16 @@ GET /my-index-000001/_search
 
 `POST /_search`
 
+[[search-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
++
+To search a <<point-in-time-api,point in time (PIT)>> for an index alias, you
+must have the `read` index privilege for the alias's concrete indices.
+
 [[search-search-api-desc]]
 ==== {api-description-title}
 
@@ -324,7 +334,7 @@ pattern.
 (Optional, string)
 Format in which the doc values are returned.
 +
-For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+For <<date,date fields>>, you can specify a date <<mapping-date-format,date
 `format`>>. For <<number,numeric fields>> fields, you can specify a
 https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
 pattern].
@@ -394,10 +404,98 @@ A boost value greater than `1.0` increases the score. A boost value between
 Minimum <<relevance-scores,`_score`>> for matching documents. Documents with a
 lower `_score` are not included in the search results.
 
+`pit`::
+(Optional, object)
+Limits the search to a <<point-in-time-api,point in time (PIT)>>. If you provide
+a `pit`, you cannot specify a `<target>` in the request path.
++
+.Properties of `pit`
+[%collapsible%open]
+====
+`id`::
+(Required*, string)
+ID for the PIT to search. If you provide a `pit` object, this parameter is
+required.
+
+`keep_alive`::
+(Optional, <<time-units,time value>>)
+Period of time used to extend the life of the PIT.
+====
+
 [[request-body-search-query]]
 `query`::
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
+
+[[search-api-body-runtime]]
+`runtime_mappings`::
+(Optional, object)
+Defines a <<runtime-search-request,runtime field>> in the search request that
+exist only as part of the query. Fields defined in the search request take
+precedence over fields defined with the same name in the index mappings.
++
+.Properties of `runtime_mappings` objects
+[%collapsible%open]
+====
+`type`::
+(Required, string)
+<<mapping-types,Data type>> of the object, which can be any of the following:
++
+include::{es-ref-dir}/mapping/runtime.asciidoc[tag=runtime-data-types]
+
+`script`::
+(Optional, string)
+<<modules-scripting-using,Painless script>> that is executed at query time. The
+script has access to the entire context of a document, including the original
+`_source` and any mapped fields plus their values.
++
+Your script must include `emit` to return calculated values. For
+example:
++
+[source,js,indent=0]
+----
+include::search.asciidoc[tag=runtime-script]
+----
+// NOTCONSOLE
+====
+
+////
+[source,console]
+----
+POST _search?size=1&filter_path=hits.hits
+{
+  "runtime_mappings": {
+    "dow": {
+      "type": "keyword",
+      // tag::runtime-script[]
+      "script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
+      // end::runtime-script[]
+    }
+  },
+  "fields": [{"field": "dow"}]
+}
+----
+// TEST[setup:my_index]
+
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_index": $body.hits.hits.0._index,
+        "_id": $body.hits.hits.0._id,
+        "_score": $body.hits.hits.0._score,
+        "_source": $body.hits.hits.0._source,
+        "fields": {
+          "dow": ["SUNDAY"]
+        }
+      }
+    ]
+  }
+}
+----
+////
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::

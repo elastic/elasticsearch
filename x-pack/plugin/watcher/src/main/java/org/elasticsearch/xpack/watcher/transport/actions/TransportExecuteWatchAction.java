@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -47,7 +49,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -98,7 +99,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                     }, listener::onFailure), client::get);
         } else if (request.getWatchSource() != null) {
             try {
-                assert !request.isRecordExecution();
+                assert request.isRecordExecution() == false;
                 Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(),
                     request.getXContentType(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
                 executeWatch(request, listener, watch, false);
@@ -121,8 +122,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
-            final Map<String, String> headers = new HashMap<>(threadPool.getThreadContext().getHeaders());
-            watch.status().setHeaders(headers);
+            watch.status().setHeaders(ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
 
             final String triggerType = watch.trigger().type();
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());

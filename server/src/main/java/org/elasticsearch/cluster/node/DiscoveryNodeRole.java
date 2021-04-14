@@ -264,15 +264,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     // the set of possible roles
     private static final SortedSet<DiscoveryNodeRole> ROLES;
 
-    /**
-     * The possible node roles.
-     *
-     * @return an ordered, immutable set of possible roles
-     */
-    public static SortedSet<DiscoveryNodeRole> roles() {
-        return ROLES;
-    }
-
     // a map from role names to their role representations
     private static final Map<String, DiscoveryNodeRole> ROLE_MAP;
 
@@ -304,6 +295,15 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     }
 
     /**
+     * The possible node roles.
+     *
+     * @return an ordered, immutable set of possible roles
+     */
+    public static SortedSet<DiscoveryNodeRole> roles() {
+        return ROLES;
+    }
+
+    /**
      * The set of possible role names.
      *
      * @return an ordered, immutable set of possible role names
@@ -319,10 +319,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
      * @return an optional node role
      */
     public static Optional<DiscoveryNodeRole> maybeGetRoleFromRoleName(final String roleName) {
-        if (ROLE_MAP.containsKey(roleName) == false) {
-            return Optional.empty();
-        }
-        return Optional.of(ROLE_MAP.get(roleName));
+        return Optional.ofNullable(ROLE_MAP.get(roleName));
     }
 
     /**
@@ -334,11 +331,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
      * @throws IllegalArgumentException if no node role with the given role name exists
      */
     public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
-        final Optional<DiscoveryNodeRole> maybeRole = maybeGetRoleFromRoleName(roleName);
-        if (maybeRole.isEmpty()) {
-            throw new IllegalArgumentException("unknown role [" + roleName + "]");
-        }
-        return maybeRole.get();
+        return maybeGetRoleFromRoleName(roleName).orElseThrow(() -> new IllegalArgumentException("unknown role [" + roleName + "]"));
     }
 
 }

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an alias, to be associated with an index
@@ -232,12 +233,10 @@ public class Alias implements Writeable, ToXContentFragment {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 // check if there are any unknown fields
-                if (currentFieldName.equals(FILTER.getPreferredName()) == false &&
-                    currentFieldName.equals(ROUTING.getPreferredName()) == false &&
-                    currentFieldName.equals(INDEX_ROUTING.getPreferredName()) == false &&
-                    currentFieldName.equals(SEARCH_ROUTING.getPreferredName()) == false &&
-                    currentFieldName.equals(IS_WRITE_INDEX.getPreferredName()) == false &&
-                    currentFieldName.equals(IS_HIDDEN.getPreferredName()) == false) {
+                Set<String> knownFieldNames = Set.of(FILTER.getPreferredName(), ROUTING.getPreferredName(),
+                    INDEX_ROUTING.getPreferredName(), SEARCH_ROUTING.getPreferredName(), IS_WRITE_INDEX.getPreferredName(),
+                    IS_HIDDEN.getPreferredName());
+                if (knownFieldNames.contains(currentFieldName) == false) {
                     throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {

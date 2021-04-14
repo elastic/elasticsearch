@@ -52,6 +52,35 @@ setup:
                             type: keyword
 
   - do:
+        indices.create:
+          index: nonesting
+          body:
+            mappings:
+              properties:
+                kw:
+                  type: keyword
+                num:
+                  type: integer
+
+  - do:
+      index:
+        index: nonesting
+        id:    1
+        body: { "kw": "one", "num": 1 }
+
+  - do:
+      index:
+        index: nonesting
+        id:    2
+        body: { "kw": "two", "num": 2 }
+
+  - do:
+      index:
+        index: nonesting
+        id:    3
+        body: { "kw": "three", "num": 3 }
+
+  - do:
       index:
         index: verynested
         id:    1
@@ -1156,3 +1185,25 @@ setup:
   - match: { aggregations.courses.highpass_filter.sessions.names.buckets.0.doc_count: 3}
   - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.key.kw: "spr2021" }
   - match: { aggregations.courses.highpass_filter.sessions.names.buckets.1.doc_count: 3}
+
+---
+"Filter without nesting":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: nonesting
+        body: {
+                "aggs": {
+                    "not_one": {
+                        "filter": { "range": {"num": {"gt": 1}} },
+                        "aggs":  {
+                            "keez": {
+                                "terms": {"field": "kw"}
+                            }
+                        }
+                    }
+                }
+            }
+  - match: {hits.total: 3}
+  - match: {aggregations.not_one.doc_count: 2}
+  - length: {aggregations.not_one.keez.buckets: 2}

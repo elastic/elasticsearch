@@ -50,11 +50,14 @@ setup:
             "indexes":["airline-data"]
           }
 
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      ml.open_job:
-        job_id: set-upgrade-mode-job
+#  - skip:
+  #      version: "all"
+  #      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71646"
+#  - do:
+#      headers:
+#        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+#      ml.open_job:
+#        job_id: set-upgrade-mode-job
 
   - do:
       cluster.health:
@@ -83,6 +86,10 @@ teardown:
 
 ---
 "Test setting upgrade_mode to false when it is already false":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71646"
+
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -109,6 +116,9 @@ teardown:
 
 ---
 "Setting upgrade_mode to enabled":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71646"
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -158,6 +168,9 @@ teardown:
 
 ---
 "Setting upgrade mode to disabled from enabled":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71646"
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -230,6 +243,9 @@ teardown:
 
 ---
 "Attempt to open job when upgrade_mode is enabled":
+  - skip:
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/71646"
   - do:
       ml.put_job:
         job_id: failing-set-upgrade-mode-job

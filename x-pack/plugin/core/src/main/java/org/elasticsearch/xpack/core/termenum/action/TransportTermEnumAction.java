@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.termenum.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
@@ -322,14 +323,15 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
             }
 
         } catch (Exception e) {
-            error = e.getMessage();
+            error = ExceptionsHelper.stackTrace(e);
         } finally {
             IOUtils.close(openedResources);
         }
         return new NodeTermEnumResponse(request.nodeId(), termsList, error, true);
     }
 
-    // TODO remove this so we can shift code to server module - see https://github.com/elastic/elasticsearch/issues/70221
+    // TODO remove this so we can shift code to server module - write a separate Interceptor class to rewrite requests according to
+    // security rules (only allowing access to shards where role query rewrites to a match_all
     private boolean canAccess(String indexName, String fieldName, XPackLicenseState frozenLicenseState, ThreadContext threadContext) {
         if (frozenLicenseState.isSecurityEnabled()) {
             var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));

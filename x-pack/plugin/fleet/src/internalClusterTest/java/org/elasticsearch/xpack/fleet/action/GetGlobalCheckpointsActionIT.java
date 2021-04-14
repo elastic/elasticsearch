@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
@@ -129,9 +130,14 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             new long[] { totalDocuments - 2 },
             TimeValue.timeValueSeconds(30)
         );
+        long start = System.nanoTime();
         final GetGlobalCheckpointsAction.Response response2 = client().execute(GetGlobalCheckpointsAction.INSTANCE, request2).get();
+        long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
+
+        assertThat(elapsed, lessThan(30L));
         assertFalse(response.timedOut());
         assertEquals(totalDocuments - 1, response2.globalCheckpoints()[0]);
+
     }
 
     public void testPollGlobalCheckpointAdvancementTimeout() throws Exception {
@@ -158,8 +164,11 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             new long[] { 29 },
             TimeValue.timeValueMillis(between(0, 100))
         );
+        long start = System.nanoTime();
         GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet();
+        long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
         assertTrue(response.timedOut());
+        assertThat(elapsed, lessThan(30L));
     }
 
     public void testMustProvideCorrectNumberOfShards() throws Exception {

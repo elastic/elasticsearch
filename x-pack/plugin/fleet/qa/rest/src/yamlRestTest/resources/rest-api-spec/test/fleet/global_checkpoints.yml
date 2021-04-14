@@ -52,6 +52,7 @@ setup:
         checkpoints: [100]
         timeout: "50ms"
 
+  - match: { global_checkpoints.0: 1 }
   - match: { timed_out: true }
 
 ---

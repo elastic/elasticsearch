@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -51,23 +50,31 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
     public static class Response extends ActionResponse {
 
         private final long globalCheckpoint;
+        private final boolean timedOut;
 
-        public Response(long globalCheckpoint) {
+        public Response(long globalCheckpoint, boolean timedOut) {
             this.globalCheckpoint = globalCheckpoint;
+            this.timedOut = timedOut;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             globalCheckpoint = in.readLong();
+            timedOut = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(globalCheckpoint);
+            out.writeBoolean(timedOut);
         }
 
         public long getGlobalCheckpoint() {
             return globalCheckpoint;
+        }
+
+        public boolean timedOut() {
+            return timedOut;
         }
     }
 
@@ -75,14 +82,14 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
 
         private final ShardId shardId;
         private final boolean waitForAdvance;
-        private final long currentCheckpoint;
+        private final long checkpoint;
         private final TimeValue timeout;
 
-        Request(ShardId shardId, boolean waitForAdvance, long currentCheckpoint, TimeValue timeout) {
+        Request(ShardId shardId, boolean waitForAdvance, long checkpoint, TimeValue timeout) {
             super(shardId.getIndexName());
             this.shardId = shardId;
             this.waitForAdvance = waitForAdvance;
-            this.currentCheckpoint = currentCheckpoint;
+            this.checkpoint = checkpoint;
             this.timeout = timeout;
         }
 
@@ -90,7 +97,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             super(in);
             this.shardId = new ShardId(in);
             this.waitForAdvance = in.readBoolean();
-            this.currentCheckpoint = in.readLong();
+            this.checkpoint = in.readLong();
             this.timeout = in.readTimeValue();
         }
 
@@ -111,8 +118,8 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             return waitForAdvance;
         }
 
-        public long currentCheckpoint() {
-            return currentCheckpoint;
+        public long checkpoint() {
+            return checkpoint;
         }
 
         @Override
@@ -120,7 +127,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             super.writeTo(out);
             shardId.writeTo(out);
             out.writeBoolean(waitForAdvance);
-            out.writeLong(currentCheckpoint);
+            out.writeLong(checkpoint);
             out.writeTimeValue(timeout);
         }
     }
@@ -156,7 +163,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
-            return new Response(seqNoStats.getGlobalCheckpoint());
+            return new Response(seqNoStats.getGlobalCheckpoint(), false);
         }
 
         @Override
@@ -165,31 +172,27 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             final IndexShard indexShard = indexService.getShard(shardId.id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
-            if (request.waitForAdvance() && request.currentCheckpoint() >= seqNoStats.getGlobalCheckpoint()) {
-                indexShard.addGlobalCheckpointListener(
-                    request.currentCheckpoint() + 1,
-                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+            if (request.waitForAdvance() && request.checkpoint() >= seqNoStats.getGlobalCheckpoint()) {
+                indexShard.addGlobalCheckpointListener(request.checkpoint() + 1, new GlobalCheckpointListeners.GlobalCheckpointListener() {
 
-                        @Override
-                        public Executor executor() {
-                            return threadPool.executor(ThreadPool.Names.GENERIC);
+                    @Override
+                    public Executor executor() {
+                        return threadPool.executor(ThreadPool.Names.GENERIC);
+                    }
+
+                    @Override
+                    public void accept(final long g, final Exception e) {
+                        if (g != UNASSIGNED_SEQ_NO) {
+                            assert request.checkpoint() < g
+                                : shardId + " only advanced to [" + g + "] while waiting for [" + request.checkpoint() + "]";
+                            globalCheckpointAdvanced(shardId, request, listener);
+                        } else {
+                            assert e != null;
+                            globalCheckpointAdvancementFailure(indexShard, request, e, listener);
                         }
+                    }
 
-                        @Override
-                        public void accept(final long g, final Exception e) {
-                            if (g != UNASSIGNED_SEQ_NO) {
-                                assert request.currentCheckpoint() < g
-                                    : shardId + " only advanced to [" + g + "] while waiting for [" + request.currentCheckpoint() + "]";
-                                globalCheckpointAdvanced(shardId, request, listener);
-                            } else {
-                                assert e != null;
-                                globalCheckpointAdvancementFailure(shardId, request.timeout(), e, listener);
-                            }
-                        }
-
-                    },
-                    request.timeout()
-                );
+                }, request.timeout());
             } else {
                 super.asyncShardOperation(request, shardId, listener);
             }
@@ -204,19 +207,24 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
 
         private void globalCheckpointAdvancementFailure(
-            final ShardId shardId,
-            final TimeValue timeout,
+            final IndexShard indexShard,
+            final Request request,
             final Exception e,
             final ActionListener<Response> listener
         ) {
-            if (e instanceof TimeoutException) {
-                listener.onFailure(
-                    new ElasticsearchTimeoutException(
-                        "Wait for global checkpoint advance timed out [timeout: " + timeout + ", shard_id: " + shardId + "]"
-                    )
-                );
-            } else {
-                listener.onFailure(e);
+            try {
+                if (e instanceof TimeoutException) {
+                    final long globalCheckpoint = indexShard.seqNoStats().getGlobalCheckpoint();
+                    if (request.checkpoint() >= globalCheckpoint) {
+                        listener.onResponse(new Response(globalCheckpoint, true));
+                    } else {
+                        listener.onResponse(new Response(globalCheckpoint, false));
+                    }
+                } else {
+                    listener.onFailure(e);
+                }
+            } catch (RuntimeException e2) {
+                listener.onFailure(e2);
             }
         }
 

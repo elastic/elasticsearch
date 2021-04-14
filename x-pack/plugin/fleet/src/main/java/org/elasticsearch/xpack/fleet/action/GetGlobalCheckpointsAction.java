@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -43,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsAction.Response> {
 
@@ -58,20 +57,13 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         private final boolean timedOut;
         private final long[] globalCheckpoints;
 
-        public Response(long[] globalCheckpoints) {
-            this.globalCheckpoints = globalCheckpoints;
-            this.timedOut = false;
-        }
-
-        public Response(boolean timedOut) {
+        public Response(boolean timedOut, long[] globalCheckpoints) {
             this.timedOut = timedOut;
-            this.globalCheckpoints = new long[0];
+            this.globalCheckpoints = globalCheckpoints;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            timedOut = in.readBoolean();
-            globalCheckpoints = in.readLongArray();
+        public Response(StreamInput in) {
+            throw new AssertionError("GetGlobalCheckpointsAction should not be sent over the wire.");
         }
 
         public long[] globalCheckpoints() {
@@ -91,9 +83,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field("timed_out", timedOut);
-            if (timedOut == false) {
-                builder.array("global_checkpoints", globalCheckpoints);
-            }
+            builder.array("global_checkpoints", globalCheckpoints);
             return builder.endObject();
         }
     }
@@ -215,6 +205,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             }
 
             final AtomicArray<GetGlobalCheckpointsShardAction.Response> responses = new AtomicArray<>(numberOfShards);
+            final AtomicBoolean timedOut = new AtomicBoolean(false);
             final CountDown countDown = new CountDown(numberOfShards);
             for (int i = 0; i < numberOfShards; ++i) {
                 final int shardIndex = i;
@@ -229,6 +220,9 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     @Override
                     public void onResponse(GetGlobalCheckpointsShardAction.Response response) {
                         assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
+                        if (response.timedOut()) {
+                            timedOut.set(true);
+                        }
                         responses.set(shardIndex, response);
                         if (countDown.countDown()) {
                             long[] globalCheckpoints = new long[responses.length()];
@@ -236,19 +230,14 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                             for (GetGlobalCheckpointsShardAction.Response r : responses.asList()) {
                                 globalCheckpoints[i++] = r.getGlobalCheckpoint();
                             }
-                            listener.onResponse(new Response(globalCheckpoints));
+                            listener.onResponse(new Response(timedOut.get(), globalCheckpoints));
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         if (countDown.fastForward()) {
-                            Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            if (cause instanceof ElasticsearchTimeoutException) {
-                                listener.onResponse(new Response(true));
-                            } else {
-                                listener.onFailure(e);
-                            }
+                            listener.onFailure(e);
                         }
                     }
                 });

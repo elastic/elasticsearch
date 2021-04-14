@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RegisteredDomainProcessorTests extends ESTestCase {
     private Map<String, Object> buildEvent(String domain) {
-        return new HashMap<>() {
+        return new HashMap<String, Object>() {
             {
                 put("domain", domain);
             }
@@ -57,7 +57,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         String topLevelDomainField = "top_level_domain";
         String subdomainField = "subdomain";
 
-        var processor = new RegisteredDomainProcessor(
+        RegisteredDomainProcessor processor = new RegisteredDomainProcessor(
             null,
             null,
             "domain",
@@ -65,7 +65,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             false
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = new IngestDocument(source, org.elasticsearch.common.collect.Map.of());
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class);
@@ -121,7 +121,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         String topLevelDomainField = "url.top_level_domain";
         String subdomainField = "url.subdomain";
 
-        var processor = new RegisteredDomainProcessor(
+        RegisteredDomainProcessor processor = new RegisteredDomainProcessor(
             null,
             null,
             "domain",
@@ -129,7 +129,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             ignoreMissing
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = new IngestDocument(source, org.elasticsearch.common.collect.Map.of());
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);

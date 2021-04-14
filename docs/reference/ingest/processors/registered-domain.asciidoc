@@ -1,0 +1,83 @@
+[role="xpack"]
+[testenv="basic"]
+[[registered-domain-processor]]
+=== Registered domain processor
+++++
+<titleabbrev>Registered Domain</titleabbrev>
+++++
+
+Extracts the registered domain (also known as effective top-level domain or
+eTLD), sub-domain, and top-level domain from a fully qualified domain name
+(FQDN). Uses the registered domains defined in the
+https://publicsuffix.org/[Mozilla Public Suffix List].
+
+[[registered-domain-options]]
+.Registered Domain Options
+[options="header"]
+|======
+| Name               | Required | Default | Description
+| `field`            | yes      |         | Field containing the source FQDN.
+| `target_field`     | no       | `<empty string>` | Field under which the
+extracted domain components will be written. If the empty string, the domain
+components will be added to the root of the document.
+| `ignore_missing`   | no       | `true`  | If `true` and any required fields
+are missing, the processor quietly exits without modifying the document.
+
+include::common-options.asciidoc[]
+|======
+
+[discrete]
+[[registered-domain-processor-ex]]
+===== Examples
+
+The following example illustrates the use of the registered domain processor:
+
+[source,console]
+----
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "registered_domain": {
+          "field": "fqdn",
+          "target_field": "url"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "fqdn": "www.amazon.co.uk"
+      }
+    }
+  ]
+}
+----
+
+Which produces the following result:
+
+[source,console-result]
+----
+{
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_source": {
+          "fqdn": "www.amazon.co.uk",
+          "url": {
+            "subdomain": "www",
+            "registered_domain": "amazon.co.uk",
+            "top_level_domain": "co.uk",
+            "domain": "www.amazon.co.uk"
+          }
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
+// NOTCONSOLE

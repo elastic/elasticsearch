@@ -1,5 +1,5 @@
 [role="xpack"]
-[[fleet-get-global-checkpoints]]
+[[get-global-checkpoints]]
 === Get global checkpoints API
 ++++
 <titleabbrev>Get global checkpoints</titleabbrev>

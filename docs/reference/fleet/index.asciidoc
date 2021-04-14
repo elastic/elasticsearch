@@ -9,5 +9,5 @@ for internal use only and should be considered experimental.
 * <<fleet-get-global-checkpoints,Get global checkpoints>>
 
 // top-level
-include::global-checkpoints.asciidoc[]
+include::get-global-checkpoints.asciidoc[]
 

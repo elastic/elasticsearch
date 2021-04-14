@@ -231,8 +231,8 @@ COPY ${config_dir}/elasticsearch.yml config/
 COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 
 # 1. Configure the distribution for Docker
-# 2. Ensure directories are created. Most already are, but make sure
-# 3. Apply correct permissions. The `bin` dir needs to be writable because plugins can (in theory) install their own commands
+# 2. Create required directory
+# 3. Change permissions to allow group writes in some places
 # 4. Move the distribution's default logging config aside
 # 5. Move the generated docker logging config so that it is the default
 # 6. Apply more correct permissions
@@ -242,8 +242,8 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 # 9. Ensure all files are world-readable by default. It should be possible to
 #    examine the contents of the image under any UID:GID
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
-    mkdir -p config/jvm.options.d data logs plugins && \\
-    chmod 0775 bin config config/jvm.options.d data logs plugins && \\
+    mkdir data && \\
+    chmod 0775 config config/jvm.options.d data logs && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
     mv config/log4j2.docker.properties config/log4j2.properties && \\
     chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\

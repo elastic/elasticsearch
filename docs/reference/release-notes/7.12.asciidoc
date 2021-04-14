@@ -16,6 +16,9 @@ Features/Data streams::
 * Allow closing a write index of a data stream {es-pull}70908[#70908] (issues: {es-issue}70861[#70861], {es-issue}70903[#70903])
 * Improve data stream rollover and simplify cluster metadata validation for data streams {es-pull}70934[#70934] (issue: {es-issue}70905[#70905])
 
+Machine Learning::
+* Make ML native processes work with glibc 2.33 on x86_64 {ml-pull}1828[#1828]
+
 Snapshot/Restore::
 * Adapt frozen write buffer and thread pool {es-pull}71172[#71172]
 * Add CFS index caching support for `full_copy` searchable snapshots {es-pull}70646[#70646]
@@ -72,7 +75,7 @@ Infra/Scripting::
 * Remove loop counter for foreach loops {es-pull}71602[#71602] (issue: {es-issue}71584[#71584])
 
 Machine Learning::
-* Make ML memory tracker more robust to flipping on/off master {es-pull}71067[#71067] (issue: {es-issue}68685[#68685])
+* Make ML memory tracker more robust to flipping on/off master nodes {es-pull}71067[#71067] (issue: {es-issue}68685[#68685])
 
 Mapping::
 * Legacy geo-shape mapper not detecting [points_only] parameter {es-pull}70765[#70765] (issue: {es-issue}70751[#70751])

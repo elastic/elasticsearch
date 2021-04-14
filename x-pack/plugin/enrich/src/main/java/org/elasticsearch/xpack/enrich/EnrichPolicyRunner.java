@@ -231,10 +231,8 @@ public class EnrichPolicyRunner implements Runnable {
             parent.append(fieldPart);
         }
     }
-    
+
     private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
-        // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
-        final String keyType;
         final CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping;
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);

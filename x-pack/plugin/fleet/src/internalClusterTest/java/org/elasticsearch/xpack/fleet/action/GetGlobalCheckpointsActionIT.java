@@ -155,7 +155,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = 30;
         for (int i = 0; i < totalDocuments; ++i) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
+            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -167,8 +167,9 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         long start = System.nanoTime();
         GetGlobalCheckpointsAction.Response response = client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
-        assertTrue(response.timedOut());
         assertThat(elapsed, lessThan(30L));
+        assertTrue(response.timedOut());
+        assertEquals(29L, response.globalCheckpoints()[0]);
     }
 
     public void testMustProvideCorrectNumberOfShards() throws Exception {

@@ -649,7 +649,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         nodes.add(v550);
         nodes.add(current);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(List.of(current), nodes);
+        assertEquals(org.elasticsearch.common.collect.List.of(current), nodes);
     }
 
     private static Node nodeWithVersion(String version) {

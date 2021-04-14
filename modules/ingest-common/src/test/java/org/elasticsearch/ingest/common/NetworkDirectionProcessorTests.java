@@ -10,14 +10,16 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.TestTemplateService;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_DEST_IP;
-import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_SOURCE_IP;
 import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,8 +51,11 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     public void testNoInternalNetworks() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testNetworkDirectionProcessor(buildEvent(), null));
-        assertThat(e.getMessage(), containsString("unable to calculate network direction from document"));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> testNetworkDirectionProcessor(buildEvent(), null)
+        );
+        assertThat(e.getMessage(), containsString("[internal_networks] or [internal_networks_field] must be specified"));
     }
 
     public void testNoSource() throws Exception {
@@ -130,6 +135,50 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         testNetworkDirectionProcessor(source, internalNetworks, expectedDirection, false);
     }
 
+    public void testReadFromField() throws Exception {
+        String processorTag = randomAlphaOfLength(10);
+        Map<String, Object> source = buildEvent("192.168.1.1", "192.168.1.2");
+        ArrayList<String> networks = new ArrayList<>();
+        networks.add("public");
+        source.put("some_field", networks);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("internal_networks_field", "some_field");
+        NetworkDirectionProcessor processor = new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument output = processor.execute(input);
+        String hash = output.getFieldValue(DEFAULT_TARGET, String.class);
+        assertThat(hash, equalTo("external"));
+    }
+
+    public void testInternalNetworksAndField() throws Exception {
+        String processorTag = randomAlphaOfLength(10);
+        Map<String, Object> source = buildEvent("192.168.1.1", "192.168.1.2");
+        ArrayList<String> networks = new ArrayList<>();
+        networks.add("public");
+        source.put("some_field", networks);
+        Map<String, Object> config = new HashMap<>();
+        config.put("internal_networks_field", "some_field");
+        config.put("internal_networks", networks);
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(
+                null,
+                processorTag,
+                null,
+                config
+            )
+        );
+        assertThat(e.getMessage(), containsString(
+            "[internal_networks] and [internal_networks_field] cannot both be used in the same processor"
+        ));
+    }
+
     private void testNetworkDirectionProcessor(
         Map<String, Object> source,
         String[] internalNetworks,
@@ -140,14 +189,15 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
 
         if (internalNetworks != null) networks = Arrays.asList(internalNetworks);
 
-        var processor = new NetworkDirectionProcessor(
+        String processorTag = randomAlphaOfLength(10);
+        Map<String, Object> config = new HashMap<>();
+        config.put("internal_networks", networks);
+        config.put("ignore_missing", ignoreMissing);
+        NetworkDirectionProcessor processor = new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(
             null,
+            processorTag,
             null,
-            DEFAULT_SOURCE_IP,
-            DEFAULT_DEST_IP,
-            DEFAULT_TARGET,
-            networks,
-            ignoreMissing
+            config
         );
 
         IngestDocument input = new IngestDocument(source, Map.of());

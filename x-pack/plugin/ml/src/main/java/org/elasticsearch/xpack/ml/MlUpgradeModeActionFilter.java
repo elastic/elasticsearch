@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -50,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
+import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -81,6 +85,7 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
             RevertModelSnapshotAction.NAME,
             UpdateModelSnapshotAction.NAME,
             DeleteModelSnapshotAction.NAME,
+            UpgradeJobModelSnapshotAction.NAME,
 
             PutDatafeedAction.NAME,
             UpdateDatafeedAction.NAME,
@@ -110,9 +115,12 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
             DeleteDataFrameAnalyticsAction.NAME,
             StartDataFrameAnalyticsAction.NAME,
             StopDataFrameAnalyticsAction.NAME,
+            ExplainDataFrameAnalyticsAction.NAME,
 
+            PutTrainedModelAliasAction.NAME,
             PutTrainedModelAction.NAME,
-            DeleteTrainedModelAction.NAME
+            DeleteTrainedModelAction.NAME,
+            DeleteTrainedModelAliasAction.NAME
         )));
 
     private final AtomicBoolean isUpgradeMode = new AtomicBoolean();

@@ -12,6 +12,20 @@ services then the realm chain.
 The {security-features} provide the following built-in token-based authentication
 services, which are listed in the order they are consulted:
 
+beta::["The service accounts feature is in beta and subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features."]
+
+_service-accounts_::
+The <<service-accounts,service accounts>> feature uses the <<security-api-create-service-account-token,create service account token API>>
+to generate service account tokens.
++
+--
+[source,shell]
+--------------------------------------------------
+curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3" http://localhost:9200/_cluster/health
+--------------------------------------------------
+// NOTCONSOLE
+--
+
 _token-service_::
 The token service uses the <<security-api-get-token,get token API>> to
 generate access tokens and refresh tokens based on the OAuth2 specification.

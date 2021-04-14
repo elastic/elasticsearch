@@ -235,7 +235,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 8:
                 final List<String> dataStreams = randomValueOtherThan(instance.dataStreams(),
-                        () -> Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20))));
+                        () -> Arrays.asList(randomArray(0, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20))));
                 return new SnapshotInfo(
                         instance.snapshotId(),
                         instance.indices(),

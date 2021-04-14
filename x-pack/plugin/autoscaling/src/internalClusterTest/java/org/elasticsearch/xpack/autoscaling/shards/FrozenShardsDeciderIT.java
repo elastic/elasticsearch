@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.autoscaling.shards;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xpack.autoscaling.LocalStateAutoscaling;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
@@ -55,6 +58,18 @@ public class FrozenShardsDeciderIT extends AbstractSnapshotIntegTestCase {
         if (DiscoveryNode.canContainData(otherSettings)) {
             builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
         }
+        return builder.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return List.of(LocalStateAutoscalingAndSearchableSnapshots.class, getTestTransportPlugin());
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        final Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }
 

@@ -270,18 +270,7 @@ GET /_xpack/usage
   },
   "transform" : {
     "available" : true,
-    "enabled" : true,
-    "transforms": {
-      "_all": 9,
-      "stopped": 7,
-      "started": 2
-    },
-    "feature_counts": {
-      "pivot": 8,
-      "latest": 1,
-      "sync": 5,
-      "retention_policy": 2
-    }
+    "enabled" : true
   },
   "vectors" : {
     "available" : true,

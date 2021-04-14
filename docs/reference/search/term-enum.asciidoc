@@ -2,7 +2,7 @@
 === Term enum API
 
 The term enum API can be used to discover terms in the index that match
-a partial string. This is used for features like auto-complete:
+a partial string. This is used for auto-complete:
 
 [source,console]
 --------------------------------------------------

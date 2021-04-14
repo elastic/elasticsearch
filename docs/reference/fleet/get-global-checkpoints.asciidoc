@@ -14,6 +14,10 @@ parameter. In polling mode, the API will only return after the global checkpoint
 advance past the provided `checkpoints`. By default, `checkpoints` is an empty
 array, which will lead to the API returning immediately.
 
+If a timeout occurs before the global checkpoints advance past the provided
+`checkpoints`, Elasticsearch will return the current global checkpoints and a
+boolean indicating that the request timed out.
+
 Currently the `wait_for_advance` parameter is only supported for one shard indices.
 
 [[get-global-checkpoints-api-request]]

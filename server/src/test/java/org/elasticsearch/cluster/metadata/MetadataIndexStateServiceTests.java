@@ -36,7 +36,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -411,7 +411,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         final SnapshotsInProgress.Entry entry =
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId(index, index)), Collections.emptyList(), Collections.emptyList(),
-                randomNonNegativeLong(), randomLong(), shardsBuilder.build(), null, SnapshotInfoTests.randomUserMetadata(),
+                randomNonNegativeLong(), randomLong(), shardsBuilder.build(), null, SnapshotInfoTestUtils.randomUserMetadata(),
                 VersionUtils.randomVersion(random())
             );
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE,

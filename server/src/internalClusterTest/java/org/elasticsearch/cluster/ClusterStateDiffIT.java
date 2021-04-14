@@ -45,7 +45,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -713,7 +713,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 Math.abs(randomLong()), randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of(),
                                 null,
-                                SnapshotInfoTests.randomUserMetadata(),
+                                SnapshotInfoTestUtils.randomUserMetadata(),
                                 randomVersion(random()))));
                     case 1:
                         return new RestoreInProgress.Builder().add(

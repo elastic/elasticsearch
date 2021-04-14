@@ -51,6 +51,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -61,12 +62,19 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -114,6 +122,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
             supportedContexts.put("filter", FilterScript.CONTEXT);
             supportedContexts.put("score", ScoreScript.CONTEXT);
+            supportedContexts.put("boolean_field", BooleanFieldScript.CONTEXT);
+            supportedContexts.put("date_field", DateFieldScript.CONTEXT);
+            supportedContexts.put("double_field", DoubleFieldScript.CONTEXT);
+            supportedContexts.put("geo_point_field", GeoPointFieldScript.CONTEXT);
+            supportedContexts.put("ip_field", IpFieldScript.CONTEXT);
+            supportedContexts.put("long_field", LongFieldScript.CONTEXT);
+            supportedContexts.put("string_field", StringFieldScript.CONTEXT);
             SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
         }
 
@@ -541,6 +556,69 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
                     double result = scoreScript.execute(null);
                     return new Response(result);
+                }, indexService);
+            } else if (scriptContext == BooleanFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    BooleanFieldScript.Factory factory = scriptService.compile(request.script, BooleanFieldScript.CONTEXT);
+                    BooleanFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("boolean_field", request.getScript().getParams(), context.lookup());
+                    BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
+                    booleanFieldScript.runForDoc(0);
+                    return new Response(booleanFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == DateFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    DateFieldScript.Factory factory = scriptService.compile(request.script, DateFieldScript.CONTEXT);
+                    DateFieldScript.LeafFactory leafFactory = factory.newFactory("date_field",
+                            request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+                    DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
+                    dateFieldScript.runForDoc(0);
+                    return new Response(dateFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == DoubleFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    DoubleFieldScript.Factory factory = scriptService.compile(request.script, DoubleFieldScript.CONTEXT);
+                    DoubleFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("double_field", request.getScript().getParams(), context.lookup());
+                    DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
+                    doubleFieldScript.runForDoc(0);
+                    return new Response(doubleFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    GeoPointFieldScript.Factory factory = scriptService.compile(request.script, GeoPointFieldScript.CONTEXT);
+                    GeoPointFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("geo_point_field", request.getScript().getParams(), context.lookup());
+                    GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
+                    geoPointFieldScript.runForDoc(0);
+                    return new Response(geoPointFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == IpFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    IpFieldScript.Factory factory = scriptService.compile(request.script, IpFieldScript.CONTEXT);
+                    IpFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("ip_field", request.getScript().getParams(), context.lookup());
+                    IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
+                    ipFieldScript.runForDoc(0);
+                    return new Response(ipFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == LongFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    LongFieldScript.Factory factory = scriptService.compile(request.script, LongFieldScript.CONTEXT);
+                    LongFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("long_field", request.getScript().getParams(), context.lookup());
+                    LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
+                    longFieldScript.runForDoc(0);
+                    return new Response(longFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == StringFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    StringFieldScript.Factory factory = scriptService.compile(request.script, StringFieldScript.CONTEXT);
+                    StringFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("string_field", request.getScript().getParams(), context.lookup());
+                    StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
+                    stringFieldScript.resultsForDoc(0);
+                    return new Response(stringFieldScript.asDocValues());
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");

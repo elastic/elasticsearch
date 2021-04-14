@@ -330,14 +330,11 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 #    vendor. The latter is superior in several ways.
 #    REF: https://github.com/elastic/elasticsearch-docker/issues/171
 # 5. Tighten up permissions on the ES home dir (the permissions of the contents are handled earlier)
-# 6. Make it possible for a user in the `elasticsearch` group to write to certain directories
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
-    chmod 0755 /usr/share/elasticsearch && \\
-    chgrp 1000 bin && \\
-    chgrp -R 1000 config data logs plugins
+    chmod 0755 /usr/share/elasticsearch
 
 EXPOSE 9200 9300
 
@@ -380,9 +377,7 @@ RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
-<% /* We used to set `elasticsearch:root` but by specifying the group, it caused the user that Docker runs */ %>
-<% /* the container with to **only** have that group, and not the `elasticsearch` group as well. */ %>
-USER elasticsearch
+USER elasticsearch:root
 
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.

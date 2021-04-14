@@ -147,7 +147,7 @@ public class DockerTests extends PackagingTestCase {
     public void test042KeystorePermissionsAreCorrect() throws Exception {
         waitForElasticsearch(installation);
 
-        assertPermissionsAndOwnership(installation.config("elasticsearch.keystore"), "elasticsearch", "elasticsearch", p660);
+        assertPermissionsAndOwnership(installation.config("elasticsearch.keystore"), "elasticsearch", "root", p660);
     }
 
     /**

@@ -474,17 +474,17 @@ public class Docker {
 
         Stream.of(es.home, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p755));
 
-        assertPermissionsAndOwnership(es.bin, "root", "elasticsearch", p775);
+        Stream.of(es.bin, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p775));
 
-        Stream.of(es.data, es.logs, es.config, es.plugins, es.config.resolve("jvm.options.d"))
-            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "elasticsearch", p775));
+        Stream.of(es.data, es.logs, es.config, es.config.resolve("jvm.options.d"))
+            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p775));
 
         for (Path binariesPath : List.of(es.bin, es.bundledJdk.resolve("bin"))) {
             assertPermissionsAndOwnership(binariesPath.resolve("*"), "root", "root", p755);
         }
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), "root", "elasticsearch", p664));
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), "root", "root", p664));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
             .forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), "root", "root", p644));

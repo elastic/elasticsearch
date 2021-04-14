@@ -55,7 +55,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField MATCH_FIELD = new ParseField("match_field");
     private static final ParseField ENRICH_FIELDS = new ParseField("enrich_fields");
-    private static final ParseField FORMAT = new ParseField("elasticsearch_version");
+    private static final ParseField FORMAT = new ParseField("format");
     private static final ParseField ELASTICSEARCH_VERSION = new ParseField("elasticsearch_version");
 
     @SuppressWarnings("unchecked")

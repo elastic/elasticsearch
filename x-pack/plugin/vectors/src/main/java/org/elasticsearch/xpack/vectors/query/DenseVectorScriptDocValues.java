@@ -20,12 +20,15 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     private final BinaryDocValues in;
     private final Version indexVersion;
-    private BytesRef value;
+    private final int dims;
     private final float[] vector;
+    private BytesRef value;
+
 
     DenseVectorScriptDocValues(BinaryDocValues in, Version indexVersion, int dims) {
         this.in = in;
         this.indexVersion = indexVersion;
+        this.dims = dims;
         this.vector = new float[dims];
     }
 
@@ -41,6 +44,11 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     // package private access only for {@link ScoreScriptUtils}
     BytesRef getEncodedValue() {
         return value;
+    }
+
+    // package private access only for {@link ScoreScriptUtils}
+    int dims() {
+        return dims;
     }
 
     @Override

@@ -213,8 +213,8 @@ you can access dense vectors's values directly through the following functions:
 - `doc[<field>].vectorValue` – returns a vector's value as an array of floats
 
 - `doc[<field>].magnitude` – returns a vector's magnitude as a float
-(for vectors created prior version 7.5 magnitude is not stored.
-So this function calculates it anew every time is called).
+(for vectors created prior to version 7.5 the magnitude is not stored.
+So this function calculates it anew every time it is called).
 
 For example, the script below implements a cosine similarity using these
 two functions:

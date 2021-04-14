@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,7 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -49,7 +48,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
+        DataStream rolledDs = ds.rollover(Metadata.EMPTY_METADATA, UUIDs.randomBase64UUID());
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -59,17 +58,29 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
     }
 
-    public void testRolloverWithLegacyBackingIndexNames() {
-        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
+    public void testRolloverWithConflictingBackingIndexName() {
+        // used a fixed time provider to guarantee name conflicts
+        DataStream ds = DataStreamTestHelper.randomInstance(() -> 0L).promoteDataStream();
 
+        // create some indices with names that conflict with the names of the data stream's backing indices
+        int numConflictingIndices = randomIntBetween(1, 10);
+        Metadata.Builder builder = Metadata.builder();
+        for (int k = 1; k <= numConflictingIndices; k++) {
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + k, 0L))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            builder.put(im, false);
+        }
+
+        DataStream rolledDs = ds.rollover(builder.build(), UUIDs.randomBase64UUID());
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + numConflictingIndices + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertThat(rolledDs.getWriteIndex().getName(),
-            equalTo(DataStream.getLegacyDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1)));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
     }
 
     public void testRemoveBackingIndex() {

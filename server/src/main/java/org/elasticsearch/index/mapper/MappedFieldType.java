@@ -61,7 +61,6 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private boolean eagerGlobalOrdinals;
 
     public MappedFieldType(String name, boolean isIndexed, boolean isStored,
                            boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
@@ -329,12 +328,11 @@ public abstract class MappedFieldType {
         }
     }
 
+    /**
+     * @return if this field type should load global ordinals eagerly
+     */
     public boolean eagerGlobalOrdinals() {
-        return eagerGlobalOrdinals;
-    }
-
-    public void setEagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+        return false;
     }
 
     /** Return a {@link DocValueFormat} that can be used to display and parse

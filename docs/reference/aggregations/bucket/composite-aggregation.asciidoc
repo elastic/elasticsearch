@@ -18,7 +18,7 @@ a composite bucket.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /sales
 {
@@ -72,7 +72,6 @@ POST /sales/_bulk?refresh
 {"index":{"_id":4}}
 {"product": "apocalypse now", "price": "10", "timestamp": "2017-05-11T08:35"}
 -------------------------------------------------
-// NOTCONSOLE
 // TESTSETUP
 
 //////////////////////////
@@ -121,7 +120,7 @@ The `sources` parameter can be any of the following types:
 ===== Terms
 
 The `terms` value source is equivalent to a simple `terms` aggregation.
-The values are extracted from a field or a script exactly like the `terms` aggregation.
+The values are extracted from a field exactly like the `terms` aggregation.
 
 Example:
 
@@ -142,25 +141,30 @@ GET /_search
 }
 --------------------------------------------------
 
-Like the `terms` aggregation it is also possible to use a script to create the values for the composite buckets:
+Like the `terms` aggregation, it's possible to use a
+<<runtime,runtime field>> to create values for the composite buckets:
 
-[source,console,id=composite-aggregation-terms-script-example]
---------------------------------------------------
+[source,console,id=composite-aggregation-terms-runtime-field-example]
+----
 GET /_search
 {
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": """
+        emit(doc['timestamp'].value.dayOfWeekEnum
+          .getDisplayName(TextStyle.FULL, Locale.ROOT))
+      """
+    }
+  },
   "size": 0,
   "aggs": {
     "my_buckets": {
       "composite": {
         "sources": [
           {
-            "product": {
-              "terms": {
-                "script": {
-                  "source": "doc['product'].value",
-                  "lang": "painless"
-                }
-              }
+            "dow": {
+              "terms": { "field": "day_of_week" }
             }
           }
         ]
@@ -168,7 +172,35 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
+
+////
+[source,console-result]
+----
+{
+  "timed_out": false,
+  "took": "$body.took",
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": "$body.hits",
+  "aggregations": {
+    "my_buckets": {
+      "after_key": { "dow": "Wednesday" },
+      "buckets": [
+        { "key": { "dow": "Monday"    }, "doc_count": 1 },
+        { "key": { "dow": "Thursday"  }, "doc_count": 1 },
+        { "key": { "dow": "Tuesday"   }, "doc_count": 2 },
+        { "key": { "dow": "Wednesday" }, "doc_count": 1 }
+      ]
+    }
+  }
+}
+----
+////
 
 [[_histogram]]
 ===== Histogram
@@ -197,25 +229,35 @@ GET /_search
 }
 --------------------------------------------------
 
-The values are built from a numeric field or a script that return numerical values:
+Like the `histogram` aggregation it's possible to use a
+<<runtime,runtime field>> to create values for the composite buckets:
 
-[source,console,id=composite-aggregation-histogram-script-example]
---------------------------------------------------
+[source,console,id=composite-aggregation-histogram-runtime-field-example]
+----
 GET /_search
 {
+  "runtime_mappings": {
+    "price.discounted": {
+      "type": "double",
+      "script": """
+        double price = doc['price'].value;
+        if (doc['product'].value == 'mad max') {
+          price *= 0.8;
+        }
+        emit(price);
+      """
+    }
+  },
   "size": 0,
   "aggs": {
     "my_buckets": {
       "composite": {
         "sources": [
           {
-            "histo": {
+            "price": {
               "histogram": {
                 "interval": 5,
-                "script": {
-                  "source": "doc['price'].value",
-                  "lang": "painless"
-                }
+                "field": "price.discounted"
               }
             }
           }
@@ -224,7 +266,34 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
+
+////
+[source,console-result]
+----
+{
+  "timed_out": false,
+  "took": "$body.took",
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": "$body.hits",
+  "aggregations": {
+    "my_buckets": {
+      "after_key": { "price": 20.0 },
+      "buckets": [
+        { "key": { "price": 10.0 }, "doc_count": 2 },
+        { "key": { "price": 15.0 }, "doc_count": 1 },
+        { "key": { "price": 20.0 }, "doc_count": 2 }
+      ]
+    }
+  }
+}
+----
+////
 
 [[_date_histogram]]
 ===== Date histogram
@@ -291,7 +360,7 @@ GET /_search
 
 *Time Zone*
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
 that bucketing should use a different time zone.
 
@@ -848,11 +917,12 @@ GET /_search
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
+[[search-aggregations-bucket-composite-aggregation-pipeline-aggregations]]
 ==== Pipeline aggregations
 
 The composite agg is not currently compatible with pipeline aggregations, nor does it make sense in most cases.
 E.g. due to the paging nature of composite aggs, a single logical partition (one day for example) might be spread
-over multiple pages.  Since pipeline aggregations are purely post-processing on the final list of buckets,
+over multiple pages. Since pipeline aggregations are purely post-processing on the final list of buckets,
 running something like a derivative on a composite page could lead to inaccurate results as it is only taking into
 account a "partial" result on that page.
 

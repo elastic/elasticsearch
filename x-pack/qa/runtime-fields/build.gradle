@@ -17,7 +17,8 @@ subprojects {
 
     restResources {
       restApi {
-        includeXpack 'async_search', 'graph', '*_point_in_time'
+        include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
+          'search', 'async_search', 'graph', '*_point_in_time'
       }
       restTests {
         includeCore '*'
@@ -28,6 +29,7 @@ subprojects {
     testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
+      setting 'xpack.security.enabled', 'false'
     }
 
     tasks.named("yamlRestTest").configure {

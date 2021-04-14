@@ -30,8 +30,10 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -47,31 +49,34 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
 /**
  * A component that is responsible for making the databases maintained by {@link GeoIpDownloader}
  * available for ingest processors.
- *
+ * <p>
  * Also provided a lookup mechanism for geoip processors with fallback to {@link LocalDatabases}.
  * All databases are downloaded into a geoip tmp directory, which is created at node startup.
- *
+ * <p>
  * The following high level steps are executed after each cluster state update:
  * 1) Check which databases are available in {@link GeoIpTaskState},
- *    which is part of the geoip downloader persistent task.
+ * which is part of the geoip downloader persistent task.
  * 2) For each database check whether the databases have changed
- *    by comparing the local and remote md5 hash or are locally missing.
+ * by comparing the local and remote md5 hash or are locally missing.
  * 3) For each database identified in step 2 start downloading the database
- *    chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
- *    after all chunks have been downloaded, the database is uncompressed and
- *    renamed to the final filename.After this the database is loaded and
- *    if there is an old instance of this database then that is closed.
+ * chunks. Each chunks is appended to a tmp file (inside geoip tmp dir) and
+ * after all chunks have been downloaded, the database is uncompressed and
+ * renamed to the final filename.After this the database is loaded and
+ * if there is an old instance of this database then that is closed.
  * 4) Cleanup locally loaded databases that are no longer mentioned in {@link GeoIpTaskState}.
  */
-final class DatabaseRegistry implements Closeable {
+public final class DatabaseRegistry implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseRegistry.class);
 
@@ -87,7 +92,7 @@ final class DatabaseRegistry implements Closeable {
     DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
             environment.tmpFile(),
-            new OriginSettingClient(client, "geoip"),
+            new OriginSettingClient(client, IngestService.INGEST_ORIGIN),
             cache,
             new LocalDatabases(environment, cache),
             genericExecutor
@@ -128,7 +133,7 @@ final class DatabaseRegistry implements Closeable {
 
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException e) {
-                if(e instanceof NoSuchFileException == false) {
+                if (e instanceof NoSuchFileException == false) {
                     LOGGER.warn("can't delete stale file [" + file + "]", e);
                 }
                 return FileVisitResult.CONTINUE;
@@ -254,9 +259,28 @@ final class DatabaseRegistry implements Closeable {
             bytes -> Files.write(databaseTmpGzFile, bytes, StandardOpenOption.APPEND),
             () -> {
                 LOGGER.debug("decompressing [{}]", databaseTmpGzFile.getFileName());
-                decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+                // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
+                // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
+                try (TarInputStream is =
+                         new TarInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192))) {
+                    TarInputStream.TarEntry entry;
+                    while ((entry = is.getNextEntry()) != null) {
+                        //there might be ./ entry in tar, we should skip it
+                        if (entry.isNotFile()) {
+                            continue;
+                        }
+                        // flatten structure, remove any directories present from the path (should be ./ only)
+                        String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                        if (name.startsWith(databaseName)) {
+                            Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
+                        } else {
+                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                }
+
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
                 Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
                 updateDatabase(databaseName, recordedMd5, databaseFile);
@@ -317,7 +341,7 @@ final class DatabaseRegistry implements Closeable {
                 // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
                 for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
                     SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    String id = String.format(Locale.ROOT, "%s_%d", databaseName, chunk);
+                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.getLastUpdate());
                     searchRequest.source().query(new TermQueryBuilder("_id", id));
 
                     // At most once a day a few searches may be executed to fetch the new files,
@@ -347,10 +371,15 @@ final class DatabaseRegistry implements Closeable {
         });
     }
 
-    static void decompress(Path source, Path target) throws IOException {
-        try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(source), 8192)) {
-            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-        }
+    public Set<String> getAvailableDatabases() {
+        return Set.copyOf(databases.keySet());
     }
 
+    public Set<String> getFilesInTemp() {
+        try (Stream<Path> files = Files.list(geoipTmpDirectory)) {
+            return files.map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 }

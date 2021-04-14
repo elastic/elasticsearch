@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.document.HalfFloatPoint;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 
@@ -90,7 +90,6 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70630")
     public void testAllTypesWithRequestToOldNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(
             columns -> {
@@ -115,8 +114,18 @@ public class SqlSearchIT extends ESRestTestCase {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
+                    /*
+                     * Double.valueOf(float.toString) gets a `double` representing
+                     * the `float` that we'd get by going through json which is
+                     * base 10. just casting the `float` to a `double` will get
+                     * a lower number with a lot more trailing digits because
+                     * the cast adds *binary* 0s to the end. And those binary
+                     * 0s don't translate the same as json's decimal 0s.
+                     */
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                    fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
                 }
             }
         );
@@ -144,8 +153,18 @@ public class SqlSearchIT extends ESRestTestCase {
                     builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
                     fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
                     builder.append("\"float_field\":" + randomFloat + ",");
+                    /*
+                     * Double.valueOf(float.toString) gets a `double` representing
+                     * the `float` that we'd get by going through json which is
+                     * base 10. just casting the `float` to a `double` will get
+                     * a lower number with a lot more trailing digits because
+                     * the cast adds *binary* 0s to the end. And those binary
+                     * 0s don't translate the same as json's decimal 0s.
+                     */
                     fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    builder.append("\"half_float_field\":" + fieldValues.computeIfAbsent("half_float_field", v -> 123.456));
+                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                    fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
                 }
             }
         );
@@ -226,19 +245,15 @@ public class SqlSearchIT extends ESRestTestCase {
         Map<String, Object> column = new HashMap<>();
         column.put("name", name);
         column.put("type", type);
-        column.put("display_size", SqlDataTypes.displaySize(SqlDataTypes.fromTypeName(type)));
         return unmodifiableMap(column);
     }
 
-    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
+    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList)
+        throws Exception {
         try (
             RestClient client = buildClient(restClientSettings(),
                 nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
         ) {
-            Request request = new Request("POST", "_sql");
-            String version = ",\"version\":\"" + newVersion.toString() + "\"";
-            String binaryFormat = ",\"binary_format\":\"false\"";
-
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
             String intervalYearMonth = "INTERVAL '150' YEAR AS interval_year, ";
@@ -249,9 +264,8 @@ public class SqlSearchIT extends ESRestTestCase {
             String fieldsList = columns.stream().map(m -> (String) m.get("name")).filter(str -> str.startsWith("interval") == false)
                 .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
-            request.setJsonEntity(
-                "{\"mode\":\"jdbc\"" + version + binaryFormat + ",\"query\":\"" + query + "\"}"
-            );
+            Request request = new Request("POST", "_sql");
+            request.setJsonEntity("{\"query\":\"" + query + "\"}");
             assertBusy(() -> { assertResponse(expectedResponse, runSql(client, request)); });
         }
     }

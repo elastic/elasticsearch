@@ -11,6 +11,7 @@ package org.elasticsearch.test.rest;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
@@ -32,10 +33,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.unit.TimeValue;
@@ -66,6 +69,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -79,6 +83,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -296,6 +301,28 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
+    }
+
+    /**
+     * Construct a Basic auth header
+     * @param username user name
+     * @param passwd user password
+     */
+    public static String basicAuthHeaderValue(String username, SecureString passwd) {
+        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
+        byte[] charBytes = null;
+        try {
+            chars.put(username).put(':').put(passwd.getChars());
+            charBytes = CharArrays.toUtf8Bytes(chars.array());
+
+            String basicToken = Base64.getEncoder().encodeToString(charBytes);
+            return "Basic " + basicToken;
+        } finally {
+            Arrays.fill(chars.array(), (char) 0);
+            if (charBytes != null) {
+                Arrays.fill(charBytes, (byte) 0);
+            }
+        }
     }
 
     /**
@@ -715,7 +742,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            if (hasXPack() && nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_9_0))) {
+            if (hasXPack()) {
                 adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
@@ -1229,8 +1256,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void deleteIndex(String name) throws IOException {
+        deleteIndex(client(), name);
+    }
+
+    protected static void deleteIndex(RestClient client, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1333,19 +1364,38 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
+        registerRepository(client(), repository, type, verify, settings);
+    }
+
+    protected static void registerRepository(
+        RestClient client,
+        String repository,
+        String type,
+        boolean verify,
+        Settings settings
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
 
-        final Response response = client().performRequest(request);
+        final Response response = client.performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
     protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        createSnapshot(client(), repository, snapshot, waitForCompletion);
+    }
+
+    protected static void createSnapshot(
+        RestClient client,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
-        final Response response = client().performRequest(request);
+        final Response response = client.performRequest(request);
         assertThat(
             "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
             response.getStatusLine().getStatusCode(),
@@ -1363,6 +1413,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
+        deleteSnapshot(client(), repository, snapshot, ignoreMissing);
+    }
+
+    protected static void deleteSnapshot(RestClient client, String repository, String snapshot, boolean ignoreMissing) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        if (ignoreMissing) {
+            request.addParameter("ignore", "404");
+        }
+        final Response response = client.performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(),  ignoreMissing ? anyOf(equalTo(200), equalTo(404)) : equalTo(200));
     }
 
     @SuppressWarnings("unchecked")

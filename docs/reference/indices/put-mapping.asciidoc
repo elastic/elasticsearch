@@ -27,8 +27,6 @@ PUT /my-index-000001/_mapping
 
 `PUT /<target>/_mapping`
 
-`PUT /_mapping`
-
 [[put-mapping-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -45,7 +43,7 @@ privilege.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
+(Required, string)
 Comma-separated list of data streams, indices, and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +

@@ -92,7 +92,7 @@ public class GatewayMetaState implements Closeable {
                       MetadataUpgrader metadataUpgrader, PersistedClusterStateService persistedClusterStateService) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.canContainData(settings)) {
             try {
                 final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
 
@@ -125,7 +125,7 @@ public class GatewayMetaState implements Closeable {
                         persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
                             new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState));
                     }
-                    if (DiscoveryNode.isDataNode(settings)) {
+                    if (DiscoveryNode.canContainData(settings)) {
                         metaStateService.unreferenceAll(); // unreference legacy files (only keep them for dangling indices functionality)
                     } else {
                         metaStateService.deleteAll(); // delete legacy files
@@ -146,7 +146,8 @@ public class GatewayMetaState implements Closeable {
             }
         } else {
             final long currentTerm = 0L;
-            final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build();
+            final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
+                    ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build());
             if (persistedClusterStateService.getDataPaths().length > 0) {
                 // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
                 // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state

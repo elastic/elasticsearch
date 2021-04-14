@@ -22,16 +22,23 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -63,7 +70,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -124,6 +130,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
+    private final ConfigurableFileCollection pluginAndModuleConfiguration;
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
@@ -159,6 +166,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
 
+    private Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
+
     ElasticsearchNode(
         String clusterName,
         String path,
@@ -191,8 +200,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
 
+        pluginAndModuleConfiguration = project.getObjects().fileCollection();
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getElasticsearch());
+        configureArtifactTransforms();
     }
 
     @Input
@@ -277,11 +288,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     // creates a configuration to depend on the given plugin project, then wraps that configuration
     // to grab the zip as a file provider
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path) {
-        Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(
-            path,
-            key -> project.getConfigurations()
-                .detachedConfiguration(project.getDependencies().project(Map.of("path", path, "configuration", "zip")))
-        );
+        Configuration configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
+            Dependency bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", "zip"));
+            return project.getConfigurations().detachedConfiguration(bundleDependency);
+        });
+
+        /**
+         * dependencies.create(files(provider { println("provider"); File(".") }))
+         *
+         * */
         Provider<File> fileProvider = configuration.getElements()
             .map(
                 s -> s.stream()
@@ -295,6 +310,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void plugin(Provider<RegularFile> plugin) {
         checkFrozen();
+        registerExtractedConfig(plugin);
         this.plugins.add(plugin.map(RegularFile::getAsFile));
     }
 
@@ -306,7 +322,30 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void module(Provider<RegularFile> module) {
         checkFrozen();
+        registerExtractedConfig(module);
         this.modules.add(module.map(RegularFile::getAsFile));
+    }
+
+    private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
+        Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
+        Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
+        extractedConfig.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(bundleAttribute, true);
+        pluginAndModuleConfiguration.from(extractedConfig);
+    }
+
+    private void configureArtifactTransforms() {
+        project.getDependencies().getAttributesSchema().attribute(bundleAttribute);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(bundleAttribute, true);
+            transformSpec.getTo()
+                .attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(bundleAttribute, true);
+            transformSpec.getParameters().setAsFiletreeOutput(true);
+        });
     }
 
     @Override
@@ -1180,6 +1219,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             baseConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
         }
 
+        baseConfig.put("action.destructive_requires_name", "false");
+
         HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
         overriden.retainAll(settings.keySet());
         overriden.removeAll(OVERRIDABLE_SETTINGS);
@@ -1290,26 +1331,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
     }
 
-    private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
-        return Stream.concat(plugins.stream().map(Provider::get), modules.stream().map(Provider::get))
-            .filter(File::exists)
-            // TODO: We may be able to simplify this with Gradle 5.6
-            // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
-            .map(zipFile -> archiveOperations.zipTree(zipFile).matching(filter))
-            .flatMap(tree -> tree.getFiles().stream())
-            .sorted(Comparator.comparing(File::getName))
-            .collect(Collectors.toList());
-    }
-
     @Classpath
-    public List<File> getInstalledClasspath() {
-        return getInstalledFileSet(filter -> filter.include("**/*.jar"));
+    public FileCollection getInstalledClasspath() {
+        return pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public List<File> getInstalledFiles() {
-        return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
+    public FileCollection getInstalledFiles() {
+        return pluginAndModuleConfiguration.filter(f -> f.isDirectory() == false && f.getName().endsWith(".jar") == false);
     }
 
     @Classpath

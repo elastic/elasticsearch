@@ -17,4 +17,6 @@ testClusters.all {
   numberOfNodes = 4
 
   systemProperty 'es.shutdown_feature_flag_enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  user username: clusterCredentials.username, password: clusterCredentials.password, role: 'superuser'
 }

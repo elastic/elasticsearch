@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -26,8 +27,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -38,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -62,17 +68,24 @@ public class IpFieldMapper extends FieldMapper {
         private final Parameter<String> nullValue
             = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
 
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final boolean ignoreMalformedByDefault;
         private final Version indexCreatedVersion;
+        private final ScriptCompiler scriptCompiler;
 
-        public Builder(String name, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
             super(name);
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformed
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.script.precludesParameters(nullValue, ignoreMalformed);
+            addScriptValidation(script, indexed, hasDocValues);
         }
 
         Builder nullValue(String nullValue) {
@@ -98,16 +111,27 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
 
+        private FieldValues<InetAddress> scriptValues() {
+            if (this.script.get() == null) {
+                return null;
+            }
+            IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
+            return factory == null ? null : (lookup, ctx, doc, consumer) -> factory
+                .newFactory(name, script.get().getParams(), lookup)
+                .newInstance(ctx)
+                .runForDoc(doc, consumer);
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, nullValue, script, onScriptError, meta);
         }
 
         @Override
         public IpFieldMapper build(ContentPath contentPath) {
             return new IpFieldMapper(name,
                 new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
-                    hasDocValues.getValue(), parseNullValue(), meta.getValue()),
+                    hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue()),
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
 
@@ -115,21 +139,23 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated());
     });
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
         private final InetAddress nullValue;
+        private final FieldValues<InetAddress> scriptValues;
 
         public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                           InetAddress nullValue, Map<String, String> meta) {
+                           InetAddress nullValue, FieldValues<InetAddress> scriptValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValue = nullValue;
+            this.scriptValues = scriptValues;
         }
 
         public IpFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -152,6 +178,9 @@ public class IpFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            if (scriptValues != null) {
+                return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress)v), context);
             }
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
@@ -348,13 +377,17 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final Version indexCreatedVersion;
 
+    private final Script script;
+    private final FieldValues<InetAddress> scriptValues;
+    private final ScriptCompiler scriptCompiler;
+
     private IpFieldMapper(
             String simpleName,
             MappedFieldType mappedFieldType,
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -363,6 +396,9 @@ public class IpFieldMapper extends FieldMapper {
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.script = builder.script.get();
+        this.scriptValues = builder.scriptValues();
+        this.scriptCompiler = builder.scriptCompiler;
     }
 
     boolean ignoreMalformed() {
@@ -413,6 +449,10 @@ public class IpFieldMapper extends FieldMapper {
             }
         }
 
+        indexValue(context, address);
+    }
+
+    private void indexValue(ParseContext context, InetAddress address) {
         if (indexed) {
             context.doc().add(new InetAddressPoint(fieldType().name(), address));
         }
@@ -427,8 +467,13 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
     }
 
 }

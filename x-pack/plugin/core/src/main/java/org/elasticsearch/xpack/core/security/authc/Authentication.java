@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
@@ -227,14 +228,11 @@ public class Authentication implements ToXContentObject {
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final Map<String, Object> allMetadata = new HashMap<>(user.metadata());
-            assert Sets.haveEmptyIntersection(allMetadata.keySet(), getMetadata().keySet())
-                : "authentication metadata must not override existing user ones";
-            allMetadata.putAll(getMetadata());
-            builder.field(User.Fields.METADATA.getPreferredName(), allMetadata);
-        } else {
-            builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
+            final String tokenName = (String) getMetadata().get(TOKEN_NAME_FIELD);
+            assert tokenName != null : "token name cannot be null";
+            builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("name", tokenName));
         }
+        builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
         builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
         builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());

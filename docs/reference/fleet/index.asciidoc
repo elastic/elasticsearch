@@ -6,7 +6,7 @@ The following APIs are design to support fleet-server's usage of Elasticsearch a
 a datastore for internal agent and action data. These APIS are currently intended
 for internal use only and should be considered experimental.
 
-* <<fleet-get-global-checkpoints,Get global checkpoints>>
+* <<get-global-checkpoints,Get global checkpoints>>
 
 // top-level
 include::get-global-checkpoints.asciidoc[]

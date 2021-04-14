@@ -344,7 +344,10 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders(), executionContext.getClientYamlTestCandidate().getTestPath());
+            final String testPath = executionContext.getClientYamlTestCandidate() != null
+                ? executionContext.getClientYamlTestCandidate().getTestPath()
+                : null;
+            checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (Strings.hasLength(catchParam) == false) {

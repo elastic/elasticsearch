@@ -310,6 +310,7 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
         "bool",
         "boosting",
+        "combined_fields",
         "constant_score",
         "dis_max",
         "exists",

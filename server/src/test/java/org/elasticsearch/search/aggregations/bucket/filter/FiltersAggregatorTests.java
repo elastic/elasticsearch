@@ -865,24 +865,24 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
-            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
-            long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
-            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "docvalues_field_exists"));
-            if (canUseMetadata) {
-                assertThat(estimatedCost, equalTo(0L));
-                assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
-                assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
-            } else {
-                assertThat(estimatedCost, greaterThan(0L));
-                assertThat((int) debug.get("results_from_metadata"), equalTo(0));
-                assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
-            }
-        }, fieldType, fnft);
-        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
+        debugTestCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
+
+            assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
+            List<?> filtersDebug = (List<?>) debug.get("filters");
+            Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
+            assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
+            assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));
+        }, fieldType, fnft);
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
+            Map<String, Object> debug = new HashMap<>();
+            aggregator.collectDebugInfo(debug::put);
+            List<?> filtersDebug = (List<?>) debug.get("filters");
+            Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
+            assertThat(estimatedCost, canUseMetadata ? equalTo(0L) : greaterThan(0L));
+            assertThat((int) filterDebug.get("scorers_prepared_while_estimating_cost"), canUseMetadata ? equalTo(0) : greaterThan(0));
         }, fieldType, fnft);
     }
 

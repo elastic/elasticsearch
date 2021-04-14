@@ -541,6 +541,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasValues() {
+                return copyToBuilders.isEmpty() == false;
+            }
+
             public CopyTo build() {
                 if (copyToBuilders.isEmpty()) {
                     return EMPTY;
@@ -1074,6 +1078,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          */
         protected String buildFullName(ContentPath contentPath) {
             return contentPath.pathAsText(name);
+        }
+
+        protected void addScriptValidation(
+            Parameter<Script> scriptParam,
+            Parameter<Boolean> indexParam,
+            Parameter<Boolean> docValuesParam
+        ) {
+            scriptParam.setValidator(s -> {
+                if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
+                if (s != null && copyTo.hasValues()) {
+                    throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
+                }
+            });
         }
 
         /**

@@ -67,6 +67,7 @@ testClusters.integTest {
   } else {
     println "Using an external service to test " + project.name
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("s3ThirdPartyTest").configure {

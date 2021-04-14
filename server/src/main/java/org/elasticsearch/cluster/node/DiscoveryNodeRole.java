@@ -240,7 +240,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a transform node.
      */
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "l");
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

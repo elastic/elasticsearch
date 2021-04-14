@@ -123,7 +123,7 @@ public class EnrichPolicyRunner implements Runnable {
                 l.onFailure(e);
                 return;
             }
-            prepareAndCreateEnrichIndex(getIndexResponse);
+            prepareAndCreateEnrichIndex();
         }));
     }
 
@@ -233,7 +233,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy, GetIndexResponse getIndexResponse) {
+    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
         // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
         final String keyType;
         final CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping;
@@ -291,7 +291,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void prepareAndCreateEnrichIndex(GetIndexResponse getIndexResponse) {
+    private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
@@ -303,7 +303,7 @@ public class EnrichPolicyRunner implements Runnable {
             .put("index.warmer.enabled", false)
             .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy, getIndexResponse));
+        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         enrichOriginClient().admin()
             .indices()

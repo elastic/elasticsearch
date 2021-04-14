@@ -298,7 +298,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", "1234.333")))
         );
-        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [geo_point]"));
+        assertThat(e.getMessage(), containsString("Failed to parse field [field] of type [geo_point]"));
         assertThat(e.getRootCause().getMessage(), containsString("unsupported symbol [.] in geohash [1234.333]"));
     }
 

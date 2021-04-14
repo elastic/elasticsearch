@@ -10,9 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -21,7 +18,6 @@ import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -78,7 +74,7 @@ public class ExternalMapper extends FieldMapper {
             BinaryFieldMapper binMapper = binBuilder.build(contentPath);
             BooleanFieldMapper boolMapper = boolBuilder.build(contentPath);
             GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(contentPath);
-            AbstractShapeGeometryFieldMapper<?, ?> shapeMapper = shapeBuilder.build(contentPath);
+            AbstractShapeGeometryFieldMapper<?> shapeMapper = shapeBuilder.build(contentPath);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(contentPath);
             contentPath.remove();
 
@@ -114,13 +110,13 @@ public class ExternalMapper extends FieldMapper {
     private final BinaryFieldMapper binMapper;
     private final BooleanFieldMapper boolMapper;
     private final GeoPointFieldMapper pointMapper;
-    private final AbstractShapeGeometryFieldMapper<?, ?> shapeMapper;
+    private final AbstractShapeGeometryFieldMapper<?> shapeMapper;
     private final FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, String contextName,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          AbstractShapeGeometryFieldMapper<?, ?> shapeMapper, FieldMapper stringMapper,
+                          AbstractShapeGeometryFieldMapper<?> shapeMapper, FieldMapper stringMapper,
                           MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, new ExternalFieldType(contextName, true, true, false), multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -139,6 +135,7 @@ public class ExternalMapper extends FieldMapper {
 
         boolMapper.parse(context.createExternalValueContext(true));
 
+        /*
         // Let's add a Dummy Point
         double lat = 42.0;
         double lng = 51.0;
@@ -153,6 +150,7 @@ public class ExternalMapper extends FieldMapper {
             PointBuilder pb = new PointBuilder(-100, 45);
             shapeMapper.parse(context.createExternalValueContext(pb.buildS4J()));
         }
+        */
 
         context = context.createExternalValueContext(generatedValue);
 

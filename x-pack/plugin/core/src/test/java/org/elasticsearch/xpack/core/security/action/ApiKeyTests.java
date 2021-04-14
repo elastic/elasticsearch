@@ -48,9 +48,9 @@ public class ApiKeyTests extends ESTestCase {
 
         assertThat(map.get("name"), equalTo(name));
         assertThat(map.get("id"), equalTo(id));
-        assertThat(map.get("creation"), equalTo(creation.toEpochMilli()));
+        assertThat(Long.valueOf(map.get("creation").toString()), equalTo(creation.toEpochMilli()));
         if (expiration != null) {
-            assertThat(map.get("expiration"), equalTo(expiration.toEpochMilli()));
+            assertThat(Long.valueOf(map.get("expiration").toString()), equalTo(expiration.toEpochMilli()));
         } else {
             assertThat(map.containsKey("expiration"), is(false));
         }

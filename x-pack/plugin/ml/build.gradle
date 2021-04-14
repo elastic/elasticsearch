@@ -80,7 +80,7 @@ artifacts {
 
 tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
-  into "${buildDir}"
+  into "${buildDir}/extractedNativeLicenses"
   from {
     project.zipTree(configurations.nativeBundle.singleFile)
   }
@@ -90,7 +90,7 @@ project.afterEvaluate {
   // Add an extra licenses directory to the combined notices
   tasks.named('generateNotice').configure {
     dependsOn "extractNativeLicenses"
-    licensesDir new File("${project.buildDir}/platform/licenses")
+    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
     outputs.upToDateWhen {
       extractNativeLicenses.didWork
     }

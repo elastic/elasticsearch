@@ -25,6 +25,7 @@ testClusters {
     'remote-cluster' {
         numberOfNodes = 2
         setting 'node.roles', '[data,ingest,master]'
+        setting 'xpack.security.enabled', 'false'
     }
 }
 
@@ -38,6 +39,7 @@ testClusters.matching { it.name == "mixedClusterTest"}.configureEach {
   setting 'cluster.remote.my_remote_cluster.seeds',
     { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
   setting 'cluster.remote.connections_per_cluster', '1'
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("integTest") {

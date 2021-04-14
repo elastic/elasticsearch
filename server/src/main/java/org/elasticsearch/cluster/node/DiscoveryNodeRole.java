@@ -240,7 +240,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a transform node.
      */
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "l");
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -280,7 +280,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
                     throw new AssertionError(e);
                 }
             })
-            .collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity()));
+            .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
         assert roleMap.size() == roleFields.size() :
             "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
         final SortedSet<DiscoveryNodeRole> roles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
@@ -291,7 +291,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         assert roleMap.size() == abbreviations.size() :
             "roles by name [" + roleMap + "], roles by name abbreviation [" + abbreviations + "]";
         ROLES = roles;
-        ROLE_MAP = Map.copyOf(roleMap); // this ensures ROLE_MAP is immutable
+        ROLE_MAP = roleMap;
     }
 
     /**

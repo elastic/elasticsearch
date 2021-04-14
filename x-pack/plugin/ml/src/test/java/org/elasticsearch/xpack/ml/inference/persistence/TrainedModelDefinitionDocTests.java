@@ -19,7 +19,7 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
     private final boolean isLenient = randomBoolean();
 
-    public void testParsingDocWithCompressedString() throws IOException {
+    public void testParsingDocWithCompressedStringDefinition() throws IOException {
         byte[] bytes = randomByteArrayOfLength(50);
         String base64 = Base64.getEncoder().encodeToString(bytes);
 

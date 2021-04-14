@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
@@ -352,7 +353,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
                 builder.field(DEFINITION.getPreferredName(), definition);
             } else {
-                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedDefinition());
+                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getBase64CompressedDefinition());
             }
         }
         builder.field(TAGS.getPreferredName(), tags);
@@ -764,7 +765,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
     }
 
-    public static class LazyModelDefinition implements ToXContentObject, Writeable {
+    static class LazyModelDefinition implements ToXContentObject, Writeable {
 
         private BytesReference compressedRepresentation;
         private TrainedModelDefinition parsedDefinition;
@@ -805,14 +806,23 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.parsedDefinition = trainedModelDefinition;
         }
 
-        public BytesReference getCompressedDefinition() throws IOException {
+        private BytesReference getCompressedDefinition() throws IOException {
             if (compressedRepresentation == null) {
                 compressedRepresentation = InferenceToXContentCompressor.deflate(parsedDefinition);
             }
             return compressedRepresentation;
         }
 
-        public void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
+        private String getBase64CompressedDefinition() throws IOException {
+            BytesReference compressedDef = getCompressedDefinition();
+
+            ByteBuffer bb = Base64.getEncoder().encode(
+                ByteBuffer.wrap(compressedDef.array(), compressedDef.arrayOffset(), compressedDef.length()));
+
+            return new String(bb.array(), StandardCharsets.UTF_8);
+        }
+
+        private void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
             if (parsedDefinition == null) {
                 parsedDefinition = InferenceToXContentCompressor.inflate(compressedRepresentation,
                     parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
@@ -823,10 +833,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
-                out.writeBytesReference(compressedRepresentation);
+                out.writeBytesReference(getCompressedDefinition());
             } else {
-                String base64String = new String(Base64.getEncoder().encode(compressedRepresentation.array()), StandardCharsets.UTF_8);
-                out.writeString(base64String);
+                out.writeString(getBase64CompressedDefinition());
             }
         }
 
@@ -852,7 +861,5 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         public int hashCode() {
             return Objects.hash(compressedRepresentation, parsedDefinition);
         }
-
     }
-
 }

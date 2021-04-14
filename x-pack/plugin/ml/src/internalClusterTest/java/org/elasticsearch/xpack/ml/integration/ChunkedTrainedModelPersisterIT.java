@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -96,7 +95,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
         persister.createAndIndexInferenceModelConfig(modelSizeInfo, configBuilder.getModelType());
         for (int i = 0; i < base64Chunks.size(); i++) {
-            persister.createAndIndexInferenceModelDoc(new TrainedModelDefinitionChunk(base64Chunks.get(i), i, i == (base64Chunks.size() - 1)));
+            persister.createAndIndexInferenceModelDoc(
+                new TrainedModelDefinitionChunk(base64Chunks.get(i), i, i == (base64Chunks.size() - 1)));
         }
         ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
             .limit(randomIntBetween(1, 10))

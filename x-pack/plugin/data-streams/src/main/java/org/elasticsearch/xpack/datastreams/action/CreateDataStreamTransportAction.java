@@ -60,8 +60,10 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        final SystemDataStreamDescriptor systemDataStreamDescriptor =
-            systemIndices.validateDataStreamAccess(request.getName(), threadPool.getThreadContext());
+        final SystemDataStreamDescriptor systemDataStreamDescriptor = systemIndices.validateDataStreamAccess(
+            request.getName(),
+            threadPool.getThreadContext()
+        );
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
                 request.getName(),

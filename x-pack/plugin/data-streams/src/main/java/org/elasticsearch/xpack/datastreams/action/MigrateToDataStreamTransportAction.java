@@ -49,8 +49,12 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.metadataMigrateToDataStreamService =
-            new MetadataMigrateToDataStreamService(threadPool, clusterService, indicesService, metadataCreateIndexService);
+        this.metadataMigrateToDataStreamService = new MetadataMigrateToDataStreamService(
+            threadPool,
+            clusterService,
+            indicesService,
+            metadataCreateIndexService
+        );
     }
 
     @Override

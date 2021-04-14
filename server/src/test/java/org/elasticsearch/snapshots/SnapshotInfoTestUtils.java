@@ -46,16 +46,7 @@ public class SnapshotInfoTestUtils {
         final long endTime = randomNonNegativeLong();
 
         final int totalShards = randomIntBetween(0, 100);
-        final int failedShards = randomIntBetween(0, totalShards);
-
-        final List<SnapshotShardFailure> shardFailures = Arrays.asList(randomArray(failedShards, failedShards,
-                SnapshotShardFailure[]::new, () -> {
-                    String indexName = randomAlphaOfLengthBetween(3, 50);
-                    int id = randomInt();
-                    ShardId shardId = ShardId.fromString("[" + indexName + "][" + id + "]");
-
-                    return new SnapshotShardFailure(randomAlphaOfLengthBetween(5, 10), shardId, randomAlphaOfLengthBetween(5, 10));
-                }));
+        final List<SnapshotShardFailure> shardFailures = randomShardFailures(randomIntBetween(0, totalShards));
 
         final Boolean includeGlobalState = randomBoolean() ? null : randomBoolean();
 
@@ -76,6 +67,13 @@ public class SnapshotInfoTestUtils {
                 userMetadata,
                 startTime
         );
+    }
+
+    private static List<SnapshotShardFailure> randomShardFailures(int failedShards) {
+        return randomList(failedShards, failedShards, () -> new SnapshotShardFailure(
+                randomAlphaOfLengthBetween(5, 10),
+                ShardId.fromString("[" + randomAlphaOfLengthBetween(3, 50) + "][" + randomInt() + "]"),
+                randomAlphaOfLengthBetween(5, 10)));
     }
 
     public static Map<String, Object> randomUserMetadata() {
@@ -193,16 +191,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 5:
                 final int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));
-                final int failedShards = randomIntBetween(0, totalShards);
-
-                final List<SnapshotShardFailure> shardFailures = Arrays.asList(randomArray(failedShards, failedShards,
-                        SnapshotShardFailure[]::new, () -> {
-                            String indexName = randomAlphaOfLengthBetween(3, 50);
-                            int id = randomInt();
-                            ShardId shardId = ShardId.fromString("[" + indexName + "][" + id + "]");
-
-                            return new SnapshotShardFailure(randomAlphaOfLengthBetween(5, 10), shardId, randomAlphaOfLengthBetween(5, 10));
-                        }));
+                final List<SnapshotShardFailure> shardFailures = randomShardFailures(randomIntBetween(0, totalShards));
                 return new SnapshotInfo(
                         instance.snapshotId(),
                         instance.indices(),

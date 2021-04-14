@@ -230,8 +230,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("snapshot_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("code_admin"), is(false));
         assertThat(ReservedRolesStore.isReserved("code_user"), is(false));
-        assertThat(ReservedRolesStore.isReserved("viewer"), is(false));
-        assertThat(ReservedRolesStore.isReserved("editor"), is(false));
+        assertThat(ReservedRolesStore.isReserved("viewer"), is(true));
+        assertThat(ReservedRolesStore.isReserved("editor"), is(true));
     }
 
     public void testSnapshotUserRole() {

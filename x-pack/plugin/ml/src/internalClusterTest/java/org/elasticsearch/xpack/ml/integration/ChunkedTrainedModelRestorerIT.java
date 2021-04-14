@@ -12,6 +12,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -23,7 +25,9 @@ import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelResto
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,11 +40,11 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
     public void testRestoreWithMultipleSearches() throws IOException, InterruptedException {
         String modelId = "test-multiple-searches";
         int numDocs = 22;
-        List<String> modelDefs = new ArrayList<>(numDocs);
+        List<BytesReference> modelDefs = new ArrayList<>(numDocs);
 
         for (int i=0; i<numDocs; i++) {
             // actual content of the model definition is not important here
-            modelDefs.add("model_def_" + i);
+            modelDefs.add(new BytesArray(Base64.getEncoder().encode(("model_def_" + i).getBytes(StandardCharsets.UTF_8))));
         }
 
         List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
@@ -72,11 +76,11 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
     public void testCancel() throws IOException, InterruptedException {
         String modelId = "test-cancel-search";
         int numDocs = 6;
-        List<String> modelDefs = new ArrayList<>(numDocs);
+        List<BytesReference> modelDefs = new ArrayList<>(numDocs);
 
         for (int i=0; i<numDocs; i++) {
             // actual content of the model definition is not important here
-            modelDefs.add("model_def_" + i);
+            modelDefs.add(new BytesArray(Base64.getEncoder().encode(("model_def_" + i).getBytes(StandardCharsets.UTF_8))));
         }
 
         List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
@@ -126,11 +130,11 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
 
         String modelId = "test-multiple-indices";
         int numDocs = 24;
-        List<String> modelDefs = new ArrayList<>(numDocs);
+        List<BytesReference> modelDefs = new ArrayList<>(numDocs);
 
         for (int i=0; i<numDocs; i++) {
             // actual content of the model definition is not important here
-            modelDefs.add("model_def_" + i);
+            modelDefs.add(new BytesArray(Base64.getEncoder().encode(("model_def_" + i).getBytes(StandardCharsets.UTF_8))));
         }
 
         List<TrainedModelDefinitionDoc> expectedDocs = createModelDefinitionDocs(modelDefs, modelId);
@@ -166,14 +170,14 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         assertEquals(actualDocs, reorderedDocs);
     }
 
-    private List<TrainedModelDefinitionDoc> createModelDefinitionDocs(List<String> compressedDefinitions, String modelId) {
-        int totalLength = compressedDefinitions.stream().map(String::length).reduce(0, Integer::sum);
+    private List<TrainedModelDefinitionDoc> createModelDefinitionDocs(List<BytesReference> compressedDefinitions, String modelId) {
+        int totalLength = compressedDefinitions.stream().map(BytesReference::length).reduce(0, Integer::sum);
 
         List<TrainedModelDefinitionDoc> docs = new ArrayList<>();
         for (int i = 0; i < compressedDefinitions.size(); i++) {
             docs.add(new TrainedModelDefinitionDoc.Builder()
                 .setDocNum(i)
-                .setCompressedString(compressedDefinitions.get(i))
+                .setBinaryData(compressedDefinitions.get(i))
                 .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
                 .setTotalDefinitionLength(totalLength)
                 .setDefinitionLength(compressedDefinitions.get(i).length())

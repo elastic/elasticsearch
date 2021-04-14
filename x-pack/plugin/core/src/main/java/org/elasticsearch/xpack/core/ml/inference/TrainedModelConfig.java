@@ -256,7 +256,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (definition == null) {
             return null;
         }
-        return definition.compressedRepresentation;
+        return definition.getCompressedDefinition();
     }
 
     public void clearCompressed() {
@@ -352,7 +352,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
                 builder.field(DEFINITION.getPreferredName(), definition);
             } else {
-                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.compressedRepresentation);
+                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedDefinition());
             }
         }
         builder.field(TAGS.getPreferredName(), tags);
@@ -803,6 +803,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             this.compressedRepresentation = compressedRepresentation;
             this.parsedDefinition = trainedModelDefinition;
+        }
+
+        public BytesReference getCompressedDefinition() throws IOException {
+            if (compressedRepresentation == null) {
+                compressedRepresentation = InferenceToXContentCompressor.deflate(parsedDefinition);
+            }
+            return compressedRepresentation;
         }
 
         public void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {

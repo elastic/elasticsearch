@@ -9,13 +9,36 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.Base64;
 
 public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<TrainedModelDefinitionDoc> {
 
     private final boolean isLenient = randomBoolean();
+
+    public void testParsingDocWithCompressedString() throws IOException {
+        byte[] bytes = randomByteArrayOfLength(50);
+        String base64 = Base64.getEncoder().encodeToString(bytes);
+
+        // The previous storage format was a base64 encoded string.
+        // The new format should parse and decode the string storing the raw bytes.
+        String compressedStringDoc = "{\"doc_type\":\"trained_model_definition_doc\"," +
+            "\"model_id\":\"bntHUo\"," +
+            "\"doc_num\":6," +
+            "\"definition_length\":7," +
+            "\"total_definition_length\":13," +
+            "\"compression_version\":3," +
+            "\"definition\":\"" + base64 + "\"," +
+            "\"eos\":false}";
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, compressedStringDoc)) {
+            TrainedModelDefinitionDoc parsed = doParseInstance(parser);
+            assertArrayEquals(bytes, parsed.getBinaryData().array());
+        }
+    }
 
     @Override
     protected TrainedModelDefinitionDoc doParseInstance(XContentParser parser) throws IOException {

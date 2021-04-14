@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -135,14 +134,14 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         }
     }
 
-    public static class TransportGetGlobalCheckpointsAction extends TransportAction<Request, Response> {
+    public static class TransportAction extends org.elasticsearch.action.support.TransportAction<Request, Response> {
 
         private final ClusterService clusterService;
         private final NodeClient client;
         private final IndexNameExpressionResolver resolver;
 
         @Inject
-        public TransportGetGlobalCheckpointsAction(
+        public TransportAction(
             final ActionFilters actionFilters,
             final TransportService transportService,
             final ClusterService clusterService,

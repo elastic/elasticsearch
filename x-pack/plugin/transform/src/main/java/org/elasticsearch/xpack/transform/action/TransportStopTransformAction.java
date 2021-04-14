@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -286,7 +288,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         ActionListener<Response> onStopListener = ActionListener.wrap(
             waitResponse -> transformConfigManager.refresh(ActionListener.wrap(r -> listener.onResponse(waitResponse), e -> {
-                logger.warn("Could not refresh state, state information might be outdated", e);
+                if ((ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) == false) {
+                    logger.warn("Could not refresh state, state information might be outdated", e);
+                }
                 listener.onResponse(waitResponse);
             })),
             listener::onFailure

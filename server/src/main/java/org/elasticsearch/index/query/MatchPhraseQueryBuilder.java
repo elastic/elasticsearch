@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQueryParser;
-import org.elasticsearch.index.search.MatchQueryParser.ZeroTermsQuery;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,7 +39,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     private int slop = MatchQueryParser.DEFAULT_PHRASE_SLOP;
 
-    private ZeroTermsQuery zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
+    private ZeroTermsQueryOption zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
 
     public MatchPhraseQueryBuilder(String fieldName, Object value) {
         if (Strings.isEmpty(fieldName)) {
@@ -62,7 +61,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         value = in.readGenericValue();
         slop = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
+            zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         }
         analyzer = in.readOptionalString();
     }
@@ -118,10 +117,10 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
 
     /**
      * Sets query to use in case no query terms are available, e.g. after analysis removed them.
-     * Defaults to {@link ZeroTermsQuery#NONE}, but can be set to
-     * {@link ZeroTermsQuery#ALL} instead.
+     * Defaults to {@link ZeroTermsQueryOption#NONE}, but can be set to
+     * {@link ZeroTermsQueryOption#ALL} instead.
      */
-    public MatchPhraseQueryBuilder zeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+    public MatchPhraseQueryBuilder zeroTermsQuery(ZeroTermsQueryOption zeroTermsQuery) {
         if (zeroTermsQuery == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires zeroTermsQuery to be non-null");
         }
@@ -129,7 +128,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return this;
     }
 
-    public ZeroTermsQuery zeroTermsQuery() {
+    public ZeroTermsQueryOption zeroTermsQuery() {
         return this.zeroTermsQuery;
     }
 
@@ -191,7 +190,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
         int slop = MatchQueryParser.DEFAULT_PHRASE_SLOP;
-        ZeroTermsQuery zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
+        ZeroTermsQueryOption zeroTermsQuery = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -218,9 +217,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                         } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             String zeroTermsValue = parser.text();
                             if ("none".equalsIgnoreCase(zeroTermsValue)) {
-                                zeroTermsQuery = ZeroTermsQuery.NONE;
+                                zeroTermsQuery = ZeroTermsQueryOption.NONE;
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
-                                zeroTermsQuery = ZeroTermsQuery.ALL;
+                                zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(),
                                     "Unsupported zero_terms_query value [" + zeroTermsValue + "]");

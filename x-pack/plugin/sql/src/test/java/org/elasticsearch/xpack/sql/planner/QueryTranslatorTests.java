@@ -1003,8 +1003,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals(
-                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(Double.NaN.compareTo(params.a0) == 0 ? " +
-                    "null : ((Number) params.a1).intValue()))",
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(" +
+                    "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
     }
@@ -1018,8 +1018,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals(
-                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(Double.NaN.compareTo(params.a0) == 0 ?" +
-                    " null : ((Number) params.a1).intValue()))",
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(" +
+                    "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
     }
@@ -1167,8 +1167,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(Double.NaN.compareTo(params.a0) == 0 ?" +
-                " null : ((Number) params.a1).intValue(), params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(" +
+                "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0), params.v1))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, 20]}]"));
@@ -1182,8 +1182,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(Double.NaN.compareTo(params.a0) == 0 ?" +
-                " null : ((Number) params.a1).intValue(), params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(" +
+                "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0), params.v1))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10]}]"));
@@ -1198,8 +1198,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = translateWithAggs(condition);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(Double.NaN.compareTo(params.a0) == 0 ?" +
-                " null : ((Number) params.a1).intValue(), params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(" +
+                "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0), params.v1))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
@@ -1219,7 +1219,7 @@ public class QueryTranslatorTests extends ESTestCase {
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils." +
                 operation.name().toLowerCase(Locale.ROOT) +
-                "(Double.NaN.compareTo(params.a0) == 0 ? null : ((Number) params.a1).intValue()),params.v0))",
+                "(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)),params.v1))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
@@ -1281,7 +1281,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.abs" +
-                "(Double.NaN.compareTo(params.a0) == 0 ? null : ((Number) params.a1).intValue()),params.v0))",
+                "(InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)),params.v1))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
@@ -2289,14 +2289,15 @@ public class QueryTranslatorTests extends ESTestCase {
                 assertNull(translation.query);
                 AggFilter aggFilter = translation.aggFilter;
                 String fn = fd.name();
-                String typeName = "MAX".equals(fn) || "MIN".equals(fn) ? "int" : "SUM".equals(fn) ? "long" : "";
-                String safeCast = "Double.NaN.compareTo(params.a0) == 0 ? null : ((Number) params.a1)." + typeName + "Value()";
+                String typeName = "MAX".equals(fn) || "MIN".equals(fn) ? "INTEGER" : "SUM".equals(fn) ? "LONG" : "";
+                String safeCast = "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0)";
                 String param1st = typeName.length() == 0 ? "params.a0" : safeCast;
+                String param2nd = typeName.length() == 0 ? "params.v0" : "params.v1";
                 assertEquals(
-                    "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" + param1st + ",params.v0))",
+                    "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" + param1st + "," + param2nd + "))",
                     aggFilter.scriptTemplate().toString()
                 );
-                String params = "[{a=" + aggFunction + "}," + (typeName.length() == 0 ? "" : " {a=" + aggFunction + "},") + " {v=20}]";
+                String params = "[{a=" + aggFunction + "}," + (typeName.length() == 0 ? "" : " {v=" + typeName + "},") + " {v=20}]";
                 assertEquals(params, aggFilter.scriptTemplate().params().toString());
             }
         }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.function.scalar;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.function.Consumer;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.ql.util.DateUtils;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 
 /**
@@ -116,28 +114,33 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        Tuple<String, Integer> template = basicTemplate(aggregate);
-        return new ScriptTemplate(processScript(template.v1()),
-            repeatedParamBuilder(template.v2(), p -> p.agg(aggregate)).build(),
-            dataType());
+        Tuple<String, DataType> template = basicTemplate(aggregate);
+        ParamsBuilder paramsBuilder = paramsBuilder().agg(aggregate);
+        if (template.v2() != null) {
+            paramsBuilder.variable(template.v2().name());
+        }
+        return new ScriptTemplate(processScript(template.v1()), paramsBuilder.build(), dataType());
     }
 
     // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        Tuple<String, Integer> template = basicTemplate(grouping);
+        Tuple<String, DataType> template = basicTemplate(grouping);
+        if (template.v2() != null) {
+            throw new QlIllegalArgumentException("Unexpected data type [" + template.v2() + "] for grouping function [" + grouping + "]");
+        }
         return new ScriptTemplate(processScript(template.v1()),
-            repeatedParamBuilder(template.v2(), p -> p.grouping(grouping)).build(),
+            paramsBuilder().grouping(grouping).build(),
             dataType());
     }
 
     // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
-    private Tuple<String, Integer> basicTemplate(Function function) {
+    private Tuple<String, DataType> basicTemplate(Function function) {
         if (function.dataType().name().equals("DATE") || function.dataType() == DATETIME ||
             // Aggregations on date_nanos are returned as string
             (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
 
-            return new Tuple<>("{sql}.asDateTime({})", 1);
+            return new Tuple<>("{sql}.asDateTime({})", null);
         } else if (function instanceof AggregateFunction) {
             DataType dt = function.dataType();
             if (dt.isInteger()) {
@@ -146,26 +149,13 @@ public abstract class ScalarFunction extends Function {
                 // SQL function classes not available in QL: filter by name
                 String fn = function.functionName();
                 if ("MAX".equals(fn) || "MIN".equals(fn)) {
-                    return new Tuple<>(safeCastNumericParamTemplate(dt), 2);
+                    return new Tuple<>("{ql}.nullSafeCastNumeric({},{})", dt);
                 } else if ("SUM".equals(fn)) {
-                    return new Tuple<>(safeCastNumericParamTemplate(LONG), 2);
+                    return new Tuple<>("{ql}.nullSafeCastNumeric({},{})", LONG);
                 }
             }
         }
-        return new Tuple<>("{}", 1);
-    }
-
-    private static String safeCastNumericParamTemplate(DataType dataType) {
-        String type = dataType == INTEGER ? "int" : dataType.esType();
-        return "Double.NaN.compareTo({}) == 0 ? null : ((Number) {})." + type + "Value()";
-    }
-
-    private static ParamsBuilder repeatedParamBuilder(int count, Consumer<ParamsBuilder> consumer) {
-        ParamsBuilder builder = paramsBuilder();
-        for (int i = 0; i < count; i ++) {
-            consumer.accept(builder);
-        }
-        return builder;
+        return new Tuple<>("{}", null);
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

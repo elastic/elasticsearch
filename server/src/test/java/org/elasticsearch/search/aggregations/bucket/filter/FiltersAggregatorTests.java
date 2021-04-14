@@ -865,16 +865,23 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
-        debugTestCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
-            assertThat(result.getBuckets(), hasSize(1));
-            assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
 
-            assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
-            List<?> filtersDebug = (List<?>) debug.get("filters");
-            Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
-            assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
-            assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));
-        }, fieldType, fnft);
+                assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
+                List<?> filtersDebug = (List<?>) debug.get("filters");
+                Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
+                assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
+                assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));
+            },
+            fieldType,
+            fnft
+        );
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
             long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
             Map<String, Object> debug = new HashMap<>();

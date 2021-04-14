@@ -6,7 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.metrics;
+package org.elasticsearch.gradle.test.rest.transform.text;
 
-public interface Metric {
+import com.fasterxml.jackson.databind.node.TextNode;
+
+public class ReplaceIsFalse extends ReplaceTextual {
+    public ReplaceIsFalse(String valueToBeReplaced, TextNode replacementNode) {
+        super("is_false", valueToBeReplaced, replacementNode);
+    }
 }

@@ -323,13 +323,6 @@ public class Node implements Closeable {
                 initialEnvironment.pluginsFile(), classpathPlugins);
             final Settings settings = pluginsService.updatedSettings();
 
-            final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
-                .stream()
-                .map(Plugin::getRoles)
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
-            DiscoveryNode.setAdditionalRoles(additionalRoles);
-
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
              * values, no matter they ask for them from.

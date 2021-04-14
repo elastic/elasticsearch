@@ -75,9 +75,7 @@ public class EcsJsonLayout extends AbstractStringLayout {
             map.put(ecsKeyReplacements.getOrDefault(key, key), inQuotes("%ESMessageField{" + key + "}"));
         }
 
-        final String pattern = createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
-        System.err.println("ARSE: " + pattern);
-        return pattern;
+        return createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
     }
 
 

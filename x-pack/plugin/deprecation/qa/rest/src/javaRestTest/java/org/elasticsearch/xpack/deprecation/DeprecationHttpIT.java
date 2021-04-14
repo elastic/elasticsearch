@@ -350,10 +350,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 .collect(Collectors.toList());
             assertThat(
                 actualWarningValues,
-                containsInAnyOrder(
-                    TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT,
-                    TestDeprecationHeaderRestAction.DEPRECATED_USAGE
-                )
+                containsInAnyOrder(TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT, TestDeprecationHeaderRestAction.DEPRECATED_USAGE)
             );
 
             assertBusy(() -> {

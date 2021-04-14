@@ -397,7 +397,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
 
         final DiscoveryNode otherMasterNode = makeDiscoveryNode("other-master");
         final DiscoveryNode otherNonMasterNode = new DiscoveryNode("other-non-master", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream()
                 .filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).collect(Collectors.toList())),
             Version.CURRENT);
 
@@ -439,7 +439,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         if (randomBoolean()) {
             attributes.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

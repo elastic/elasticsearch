@@ -67,7 +67,8 @@ public class DenseVectorFunctionTests extends ESTestCase {
         double result = function.dotProduct();
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, result, 0.001);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, invalidQueryVector, field));
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 
@@ -86,7 +87,8 @@ public class DenseVectorFunctionTests extends ESTestCase {
         double result = function.l1norm();
         assertEquals("l1norm result is not equal to the expected value!", 485.184, result, 0.001);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,  () -> new L1Norm(scoreScript, invalidQueryVector, field));
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class,  () -> new L1Norm(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 

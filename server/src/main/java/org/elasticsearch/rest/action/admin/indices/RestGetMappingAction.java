@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,11 +32,13 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestGetMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
         + " mapping requests is deprecated. The parameter will be removed in the next major version.";
+    public static final String MSG = "";
 
     private final ThreadPool threadPool;
 
@@ -48,8 +51,13 @@ public class RestGetMappingAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_mapping"),
             new Route(GET, "/_mappings"),
+            Route.builder(GET, "/{index}/{type}/_mapping").deprecated(MSG, RestApiVersion.V_7).build(),
             new Route(GET, "/{index}/_mapping"),
-            new Route(GET, "/{index}/_mappings"));
+            new Route(GET, "/{index}/_mappings"),
+            Route.builder(GET, "/{index}/_mappings/{type}").deprecated(MSG, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_mapping/{type}").deprecated(MSG, RestApiVersion.V_7).build(),
+            Route.builder(HEAD, "/{index}/_mapping/{type}").deprecated(MSG, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_mapping/{type}").deprecated(MSG, RestApiVersion.V_7).build());
     }
 
     @Override

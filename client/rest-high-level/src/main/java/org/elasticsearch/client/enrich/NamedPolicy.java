@@ -55,7 +55,8 @@ public final class NamedPolicy {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS_FIELD);
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), MATCH_FIELD_FIELD);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
+
     }
 
     public static NamedPolicy fromXContent(XContentParser parser) throws IOException {

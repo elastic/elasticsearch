@@ -339,6 +339,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
         AggregationBuilder builder = new FiltersAggregationBuilder(
@@ -584,6 +585,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
@@ -658,6 +660,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
@@ -723,6 +726,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
+            null,
             null,
             Collections.emptyMap()
         );

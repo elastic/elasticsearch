@@ -423,6 +423,8 @@ public class Constants {
         "indices:data/write/update",
         "indices:data/write/update/byquery",
         "indices:monitor/data_stream/stats",
+        "indices:monitor/fleet/global_checkpoints[s]",
+        "indices:monitor/fleet/global_checkpoints",
         "indices:monitor/recovery",
         "indices:monitor/segments",
         "indices:monitor/settings/get",

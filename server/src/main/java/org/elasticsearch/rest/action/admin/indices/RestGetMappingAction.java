@@ -67,7 +67,7 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             request.param(INCLUDE_TYPE_NAME_PARAMETER);
             deprecationLogger.compatibleApiWarning("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }

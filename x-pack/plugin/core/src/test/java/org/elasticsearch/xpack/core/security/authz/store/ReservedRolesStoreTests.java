@@ -230,6 +230,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("snapshot_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("code_admin"), is(false));
         assertThat(ReservedRolesStore.isReserved("code_user"), is(false));
+        assertThat(ReservedRolesStore.isReserved("viewer"), is(false));
+        assertThat(ReservedRolesStore.isReserved("editor"), is(false));
     }
 
     public void testSnapshotUserRole() {
@@ -1653,6 +1655,164 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2));
+    }
+
+    public void testPredefinedViewerRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("viewer");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        // No cluster privileges
+        assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+        // Check index privileges
+        assertOnlyReadAllowed(role, "observability-annotations");
+        assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "metrics-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "synthetics-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "traces-apm." + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "filebeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "metricbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "heardbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "kibana_sample_data_-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "filebeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "packetbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "winlogbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, randomAlphaOfLength(5));
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+        // Check application privileges
+        assertKibanaFeatureReadButNotAll(role, "feature_discover");
+        assertKibanaFeatureReadButNotAll(role, "feature_dashboard");
+        assertKibanaFeatureReadButNotAll(role, "feature_canvas");
+        assertKibanaFeatureReadButNotAll(role, "feature_maps");
+        assertKibanaFeatureReadButNotAll(role, "feature_ml");
+        assertKibanaFeatureReadButNotAll(role, "feature_graph");
+        assertKibanaFeatureReadButNotAll(role, "feature_visualize");
+        assertKibanaFeatureReadButNotAll(role, "feature_logs");
+        assertKibanaFeatureReadButNotAll(role, "feature_infrastructure");
+        assertKibanaFeatureReadButNotAll(role, "feature_apm");
+        assertKibanaFeatureReadButNotAll(role, "feature_uptime");
+        assertKibanaFeatureReadButNotAll(role, "feature_siem");
+        assertKibanaFeatureReadButNotAll(role, "feature_dev_tools");
+        assertKibanaFeatureReadButNotAll(role, "feature_advancedSettings");
+        assertKibanaFeatureReadButNotAll(role, "feature_indexPatterns");
+        assertKibanaFeatureReadButNotAll(role, "feature_savedObjectsManagement");
+        assertKibanaFeatureReadButNotAll(role, "feature_savedObjectsTagging");
+        assertKibanaFeatureReadButNotAll(role, "feature_fleet");
+        assertKibanaFeatureReadButNotAll(role, "feature_actions");
+        assertKibanaFeatureReadButNotAll(role, "feature_stackAlerts");
+    }
+
+    public void testPredefinedEditorRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("editor");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+
+        // No cluster privileges
+        assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
+
+        // Check index privileges
+        assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "metrics-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "synthetics-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "traces-apm." + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "filebeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "metricbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "heardbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "kibana_sample_data_-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "filebeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "packetbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "winlogbeat-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, randomAlphaOfLength(5));
+
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".lists-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".items-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        // Check application privileges
+        assertKibanaFeatureAll(role, "feature_discover");
+        assertKibanaFeatureAll(role, "feature_dashboard");
+        assertKibanaFeatureAll(role, "feature_canvas");
+        assertKibanaFeatureAll(role, "feature_maps");
+        assertKibanaFeatureAll(role, "feature_ml");
+        assertKibanaFeatureAll(role, "feature_graph");
+        assertKibanaFeatureAll(role, "feature_visualize");
+        assertKibanaFeatureAll(role, "feature_logs");
+        assertKibanaFeatureAll(role, "feature_infrastructure");
+        assertKibanaFeatureAll(role, "feature_apm");
+        assertKibanaFeatureAll(role, "feature_uptime");
+        assertKibanaFeatureAll(role, "feature_siem");
+        assertKibanaFeatureAll(role, "feature_dev_tools");
+        assertKibanaFeatureAll(role, "feature_advancedSettings");
+        assertKibanaFeatureAll(role, "feature_indexPatterns");
+        assertKibanaFeatureAll(role, "feature_savedObjectsManagement");
+        assertKibanaFeatureAll(role, "feature_savedObjectsTagging");
+        assertKibanaFeatureAll(role, "feature_fleet");
+        assertKibanaFeatureAll(role, "feature_actions");
+        assertKibanaFeatureAll(role, "feature_stackAlerts");
+    }
+
+    private void assertKibanaFeatureReadButNotAll(Role role, String featureName) {
+        assertThat(role.application()
+            .grants(new ApplicationPrivilege("kibana-.kibana", "kibana-" + featureName + ".read", featureName + ".read"), "*"), is(true));
+        assertThat(role.application()
+            .grants(new ApplicationPrivilege("kibana-.kibana", "kibana-" + featureName + ".all", featureName + ".all"), "*"), is(false));
+    }
+
+    private void assertKibanaFeatureAll(Role role, String featureName) {
+        assertThat(role.application()
+            .grants(new ApplicationPrivilege("kibana-.kibana", "kibana-" + featureName + ".all", featureName + ".all"), "*"), is(true));
+    }
+
+    private void assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(Role role, String index) {
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher("indices:admin/refresh*").test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher("indices:admin/flush*").test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher("indices:admin/synced_flush").test(mockIndexAbstraction(index)), is(true));
+        assertThat(role.indices().allowedIndicesMatcher("indices:admin/forcemerge*").test(mockIndexAbstraction(index)), is(true));
     }
 
     private void assertReadWriteDocsButNotDeleteIndexAllowed(Role role, String index) {

@@ -16,11 +16,6 @@ setup:
                     type: long
                   geo_point:
                     type: geo_point
-                  nested:
-                    type: nested
-                    properties:
-                      nested_long:
-                        type: long
 
   - do:
         indices.create:
@@ -32,11 +27,6 @@ setup:
                   type: date
                 long:
                   type: long
-                nested:
-                  type: nested
-                  properties:
-                    nested_long:
-                      type: long
 
   - do:
         indices.create:
@@ -143,7 +133,7 @@ setup:
       index:
         index: test
         id:    1
-        body:  { "keyword": "foo", "long": [10, 20], "geo_point": "37.2343,-115.8067", "nested": [{"nested_long": 10}, {"nested_long": 20}] }
+        body:  { "keyword": "foo", "long": [10, 20], "geo_point": "37.2343,-115.8067"}
 
   - do:
       index:
@@ -155,13 +145,13 @@ setup:
       index:
         index: test
         id:    3
-        body:  { "keyword": "bar", "long": [100, 0], "geo_point": "90.0,0.0", "nested": [{"nested_long": 10}, {"nested_long": 0}] }
+        body:  { "keyword": "bar", "long": [100, 0], "geo_point": "90.0,0.0"}
 
   - do:
       index:
         index: test
         id:    4
-        body:  { "keyword": "bar", "long": [1000, 0], "geo_point": "41.12,-71.34", "nested": [{"nested_long": 1000}, {"nested_long": 20}] }
+        body:  { "keyword": "bar", "long": [1000, 0], "geo_point": "41.12,-71.34"}
 
   - do:
       index:
@@ -331,7 +321,7 @@ setup:
               terms:
                 field: long
               aggs:
-                nested:
+                invalid_child:
                   composite:
                     sources: [
                       {
@@ -550,67 +540,6 @@ setup:
                       }
                     }
                   ]
-
----
-"Composite aggregation with nested parent":
-  - do:
-        search:
-          rest_total_hits_as_int: true
-          index: test
-          body:
-            aggregations:
-              1:
-                nested:
-                  path: nested
-                aggs:
-                  2:
-                    composite:
-                      sources: [
-                        "nested": {
-                          "terms": {
-                            "field": "nested.nested_long"
-                        }
-                      }
-                    ]
-
-  - match: {hits.total: 6}
-  - length: { aggregations.1.2.buckets: 4 }
-  - match: { aggregations.1.2.buckets.0.key.nested: 0 }
-  - match: { aggregations.1.2.buckets.0.doc_count:  1 }
-  - match: { aggregations.1.2.buckets.1.key.nested: 10 }
-  - match: { aggregations.1.2.buckets.1.doc_count:  2 }
-  - match: { aggregations.1.2.buckets.2.key.nested: 20 }
-  - match: { aggregations.1.2.buckets.2.doc_count:  2 }
-  - match: { aggregations.1.2.buckets.3.key.nested: 1000 }
-  - match: { aggregations.1.2.buckets.3.doc_count:  1 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          aggregations:
-            1:
-              nested:
-                path: nested
-              aggs:
-                2:
-                  composite:
-                    after: { "nested": 10 }
-                    sources: [
-                      "nested": {
-                        "terms": {
-                          "field": "nested.nested_long"
-                        }
-                      }
-                    ]
-
-  - match: {hits.total: 6}
-  - length: { aggregations.1.2.buckets: 2 }
-  - match: { aggregations.1.2.buckets.0.key.nested: 20 }
-  - match: { aggregations.1.2.buckets.0.doc_count:  2 }
-  - match: { aggregations.1.2.buckets.1.key.nested: 1000 }
-  - match: { aggregations.1.2.buckets.1.doc_count:  1 }
 
 ---
 "Composite aggregation with unmapped field":

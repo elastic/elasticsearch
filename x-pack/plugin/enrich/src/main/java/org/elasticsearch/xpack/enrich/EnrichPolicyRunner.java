@@ -231,8 +231,7 @@ public class EnrichPolicyRunner implements Runnable {
             parent.append(fieldPart);
         }
     }
-
-    @SuppressWarnings("unchecked")
+    
     private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
         // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
         final String keyType;

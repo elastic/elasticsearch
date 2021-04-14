@@ -179,7 +179,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeBoolean(true);
         }
         out.writeVInt(statsByShard.size());

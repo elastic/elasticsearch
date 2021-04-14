@@ -52,6 +52,7 @@ This page lists all the available search queries with their corresponding `Query
 | {ref}/query-dsl-dis-max-query.html[Dis Max]                         | {query-ref}/DisMaxQueryBuilder.html[DisMaxQueryBuilder]                             | {query-ref}/QueryBuilders.html#disMaxQuery--[QueryBuilders.disMaxQuery()]
 | {ref}/query-dsl-function-score-query.html[Function Score]           | {query-ref}/functionscore/FunctionScoreQueryBuilder.html[FunctionScoreQueryBuilder] | {query-ref}/QueryBuilders.html#functionScoreQuery-org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder:A-[QueryBuilders.functionScoreQuery()]
 | {ref}/query-dsl-boosting-query.html[Boosting]                       | {query-ref}/BoostingQueryBuilder.html[BoostingQueryBuilder]                         | {query-ref}/QueryBuilders.html#boostingQuery-org.elasticsearch.index.query.QueryBuilder-org.elasticsearch.index.query.QueryBuilder-[QueryBuilders.boostingQuery()]
+| {ref}/query-dsl-first-query.html[First]                             | {query-ref}/FirstQueryBuilder.html[FirstQueryBuilder]                               | {query-ref}/QueryBuilders.html#firstQuery-org.elasticsearch.index.query.QueryBuilder-org.elasticsearch.index.query.QueryBuilder-[QueryBuilders.firstQuery()]
 |======
 
 ==== Joining queries

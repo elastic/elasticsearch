@@ -1,0 +1,115 @@
+setup:
+  - do:
+      indices.create:
+        index: job_applicants
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+          mappings:
+            properties:
+              skills:
+                type: keyword
+
+  - do:
+      bulk:
+        index: job_applicants
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"skills": "Java"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"skills": "Scala"}'
+          - '{"index": {"_id": "3"}}'
+          - '{"skills": ["Java", "Scala"]}'
+
+---
+"Test docs get scores from a first matching query from the list, 1st query in the list has a higher score ":
+  - skip:
+      version: " - 7.9.99"
+      reason: "First query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "first": {
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": { "source": "10.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scala"
+                        }
+                      },
+                      "script": {"source": "5.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "3" }
+  - match: { hits.hits.1._score: 10 } #3rd doc that has both "Java" and "Scala" gets a score from the 1st query
+  - match: { hits.hits.2._id : "2" }
+  - match: { hits.hits.2._score: 5 }
+
+
+---
+"Test docs get scores from a first matching query from the list, 1st query in the list has a lower score ":
+  - skip:
+      version: " - 7.9.99"
+      reason: "First query was added from 8.0"
+  - do:
+      search:
+        index: job_applicants
+        body:  >
+          {
+            "query": {
+              "first": {
+                "queries": [
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Scala"
+                        }
+                      },
+                      "script": { "source": "5.0"}
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": {
+                        "match": {
+                          "skills": "Java"
+                        }
+                      },
+                      "script": {"source": "10.0"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id : "1" }
+  - match: { hits.hits.0._score: 10 }
+  - match: { hits.hits.1._id : "2" }
+  - match: { hits.hits.1._score: 5 }
+  - match: { hits.hits.2._id : "3" }
+  - match: { hits.hits.2._score: 5 }  #3rd doc that has both "Java" and "Scala" gets a score from the 1st query

@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
@@ -287,6 +288,10 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     public long getCachedSize(ShardId shardId, SnapshotId snapshotId) {
         return persistentCache.getCacheSize(shardId, snapshotId);
+    }
+
+    public Stats getStats() {
+        return new CacheService.Stats(cache.stats(), persistentCache.getStats());
     }
 
     /**
@@ -782,4 +787,46 @@ public class CacheService extends AbstractLifecycleComponent {
         }
     }
 
+    public static class Stats {
+
+        private final long hits;
+        private final long misses;
+        private final long evictions;
+        private final long persistentCacheDocs;
+        private final long persistentCacheDeletedDocs;
+        private final long persistentCacheIndexSizeInBytes;
+
+        private Stats(Cache.CacheStats cacheStats, DocsStats persistentCacheStats) {
+            this.hits = cacheStats.getHits();
+            this.misses = cacheStats.getMisses();
+            this.evictions = cacheStats.getEvictions();
+            this.persistentCacheDocs = persistentCacheStats.getCount();
+            this.persistentCacheDeletedDocs = persistentCacheStats.getDeleted();
+            this.persistentCacheIndexSizeInBytes = persistentCacheStats.getTotalSizeInBytes();
+        }
+
+        public long getHits() {
+            return hits;
+        }
+
+        public long getMisses() {
+            return misses;
+        }
+
+        public long getEvictions() {
+            return evictions;
+        }
+
+        public long getPersistentCacheDocs() {
+            return persistentCacheDocs;
+        }
+
+        public long getPersistentCacheDeletedDocs() {
+            return persistentCacheDeletedDocs;
+        }
+
+        public long getPersistentCacheIndexSizeInBytes() {
+            return persistentCacheIndexSizeInBytes;
+        }
+    }
 }

@@ -48,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -175,7 +176,9 @@ public class FrozenCacheService implements Releasable {
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
 
+    private final int numRegions;
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger freeRegionsCounter = new AtomicInteger();
     private final Entry<CacheFileRegion>[] freqs;
     private final int maxFreq;
     private final long minTimeDelta;
@@ -189,7 +192,7 @@ public class FrozenCacheService implements Releasable {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        final int numRegions = Math.toIntExact(cacheSize / regionSize);
+        this.numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
         if (Assertions.ENABLED) {
             regionOwners = new AtomicReference[numRegions];
@@ -201,6 +204,7 @@ public class FrozenCacheService implements Releasable {
         }
         for (int i = 0; i < numRegions; i++) {
             freeRegions.add(i);
+            freeRegionsCounter.incrementAndGet();
         }
         this.regionSize = regionSize;
         assert regionSize > 0L;
@@ -300,6 +304,8 @@ public class FrozenCacheService implements Releasable {
                 if (freeSlot != null) {
                     // no need to evict an item, just add
                     entry.chunk.sharedBytesPos = freeSlot;
+                    final int freeRegionsCount = freeRegionsCounter.decrementAndGet();
+                    assert freeRegionsCount >= 0 : freeRegionsCount;
                     assert regionOwners[freeSlot].compareAndSet(null, entry.chunk);
                     synchronized (this) {
                         pushEntryToBack(entry);
@@ -312,6 +318,8 @@ public class FrozenCacheService implements Releasable {
                     final Integer freeSlotRetry = freeRegions.poll();
                     if (freeSlotRetry != null) {
                         entry.chunk.sharedBytesPos = freeSlotRetry;
+                        final int freeRegionsCount = freeRegionsCounter.decrementAndGet();
+                        assert freeRegionsCount >= 0 : freeRegionsCount;
                         assert regionOwners[freeSlotRetry].compareAndSet(null, entry.chunk);
                         synchronized (this) {
                             pushEntryToBack(entry);
@@ -340,11 +348,17 @@ public class FrozenCacheService implements Releasable {
     public void onClose(CacheFileRegion chunk) {
         assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
         freeRegions.add(chunk.sharedBytesPos);
+        final int freeRegionsCount = freeRegionsCounter.incrementAndGet();
+        assert freeRegionsCount > 0 : freeRegionsCount;
     }
 
     // used by tests
     int freeRegionCount() {
-        return freeRegions.size();
+        return freeRegionsCounter.get();
+    }
+
+    public Stats getStats() {
+        return new Stats(regionSize, numRegions, freeRegionsCounter.get());
     }
 
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
@@ -827,5 +841,30 @@ public class FrozenCacheService implements Releasable {
     public interface RangeMissingHandler {
         void fillCacheRange(SharedBytes.IO channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
             throws IOException;
+    }
+
+    public static class Stats {
+
+        private final long regionSize;
+        private final int totalRegions;
+        private final int freeRegions;
+
+        private Stats(long regionSize, int totalRegions, int freeRegions) {
+            this.regionSize = regionSize;
+            this.totalRegions = totalRegions;
+            this.freeRegions = freeRegions;
+        }
+
+        public long getRegionSize() {
+            return regionSize;
+        }
+
+        public int getTotalRegions() {
+            return totalRegions;
+        }
+
+        public int getFreeRegions() {
+            return freeRegions;
+        }
     }
 }

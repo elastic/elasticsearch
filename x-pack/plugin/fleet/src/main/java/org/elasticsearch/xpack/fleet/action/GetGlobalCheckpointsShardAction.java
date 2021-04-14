@@ -76,14 +76,14 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         private final ShardId shardId;
         private final boolean waitForAdvance;
         private final long currentCheckpoint;
-        private final TimeValue pollTimeout;
+        private final TimeValue timeout;
 
-        Request(ShardId shardId, boolean waitForAdvance, long currentCheckpoint, TimeValue pollTimeout) {
+        Request(ShardId shardId, boolean waitForAdvance, long currentCheckpoint, TimeValue timeout) {
             super(shardId.getIndexName());
             this.shardId = shardId;
             this.waitForAdvance = waitForAdvance;
             this.currentCheckpoint = currentCheckpoint;
-            this.pollTimeout = pollTimeout;
+            this.timeout = timeout;
         }
 
         Request(StreamInput in) throws IOException {
@@ -91,7 +91,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             this.shardId = new ShardId(in);
             this.waitForAdvance = in.readBoolean();
             this.currentCheckpoint = in.readLong();
-            this.pollTimeout = in.readTimeValue();
+            this.timeout = in.readTimeValue();
         }
 
         @Override
@@ -103,8 +103,8 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             return shardId;
         }
 
-        public TimeValue pollTimeout() {
-            return pollTimeout;
+        public TimeValue timeout() {
+            return timeout;
         }
 
         public boolean waitForAdvance() {
@@ -121,7 +121,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             shardId.writeTo(out);
             out.writeBoolean(waitForAdvance);
             out.writeLong(currentCheckpoint);
-            out.writeTimeValue(pollTimeout);
+            out.writeTimeValue(timeout);
         }
     }
 
@@ -178,21 +178,17 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                         @Override
                         public void accept(final long g, final Exception e) {
                             if (g != UNASSIGNED_SEQ_NO) {
-                                assert request.currentCheckpoint() < g : shardId
-                                    + " only advanced to ["
-                                    + g
-                                    + "] while waiting for ["
-                                    + request.currentCheckpoint()
-                                    + "]";
+                                assert request.currentCheckpoint() < g
+                                    : shardId + " only advanced to [" + g + "] while waiting for [" + request.currentCheckpoint() + "]";
                                 globalCheckpointAdvanced(shardId, request, listener);
                             } else {
                                 assert e != null;
-                                globalCheckpointAdvancementFailure(shardId, request.pollTimeout(), e, listener);
+                                globalCheckpointAdvancementFailure(shardId, request.timeout(), e, listener);
                             }
                         }
 
                     },
-                    request.pollTimeout()
+                    request.timeout()
                 );
             } else {
                 super.asyncShardOperation(request, shardId, listener);

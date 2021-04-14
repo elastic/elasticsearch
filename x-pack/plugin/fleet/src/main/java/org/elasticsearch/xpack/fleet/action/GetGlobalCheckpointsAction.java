@@ -42,6 +42,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsAction.Response> {
 
@@ -102,22 +103,27 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         private final String index;
         private final boolean waitForAdvance;
         private final long[] checkpoints;
-        private final TimeValue pollTimeout;
+        private final TimeValue timeout;
 
-        public Request(String index, boolean waitForAdvance, long[] checkpoints, TimeValue pollTimeout) {
+        public Request(String index, boolean waitForAdvance, long[] checkpoints, TimeValue timeout) {
             this.index = index;
             this.waitForAdvance = waitForAdvance;
             this.checkpoints = checkpoints;
-            this.pollTimeout = pollTimeout;
+            this.timeout = timeout;
         }
 
         @Override
         public ActionRequestValidationException validate() {
+            if (Arrays.stream(checkpoints).anyMatch(l -> l < -1)) {
+                ActionRequestValidationException e = new ActionRequestValidationException();
+                e.addValidationError("All checkpoints must be >= -1. Found: " + Arrays.toString(checkpoints));
+                return e;
+            }
             return null;
         }
 
-        public TimeValue pollTimeout() {
-            return pollTimeout;
+        public TimeValue timeout() {
+            return timeout;
         }
 
         public boolean waitForAdvance() {
@@ -216,7 +222,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     new ShardId(indexMetadata.getIndex(), shardIndex),
                     request.waitForAdvance(),
                     checkpoints[shardIndex],
-                    request.pollTimeout()
+                    request.timeout()
                 );
 
                 client.execute(GetGlobalCheckpointsShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {

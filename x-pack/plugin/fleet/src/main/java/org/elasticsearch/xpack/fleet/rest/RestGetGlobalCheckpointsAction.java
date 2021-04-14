@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -27,7 +28,7 @@ public class RestGetGlobalCheckpointsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_fleet/global_checkpoints"));
+        return Collections.singletonList(new Route(GET, "/{index}/_fleet/global_checkpoints"));
     }
 
     @Override

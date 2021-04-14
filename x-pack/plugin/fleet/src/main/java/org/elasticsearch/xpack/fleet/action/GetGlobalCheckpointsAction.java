@@ -148,7 +148,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             final NodeClient client,
             final IndexNameExpressionResolver resolver
         ) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
             this.clusterService = clusterService;
             this.client = client;
             this.resolver = resolver;
@@ -215,31 +215,35 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     request.timeout()
                 );
 
-                client.execute(GetGlobalCheckpointsShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(GetGlobalCheckpointsShardAction.Response response) {
-                        assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
-                        if (response.timedOut()) {
-                            timedOut.set(true);
-                        }
-                        responses.set(shardIndex, response);
-                        if (countDown.countDown()) {
-                            long[] globalCheckpoints = new long[responses.length()];
-                            int i = 0;
-                            for (GetGlobalCheckpointsShardAction.Response r : responses.asList()) {
-                                globalCheckpoints[i++] = r.getGlobalCheckpoint();
+                client.execute(
+                    GetGlobalCheckpointsShardAction.INSTANCE,
+                    shardChangesRequest,
+                    new ActionListener<GetGlobalCheckpointsShardAction.Response>() {
+                        @Override
+                        public void onResponse(GetGlobalCheckpointsShardAction.Response response) {
+                            assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
+                            if (response.timedOut()) {
+                                timedOut.set(true);
                             }
-                            listener.onResponse(new Response(timedOut.get(), globalCheckpoints));
+                            responses.set(shardIndex, response);
+                            if (countDown.countDown()) {
+                                long[] globalCheckpoints = new long[responses.length()];
+                                int i = 0;
+                                for (GetGlobalCheckpointsShardAction.Response r : responses.asList()) {
+                                    globalCheckpoints[i++] = r.getGlobalCheckpoint();
+                                }
+                                listener.onResponse(new Response(timedOut.get(), globalCheckpoints));
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (countDown.fastForward()) {
-                            listener.onFailure(e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (countDown.fastForward()) {
+                                listener.onFailure(e);
+                            }
                         }
                     }
-                });
+                );
             }
         }
     }

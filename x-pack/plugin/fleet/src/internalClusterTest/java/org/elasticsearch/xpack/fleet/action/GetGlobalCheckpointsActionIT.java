@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0.0D)
 public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
     public static final TimeValue TEN_SECONDS = TimeValue.timeValueSeconds(10);
@@ -71,7 +72,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = shards * 3;
         for (int i = 0; i < totalDocuments; ++i) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex(indexName, "_doc").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final GetGlobalCheckpointsAction.Request request2 = new GetGlobalCheckpointsAction.Request(
@@ -120,7 +121,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         final int totalDocuments = between(25, 50);
         new Thread(() -> {
             for (int i = 0; i < totalDocuments; ++i) {
-                client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
+                client().prepareIndex(indexName, "_doc").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
             }
         }).start();
 
@@ -155,7 +156,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = 30;
         for (int i = 0; i < totalDocuments; ++i) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex(indexName, "_doc").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(

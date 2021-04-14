@@ -218,7 +218,7 @@ some time. After observing its results, we decide that we can employ rules to
 get rid of some uninteresting results. We can use the 
 {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the rule 
 we added will only be in effect for any results created from the moment we
-added the rule onwards. Past results remains unaffected.
+added the rule onwards. Past results remain unaffected.
 
 [[ml-custom-rules-filtering]]
 == Using custom rules vs. filtering data

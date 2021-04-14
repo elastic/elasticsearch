@@ -30,7 +30,7 @@ public final class InferenceIndexConstants {
      * version: UNKNOWN_MERGED_ON_FEATURE_BRANCH: 000004   TODO
      *  - adds binary_definition for TrainedModelDefinitionDoc
      */
-    public static final String INDEX_VERSION = "000003";
+    public static final String INDEX_VERSION = "000004";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;

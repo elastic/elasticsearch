@@ -9,19 +9,16 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -177,17 +174,6 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
                 }
             };
-        }
-    }
-
-    static class Resolver extends IndexNameExpressionResolver {
-        Resolver() {
-            super(new ThreadContext(Settings.EMPTY));
-        }
-
-        @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
-            return request.indices();
         }
     }
 }

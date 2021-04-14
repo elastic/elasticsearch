@@ -77,9 +77,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), License.LicenseType.TRIAL.getTypeName())
             .build();
     }
@@ -574,7 +574,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         );
 
         internalCluster().fullRestart();
-        ensureStableCluster(2);
+        ensureGreen();
         // maybe recreate the repository
         if (randomBoolean()) {
             deleteRepository(repositoryName);
@@ -617,7 +617,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             goodPassword
         );
         internalCluster().fullRestart();
-        ensureStableCluster(2);
+        ensureGreen();
         // ensure get snapshot works
         getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());

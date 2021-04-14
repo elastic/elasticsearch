@@ -26,8 +26,6 @@ import java.util.function.Supplier;
  */
 public final class TextParams {
 
-    public static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
-
     private TextParams() {}
 
     public static final class Analyzers {
@@ -66,9 +64,9 @@ public final class TextParams {
                 })
                 .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), POSITION_INCREMENT_GAP_USE_ANALYZER)
+                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
                 .setValidator(v -> {
-                    if (v != POSITION_INCREMENT_GAP_USE_ANALYZER && v < 0) {
+                    if (v < 0) {
                         throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
                     }
                 });
@@ -88,7 +86,7 @@ public final class TextParams {
         }
 
         private NamedAnalyzer wrapAnalyzer(NamedAnalyzer a) {
-            if (positionIncrementGap.get() == POSITION_INCREMENT_GAP_USE_ANALYZER) {
+            if (positionIncrementGap.isConfigured() == false) {
                 return a;
             }
             return new NamedAnalyzer(a, positionIncrementGap.get());

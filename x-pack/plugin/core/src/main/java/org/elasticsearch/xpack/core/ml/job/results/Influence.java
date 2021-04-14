@@ -34,6 +34,7 @@ public class Influence implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Influence, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<Influence, Void> LENIENT_PARSER = createParser(true);
 
+    @SuppressWarnings({ "unchecked"})
     private static ConstructingObjectParser<Influence, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<Influence, Void> parser = new ConstructingObjectParser<>(INFLUENCER.getPreferredName(),
                 ignoreUnknownFields, a -> new Influence((String) a[0], (List<String>) a[1]));

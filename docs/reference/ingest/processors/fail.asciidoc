@@ -13,7 +13,7 @@ to the requester.
 [options="header"]
 |======
 | Name       | Required  | Default  | Description
-| `message`  | yes       | -        | The error message thrown by the processor. Supports <<accessing-template-fields,template snippets>>.
+| `message`  | yes       | -        | The error message thrown by the processor. Supports <<template-snippets,template snippets>>.
 include::common-options.asciidoc[]
 |======
 
@@ -22,7 +22,7 @@ include::common-options.asciidoc[]
 {
   "fail": {
     "if" : "ctx.tags.contains('production') != true",
-    "message": "The production tag is not present, found tags: {{tags}}"
+    "message": "The production tag is not present, found tags: {{{tags}}}"
   }
 }
 --------------------------------------------------

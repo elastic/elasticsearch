@@ -789,7 +789,7 @@ public class BytesStreamsTests extends ESTestCase {
                     assertEquals(i, ints[i]);
                 }
                 EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
-                assertEquals("tried to read: 100 bytes but this stream is limited to: 82", eofException.getMessage());
+                assertEquals("tried to read: 100 bytes but only 40 remaining", eofException.getMessage());
             }
         }
     }

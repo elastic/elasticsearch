@@ -29,8 +29,10 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.StringFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregator.CollectConsumer;
@@ -70,16 +72,16 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         super(name, context, parent, subFactoriesBuilder, metadata);
 
         this.fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
-            throw new IllegalArgumentException("Field [" + fieldName + "] does not exist, SignificantText " +
-                "requires an analyzed field");
+        if (fieldType != null) {
+            if (supportsAgg(fieldType) == false) {
+                throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
+                    "requires an analyzed field");
+            }            
+            String indexedFieldName = fieldType.name();
+            this.sourceFieldNames = sourceFieldNames == null ? new String[] {indexedFieldName} : sourceFieldNames;
+        } else {
+            this.sourceFieldNames = new String[0];
         }
-        if (supportsAgg(fieldType) == false) {
-            throw new IllegalArgumentException("Field [" + fieldType.name() + "] has no analyzer, but SignificantText " +
-                "requires an analyzed field");
-        }
-        String indexedFieldName = fieldType.name();
-        this.sourceFieldNames = sourceFieldNames == null ? new String[] {indexedFieldName} : sourceFieldNames;
 
         this.includeExclude = includeExclude;
         this.backgroundFilter = backgroundFilter;
@@ -87,6 +89,17 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
     }
+    
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(), metadata);
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return aggregation;
+            }
+        };
+    }    
 
     private static boolean supportsAgg(MappedFieldType ft) {
         return ft.getTextSearchInfo() != TextSearchInfo.NONE
@@ -96,6 +109,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
+        
+        if (fieldType == null) {
+            return createUnmapped(parent, metadata);
+        }
+        
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection.

@@ -21,8 +21,6 @@ include::delete-snapshot.asciidoc[leveloffset=+2]
 include::delete-expired-data.asciidoc[leveloffset=+2]
 //ESTIMATE
 include::estimate-model-memory.asciidoc[leveloffset=+2]
-//FIND
-include::find-file-structure.asciidoc[leveloffset=+2]
 //FLUSH
 include::flush-job.asciidoc[leveloffset=+2]
 //FORECAST

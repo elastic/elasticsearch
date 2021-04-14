@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
@@ -103,12 +104,9 @@ public class MetadataMappingService {
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper existingMapper = mapperService.documentMapper();
-                DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
-                if (existingMapper != null) {
-                    // first, simulate: just call merge and ignore the result
-                    existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
-                }
+                // first, simulate: just call merge and ignore the result
+                Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
+                MapperService.mergeMappings(mapperService.documentMapper(), mapping, MergeReason.MAPPING_UPDATE);
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;

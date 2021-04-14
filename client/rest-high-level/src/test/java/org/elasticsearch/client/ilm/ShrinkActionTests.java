@@ -45,13 +45,13 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
         assertThat(e.getMessage(), equalTo("[number_of_shards] must be greater than 0"));
     }
 
-    public void testMaxSinglePrimarySize() {
-        ByteSizeValue maxSinglePrimarySize1 = new ByteSizeValue(10);
-        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxSinglePrimarySize1));
-        assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_single_primary_size]"));
+    public void testMaxPrimaryShardSize() {
+        ByteSizeValue maxPrimaryShardSize1 = new ByteSizeValue(10);
+        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1));
+        assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
 
-        ByteSizeValue maxSinglePrimarySize2 = new ByteSizeValue(0);
-        Exception e2 = expectThrows(Exception.class, () -> new org.elasticsearch.client.ilm.ShrinkAction(null, maxSinglePrimarySize2));
-        assertThat(e2.getMessage(), equalTo("[max_single_primary_size] must be greater than 0"));
+        ByteSizeValue maxPrimaryShardSize2 = new ByteSizeValue(0);
+        Exception e2 = expectThrows(Exception.class, () -> new org.elasticsearch.client.ilm.ShrinkAction(null, maxPrimaryShardSize2));
+        assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
 }

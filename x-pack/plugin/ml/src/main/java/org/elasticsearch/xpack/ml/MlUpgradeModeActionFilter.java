@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -51,22 +52,25 @@ import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * {@link MlUpgradeModeActionFilter} disallows certain actions if the cluster is currently in upgrade mode.
  *
  * Disallowed actions are the ones which can access/alter the state of ML internal indices.
+ *
+ * There is a complication that the feature reset API knows nothing about ML upgrade mode.  If the feature
+ * reset API is called while ML upgrade mode is enabled then it takes precedence and resets the ML state.
+ * This means that all ML entities will be deleted and upgrade mode will be disabled if the reset completes
+ * successfully.
  */
 class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
     private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE =
-        Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        Collections.unmodifiableSet(Sets.newHashSet(
             PutJobAction.NAME,
             UpdateJobAction.NAME,
             DeleteJobAction.NAME,
@@ -113,18 +117,43 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
             PutTrainedModelAction.NAME,
             DeleteTrainedModelAction.NAME
-        )));
+        ));
 
-    private final AtomicBoolean isUpgradeMode = new AtomicBoolean();
+    private static final Set<String> RESET_MODE_EXEMPTIONS =
+        Collections.unmodifiableSet(Sets.newHashSet(
+            DeleteJobAction.NAME,
+            CloseJobAction.NAME,
+
+            DeleteDatafeedAction.NAME,
+            StopDatafeedAction.NAME,
+
+            KillProcessAction.NAME,
+
+            DeleteDataFrameAnalyticsAction.NAME,
+            StopDataFrameAnalyticsAction.NAME,
+
+            DeleteTrainedModelAction.NAME
+        ));
+
+    // At the time the action filter is installed no cluster state is available, so
+    // initialise to false/false and let the first change event set the real values
+    private final AtomicReference<UpgradeResetFlags> upgradeResetFlags = new AtomicReference<>(new UpgradeResetFlags(false, false));
 
     MlUpgradeModeActionFilter(ClusterService clusterService) {
         Objects.requireNonNull(clusterService);
-        clusterService.addListener(this::setIsUpgradeMode);
+        clusterService.addListener(this::setUpgradeResetFlags);
     }
 
     @Override
     protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
-        if (isUpgradeMode.get() && ACTIONS_DISALLOWED_IN_UPGRADE_MODE.contains(action)) {
+        // Ensure the same object is used for both tests
+        UpgradeResetFlags localUpgradeResetFlags = upgradeResetFlags.get();
+        assert localUpgradeResetFlags != null;
+        // If we are in upgrade mode but a reset is being done then allow the destructive actions that reset mode uses
+        if (localUpgradeResetFlags.isResetMode && RESET_MODE_EXEMPTIONS.contains(action)) {
+            return true;
+        }
+        if (localUpgradeResetFlags.isUpgradeMode && ACTIONS_DISALLOWED_IN_UPGRADE_MODE.contains(action)) {
             throw new ElasticsearchStatusException(
                 "Cannot perform {} action while upgrade mode is enabled", RestStatus.TOO_MANY_REQUESTS, action);
         }
@@ -143,7 +172,23 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
     }
 
     // Visible for testing
-    void setIsUpgradeMode(ClusterChangedEvent event) {
-        isUpgradeMode.set(MlMetadata.getMlMetadata(event.state()).isUpgradeMode());
+    void setUpgradeResetFlags(ClusterChangedEvent event) {
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(event.state());
+        upgradeResetFlags.set(new UpgradeResetFlags(mlMetadata.isUpgradeMode(), mlMetadata.isResetMode()));
+    }
+
+    /**
+     * Class to allow both upgrade and reset flags to be recorded atomically so that code that checks both
+     * one after the other doesn't see inconsistent values.
+     */
+    private static class UpgradeResetFlags {
+
+        final boolean isUpgradeMode;
+        final boolean isResetMode;
+
+        UpgradeResetFlags(boolean isUpgradeMode, boolean isResetMode) {
+            this.isUpgradeMode = isUpgradeMode;
+            this.isResetMode = isResetMode;
+        }
     }
 }

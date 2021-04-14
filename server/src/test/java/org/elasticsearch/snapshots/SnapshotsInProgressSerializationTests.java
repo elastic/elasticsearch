@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
@@ -15,9 +16,12 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -25,13 +29,18 @@ import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
 
@@ -219,6 +228,32 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 return newEntry;
             default:
                 throw new IllegalArgumentException("invalid randomization case");
+        }
+    }
+
+    public void testXContent() throws IOException {
+        SnapshotsInProgress sip =
+            SnapshotsInProgress.of(Collections.singletonList(new Entry(
+                new Snapshot("repo", new SnapshotId("name", "uuid")), true, true, State.SUCCESS,
+                Collections.singletonList(new IndexId("index", "uuid")), Collections.emptyList(), Collections.emptyList(), 1234567, 0,
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
+                    .fPut(new ShardId("index", "uuid", 0),
+                        new SnapshotsInProgress.ShardSnapshotStatus("nodeId", ShardState.SUCCESS, "reason", "generation"))
+                    .build(), null, null, Version.CURRENT)));
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.humanReadable(true);
+            builder.startObject();
+            sip.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            String json = Strings.toString(builder);
+            assertThat(json,
+                equalTo("{\"snapshots\":[{\"repository\":\"repo\",\"snapshot\":\"name\",\"uuid\":\"uuid\"," +
+                    "\"include_global_state\":true,\"partial\":true,\"state\":\"SUCCESS\"," +
+                    "\"indices\":[{\"name\":\"index\",\"id\":\"uuid\"}],\"start_time\":\"1970-01-01T00:20:34.567Z\"," +
+                    "\"start_time_millis\":1234567,\"repository_state_id\":0," +
+                    "\"shards\":[{\"index\":{\"index_name\":\"index\",\"index_uuid\":\"uuid\"}," +
+                    "\"shard\":0,\"state\":\"SUCCESS\",\"node\":\"nodeId\"}],\"feature_states\":[],\"data_streams\":[]}]}"));
         }
     }
 

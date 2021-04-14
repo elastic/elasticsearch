@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedMo
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,6 +98,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -442,6 +444,13 @@ public class TrainedModelProvider {
     public void getTrainedModel(final String modelId,
                                 final GetTrainedModelsAction.Includes includes,
                                 final ActionListener<TrainedModelConfig> finalListener) {
+        getTrainedModel(modelId, Collections.emptySet(), includes, finalListener);
+    }
+
+    public void getTrainedModel(final String modelId,
+                                final Set<String> modelAliases,
+                                final GetTrainedModelsAction.Includes includes,
+                                final ActionListener<TrainedModelConfig> finalListener) {
 
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
             try {
@@ -455,6 +464,7 @@ public class TrainedModelProvider {
 
         ActionListener<TrainedModelConfig.Builder> getTrainedModelListener = ActionListener.wrap(
             modelBuilder -> {
+                modelBuilder.setModelAliases(modelAliases);
                 if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()
                   || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilder.build());
@@ -570,6 +580,18 @@ public class TrainedModelProvider {
             multiSearchResponseActionListener);
     }
 
+    public void getTrainedModels(Set<String> modelIds,
+                                 GetTrainedModelsAction.Includes includes,
+                                 boolean allowNoResources,
+                                 final ActionListener<List<TrainedModelConfig>> finalListener) {
+        getTrainedModels(
+            modelIds.stream().collect(Collectors.toMap(Function.identity(), _k -> Collections.emptySet())),
+            includes,
+            allowNoResources,
+            finalListener
+        );
+    }
+
     /**
      * Gets all the provided trained config model objects
      *
@@ -577,11 +599,15 @@ public class TrainedModelProvider {
      * This does no expansion on the ids.
      * It assumes that there are fewer than 10k.
      */
-    public void getTrainedModels(Set<String> modelIds,
+    public void getTrainedModels(Map<String, Set<String>> modelIds,
                                  GetTrainedModelsAction.Includes includes,
                                  boolean allowNoResources,
                                  final ActionListener<List<TrainedModelConfig>> finalListener) {
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(modelIds.toArray(new String[0])));
+        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(
+            QueryBuilders
+                .idsQuery()
+                .addIds(modelIds.keySet().toArray(new String[0]))
+        );
 
         SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
             .addSort(TrainedModelConfig.MODEL_ID.getPreferredName(), SortOrder.ASC)
@@ -590,8 +616,8 @@ public class TrainedModelProvider {
             .setSize(modelIds.size())
             .request();
         List<TrainedModelConfig.Builder> configs = new ArrayList<>(modelIds.size());
-        Set<String> modelsInIndex = Sets.difference(modelIds, MODELS_STORED_AS_RESOURCE);
-        Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds);
+        Set<String> modelsInIndex = Sets.difference(modelIds.keySet(), MODELS_STORED_AS_RESOURCE);
+        Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds.keySet());
         for(String modelId : modelsAsResource) {
             try {
                 configs.add(loadModelFromResource(modelId, true));
@@ -613,12 +639,12 @@ public class TrainedModelProvider {
                 if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()
                   || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilders.stream()
-                        .map(TrainedModelConfig.Builder::build)
+                        .map(b -> b.setModelAliases(modelIds.get(b.getModelId())).build())
                         .sorted(Comparator.comparing(TrainedModelConfig::getModelId))
                         .collect(Collectors.toList()));
                     return;
                 }
-                this.getTrainedModelMetadata(modelIds, ActionListener.wrap(
+                this.getTrainedModelMetadata(modelIds.keySet(), ActionListener.wrap(
                     metadata ->
                         finalListener.onResponse(modelBuilders.stream()
                             .map(builder -> {
@@ -633,9 +659,8 @@ public class TrainedModelProvider {
                                     if (includes.isIncludeHyperparameters()) {
                                         builder.setHyperparameters(modelMetadata.getHyperparameters());
                                     }
-
                                 }
-                                return builder.build();
+                                return builder.setModelAliases(modelIds.get(builder.getModelId())).build();
                             })
                             .sorted(Comparator.comparing(TrainedModelConfig::getModelId))
                             .collect(Collectors.toList())),
@@ -679,7 +704,7 @@ public class TrainedModelProvider {
                 // We previously expanded the IDs.
                 // If the config has gone missing between then and now we should throw if allowNoResources is false
                 // Otherwise, treat it as if it was never expanded to begin with.
-                Set<String> missingConfigs = Sets.difference(modelIds, observedIds);
+                Set<String> missingConfigs = Sets.difference(modelIds.keySet(), observedIds);
                 if (missingConfigs.isEmpty() == false && allowNoResources == false) {
                     getTrainedModelListener.onFailure(new ResourceNotFoundException(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs));
                     return;
@@ -729,8 +754,23 @@ public class TrainedModelProvider {
                           boolean allowNoResources,
                           PageParams pageParams,
                           Set<String> tags,
-                          ActionListener<Tuple<Long, Set<String>>> idsListener) {
+                          ModelAliasMetadata modelAliasMetadata,
+                          ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
+        Set<String> expandedIdsFromAliases = new HashSet<>();
+        if (Strings.isAllOrWildcard(tokens) == false) {
+            for (String token : tokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    for (String modelAlias : modelAliasMetadata.modelAliases().keySet()) {
+                        if (Regex.simpleMatch(token, modelAlias)) {
+                            expandedIdsFromAliases.add(modelAliasMetadata.getModelId(modelAlias));
+                        }
+                    }
+                } else if (modelAliasMetadata.getModelId(token) != null) {
+                    expandedIdsFromAliases.add(modelAliasMetadata.getModelId(token));
+                }
+            }
+        }
         Set<String> matchedResourceIds = matchedResourceIds(tokens);
         Set<String> foundResourceIds;
         if (tags.isEmpty()) {
@@ -744,12 +784,17 @@ public class TrainedModelProvider {
                 }
             }
         }
+        expandedIdsFromAliases.addAll(Arrays.asList(tokens));
+
+        // We need to include the translated model alias, and ANY tokens that were not translated
+        String[] tokensForQuery = expandedIdsFromAliases.toArray(new String[0]);
+
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
             .sort(SortBuilders.fieldSort(TrainedModelConfig.MODEL_ID.getPreferredName())
                 // If there are no resources, there might be no mapping for the id field.
                 // This makes sure we don't get an error if that happens.
                 .unmappedType("long"))
-            .query(buildExpandIdsQuery(tokens, tags))
+            .query(buildExpandIdsQuery(tokensForQuery, tags))
             // We "buffer" the from and size to take into account models stored as resources.
             // This is so we handle the edge cases when the model that is stored as a resource is at the start/end of
             // a page.
@@ -785,9 +830,28 @@ public class TrainedModelProvider {
                             foundFromDocs.add(idValue.toString());
                         }
                     }
-                    Set<String> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs);
+                    Map<String, Set<String>> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs)
+                        .stream()
+                        .collect(Collectors.toMap(Function.identity(), k -> new HashSet<>()));
+
+                    // We technically have matched on model tokens and any reversed referenced aliases
+                    // We may end up with "over matching" on the aliases (matching on an alias that was not provided)
+                    // But the expanded ID matcher does not care.
+                    Set<String> matchedTokens = new HashSet<>(allFoundIds.keySet());
+
+                    // We should gather ALL model aliases referenced by the given model IDs
+                    // This way the callers have access to them
+                    modelAliasMetadata.modelAliases().forEach((alias, modelIdEntry) -> {
+                        final String modelId = modelIdEntry.getModelId();
+                        if (allFoundIds.containsKey(modelId)) {
+                            allFoundIds.get(modelId).add(alias);
+                            matchedTokens.add(alias);
+                        }
+                    });
+
+                    // Reverse lookup to see what model aliases were matched by their found trained model IDs
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
-                    requiredMatches.filterMatchedIds(allFoundIds);
+                    requiredMatches.filterMatchedIds(matchedTokens);
                     if (requiredMatches.hasUnmatchedIds()) {
                         idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
                     } else {

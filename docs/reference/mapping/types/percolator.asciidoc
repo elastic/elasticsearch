@@ -53,7 +53,7 @@ PUT my-index-000001/_doc/match_value
 
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
-add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
+add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,update mapping>> APIs.
 
 =====================================
 
@@ -414,7 +414,7 @@ This results in a response like this:
 [discrete]
 ==== Optimizing wildcard queries.
 
-Wildcard queries are  more expensive than other queries for the percolator,
+Wildcard queries are more expensive than other queries for the percolator,
 especially if the wildcard expressions are large.
 
 In the case of `wildcard` queries with prefix wildcard expressions or just the `prefix` query,

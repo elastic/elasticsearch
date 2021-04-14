@@ -155,7 +155,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     public void testCreateReadDeleteCheckPoint() throws InterruptedException {
-        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoints();
+        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoint();
 
         // create
         assertAsync(listener -> transformConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
@@ -417,7 +417,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             is(true)
         );
 
-        assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), true, null, null);
+        assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), 1L, null, null);
 
         client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));

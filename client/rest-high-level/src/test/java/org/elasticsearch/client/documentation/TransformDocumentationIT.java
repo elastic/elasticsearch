@@ -268,6 +268,10 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDelay(TimeValue.timeValueSeconds(120))
                 .build()) // <4>
             .setDescription("This is my updated transform") // <5>
+            .setRetentionPolicyConfig(TimeRetentionPolicyConfig.builder()
+                .setField("time-field")
+                .setMaxAge(TimeValue.timeValueDays(30))
+                .build()) // <6>
             .build();
         // end::update-transform-config
 

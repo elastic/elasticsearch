@@ -124,6 +124,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final AnomalyDetectionAuditor auditor;
 
     private volatile boolean upgradeInProgress;
+    private volatile boolean resetInProgress;
     private volatile boolean nodeDying;
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
@@ -169,14 +170,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
-        logger.trace("[{}] Killing process: awaitCompletion = [{}]; reason = [{}]", jobTask.getJobId(), awaitCompletion, reason);
+        logger.trace(() -> new ParameterizedMessage(
+            "[{}] Killing process: awaitCompletion = [{}]; reason = [{}]",
+            jobTask.getJobId(),
+            awaitCompletion,
+            reason
+        ));
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
             processContext.newKillBuilder()
                     .setAwaitCompletion(awaitCompletion)
                     .setFinish(true)
                     .setReason(reason)
-                    .setShouldFinalizeJob(upgradeInProgress == false)
+                    .setShouldFinalizeJob(upgradeInProgress == false && resetInProgress == false)
                     .kill();
         } else {
             // If the process is missing but the task exists this is most likely
@@ -187,7 +193,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             // Force-delete issues a kill but the process will not be present
             // as it is cleaned up already. In both cases, we still need to remove
             // the task from the TaskManager (which is what the kill would do)
-            logger.trace("[{}] Marking job task as completed", jobTask.getJobId());
+            logger.trace(() -> new ParameterizedMessage("[{}] Marking job task as completed", jobTask.getJobId()));
             jobTask.markAsCompleted();
         }
     }
@@ -521,6 +527,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
                         logger.debug("Aborted opening job [{}] as it has been closed", job.getId());
                         return;
                     }
+                    // We check again after the process state is locked to ensure no race conditions are hit.
+                    if (processContext.getJobTask().isClosing()) {
+                        logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                        jobTask.markAsCompleted();
+                        return;
+                    }
 
                     try {
                         if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
@@ -575,6 +587,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
             if (processContext.getState() != ProcessContext.ProcessStateName.NOT_RUNNING) {
                 logger.debug("Cannot open job [{}] when its state is [{}]",
                     job.getId(), processContext.getState().getClass().getName());
+                return false;
+            }
+            if (processContext.getJobTask().isClosing()) {
+                logger.debug("Cannot open job [{}] as it is closing", job.getId());
+                processContext.getJobTask().markAsCompleted();
                 return false;
             }
             AutodetectCommunicator communicator = create(processContext.getJobTask(), job, params, handler);
@@ -714,7 +731,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         // it is reachable to enable killing a job while it is closing
         ProcessContext processContext = processByAllocation.get(allocationId);
         if (processContext == null) {
-            logger.debug("Cannot close job [{}] as it has already been closed", jobId);
+            logger.debug("Cannot close job [{}] as it has already been closed or is closing", jobId);
             return;
         }
 
@@ -857,6 +874,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         upgradeInProgress = MlMetadata.getMlMetadata(event.state()).isUpgradeMode();
+        resetInProgress = MlMetadata.getMlMetadata(event.state()).isResetMode();
     }
 
 }

@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put {dfanalytics-jobs} API
+=== Create {dfanalytics-jobs} API
 
-beta::[]
 
 Creates a new {dfanalytics-job}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put {dfanalytics-jobs} request
+==== Request
 
 A +{request}+ requires the following argument:
 
@@ -55,7 +54,8 @@ include-tagged::{doc-tests-file}[{api}-source-config]
 <1> Constructing a new DataFrameAnalyticsSource
 <2> The source index
 <3> The query from which to gather the data. If query is not set, a `match_all` query is used by default.
-<4> Source filtering to select which fields will exist in the destination index.
+<4> Runtime mappings that will be added to the destination index mapping.
+<5> Source filtering to select which fields will exist in the destination index.
 
 ===== QueryConfig
 

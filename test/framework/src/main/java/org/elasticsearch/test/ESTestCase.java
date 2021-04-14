@@ -42,11 +42,10 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -361,11 +360,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             HeaderWarning.setThreadContext(threadContext);
         }
-    }
-
-    @AfterClass
-    public static void clearAdditionalRoles() {
-        DiscoveryNode.setAdditionalRoles(Set.of());
     }
 
     /**

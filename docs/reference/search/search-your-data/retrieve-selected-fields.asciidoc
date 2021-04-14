@@ -326,6 +326,77 @@ However, when the `fields` pattern targets the nested `user` field directly, no
 values will be returned since the pattern doesn't match any leaf fields.
 
 [discrete]
+[[search-fields-flattened]]
+==== Handling of flattened fields
+
+The `fields` response for <<flattened,`flattened` fields>> is a second example where the
+`_source` content is returned unaltered. The `flattened` field maps an entire
+object with potentially many subfields as a single field, so fetching its contents
+maintains  this structure
+
+Single subfields, however, can be fetched by specifying them explicitly in the request, but
+they will not be returned by any wildcard field pattern:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "flattened_field": {
+        "type": "flattened"
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh=true
+{
+  "flattened_field" : {
+    "subfield" : "value"
+  }
+}
+
+POST my-index-000001/_search
+{
+  "fields": ["flattened_field.subfield"],
+  "_source": false
+}
+--------------------------------------------------
+
+[source,console-result]
+----
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [{
+      "_index": "my-index-000001",
+      "_id": "1",
+      "_score": 1.0,
+      "fields": {
+        "flattened_field.subfield" : [ "value" ]
+      }
+    }]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
+[discrete]
 [[retrieve-unmapped-fields]]
 ==== Retrieving unmapped fields
 

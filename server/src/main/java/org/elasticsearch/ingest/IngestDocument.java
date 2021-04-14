@@ -67,7 +67,7 @@ public final class IngestDocument {
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
-
+        sourceAndMetadata.put(Metadata.DYNAMIC_TEMPLATES.getFieldName(), new HashMap<>());
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
@@ -816,7 +816,8 @@ public final class IngestDocument {
         VERSION(VersionFieldMapper.NAME),
         VERSION_TYPE("_version_type"),
         IF_SEQ_NO("_if_seq_no"),
-        IF_PRIMARY_TERM("_if_primary_term");
+        IF_PRIMARY_TERM("_if_primary_term"),
+        DYNAMIC_TEMPLATES("_dynamic_templates");
 
         private final String fieldName;
 

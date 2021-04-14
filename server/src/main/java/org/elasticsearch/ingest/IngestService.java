@@ -652,6 +652,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
                 }
                 indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                Map<String, String> dynamicTemplates = (Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES);
+                if (dynamicTemplates.isEmpty() == false) {
+                    final HashMap<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
+                    mergedDynamicTemplates.putAll(dynamicTemplates);
+                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
+                }
                 handler.accept(null);
             }
         });

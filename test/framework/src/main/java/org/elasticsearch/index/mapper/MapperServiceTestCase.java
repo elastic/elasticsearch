@@ -525,6 +525,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
+
+        SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        when(searchExecutionContext.getDefaultSimilarity()).thenReturn(similarityService.getDefaultSimilarity());
+
         return searchExecutionContext;
     }
 }

@@ -20,15 +20,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
@@ -41,11 +38,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     static final String COORDINATING_ONLY = "coordinating_only";
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
-        /*
-         * This method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized. We do not want to trigger
-         * initialization prematurely because that will bake the default roles before plugins have had a chance to register them. Therefore,
-         * to avoid initializing this setting prematurely, we avoid using the actual node roles setting instance here.
-         */
+        // this method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized
         if (settings.hasValue("node.roles")) {
             return settings.getAsList("node.roles").contains(role.roleName());
         } else {
@@ -114,7 +107,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, version);
+        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
     /**
@@ -195,7 +188,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.version = version;
         }
         this.attributes = Collections.unmodifiableMap(attributes);
-        assert DiscoveryNode.roleMap.values().stream().noneMatch(role -> attributes.containsKey(role.roleName())) :
+        assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey) :
                 "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
@@ -231,10 +224,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
             final boolean canContainData = in.readBoolean();
-            final DiscoveryNodeRole role = roleMap.get(roleName);
-            if (role == null) {
+            final Optional<DiscoveryNodeRole> maybeRole = DiscoveryNodeRole.maybeGetRoleFromRoleName(roleName);
+            if (maybeRole.isEmpty()) {
                 roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
             } else {
+                final DiscoveryNodeRole role = maybeRole.get();
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
                         : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
@@ -425,36 +419,4 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    private static Map<String, DiscoveryNodeRole> rolesToMap(final Stream<DiscoveryNodeRole> roles) {
-        return roles.collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
-    }
-
-    private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());
-
-    public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
-        if (roleMap.containsKey(roleName) == false) {
-            throw new IllegalArgumentException("unknown role [" + roleName + "]");
-        }
-        return roleMap.get(roleName);
-    }
-
-    public static Collection<DiscoveryNodeRole> getPossibleRoles() {
-        return roleMap.values();
-    }
-
-    public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {
-        final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles =
-            rolesToMap(Stream.concat(DiscoveryNodeRole.BUILT_IN_ROLES.stream(), additionalRoles.stream()));
-        // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
-        final Map<String, DiscoveryNodeRole> roleNameAbbreviationToPossibleRoles = roleNameToPossibleRoles.values()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
-        assert roleNameToPossibleRoles.size() == roleNameAbbreviationToPossibleRoles.size() :
-                "roles by name [" + roleNameToPossibleRoles + "], roles by name abbreviation [" + roleNameAbbreviationToPossibleRoles + "]";
-        roleMap = roleNameToPossibleRoles;
-    }
-
-    public static Set<String> getPossibleRoleNames() {
-        return roleMap.keySet();
-    }
 }

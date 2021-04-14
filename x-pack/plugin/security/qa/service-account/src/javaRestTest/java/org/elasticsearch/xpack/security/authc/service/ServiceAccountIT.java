@@ -62,7 +62,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
 
-    private static final String ELASTIC_FLEET_ROLE_DESCRIPTOR = ""
+    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = ""
         + "{\n"
         + "      \"cluster\": [\n"
         + "        \"monitor\",\n"
@@ -73,10 +73,24 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "          \"names\": [\n"
         + "            \"logs-*\",\n"
         + "            \"metrics-*\",\n"
-        + "            \"traces-*\"\n"
+        + "            \"traces-*\",\n"
+        + "            \".logs-endpoint.diagnostic.collection-*\"\n"
         + "          ],\n"
         + "          \"privileges\": [\n"
         + "            \"write\",\n"
+        + "            \"create_index\",\n"
+        + "            \"auto_configure\"\n"
+        + "          ],\n"
+        + "          \"allow_restricted_indices\": false\n"
+        + "        },\n"
+        + "        {\n"
+        + "          \"names\": [\n"
+        + "            \".fleet-*\"\n"
+        + "          ],\n"
+        + "          \"privileges\": [\n"
+        + "            \"read\",\n"
+        + "            \"write\",\n"
+        + "            \"monitor\",\n"
         + "            \"create_index\",\n"
         + "            \"auto_configure\"\n"
         + "          ],\n"
@@ -120,19 +134,19 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response getServiceAccountResponse1 = client().performRequest(getServiceAccountRequest1);
         assertOK(getServiceAccountResponse1);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse1,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest2 = new Request("GET", "_security/service/elastic");
         final Response getServiceAccountResponse2 = client().performRequest(getServiceAccountRequest2);
         assertOK(getServiceAccountResponse2);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse2,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest3 = new Request("GET", "_security/service/elastic/fleet-server");
         final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);
@@ -286,6 +300,26 @@ public class ServiceAccountIT extends ESRestTestCase {
             "api-token-1", Map.of(),
             "api-token-2", Map.of()
         )));
+
+        final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
+        final Response deleteTokenResponse1 = client().performRequest(deleteTokenRequest1);
+        assertOK(deleteTokenResponse1);
+        assertThat(responseAsMap(deleteTokenResponse1).get("found"), is(true));
+
+        final Response getTokensResponse3 = client().performRequest(getTokensRequest);
+        assertOK(getTokensResponse3);
+        final Map<String, Object> getTokensResponseMap3 = responseAsMap(getTokensResponse3);
+        assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
+        assertThat(getTokensResponseMap3.get("count"), equalTo(2));
+        assertThat(getTokensResponseMap3.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
+        assertThat(getTokensResponseMap3.get("tokens"), equalTo(Map.of(
+            "api-token-1", Map.of()
+        )));
+
+        final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
+        final Response deleteTokenResponse2 = client().performRequest(deleteTokenRequest2);
+        assertOK(deleteTokenResponse2);
+        assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
     }
 
     public void testManageOwnApiKey() throws IOException {

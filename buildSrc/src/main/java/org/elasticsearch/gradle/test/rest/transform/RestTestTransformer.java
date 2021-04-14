@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.test.rest.transform;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -144,9 +145,15 @@ public class RestTestTransformer {
                             } else {
                                 if (entry.getValue().isObject()) {
                                     ObjectNode child = (ObjectNode) entry.getValue();
-                                    if (child.has(transform.requiredChildKey())) {
+                                    if (transform.matches(child)) {
                                         transform.transformTest((ObjectNode) currentNode);
                                     }
+                                } else if (entry.getValue().isTextual()) {
+                                    TextNode value = (TextNode) entry.getValue();
+                                    if (transform.matches(value)) {
+                                        transform.transformTest((ObjectNode) currentNode);
+                                    }
+
                                 }
                             }
                         }

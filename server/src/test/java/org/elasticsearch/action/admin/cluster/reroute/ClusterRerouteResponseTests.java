@@ -78,7 +78,10 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          \"data_warm\",\n" +
                     "          \"ingest\",\n" +
                     "          \"master\",\n" +
-                    "          \"remote_cluster_client\"\n" +
+                    "          \"ml\",\n" +
+                    "          \"remote_cluster_client\",\n" +
+                    "          \"transform\",\n" +
+                    "          \"voting_only\"\n" +
                     "        ]\n" +
                     "      }\n" +
                     "    },\n" +

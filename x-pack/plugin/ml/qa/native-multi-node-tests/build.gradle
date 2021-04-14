@@ -6,6 +6,7 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
   javaRestTestImplementation project(path: ':modules:ingest-common')
   javaRestTestImplementation project(path: xpackModule('data-streams'))
+  javaRestTestImplementation project(path: xpackModule('transform'))
 }
 
 // location for keys and certificates

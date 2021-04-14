@@ -59,6 +59,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final Map<String, NamedAnalyzer> indexAnalyzers;
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
+    protected final boolean hasScript;
+    protected final String onScriptError;
 
     /**
      * Create a FieldMapper with no index analyzers
@@ -69,8 +71,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo);
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, false, null);
     }
+
+    /**
+     * Create a FieldMapper with no index analyzers
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          MultiFields multiFields, CopyTo copyTo,
+                          boolean hasScript, String onScriptError) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, hasScript, onScriptError);
+    }
+
 
     /**
      * Create a FieldMapper with a single associated index analyzer
@@ -83,7 +101,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           NamedAnalyzer indexAnalyzer,
                           MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo);
+        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo,
+             false, null);
+    }
+
+    /**
+     * Create a FieldMapper with a single associated index analyzer
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param indexAnalyzer     the index-time analyzer to use for this field
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                          NamedAnalyzer indexAnalyzer,
+                          MultiFields multiFields, CopyTo copyTo,
+                          boolean hasScript, String onScriptError) {
+        this(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), indexAnalyzer), multiFields, copyTo,
+            hasScript, onScriptError);
     }
 
     /**
@@ -94,10 +131,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      *                          the mapper will add
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
+     * @param hasScript         whether a script is defined for the field
+     * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType,
                           Map<String, NamedAnalyzer> indexAnalyzers,
-                          MultiFields multiFields, CopyTo copyTo) {
+                          MultiFields multiFields, CopyTo copyTo,
+                          boolean hasScript, String onScriptError) {
         super(simpleName);
         if (mappedFieldType.name().isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
@@ -106,6 +146,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.indexAnalyzers = indexAnalyzers;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+        this.hasScript = hasScript;
+        this.onScriptError = onScriptError;
     }
 
     @Override
@@ -148,6 +190,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public void parse(ParseContext context) throws IOException {
         try {
+            if (hasScript) {
+                throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
+            }
             parseCreateField(context);
         } catch (Exception e) {
             String valuePreview = "";
@@ -173,10 +218,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
+     *
+     * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
+     * current failing token
+     */
+    protected abstract void parseCreateField(ParseContext context) throws IOException;
+
+    /**
      * @return whether this field mapper uses a script to generate its values
      */
-    public boolean hasScript() {
-        return false;
+    public final boolean hasScript() {
+        return hasScript;
     }
 
     /**
@@ -184,20 +237,34 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      *
      * This method should only be called if {@link #hasScript()} has returned {@code true}
      * @param searchLookup  a SearchLookup to be passed the script
-     * @param ctx           a LeafReaderContext exposing values from an incoming document
-     * @param pc            the ParseContext over the incoming document
+     * @param readerContext a LeafReaderContext exposing values from an incoming document
+     * @param doc           the id of the document to execute the script against
+     * @param parseContext  the ParseContext over the incoming document
      */
-    public void executeScript(SearchLookup searchLookup, LeafReaderContext ctx, int doc, ParseContext pc) {
-        throw new UnsupportedOperationException("FieldMapper " + name() + " does not have an index-time script");
+    public final void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+        try {
+            indexScriptValues(searchLookup, readerContext, doc, parseContext);
+        } catch (Exception e) {
+            if ("ignore".equals(onScriptError)) {
+                parseContext.addIgnoredField(name());
+            } else {
+                throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
+            }
+        }
     }
 
     /**
-     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
+     * Run the script associated with the field and index the values that it emits
      *
-     * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
-     * current failing token
+     * This method should only be called if {@link #hasScript()} has returned {@code true}
+     * @param searchLookup  a SearchLookup to be passed the script
+     * @param readerContext a LeafReaderContext exposing values from an incoming document
+     * @param doc           the id of the document to execute the script against
+     * @param parseContext  the ParseContext over the incoming document
      */
-    protected abstract void parseCreateField(ParseContext context) throws IOException;
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+        throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
+    }
 
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
@@ -359,6 +426,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasMultiFields() {
+                return mapperBuilders.isEmpty() == false;
+            }
+
             public MultiFields build(Mapper.Builder mainFieldBuilder, ContentPath contentPath) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
@@ -469,6 +540,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public boolean hasValues() {
+                return copyToBuilders.isEmpty() == false;
+            }
+
             public CopyTo build() {
                 if (copyToBuilders.isEmpty()) {
                     return EMPTY;
@@ -532,8 +607,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MergeValidator<T> mergeValidator;
         private T value;
         private boolean isSet;
-        private List<Parameter<?>> requires = new ArrayList<>();
-        private List<Parameter<?>> precludes = new ArrayList<>();
+        private final List<Parameter<?>> requires = new ArrayList<>();
+        private final List<Parameter<?>> precludes = new ArrayList<>();
 
         /**
          * Creates a new Parameter
@@ -875,7 +950,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
          * @return a script parameter
          */
-        public static FieldMapper.Parameter<Script> scriptParam(
+        public static Parameter<Script> scriptParam(
             Function<FieldMapper, Script> initializer
         ) {
             return new FieldMapper.Parameter<>(
@@ -896,6 +971,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             ).acceptsNull();
         }
 
+        /**
+         * Defines an on_script_error parameter
+         * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges
+         * @param dependentScriptParam the corresponding required script parameter
+         * @return a new on_error_script parameter
+         */
+        public static Parameter<String> onScriptErrorParam(Function<FieldMapper, String> initializer,
+                                                           Parameter<Script> dependentScriptParam) {
+            return Parameter.restrictedStringParam(
+                "on_script_error",
+                true,
+                initializer,
+                "reject", "ignore").requiresParameters(dependentScriptParam);
+        }
     }
 
     public static final class Conflicts {
@@ -984,6 +1073,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          */
         protected String buildFullName(ContentPath contentPath) {
             return contentPath.pathAsText(name);
+        }
+
+        protected void addScriptValidation(
+            Parameter<Script> scriptParam,
+            Parameter<Boolean> indexParam,
+            Parameter<Boolean> docValuesParam
+        ) {
+            scriptParam.setValidator(s -> {
+                if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
+                if (s != null && copyTo.hasValues()) {
+                    throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
+                }
+            });
         }
 
         /**

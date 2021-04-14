@@ -144,6 +144,20 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Request rolloverRequest = new Request("POST", "/logs-barbaz-2021.01.13/_rollover");
             client().performRequest(rolloverRequest);
         } else {
+            if (CLUSTER_TYPE == ClusterType.MIXED) {
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+            } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+                ensureHealth("logs-barbaz", (request -> {
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "green");
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("level", "shards");
+                }));
+            }
             assertCount("logs-barbaz", 1);
             assertCount("logs-barbaz-2021.01.13", 1);
         }

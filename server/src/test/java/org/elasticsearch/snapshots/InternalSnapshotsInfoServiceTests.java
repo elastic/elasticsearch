@@ -417,7 +417,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
         final DiscoveryNode node = new DiscoveryNode("other", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)

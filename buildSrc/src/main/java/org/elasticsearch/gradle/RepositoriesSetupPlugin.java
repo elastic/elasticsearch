@@ -12,7 +12,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
-import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 
 import java.net.MalformedURLException;
@@ -37,20 +36,6 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
      * Adds repositories used by ES projects and dependencies
      */
     public static void configureRepositories(Project project) {
-        // ensure all repositories use secure urls
-        // TODO: remove this with gradle 7.0, which no longer allows insecure urls
-        project.getRepositories().all(repository -> {
-            if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
-                assertRepositoryURIIsSecure(maven.getName(), project.getPath(), maven.getUrl());
-                for (URI uri : maven.getArtifactUrls()) {
-                    assertRepositoryURIIsSecure(maven.getName(), project.getPath(), uri);
-                }
-            } else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository;
-                assertRepositoryURIIsSecure(ivy.getName(), project.getPath(), ivy.getUrl());
-            }
-        });
         RepositoryHandler repos = project.getRepositories();
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -82,7 +67,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
     }
 
     private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
+        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false && uri.getHost().equals("localhost") == false) {
             String url;
             try {
                 url = uri.toURL().toString();

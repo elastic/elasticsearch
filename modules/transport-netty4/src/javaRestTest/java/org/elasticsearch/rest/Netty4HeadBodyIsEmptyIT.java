@@ -98,6 +98,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71664")
     public void testTemplateExists() throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -118,7 +119,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 request.setOptions(expectWarnings(
                     "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
                     "[.deprecation-indexing-template,.slm-history,.watch-history-14,ilm-history,logs," +
-                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
+                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.elasticsearch-default]," +
                     ".slm-history => [.slm-history-5*]," +
                     ".watch-history-14 => [.watcher-history-14*],ilm-history => [ilm-history-5*]," +
                     "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]" +

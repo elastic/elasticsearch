@@ -692,10 +692,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
         assertEquals(1, fields.size());
         assertThat(fields.keySet(), containsInAnyOrder("flat"));
-        Map<String, Object> flattendedValue = (Map<String, Object>) fields.get("flat").getValue();
-        assertThat(flattendedValue.keySet(), containsInAnyOrder("f1", "f2"));
-        assertEquals("value1", flattendedValue.get("f1"));
-        assertEquals(1, flattendedValue.get("f2"));
+        Map<String, Object> flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
 
         // direct retrieval of subfield is possible
         List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
@@ -710,13 +710,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         fields = fetchFields(mapperService, source, fieldAndFormatList);
         assertEquals(2, fields.size());
         assertThat(fields.keySet(), containsInAnyOrder("flat", "flat.f1"));
-        flattendedValue = (Map<String, Object>) fields.get("flat").getValue();
-        assertThat(flattendedValue.keySet(), containsInAnyOrder("f1", "f2"));
-        assertEquals("value1", flattendedValue.get("f1"));
-        assertEquals(1, flattendedValue.get("f2"));
+        flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
         assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
 
-        // retrieval of subfield with widlcard is not possible
+        // retrieval of subfield with wildcard is not possible
         fields = fetchFields(mapperService, source, fieldAndFormatList("flat.f*", null, false));
         assertEquals(0, fields.size());
 

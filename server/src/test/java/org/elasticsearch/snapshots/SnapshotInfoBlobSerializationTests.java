@@ -18,7 +18,7 @@ import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
 
-public class SnapshotInfoXContentTests extends AbstractWireTestCase<SnapshotInfo> {
+public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<SnapshotInfo> {
 
     @Override
     protected SnapshotInfo createTestInstance() {

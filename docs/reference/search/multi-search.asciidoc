@@ -101,14 +101,14 @@ to +max(1, (# of <<data-node,data nodes>> * min(<<search-threadpool,search threa
 --
 (Optional, integer)
 Maximum number of concurrent shard requests that each sub-search request
-executes per node.  Defaults to `5`.
+executes per node. Defaults to `5`.
 
 You can use this parameter to prevent a request from overloading a cluster. For
 example, a default request hits all data streams and indices in a cluster. This
 could cause shard request rejections if the number of shards per node is high.
 
 In certain scenarios, parallelism isn't achieved through concurrent requests. In
-those cases, a low value in this  parameter could result in poor performance.
+those cases, a low value in this parameter could result in poor performance.
 For example, in an environment where a very low number of concurrent search
 requests are expected, a higher value in this parameter may improve performance.
 --

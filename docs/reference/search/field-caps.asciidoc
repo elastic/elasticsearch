@@ -106,6 +106,8 @@ described using a type family. For example, `keyword`, `constant_keyword` and `w
 field types are all described as the `keyword` type family.
 
 
+`metadata_field`::
+  Whether this field is registered as a <<mapping-fields,metadata field>>.
 
 `searchable`::
   Whether this field is indexed for search on all indices.
@@ -162,12 +164,14 @@ The API returns the following response:
   "fields": {
     "rating": {                                   <1>
       "long": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]  <2>
       },
       "keyword": {
+        "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
         "indices": [ "index3", "index4" ],
@@ -176,6 +180,7 @@ The API returns the following response:
     },
     "title": {                                    <4>
       "text": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false
 
@@ -211,18 +216,21 @@ in some indices but not all:
   "fields": {
     "rating": {
       "long": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]
       },
       "keyword": {
+        "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
         "indices": [ "index3", "index4" ],
         "non_searchable_indices": [ "index4" ]
       },
       "unmapped": {                               <1>
+        "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
         "aggregatable": false
@@ -230,11 +238,13 @@ in some indices but not all:
     },
     "title": {
       "text": {
+        "metadata_field": false,
         "indices": [ "index1", "index2", "index3", "index4" ],
         "searchable": true,
         "aggregatable": false
       },
       "unmapped": {                               <2>
+        "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
         "aggregatable": false

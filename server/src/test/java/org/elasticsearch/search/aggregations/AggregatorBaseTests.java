@@ -80,7 +80,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         AggregationContext context
     ) {
         MappedFieldType ft
-            = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, false, null, Collections.emptyMap());
+            = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, false, true, false, null, Collections.emptyMap(), null);
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 
@@ -91,7 +91,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         AggregationContext context
     ) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(fieldName, indexed, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 

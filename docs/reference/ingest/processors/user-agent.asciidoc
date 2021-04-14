@@ -69,7 +69,8 @@ Which returns
         "full": "Mac OS X 10.10.5"
       },
       "device" : {
-        "name" : "Mac"
+        "name" : "Mac",
+        "type" : "Desktop"
       },
     }
   }

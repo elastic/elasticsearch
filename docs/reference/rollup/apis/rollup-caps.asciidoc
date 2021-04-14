@@ -48,8 +48,8 @@ can be performed, and where does the data live?
 [[rollup-get-rollup-example]]
 ==== {api-examples-title}
 
-Imagine we have an index named `sensor-1` full of raw data.  We know that the
-data will grow over time, so there will be a `sensor-2`, `sensor-3`, etc.  Let's
+Imagine we have an index named `sensor-1` full of raw data. We know that the
+data will grow over time, so there will be a `sensor-2`, `sensor-3`, etc. Let's
 create a {rollup-job} that targets the index pattern `sensor-*` to accommodate
 this future scaling:
 
@@ -143,7 +143,7 @@ Which will yield the following response:
 ----
 
 The response that is returned contains information that is similar to the
-original rollup configuration, but formatted differently.  First, there are some
+original rollup configuration, but formatted differently. First, there are some
 house-keeping details: the {rollup-job} ID, the index that holds the rolled data,
 and the index pattern that the job was targeting.
 
@@ -183,7 +183,7 @@ GET _rollup/data/sensor-1
 ----
 
 Why is this?  The original {rollup-job} was configured against a specific index
-pattern (`sensor-*`) not a concrete index (`sensor-1`).  So while the index
+pattern (`sensor-*`) not a concrete index (`sensor-1`). So while the index
 belongs to the pattern, the {rollup-job} is only valid across the entirety of
 the pattern not just one of it's containing indices. So for that reason, the
 get rollup capabilities API only returns information based on the originally

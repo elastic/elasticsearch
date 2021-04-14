@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -109,7 +108,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private void testScaleFromEmptyWarm(boolean allocatable) throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startNode(NodeRoles.onlyRole(DataTier.DATA_HOT_NODE_ROLE));
+        internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
 
@@ -152,7 +151,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         internalCluster().startNode(
             NodeRoles.onlyRole(
                 Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + "data_tier", "hot").build(),
-                DataTier.DATA_HOT_NODE_ROLE
+                DiscoveryNodeRole.DATA_HOT_NODE_ROLE
             )
         );
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
@@ -204,7 +203,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),
             Matchers.equalTo(
-                DiscoveryNode.getPossibleRoles().stream().filter(DiscoveryNodeRole::canContainData).sorted().collect(Collectors.toList())
+                DiscoveryNodeRole.roles().stream().filter(DiscoveryNodeRole::canContainData).sorted().collect(Collectors.toList())
             )
         );
     }

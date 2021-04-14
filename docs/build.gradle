@@ -13,6 +13,25 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+ext.docsFileTree = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build/**'
+  exclude 'build-idea/**'
+  exclude 'build-eclipse/**'
+  // Just syntax examples
+  exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/graph/explore.asciidoc'
+  if (BuildParams.inFipsJvm) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
+}
+
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
   expectedUnconvertedCandidates = [
@@ -35,7 +54,7 @@ tasks.named("buildRestTests").configure {
 
 restResources {
   restApi {
-    includeCore '*'
+    include '*'
   }
 }
 
@@ -49,6 +68,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
@@ -90,25 +110,6 @@ tasks.named("integTest").configure {
   }
 }
 
-ext.docsFileTree = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
-  // That is where the snippets go, not where they come from!
-  exclude 'build'
-  exclude 'build-idea'
-  exclude 'build-eclipse'
-  // Just syntax examples
-  exclude 'README.asciidoc'
-  // Broken code snippet tests
-  exclude 'reference/graph/explore.asciidoc'
-  if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
-    exclude 'reference/cat/plugins.asciidoc'
-  }
-}
-
 tasks.named("buildRestTests").configure {
   docs = docsFileTree
 }
@@ -143,6 +144,9 @@ Closure setupMyIndex = { String name, int count ->
                           type: keyword
                 message:
                   type: text
+                  fields:
+                    keyword:
+                      type: keyword
                 user:
                   properties:
                     id:
@@ -174,6 +178,38 @@ setupMyIndex('my_index_huge', 1200)
 
 tasks.named("buildRestTests").configure {buildRestTests ->
 
+setups['my_data_stream_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+'''
+
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+'''
+
+teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
 // Used for several full-text search and agg examples
 buildRestTests.setups['messages'] = '''
   - do:
@@ -189,27 +225,19 @@ buildRestTests.setups['messages'] = '''
           refresh: true
           body: |
             {"index":{"_id": "0"}}
-            {"message": "trying out Elasticsearch"}
+            {"message": "trying out Elasticsearch", "context": "foo"}
             {"index":{"_id": "1"}}
-            {"message": "some message with the number 1"}
+            {"message": "some message with the number 1", "context": "bar"}
             {"index":{"_id": "2"}}
-            {"message": "some message with the number 2"}
+            {"message": "some message with the number 2", "context": "bar"}
             {"index":{"_id": "3"}}
-            {"message": "some message with the number 3"}
+            {"message": "some message with the number 3", "context": "bar"}
             {"index":{"_id": "4"}}
-            {"message": "some message with the number 4"}'''
+            {"message": "some message with the number 4", "context": "bar"}
+'''
 
 // Used for EQL
-buildRestTests.setups['sec_logs'] = '''
-  - do:
-      indices.put_index_template:
-        name: my-data-stream-template
-        body: |
-          {
-            "index_patterns": [ "my-data-stream*" ],
-            "data_stream": { },
-            "priority": 500
-          }
+setups['sec_logs'] = setups['my_data_stream'] + '''
   - do:
         bulk:
           index: my-data-stream
@@ -507,14 +535,6 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
-  # Simple script to load a field. Not really a good example, but a simple one.
-  - do:
-      put_script:
-        id: "my_script"
-        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
-  - match: { acknowledged: true }
-'''
 
 buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
@@ -1522,16 +1542,7 @@ setups['setup-repository'] = '''
 '''
 
 // Fake sec logs data used by EQL search
-  setups['atomic_red_regsvr32'] = '''
-  - do:
-      indices.put_index_template:
-        name: my-data-stream-template
-        body: |
-          {
-            "index_patterns": [ "my-data-stream*" ],
-            "data_stream": { },
-            "priority": 500
-          }
+  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
   - do:
         bulk:
           index: my-data-stream

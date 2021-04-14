@@ -75,6 +75,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Realm.Factory;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -87,7 +89,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -214,9 +218,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
-        realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
-                licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
-                Collections.singletonList(firstRealm)));
+        realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings),
+            Map.of(FileRealmSettings.TYPE, config -> mock(FileRealm.class), NativeRealmSettings.TYPE, config -> mock(NativeRealm.class)),
+            licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
+            Collections.singletonList(firstRealm)));
 
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
@@ -1909,10 +1914,10 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testCanAuthenticateServiceAccount() throws ExecutionException, InterruptedException {
         Mockito.reset(serviceAccountService);
         final Authentication authentication = new Authentication(
-            new User("elastic/fleet"),
+            new User("elastic/fleet-server"),
             new RealmRef("service_account", "service_account", "foo"), null);
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
-            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc");
+            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
@@ -1929,7 +1934,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Mockito.reset(serviceAccountService);
         final RuntimeException bailOut = new RuntimeException("bail out");
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
-            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnI1d2RiZGJvUVNlOXZHT0t3YUpHQXc");
+            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];

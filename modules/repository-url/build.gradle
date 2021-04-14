@@ -9,6 +9,7 @@
 import org.elasticsearch.gradle.PropertyNormalization
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
@@ -21,7 +22,7 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
   }
 }
 
@@ -62,3 +63,10 @@ testClusters.all {
   }, PropertyNormalization.IGNORE_VALUE
 }
 
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'repository_url/10_basic/Get a non existing snapshot',
+    'repository_url/10_basic/Restore with repository-url using http://',
+    'repository_url/10_basic/Restore with repository-url using file://'
+  ].join(',')
+}

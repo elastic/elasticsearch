@@ -182,15 +182,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
+            .field("_doc_count", 100)
         .endObject();
 
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_routing");
-        assertTrue(fields.isEmpty());
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_doc_count");
+        assertNotNull(fields.get("_doc_count"));
+        assertEquals(100, ((Integer) fields.get("_doc_count").getValue()).intValue());
 
         // The _type field was deprecated in 7.x and is not supported in 8.0. So the behavior
         // should be the same as if the field didn't exist.
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
+
+        // several other metadata fields throw exceptions via their value fetchers when trying to get them
+        for (String fieldname : List.of("_id", "_index", "_seq_no", "_routing", "_ignored")) {
+            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+        }
     }
 
     public void testFetchAllFields() throws IOException {

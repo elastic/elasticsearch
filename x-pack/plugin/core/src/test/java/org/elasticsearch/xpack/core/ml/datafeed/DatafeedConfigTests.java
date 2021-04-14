@@ -35,9 +35,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -58,6 +62,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -121,8 +126,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             aggHistogramInterval = aggHistogramInterval> bucketSpanMillis ? bucketSpanMillis : aggHistogramInterval;
             aggHistogramInterval = aggHistogramInterval <= 0 ? 1 : aggHistogramInterval;
             MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-            aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
-                    .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")).subAggregation(maxTime).field("time"));
+            AggregationBuilder topAgg = randomBoolean() ?
+                AggregationBuilders.dateHistogram("buckets")
+                    .field("time")
+                    .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")) :
+                AggregationBuilders.composite(
+                    "buckets",
+                    Collections.singletonList(
+                        new DateHistogramValuesSourceBuilder("time")
+                            .field("time")
+                            .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
+                    )
+                );
+            aggs.addAggregator(topAgg.subAggregation(maxTime));
             builder.setParsedAggregations(aggs);
         }
         if (randomBoolean()) {
@@ -659,6 +675,59 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(e.getMessage(), containsString("Date histogram must have nested max aggregation for time_field [max_time]"));
     }
 
+    public void testValidateCompositeAggValueSources_MustHaveExactlyOneDateValue() {
+        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(new TermsValuesSourceBuilder("foo").field("bar"))
+        );
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
+        assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
+
+        CompositeAggregationBuilder aggregationBuilderWithMoreDateHisto = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(
+                new TermsValuesSourceBuilder("foo").field("bar"),
+                new DateHistogramValuesSourceBuilder("date1").field("time").fixedInterval(DateHistogramInterval.days(1)),
+                new DateHistogramValuesSourceBuilder("date2").field("time").fixedInterval(DateHistogramInterval.days(1))
+            )
+        );
+        ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilderWithMoreDateHisto));
+        assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
+    }
+    public void testValidateCompositeAggValueSources_DateHistoWithMissingBucket() {
+        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(
+                new TermsValuesSourceBuilder("foo").field("bar"),
+                new DateHistogramValuesSourceBuilder("date1")
+                    .field("time")
+                    .fixedInterval(DateHistogramInterval.days(1))
+                    .missingBucket(true)
+            )
+        );
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
+        assertThat(ex.getMessage(), containsString("does not support missing_buckets"));
+    }
+
+    public void testValidateCompositeAggValueSources_DateHistoBadOrder() {
+        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(
+                new TermsValuesSourceBuilder("foo").field("bar"),
+                new DateHistogramValuesSourceBuilder("date1")
+                    .field("time")
+                    .fixedInterval(DateHistogramInterval.days(1))
+                    .order("desc")
+            )
+        );
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.validateCompositeAggregationSources(aggregationBuilder));
+        assertThat(ex.getMessage(), containsString("must be sorted in ascending order"));
+    }
+
     public void testValidateAggregations_GivenMulitpleHistogramAggs() {
         DateHistogramAggregationBuilder nestedDateHistogram = AggregationBuilders.dateHistogram("nested_time");
         AvgAggregationBuilder avg = AggregationBuilders.avg("avg").subAggregation(nestedDateHistogram);
@@ -713,8 +782,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(48), xContentRegistry()));
     }
 
-    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Second() {
-        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1s");
+    public void testDefaultFrequency_GivenAggregationsWithHistogramOrCompositeInterval_1_Second() {
+        DatafeedConfig datafeed = randomBoolean() ?
+            createDatafeedWithDateHistogram("1s") :
+            createDatafeedWithCompositeAgg("1s");
 
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90), xContentRegistry()));
@@ -726,8 +797,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13), xContentRegistry()));
     }
 
-    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Minute() {
-        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1m");
+    public void testDefaultFrequency_GivenAggregationsWithHistogramOrCompositeInterval_1_Minute() {
+        DatafeedConfig datafeed = randomBoolean() ?
+            createDatafeedWithDateHistogram("1m") :
+            createDatafeedWithCompositeAgg("1m");
 
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90), xContentRegistry()));
@@ -745,9 +818,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(72), xContentRegistry()));
     }
 
-    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_10_Minutes() {
-        DatafeedConfig datafeed = createDatafeedWithDateHistogram("10m");
-
+    public void testDefaultFrequency_GivenAggregationsWithHistogramOrCompositeInterval_10_Minutes() {
+        DatafeedConfig datafeed = randomBoolean() ?
+            createDatafeedWithDateHistogram("10m") :
+            createDatafeedWithCompositeAgg("10m");
         assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(10), xContentRegistry()));
         assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry()));
         assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(30), xContentRegistry()));
@@ -755,9 +829,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueMinutes(13 * 60), xContentRegistry()));
     }
 
-    public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Hour() {
-        DatafeedConfig datafeed = createDatafeedWithDateHistogram("1h");
-
+    public void testDefaultFrequency_GivenAggregationsWithHistogramOrCompositeInterval_1_Hour() {
+        DatafeedConfig datafeed = randomBoolean() ?
+            createDatafeedWithDateHistogram("1h") :
+            createDatafeedWithCompositeAgg("1h");
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601), xContentRegistry()));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2), xContentRegistry()));
@@ -873,6 +948,24 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
+    private static DatafeedConfig createDatafeedWithCompositeAgg(String interval) {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        DateHistogramValuesSourceBuilder sourceBuilder = new DateHistogramValuesSourceBuilder("time");
+        sourceBuilder.field("time");
+        if (interval != null) {
+            if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval) != null) {
+                sourceBuilder.calendarInterval(new DateHistogramInterval(interval));
+            } else {
+                sourceBuilder.fixedInterval(new DateHistogramInterval(interval));
+            }
+        }
+        CompositeAggregationBuilder composite = AggregationBuilders.composite(
+            "buckets",
+            Arrays.asList(sourceBuilder)
+        ).subAggregation(maxTime);
+        return createDatafeedWithComposite(composite);
+    }
+
     private static DatafeedConfig createDatafeedWithDateHistogram(String interval) {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("buckets").subAggregation(maxTime).field("time");
@@ -906,6 +999,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     private static DatafeedConfig createDatafeedWithDateHistogram(DateHistogramAggregationBuilder dateHistogram) {
         return createDatafeedBuilderWithDateHistogram(dateHistogram).build();
+    }
+
+    private static DatafeedConfig.Builder createDatafeedBuilderWithComposite(CompositeAggregationBuilder compositeAggregationBuilder) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("myIndex"));
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder().addAggregator(compositeAggregationBuilder);
+        DatafeedConfig.validateAggregations(aggs);
+        builder.setParsedAggregations(aggs);
+        return builder;
+    }
+
+    private static DatafeedConfig createDatafeedWithComposite(CompositeAggregationBuilder dateHistogram) {
+        return createDatafeedBuilderWithComposite(dateHistogram).build();
     }
 
     @Override

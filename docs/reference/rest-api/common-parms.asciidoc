@@ -427,7 +427,7 @@ tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, Boolean)
 If `true`, the call reports the aggregated disk usage of
-each one  of the Lucene index files (only applies if segment stats are
+each one of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
@@ -625,6 +625,15 @@ tag::require-alias[]
 If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
 `false`.
 end::require-alias[]
+
+tag::bulk-dynamic-templates[]
+`dynamic_templates`::
+(Optional, map)
+A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be 
+applied regardless of other match predicates defined in the template. And if a field is 
+already defined in the mapping, then this parameter won't be used.
+end::bulk-dynamic-templates[]
 
 tag::node-filter[]
 `<node_filter>`::

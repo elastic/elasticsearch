@@ -138,7 +138,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, testParams, future);
         String taskId = future.get().getId();
 
-        Settings nodeSettings = Settings.builder().put(nodeSettings(0)).put("node.attr.test_attr", "test").build();
+        Settings nodeSettings =
+            Settings.builder().put(nodeSettings(0, Settings.EMPTY)).put("node.attr.test_attr", "test").build();
         String newNode = internalCluster().startNode(nodeSettings);
         String newNodeId = internalCluster().clusterService(newNode).localNode().getId();
         waitForTaskToStart();
@@ -294,7 +295,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTask<TestParams> task = future.get();
         String taskId = task.getId();
 
-        Settings nodeSettings = Settings.builder().put(nodeSettings(0)).put("node.attr.test_attr", "test").build();
+        Settings nodeSettings =
+            Settings.builder().put(nodeSettings(0, Settings.EMPTY)).put("node.attr.test_attr", "test").build();
         internalCluster().startNode(nodeSettings);
 
         waitForTaskToStart();

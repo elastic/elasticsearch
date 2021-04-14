@@ -9,8 +9,7 @@ dependencies {
 restResources {
   restApi {
     // needed for template installation, etc.
-    includeCore '_common', 'indices'
-    includeXpack 'text_structure'
+    include '_common', 'indices', 'text_structure'
   }
   restTests {
     includeXpack 'text_structure'

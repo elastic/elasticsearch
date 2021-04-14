@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.xpack.autoscaling.LocalStateAutoscaling;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.core.DataTier;

@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.datastreams.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -29,6 +32,7 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -40,6 +44,10 @@ import static org.mockito.Mockito.when;
 public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
     private final IndexNameExpressionResolver iner = TestIndexNameExpressionResolver.newInstance();
+    private final Consumer<String> systemDataStreamValidator = ds -> EmptySystemIndices.INSTANCE.validateDataStreamAccess(
+        ds,
+        new ThreadContext(Settings.EMPTY)
+    );
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
@@ -47,7 +55,13 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), iner, cs, req);
+        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+            getMetadataDeleteIndexService(),
+            iner,
+            cs,
+            req,
+            systemDataStreamValidator
+        );
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
         assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
         for (String indexName : otherIndices) {
@@ -68,7 +82,13 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         );
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "ba*", "eggplant" });
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), iner, cs, req);
+        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+            getMetadataDeleteIndexService(),
+            iner,
+            cs,
+            req,
+            systemDataStreamValidator
+        );
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         DataStream remainingDataStream = newState.metadata().dataStreams().get(dataStreamNames[0]);
         assertNotNull(remainingDataStream);
@@ -95,7 +115,13 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         SnapshotInProgressException e = expectThrows(
             SnapshotInProgressException.class,
-            () -> DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), iner, snapshotCs, req)
+            () -> DeleteDataStreamTransportAction.removeDataStream(
+                getMetadataDeleteIndexService(),
+                iner,
+                snapshotCs,
+                req,
+                systemDataStreamValidator
+            )
         );
 
         assertThat(
@@ -144,12 +170,19 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
                 getMetadataDeleteIndexService(),
                 iner,
                 cs,
-                new DeleteDataStreamAction.Request(new String[] { dataStreamName })
+                new DeleteDataStreamAction.Request(new String[] { dataStreamName }),
+                systemDataStreamValidator
             )
         );
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName + "*" });
-        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), iner, cs, req);
+        ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(
+            getMetadataDeleteIndexService(),
+            iner,
+            cs,
+            req,
+            systemDataStreamValidator
+        );
         assertThat(newState, sameInstance(cs));
         assertThat(newState.metadata().dataStreams().size(), equalTo(cs.metadata().dataStreams().size()));
         assertThat(

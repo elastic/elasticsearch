@@ -59,6 +59,7 @@ public class MetadataMigrateToDataStreamService {
 
     public void migrateToDataStream(MigrateToDataStreamClusterStateUpdateRequest request,
                                     ActionListener<AcknowledgedResponse> finalListener) {
+        metadataCreateIndexService.getSystemIndices().validateDataStreamAccess(request.aliasName, threadContext);
         AtomicReference<String> writeIndexRef = new AtomicReference<>();
         ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {

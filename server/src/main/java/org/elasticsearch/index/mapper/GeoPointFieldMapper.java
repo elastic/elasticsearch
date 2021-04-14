@@ -12,6 +12,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -28,7 +29,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.ParsedGeoPoint;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -37,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -60,15 +66,29 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
+        private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, boolean ignoreMalformedByDefault) {
+        private final ScriptCompiler scriptCompiler;
+
+        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault) {
             super(name);
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.nullValue = nullValueParam(
                 m -> builder(m).nullValue.get(),
                 (n, c, o) -> parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
                 () -> null).acceptsNull();
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.script.precludesParameters(nullValue, ignoreMalformed);
+            this.script.setValidator(s -> {
+                if (s != null && indexed.get() == false && hasDocValues.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
+            });
         }
 
         @Override
@@ -100,6 +120,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             return point;
         }
 
+        private FieldValues<ParsedGeoPoint> scriptValues() {
+            if (this.script.get() == null) {
+                return null;
+            }
+            GeoPointFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeoPointFieldScript.CONTEXT);
+            return factory == null ? null : (lookup, ctx, doc, consumer) -> factory
+                .newFactory(name, script.get().getParams(), lookup)
+                .newInstance(ctx)
+                .runForDoc(v -> )
+        }
+
         @Override
         public FieldMapper build(ContentPath contentPath) {
             Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
@@ -114,7 +145,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
+    public static TypeParser PARSER
+        = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings())));
 
     private final Builder builder;
 
@@ -131,7 +163,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
+        return new Builder(simpleName(), builder.scriptCompiler, builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
     @Override
@@ -316,5 +348,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             }
             return fields;
         }
+    }
+
+    @Override
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
+        super.indexScriptValues(searchLookup, readerContext, doc, parseContext);
     }
 }

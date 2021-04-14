@@ -39,8 +39,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService.EMPTY_ROLES;
-
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
     private final Map<String, AutoscalingDeciderService> deciderByName;
 
@@ -174,7 +172,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
     private boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
         if (roles.isEmpty()) {
-            return deciderService.roles().contains(EMPTY_ROLES);
+            return deciderService.appliesToEmptyRoles();
         } else {
             return deciderService.roles().stream().map(DiscoveryNodeRole::roleName).anyMatch(roles::contains);
         }
@@ -196,7 +194,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
      * over to an older master before it is also upgraded, one of the roles might not be known.
      */
     private boolean hasUnknownRoles(AutoscalingPolicy policy) {
-        return DiscoveryNode.getPossibleRoleNames().containsAll(policy.roles()) == false;
+        return DiscoveryNodeRole.roleNames().containsAll(policy.roles()) == false;
     }
 
     private AutoscalingDeciderResult calculateForDecider(String name, Settings configuration, AutoscalingDeciderContext context) {
@@ -223,7 +221,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             SnapshotShardSizeInfo snapshotShardSizeInfo,
             AutoscalingMemoryInfo memoryInfo
         ) {
-            this.roles = roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
+            this.roles = roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
             Objects.requireNonNull(state);
             Objects.requireNonNull(clusterInfo);
             this.state = state;

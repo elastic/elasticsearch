@@ -109,7 +109,7 @@ The API request body must contain the search definition template and its paramet
 
 
 [[search-template-api-example]]
-==== {api-response-codes-title}
+==== {api-examples-title}
 
 
 [[pre-registered-templates]]

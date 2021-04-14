@@ -14,7 +14,7 @@ Permanently removes the index.
 Deletes the searchable snapshot created in a previous phase.
 Defaults to `true`.
 This option is applicable when the <<ilm-searchable-snapshot,searchable
-snapshot>> action is used in the cold phase.
+snapshot>> action is used in any previous phase.
 
 [[ilm-delete-action-ex]]
 ==== Example

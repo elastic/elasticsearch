@@ -35,7 +35,7 @@ public abstract class AbstractFieldScript {
 
     static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
-            name + "_script_field",
+            name,
             factoryClass,
             /*
              * We rely on the script cache in two ways:

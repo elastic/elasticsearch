@@ -283,13 +283,14 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
         assert roleMap.size() == roleFields.size() :
             "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
+        // now we can collect the roles, don't do this first and then collect the role map because the set collector will allow duplicates
         final SortedSet<DiscoveryNodeRole> roles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
-        // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
+        // this will detect duplicate role abbreviations
         final Map<String, DiscoveryNodeRole> abbreviations = roles
             .stream()
             .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
-        assert roleMap.size() == abbreviations.size() :
-            "roles by name [" + roleMap + "], roles by name abbreviation [" + abbreviations + "]";
+        assert abbreviations.size() == roleFields.size() :
+            "role abbreviations [" + abbreviations + "], role fields [" + roleFields + "]";
         ROLES = roles;
         ROLE_MAP = roleMap;
     }

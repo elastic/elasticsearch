@@ -32,12 +32,14 @@ public class ReplaceMatch implements RestTestTransformByParentObject {
     public ReplaceMatch(String replaceKey, JsonNode replacementNode, String testName) {
         this(replaceKey, replaceKey, replacementNode, testName);
     }
+
     public ReplaceMatch(String replaceKey, String newKeyName, JsonNode replacementNode, String testName) {
         this.replaceKey = replaceKey;
         this.newKeyName = newKeyName;
         this.replacementNode = replacementNode;
         this.testName = testName;
     }
+
     @Override
     @Internal
     public String getKeyToFind() {

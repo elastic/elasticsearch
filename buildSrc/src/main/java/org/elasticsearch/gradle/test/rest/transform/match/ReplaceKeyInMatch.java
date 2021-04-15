@@ -10,11 +10,7 @@ package org.elasticsearch.gradle.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
-import org.gradle.api.tasks.Optional;
 
 /**
  * A transformation to replace the value of a match. For example, change from "match":{"_type": "foo"} to "match":{"_type": "bar"}
@@ -33,7 +29,6 @@ public class ReplaceKeyInMatch extends ReplaceMatch {
     public String getKeyToFind() {
         return "match";
     }
-
 
     @Override
     public void transformTest(ObjectNode matchParent) {

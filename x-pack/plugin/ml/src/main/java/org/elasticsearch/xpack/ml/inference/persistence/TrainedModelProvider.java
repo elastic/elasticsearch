@@ -1096,18 +1096,16 @@ public class TrainedModelProvider {
         }
         BytesReference bytes = CompositeBytesReference.of(bb);
 
-        // BWC for when we tracked the total definition length
-        // TODO: remove in 9
         if (docs.get(0).getTotalDefinitionLength() != null) {
             if (bytes.length() != docs.get(0).getTotalDefinitionLength()) {
                 throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
             }
-        } else {
-            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
-            // Either we are missing the last doc, or some previous doc
-            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
-                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
-            }
+        }
+
+        TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+        // Either we are missing the last doc, or some previous doc
+        if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+            throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
         }
         return bytes;
     }

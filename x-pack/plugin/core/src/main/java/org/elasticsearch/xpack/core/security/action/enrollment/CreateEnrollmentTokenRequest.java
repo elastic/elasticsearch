@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.enrollment;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -19,12 +20,20 @@ import java.io.IOException;
  */
 
 public class CreateEnrollmentTokenRequest extends ActionRequest {
+    private final String id;
 
     public CreateEnrollmentTokenRequest(StreamInput in) throws IOException {
         super(in);
+        this.id = UUIDs.base64UUID();
     }
 
     public CreateEnrollmentTokenRequest() {
+        super();
+        this.id = UUIDs.base64UUID();
+    }
+
+    public String getId() {
+        return id;
     }
 
     @Override

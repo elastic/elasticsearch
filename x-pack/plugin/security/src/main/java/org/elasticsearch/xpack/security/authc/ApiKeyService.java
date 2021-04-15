@@ -15,6 +15,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -29,6 +31,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -83,6 +86,8 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -146,6 +151,7 @@ public class ApiKeyService {
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
     public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
     public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
+    public static final long ENROLL_API_KEY_EXPIRATION_SEC = 30*60;
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key.hashing.algorithm", "pbkdf2", Function.identity(), v -> {
@@ -255,6 +261,16 @@ public class ApiKeyService {
         }
     }
 
+    public void createApiKeyForEnrollment(Authentication authentication, CreateEnrollmentTokenRequest request,
+                             Set<RoleDescriptor> userRoles, ActionListener<CreateEnrollmentTokenResponse> listener) {
+        ensureEnabled();
+        if (authentication == null) {
+            listener.onFailure(new IllegalArgumentException("authentication must be provided"));
+        } else {
+            createApiKeyAndIndexItForEnrollmentToken(authentication, request, userRoles, listener);
+        }
+    }
+
     private void createApiKeyAndIndexIt(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> roleDescriptorSet,
                                         ActionListener<CreateApiKeyResponse> listener) {
         final Instant created = clock.instant();
@@ -279,7 +295,42 @@ public class ApiKeyService {
                         indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
                             listener.onResponse(
-                                    new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                                new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        },
+                        listener::onFailure))));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private void createApiKeyAndIndexItForEnrollmentToken(Authentication authentication, CreateEnrollmentTokenRequest request,
+                                         Set<RoleDescriptor> roleDescriptorSet, ActionListener<CreateEnrollmentTokenResponse> listener) {
+        final Instant created = clock.instant();
+        final Instant expiration = created.plusSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
+        final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+        final Version version = clusterService.state().nodes().getMinNodeVersion();
+        final String name = "enrollment_token_API_key_" + created.toString();
+        final String requestId = request.getId();
+        final WriteRequest.RefreshPolicy policy = WriteRequest.RefreshPolicy.IMMEDIATE;
+
+        try (XContentBuilder builder = newDocument(apiKey, name, authentication, roleDescriptorSet, created, expiration,
+            null, version, null)) {
+
+            final IndexRequest indexRequest =
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
+                    .setSource(builder)
+                    .setId(requestId)
+                    .setRefreshPolicy(policy)
+                    .request();
+            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
+                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
+                        indexResponse -> {
+                            assert requestId.equals(indexResponse.getId());
+                            listener.onResponse(
+                                new CreateApiKeyResponse(name, requestId, apiKey, expiration));
                         },
                         listener::onFailure))));
         } catch (IOException e) {

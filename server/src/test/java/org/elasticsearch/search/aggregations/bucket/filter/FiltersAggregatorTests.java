@@ -869,12 +869,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder,
             new MatchAllDocsQuery(),
             buildIndex,
-            (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
+            (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(1));
                 assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
 
                 assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
-                List<?> filtersDebug = (List<?>) debug.get("filters");
+                Map<?, ?> filterAggDebug = debug.get("test");
+                List<?> filtersDebug = (List<?>) filterAggDebug.get("filters");
                 Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
                 assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
                 assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));

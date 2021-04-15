@@ -635,7 +635,7 @@ setup:
 
 ---
 "Tiny tiny tiny range":
-    - skip:
+  - skip:
       version: " - 7.99.99"
       reason:  fixed in 8.0 and being backported to 7.13.0
 

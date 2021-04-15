@@ -107,6 +107,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   } else {
     println "Using an external service to test " + project.name
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("gcsThirdPartyTest")  {

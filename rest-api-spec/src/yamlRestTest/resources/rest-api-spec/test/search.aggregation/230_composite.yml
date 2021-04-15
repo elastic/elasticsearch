@@ -202,7 +202,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: [test, other, verynested]
+        index: [test, other, verynested, nonesting]
 
 ---
 "Simple Composite aggregation":
@@ -1198,7 +1198,11 @@ setup:
                         "filter": { "range": {"num": {"gt": 1}} },
                         "aggs":  {
                             "keez": {
-                                "terms": {"field": "kw"}
+                                "composite": {
+                                    "sources": [ 
+                                        "key": {"terms": {"field": "kw"}}
+                                    ]
+                                }
                             }
                         }
                     }
@@ -1207,3 +1211,5 @@ setup:
   - match: {hits.total: 3}
   - match: {aggregations.not_one.doc_count: 2}
   - length: {aggregations.not_one.keez.buckets: 2}
+  - match: {aggregations.not_one.keez.buckets.0.key.key: "one"}
+  - match: {aggregations.not_one.keez.buckets.1.key.key: "two"}

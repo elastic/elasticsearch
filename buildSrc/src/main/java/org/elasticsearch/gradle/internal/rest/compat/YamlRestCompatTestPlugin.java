@@ -50,6 +50,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
+    public static final String BWC_MINOR_CONFIG_NAME = "bwcMinor";
 
     @Override
     public void apply(Project project) {
@@ -73,7 +74,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
 
         // copy compatible rest specs
-        Configuration bwcMinorConfig = project.getConfigurations().create("bwcMinor");
+        Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
         Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:minor", "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 

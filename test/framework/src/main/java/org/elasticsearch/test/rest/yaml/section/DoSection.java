@@ -548,7 +548,9 @@ public class DoSection implements ExecutableSection {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        List<VersionRange> skipVersionRanges = SkipSection.parseVersionRanges(parser.text());
+        List<VersionRange> skipVersionRanges = parser.text().equals("current")
+            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
+            : SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {

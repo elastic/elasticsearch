@@ -16,7 +16,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -163,7 +162,6 @@ public class FrozenCacheService implements Releasable {
     );
 
     private static final Logger logger = LogManager.getLogger(FrozenCacheService.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FrozenCacheService.class);
 
     private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
 
@@ -513,6 +511,7 @@ public class FrozenCacheService implements Releasable {
     @Override
     public void close() {
         sharedBytes.decRef();
+        decayTask.close();
     }
 
     class CacheDecayTask extends AbstractAsyncTask {

@@ -16,7 +16,7 @@ BuildParams.getBwcVersions().forPreviousUnreleased { unreleasedVersion ->
     project(unreleasedVersion.gradleProjectPath) {
         Version currentVersion = Version.fromString(version)
         TaskProvider<Task> resolveAllBwcDepsTaskProvider = bwcSetup.bwcTask("resolveAllBwcDependencies") {
-            t -> t.args("resolveAllDependencies")
+            t -> t.args("resolveAllDependencies", "-Dorg.gradle.warning.mode=none")
         }
         if (currentVersion.getMinor() == 0 && currentVersion.getRevision() == 0) {
             // We only want to resolve dependencies for live versions of master, without cascading this to older versions

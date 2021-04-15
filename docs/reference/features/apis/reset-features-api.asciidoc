@@ -1,4 +1,4 @@
-[[get-features-api]]
+[[reset-features-api]]
 === Reset Features API
 ++++
 <titleabbrev>Reset features</titleabbrev>

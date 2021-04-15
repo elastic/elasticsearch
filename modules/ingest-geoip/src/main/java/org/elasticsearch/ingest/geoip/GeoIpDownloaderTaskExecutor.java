@@ -37,8 +37,8 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
  */
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
-    private static final boolean DISABLED_IN_TESTS = "true".equals(System.getProperty("es.geoip_v2_disabled_in_tests"));
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", DISABLED_IN_TESTS == false,
+    private static final boolean ENABLED_DEFAULT = "false".equals(System.getProperty("geoip.downloader.enabled.default")) == false;
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", ENABLED_DEFAULT,
         Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);

@@ -228,6 +228,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             install();
             assertInstalled(distribution());
+            disableGeoIpDownloader(installation);
 
             startElasticsearch();
             restartElasticsearch(sh, installation);

@@ -67,8 +67,8 @@ setup:
 "Indices Stats API with extended files stats":
 
   - skip:
-      version: " - 7.99.99"
-      reason: segment files stats extended in 8.0.0
+      version: " - 7.12.99"
+      reason: segment files stats extended in 7.13.0
 
   - do:
       index:

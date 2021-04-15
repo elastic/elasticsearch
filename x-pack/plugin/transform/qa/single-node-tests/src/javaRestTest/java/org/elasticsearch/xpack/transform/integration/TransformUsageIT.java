@@ -41,7 +41,7 @@ public class TransformUsageIT extends TransformRestTestCase {
         assertTrue((boolean) XContentMapValues.extractValue("transform.enabled", usageAsMap));
         // no transforms, no stats
         assertNull(XContentMapValues.extractValue("transform.transforms", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.functions", usageAsMap));
+        assertNull(XContentMapValues.extractValue("transform.feature_counts", usageAsMap));
         assertNull(XContentMapValues.extractValue("transform.stats", usageAsMap));
 
         // create transforms
@@ -53,9 +53,10 @@ public class TransformUsageIT extends TransformRestTestCase {
         usageAsMap = entityAsMap(usageResponse);
         assertEquals(4, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
         assertEquals(4, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
-        assertEquals(4, XContentMapValues.extractValue("transform.functions._all", usageAsMap));
-        assertEquals(3, XContentMapValues.extractValue("transform.functions.pivot", usageAsMap));
-        assertEquals(1, XContentMapValues.extractValue("transform.functions.latest", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", usageAsMap));
+        assertNull(XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", usageAsMap));
 
         startAndWaitForTransform("test_usage", "pivot_reviews");
         stopTransform("test_usage", false);
@@ -108,9 +109,10 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(4, XContentMapValues.extractValue("transform.transforms._all", statsMap));
             assertEquals(3, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
-            assertEquals(4, XContentMapValues.extractValue("transform.functions._all", statsMap));
-            assertEquals(3, XContentMapValues.extractValue("transform.functions.pivot", statsMap));
-            assertEquals(1, XContentMapValues.extractValue("transform.functions.latest", statsMap));
+            assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", statsMap));
+            assertNull(XContentMapValues.extractValue("transform.feature_counts.retention_policy", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", statsMap));
             for (String statName : PROVIDED_STATS) {
                 // the trigger count can be off: e.g. if the scheduler kicked in before usage has been called,
                 // or if the scheduler triggered later, but state hasn't been persisted (by design)
@@ -140,9 +142,10 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         assertEquals(4, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
         assertEquals(4, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
-        assertEquals(4, XContentMapValues.extractValue("transform.functions._all", usageAsMap));
-        assertEquals(3, XContentMapValues.extractValue("transform.functions.pivot", usageAsMap));
-        assertEquals(1, XContentMapValues.extractValue("transform.functions.latest", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", usageAsMap));
+        assertNull(XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", usageAsMap));
     }
 
     private static double extractStatsAsDouble(Object statsObject) {

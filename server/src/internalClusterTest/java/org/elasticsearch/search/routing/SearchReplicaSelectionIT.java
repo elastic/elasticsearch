@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.node.ResponseCollectorService.ComputedNodeStats;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
@@ -29,6 +28,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numClientNodes = 1, numDataNodes = 3)
 public class SearchReplicaSelectionIT extends ESIntegTestCase {
@@ -39,7 +39,6 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), true).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70621")
     public void testNodeSelection() {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();
@@ -70,7 +69,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         assertEquals(3, nodeIds.size());
 
-        // Now after more searches, we should select the node with the best ARS rank.
+        // Now after more searches, we should select a node with the lowest ARS rank.
         for (int i = 0; i < 5; i++) {
             client.prepareSearch().setQuery(matchAllQuery()).get();
         }
@@ -87,17 +86,13 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         assertNotNull(nodeStats);
         assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());
 
-        String bestNodeId = null;
-        double bestRank = Double.POSITIVE_INFINITY;
-        for (Map.Entry<String, ComputedNodeStats> entry : nodeStats.getAdaptiveSelectionStats().getComputedStats().entrySet()) {
-            double rank = entry.getValue().rank(1L);
-            if (rank < bestRank) {
-                bestNodeId = entry.getKey();
-                bestRank = rank;
-            }
-        }
-
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).get();
-        assertEquals(bestNodeId, searchResponse.getHits().getAt(0).getShard().getNodeId());
+        String selectedNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
+        double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
+
+        for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
+            double rank = entry.getValue();
+            assertThat(rank, greaterThanOrEqualTo(selectedRank));
+        }
     }
 }

@@ -123,7 +123,7 @@ public class MockNode extends Node {
                 responseCollectorService, circuitBreakerService);
         }
         return new MockSearchService(clusterService, indicesService, threadPool, scriptService,
-            bigArrays, fetchPhase, circuitBreakerService);
+            bigArrays, fetchPhase, responseCollectorService, circuitBreakerService);
     }
 
     @Override

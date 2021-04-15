@@ -14,6 +14,14 @@ if (BuildParams.inFipsJvm) {
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.9')
 
+    // AwaitsFix: https://github.com/elastic/elasticsearch/issues/71699
+    // Temporarily disable all yaml tests when FIPS is enabled
+    pluginManager.withPlugin('elasticsearch.yaml-rest-test') {
+      tasks.named('yamlRestTest').configure {
+        enabled = false
+      }
+    }
+
     pluginManager.withPlugin('java-base') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {

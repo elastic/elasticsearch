@@ -466,6 +466,26 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         assertThat(result, equalTo(MlTasks.AWAITING_UPGRADE));
     }
 
+    public void testSelectNode_GivenResetInProgress() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+        mlMetadata = new MlMetadata.Builder().isResetMode(true).build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+        assertThat(result, equalTo(MlTasks.RESET_IN_PROGRESS));
+    }
+
     public void testCheckDatafeedTaskCanBeCreated_GivenMlUpgradeMode() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));

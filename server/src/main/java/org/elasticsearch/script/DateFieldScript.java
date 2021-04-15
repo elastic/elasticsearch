@@ -15,7 +15,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("date_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

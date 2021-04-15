@@ -14,7 +14,7 @@ import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -65,7 +65,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
 
         return new CreateSnapshotResponse(
             new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTests.randomUserMetadata(), startTime
+                globalState, SnapshotInfoTestUtils.randomUserMetadata(), startTime
             ));
     }
 

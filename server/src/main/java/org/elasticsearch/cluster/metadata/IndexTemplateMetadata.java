@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -37,6 +36,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.common.RestApiVersion.V_8;
+import static org.elasticsearch.common.RestApiVersion.onOrAfter;
+
 
 public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
@@ -379,7 +382,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             indexTemplateMetadata.settings().toXContent(builder, params);
             builder.endObject();
 
-            if(builder.getRestApiVersion() != RestApiVersion.V_7) {
+            if(builder.getRestApiVersion().matches(onOrAfter(V_8))) {
                 includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
             }
 

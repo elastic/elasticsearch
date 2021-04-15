@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -253,6 +254,11 @@ public class ServerUtils {
 
     public static void disableGeoIpDownloader(Installation installation) throws IOException {
         List<String> yaml = Collections.singletonList("ingest.geoip.downloader.enabled: false");
-        Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+        Path yml = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
+            if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
+                Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+            }
+        }
     }
 }

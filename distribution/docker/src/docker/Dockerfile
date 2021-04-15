@@ -230,26 +230,24 @@ RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
 COPY ${config_dir}/elasticsearch.yml config/
 COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 
-# 1. Configure the distribution for Docker
-# 2. Create required directory
-# 3. Change permissions to allow group writes in some places
-# 4. Move the distribution's default logging config aside
-# 5. Move the generated docker logging config so that it is the default
-# 6. Apply more correct permissions
-# 7. The JDK's directories' permissions don't allow `java` to be executed under a different
-#    group to the default. Fix this.
-# 8. Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-# 9. Ensure all files are world-readable by default. It should be possible to
-#    examine the contents of the image under any UID:GID
+#  1. Configure the distribution for Docker
+#  2. Create required directory
+#  3. Move the distribution's default logging config aside
+#  4. Move the generated docker logging config so that it is the default
+#  5. Remove write permissions from all directories
+#  6. Remove write and exec permissions from all files
+#  7. Make tools executable again
+#  8. Make some directories writable again
+#  9. Make some files writable again
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
-    chmod 0775 config config/jvm.options.d data logs && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
     mv config/log4j2.docker.properties config/log4j2.properties && \\
-    chmod 0660 config/elasticsearch.yml config/log4j2*.properties && \\
-    find ./jdk -type d -exec chmod 0755 {} + && \\
-    find . -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    find . -type f -exec chmod o+r {} +
+    find . -type d -exec chmod 0555 {} + && \\
+    find . -type f -exec chmod 0444 {} + && \\
+    chmod 0555 bin/* jdk/bin/* jdk/lib/jspawnhelper modules/x-pack-ml/platform/linux-\$(arch)/bin/* && \\
+    chmod 0775 config config/jvm.options.d data logs plugins && \\
+    find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 
@@ -287,7 +285,6 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
-    chmod 0755 /usr/share/elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 
 <% } else { %>
@@ -304,7 +301,6 @@ COPY --from=rootfs /rootfs /
 RUN addgroup -g 1000 elasticsearch && \\
     adduser -D -u 1000 -G elasticsearch -g elasticsearch -h /usr/share/elasticsearch elasticsearch && \\
     addgroup elasticsearch root && \\
-    chmod 0755 /usr/share/elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 
 <% } %>
@@ -330,11 +326,15 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 #    vendor. The latter is superior in several ways.
 #    REF: https://github.com/elastic/elasticsearch-docker/issues/171
 # 5. Tighten up permissions on the ES home dir (the permissions of the contents are handled earlier)
+# 6. You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+#    dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
+#    config directory.
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
-    chmod 0755 /usr/share/elasticsearch
+    chmod 0775 /usr/share/elasticsearch && \\
+    chown elasticsearch /usr/share/elasticsearch/config
 
 EXPOSE 9200 9300
 

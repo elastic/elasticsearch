@@ -29,9 +29,9 @@ import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.DockerRun.getImageName;
-import static org.elasticsearch.packaging.util.FileMatcher.p644;
+import static org.elasticsearch.packaging.util.FileMatcher.p444;
+import static org.elasticsearch.packaging.util.FileMatcher.p555;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
@@ -246,8 +246,6 @@ public class Docker {
             List<String> cmd = new ArrayList<>();
             cmd.add("docker");
             cmd.add("exec");
-            cmd.add("--user");
-            cmd.add("elasticsearch");
             cmd.add("--tty");
 
             env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
@@ -472,21 +470,27 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.bin, es.bundledJdk, es.lib, es.modules, es.plugins)
-            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p755));
+        assertPermissionsAndOwnership(es.home, "root", "root", p775);
 
-        Stream.of(es.data, es.logs, es.config, es.config.resolve("jvm.options.d"))
+        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules)
+            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
+
+        Stream.of(es.data, es.logs, es.config.resolve("jvm.options.d"), es.plugins)
             .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p775));
 
-        for (Path binariesPath : List.of(es.bin, es.bundledJdk.resolve("bin"))) {
-            assertPermissionsAndOwnership(binariesPath.resolve("*"), "root", "root", p755);
-        }
+        // You can't install plugins that include configuration when running as `elasticsearch` and the `config`
+        // dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
+        // config directory.
+        assertPermissionsAndOwnership(es.config, "elasticsearch", "root", p775);
+
+        Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-*/bin"))
+            .forEach(binariesPath -> assertPermissionsAndOwnership(binariesPath.resolve("*"), "root", "root", p555));
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), "root", "root", p664));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
-            .forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), "root", "root", p644));
+            .forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), "root", "root", p444));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 

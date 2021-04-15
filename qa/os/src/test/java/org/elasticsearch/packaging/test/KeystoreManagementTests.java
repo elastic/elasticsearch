@@ -49,6 +49,7 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -71,6 +72,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
 
+        disableGeoIpDownloader(installation);
+
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
@@ -85,6 +88,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        disableGeoIpDownloader(installation);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -98,7 +102,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(distribution(), builder().envVars(Map.of("geoip.downloader.enabled", "false")));
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -300,7 +304,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = singletonMap("KEYSTORE_PASSWORD", password);
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("KEYSTORE_PASSWORD", password);
+        envVars.put("geoip.downloader.enabled", "false");
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
@@ -333,6 +339,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             Map<String, String> envVars = new HashMap<>();
             envVars.put("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            envVars.put("geoip.downloader.enabled", "false");
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 

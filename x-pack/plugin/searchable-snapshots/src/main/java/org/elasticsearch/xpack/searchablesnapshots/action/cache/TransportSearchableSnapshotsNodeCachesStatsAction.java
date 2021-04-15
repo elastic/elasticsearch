@@ -30,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.io.IOException;
@@ -52,7 +51,6 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
 
-    private final Supplier<CacheService> cacheService;
     private final Supplier<FrozenCacheService> frozenCacheService;
 
     @Inject
@@ -61,7 +59,6 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchableSnapshots.CacheServiceSupplier cacheService,
         SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService
     ) {
         super(
@@ -76,7 +73,6 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             ThreadPool.Names.SAME,
             NodeCachesStatsResponse.class
         );
-        this.cacheService = cacheService;
         this.frozenCacheService = frozenCacheService;
     }
 
@@ -118,19 +114,16 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected NodeCachesStatsResponse nodeOperation(NodeRequest request, Task task) {
-        final CacheService.Stats cacheStats = cacheService.get() != null ? cacheService.get().getStats() : null;
         final FrozenCacheService.Stats frozenCacheStats = frozenCacheService.get() != null ? frozenCacheService.get().getStats() : null;
         return new NodeCachesStatsResponse(
             clusterService.localNode(),
-            cacheStats != null ? cacheStats.getHits() : 0L,
-            cacheStats != null ? cacheStats.getMisses() : 0L,
-            cacheStats != null ? cacheStats.getEvictions() : 0L,
-            cacheStats != null ? cacheStats.getPersistentCacheDocs() : 0L,
-            cacheStats != null ? cacheStats.getPersistentCacheDeletedDocs() : 0L,
-            cacheStats != null ? cacheStats.getPersistentCacheIndexSizeInBytes() : 0L,
+            frozenCacheStats != null ? frozenCacheStats.getNumberOfRegions() : 0,
             frozenCacheStats != null ? frozenCacheStats.getRegionSize() : 0L,
-            frozenCacheStats != null ? frozenCacheStats.getTotalRegions() : 0,
-            frozenCacheStats != null ? frozenCacheStats.getFreeRegions() : 0
+            frozenCacheStats != null ? frozenCacheStats.getWriteCount() : 0L,
+            frozenCacheStats != null ? frozenCacheStats.getWriteBytes() : 0L,
+            frozenCacheStats != null ? frozenCacheStats.getReadCount() : 0L,
+            frozenCacheStats != null ? frozenCacheStats.getReadBytes() : 0L,
+            frozenCacheStats != null ? frozenCacheStats.getEvictCount() : 0L
         );
     }
 
@@ -166,106 +159,71 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static class NodeCachesStatsResponse extends BaseNodeResponse implements ToXContentFragment {
 
-        private final long cacheHits;
-        private final long cacheMisses;
-        private final long cacheEvictions;
-        private final long persistentCacheDocs;
-        private final long persistentCacheDeletedDocs;
-        private final long persistentCacheIndexSizeInBytes;
-        private final long frozenCacheRegionSizeInBytes;
-        private final int frozenCacheTotalRegions;
-        private final int frozenCacheFreeRegions;
+        private final int numRegions;
+        private final long regionSize;
+        private final long writes;
+        private final long bytesWritten;
+        private final long reads;
+        private final long bytesRead;
+        private final long evictions;
 
         public NodeCachesStatsResponse(
             DiscoveryNode node,
-            long cacheHits,
-            long cacheMisses,
-            long cacheEvictions,
-            long persistentCacheDocs,
-            long persistentCacheDeletedDocs,
-            long persistentCacheIndexSizeInBytes,
-            long frozenCacheRegionSizeInBytes,
-            int frozenCacheTotalRegions,
-            int frozenCacheFreeRegions
+            int numRegions,
+            long regionSize,
+            long writes,
+            long bytesWritten,
+            long reads,
+            long bytesRead,
+            long evictions
         ) {
             super(node);
-            this.cacheHits = cacheHits;
-            this.cacheMisses = cacheMisses;
-            this.cacheEvictions = cacheEvictions;
-            this.persistentCacheDocs = persistentCacheDocs;
-            this.persistentCacheDeletedDocs = persistentCacheDeletedDocs;
-            this.persistentCacheIndexSizeInBytes = persistentCacheIndexSizeInBytes;
-            this.frozenCacheRegionSizeInBytes = frozenCacheRegionSizeInBytes;
-            this.frozenCacheTotalRegions = frozenCacheTotalRegions;
-            this.frozenCacheFreeRegions = frozenCacheFreeRegions;
+            this.numRegions = numRegions;
+            this.regionSize = regionSize;
+            this.writes = writes;
+            this.bytesWritten = bytesWritten;
+            this.reads = reads;
+            this.bytesRead = bytesRead;
+            this.evictions = evictions;
         }
 
         public NodeCachesStatsResponse(StreamInput in) throws IOException {
             super(in);
-            this.cacheHits = in.readVLong();
-            this.cacheMisses = in.readVLong();
-            this.cacheEvictions = in.readVLong();
-            this.persistentCacheDocs = in.readVLong();
-            this.persistentCacheDeletedDocs = in.readVLong();
-            this.persistentCacheIndexSizeInBytes = in.readVLong();
-            this.frozenCacheRegionSizeInBytes = in.readVLong();
-            this.frozenCacheTotalRegions = in.readVInt();
-            this.frozenCacheFreeRegions = in.readVInt();
+            this.numRegions = in.readVInt();
+            this.regionSize = in.readVLong();
+            this.writes = in.readVLong();
+            this.bytesWritten = in.readVLong();
+            this.reads = in.readVLong();
+            this.bytesRead = in.readVLong();
+            this.evictions = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(cacheHits);
-            out.writeVLong(cacheMisses);
-            out.writeVLong(cacheEvictions);
-            out.writeVLong(persistentCacheDocs);
-            out.writeVLong(persistentCacheDeletedDocs);
-            out.writeVLong(persistentCacheIndexSizeInBytes);
-            out.writeVLong(frozenCacheRegionSizeInBytes);
-            out.writeVInt(frozenCacheTotalRegions);
-            out.writeVInt(frozenCacheFreeRegions);
+            out.writeVInt(numRegions);
+            out.writeVLong(regionSize);
+            out.writeVLong(writes);
+            out.writeVLong(bytesWritten);
+            out.writeVLong(reads);
+            out.writeVLong(bytesRead);
+            out.writeVLong(evictions);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(getNode().getId());
             {
-                builder.startObject("caches");
+                builder.startObject("shared_cache");
                 {
-                    builder.startObject("full_cache");
-                    builder.field("hits", cacheHits);
-                    builder.field("misses", cacheMisses);
-                    builder.field("evictions", cacheEvictions);
-                    builder.field("persistent_cache_docs", persistentCacheDocs);
-                    builder.field("persistent_cache_deleted_docs", persistentCacheDeletedDocs);
-                    builder.humanReadableField(
-                        "persistent_cache_size_in_bytes",
-                        "persistent_cache_size",
-                        ByteSizeValue.ofBytes(persistentCacheIndexSizeInBytes)
-                    );
-                    builder.endObject();
-                }
-                {
-                    builder.startObject("partial_cache");
-
-                    builder.field("total_regions", frozenCacheFreeRegions);
-                    final long totalBytes = frozenCacheTotalRegions * frozenCacheRegionSizeInBytes;
-                    builder.humanReadableField("total_regions_size_in_bytes", "total_regions_size", ByteSizeValue.ofBytes(totalBytes));
-
-                    builder.field("free_regions", frozenCacheFreeRegions);
-                    final long freeBytes = frozenCacheFreeRegions * frozenCacheRegionSizeInBytes;
-                    builder.humanReadableField("free_regions_size_in_bytes", "free_regions_size", ByteSizeValue.ofBytes(freeBytes));
-                    final double freePercent = totalBytes > 0L ? Math.round(100.0 * ((double) freeBytes / totalBytes) * 10.0) / 10.0 : 0.0;
-                    builder.field("free_regions_percent", freePercent);
-
-                    builder.field("used_regions", frozenCacheTotalRegions - frozenCacheFreeRegions);
-                    final long usedBytes = totalBytes - freeBytes;
-                    builder.humanReadableField("used_regions_size_in_bytes", "used_regions_size", ByteSizeValue.ofBytes(usedBytes));
-                    final double usedPercent = totalBytes > 0L ? Math.round(100.0 * ((double) usedBytes / totalBytes) * 10.0) / 10.0 : 0.0;
-                    builder.field("used_regions_percent", usedPercent);
-
-                    builder.endObject();
+                    builder.field("reads", reads);
+                    builder.humanReadableField("bytes_read_in_bytes", "bytes_read", ByteSizeValue.ofBytes(bytesRead));
+                    builder.field("writes", writes);
+                    builder.humanReadableField("bytes_written_in_bytes", "bytes_written", ByteSizeValue.ofBytes(bytesWritten));
+                    builder.field("evictions", evictions);
+                    builder.field("num_regions", numRegions);
+                    builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(numRegions * regionSize));
+                    builder.humanReadableField("region__size_in_bytes", "region_size", ByteSizeValue.ofBytes(regionSize));
                 }
                 builder.endObject();
             }

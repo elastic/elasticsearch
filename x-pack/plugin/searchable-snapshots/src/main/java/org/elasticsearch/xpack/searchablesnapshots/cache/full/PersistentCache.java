@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -23,7 +22,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -45,19 +43,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -318,36 +314,6 @@ public class PersistentCache implements Closeable {
             count += writer.indexWriter.getPendingNumDocs();
         }
         return count;
-    }
-
-    public final DocsStats getStats() {
-        ensureOpen();
-        long numDocs = 0;
-        long numDeletedDocs = 0;
-        long sizeInBytes = 0;
-        for (CacheIndexWriter writer : writers) {
-            try (DirectoryReader indexReader = DirectoryReader.open(writer.indexWriter)) {
-                for (LeafReaderContext leafReaderContext : indexReader.leaves()) {
-                    final SegmentReader segmentReader = Lucene.segmentReader(leafReaderContext.reader());
-                    numDocs += leafReaderContext.reader().numDocs();
-                    numDeletedDocs += leafReaderContext.reader().numDeletedDocs();
-                    try {
-                        sizeInBytes += segmentReader.getSegmentInfo().sizeInBytes();
-                    } catch (IOException e) {
-                        logger.trace(
-                            () -> new ParameterizedMessage(
-                                "failed to get persistent cache index size for [{}]",
-                                segmentReader.getSegmentInfo().info.name
-                            ),
-                            e
-                        );
-                    }
-                }
-            } catch (IOException e) {
-                logger.debug(() -> new ParameterizedMessage("failed to retrieve {} stats", writer), e);
-            }
-        }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
     @Override

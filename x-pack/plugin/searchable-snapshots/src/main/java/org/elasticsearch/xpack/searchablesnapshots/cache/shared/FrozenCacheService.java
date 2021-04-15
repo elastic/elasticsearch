@@ -28,12 +28,12 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,8 +47,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -176,7 +176,6 @@ public class FrozenCacheService implements Releasable {
 
     private final int numRegions;
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
-    private final AtomicInteger freeRegionsCounter = new AtomicInteger();
     private final Entry<CacheFileRegion>[] freqs;
     private final int maxFreq;
     private final long minTimeDelta;
@@ -184,6 +183,14 @@ public class FrozenCacheService implements Releasable {
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
     private final CacheDecayTask decayTask;
+
+    private final LongAdder writeCount = new LongAdder();
+    private final LongAdder writeBytes = new LongAdder();
+
+    private final LongAdder readCount = new LongAdder();
+    private final LongAdder readBytes = new LongAdder();
+
+    private final LongAdder evictCount = new LongAdder();
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
@@ -202,7 +209,6 @@ public class FrozenCacheService implements Releasable {
         }
         for (int i = 0; i < numRegions; i++) {
             freeRegions.add(i);
-            freeRegionsCounter.incrementAndGet();
         }
         this.regionSize = regionSize;
         assert regionSize > 0L;
@@ -210,7 +216,7 @@ public class FrozenCacheService implements Releasable {
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
         try {
-            sharedBytes = new SharedBytes(numRegions, regionSize, environment);
+            sharedBytes = new SharedBytes(numRegions, regionSize, environment, writeBytes::add, readBytes::add);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -302,8 +308,6 @@ public class FrozenCacheService implements Releasable {
                 if (freeSlot != null) {
                     // no need to evict an item, just add
                     entry.chunk.sharedBytesPos = freeSlot;
-                    final int freeRegionsCount = freeRegionsCounter.decrementAndGet();
-                    assert freeRegionsCount >= 0 : freeRegionsCount;
                     assert regionOwners[freeSlot].compareAndSet(null, entry.chunk);
                     synchronized (this) {
                         pushEntryToBack(entry);
@@ -316,8 +320,6 @@ public class FrozenCacheService implements Releasable {
                     final Integer freeSlotRetry = freeRegions.poll();
                     if (freeSlotRetry != null) {
                         entry.chunk.sharedBytesPos = freeSlotRetry;
-                        final int freeRegionsCount = freeRegionsCounter.decrementAndGet();
-                        assert freeRegionsCount >= 0 : freeRegionsCount;
                         assert regionOwners[freeSlotRetry].compareAndSet(null, entry.chunk);
                         synchronized (this) {
                             pushEntryToBack(entry);
@@ -346,17 +348,15 @@ public class FrozenCacheService implements Releasable {
     public void onClose(CacheFileRegion chunk) {
         assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
         freeRegions.add(chunk.sharedBytesPos);
-        final int freeRegionsCount = freeRegionsCounter.incrementAndGet();
-        assert freeRegionsCount > 0 : freeRegionsCount;
     }
 
     // used by tests
     int freeRegionCount() {
-        return freeRegionsCounter.get();
+        return freeRegions.size();
     }
 
     public Stats getStats() {
-        return new Stats(regionSize, numRegions, freeRegionsCounter.get());
+        return new Stats(numRegions, regionSize, evictCount.sum(), writeCount.sum(), writeBytes.sum(), readCount.sum(), readBytes.sum());
     }
 
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
@@ -609,6 +609,7 @@ public class FrozenCacheService implements Releasable {
         public boolean tryEvict() {
             if (refCount() <= 1 && evicted.compareAndSet(false, true)) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                evictCount.increment(); // only count evictions that are not related to shard shutdown
                 decRef();
                 return true;
             }
@@ -626,10 +627,6 @@ public class FrozenCacheService implements Releasable {
 
         public boolean isEvicted() {
             return evicted.get();
-        }
-
-        public boolean isReleased() {
-            return isEvicted() && refCount() == 0;
         }
 
         @Override
@@ -690,6 +687,7 @@ public class FrozenCacheService implements Releasable {
                                     gap.end() - gap.start(),
                                     progress -> gap.onProgress(start + progress)
                                 );
+                                writeCount.increment();
                             } finally {
                                 decRef();
                             }
@@ -731,6 +729,7 @@ public class FrozenCacheService implements Releasable {
                         + '-'
                         + rangeToRead.start()
                         + ']';
+                readCount.increment();
                 listener.onResponse(read);
             }, listener::onFailure);
         }
@@ -844,26 +843,58 @@ public class FrozenCacheService implements Releasable {
 
     public static class Stats {
 
+        private final int numberOfRegions;
         private final long regionSize;
-        private final int totalRegions;
-        private final int freeRegions;
+        private final long evictCount;
+        private final long writeCount;
+        private final long writeBytes;
+        private final long readCount;
+        private final long readBytes;
 
-        private Stats(long regionSize, int totalRegions, int freeRegions) {
+        private Stats(
+            int numberOfRegions,
+            long regionSize,
+            long evictCount,
+            long writeCount,
+            long writeBytes,
+            long readCount,
+            long readBytes
+        ) {
+            this.numberOfRegions = numberOfRegions;
             this.regionSize = regionSize;
-            this.totalRegions = totalRegions;
-            this.freeRegions = freeRegions;
+            this.evictCount = evictCount;
+            this.writeCount = writeCount;
+            this.writeBytes = writeBytes;
+            this.readCount = readCount;
+            this.readBytes = readBytes;
+        }
+
+        public int getNumberOfRegions() {
+            return numberOfRegions;
         }
 
         public long getRegionSize() {
             return regionSize;
         }
 
-        public int getTotalRegions() {
-            return totalRegions;
+        public long getEvictCount() {
+            return evictCount;
         }
 
-        public int getFreeRegions() {
-            return freeRegions;
+        public long getWriteCount() {
+            return writeCount;
+        }
+
+        public long getWriteBytes() {
+            return writeBytes;
+        }
+
+        public long getReadCount() {
+            return readCount;
+        }
+
+        public long getReadBytes() {
+            return readBytes;
         }
     }
 }

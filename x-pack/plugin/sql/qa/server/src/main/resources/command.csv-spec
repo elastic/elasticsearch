@@ -277,7 +277,6 @@ DESCRIBE LIKE 'test_emp';
         column        |     type      |    mapping    
 ----------------------+---------------+---------------
 birth_date            |TIMESTAMP      |datetime       
-birth_date_day_of_week|VARCHAR        |keyword        
 dep                   |STRUCT         |nested         
 dep.dep_id            |VARCHAR        |keyword        
 dep.dep_name          |VARCHAR        |text           
@@ -297,6 +296,7 @@ hire_date             |TIMESTAMP      |datetime
 languages             |TINYINT        |byte           
 last_name             |VARCHAR        |text           
 last_name.keyword     |VARCHAR        |keyword        
+name                  |VARCHAR        |keyword        
 null_constant         |VARCHAR        |keyword        
 salary                |INTEGER        |integer        
 wildcard_name         |VARCHAR        |keyword        
@@ -308,7 +308,6 @@ DESCRIBE LIKE 'test_emp%';
         column        |     type      |    mapping    
 ----------------------+---------------+---------------
 birth_date            |TIMESTAMP      |datetime       
-birth_date_day_of_week|VARCHAR        |keyword        
 dep                   |STRUCT         |nested         
 dep.dep_id            |VARCHAR        |keyword        
 dep.dep_name          |VARCHAR        |text           
@@ -328,6 +327,7 @@ hire_date             |TIMESTAMP      |datetime
 languages             |TINYINT        |byte           
 last_name             |VARCHAR        |text           
 last_name.keyword     |VARCHAR        |keyword        
+name                  |VARCHAR        |keyword        
 null_constant         |VARCHAR        |keyword        
 salary                |INTEGER        |integer        
 wildcard_name         |VARCHAR        |keyword        
@@ -339,7 +339,6 @@ DESCRIBE "test_emp";
         column        |     type      |    mapping    
 ----------------------+---------------+---------------
 birth_date            |TIMESTAMP      |datetime       
-birth_date_day_of_week|VARCHAR        |keyword        
 dep                   |STRUCT         |nested         
 dep.dep_id            |VARCHAR        |keyword        
 dep.dep_name          |VARCHAR        |text           
@@ -354,6 +353,7 @@ hire_date             |TIMESTAMP      |datetime
 languages             |TINYINT        |byte           
 last_name             |VARCHAR        |text           
 last_name.keyword     |VARCHAR        |keyword        
+name                  |VARCHAR        |keyword        
 salary                |INTEGER        |integer        
 ;
 

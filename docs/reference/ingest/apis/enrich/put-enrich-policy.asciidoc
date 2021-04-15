@@ -64,8 +64,7 @@ If you use {es} {security-features}, you must have:
 [[put-enrich-policy-api-desc]]
 ==== {api-description-title}
 
-Use the create or update enrich policy API to create a new
-<<enrich-policy,enrich policy>>.
+Use the create enrich policy API to create a <<enrich-policy,enrich policy>>.
 
 [WARNING]
 ====

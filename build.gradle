@@ -21,12 +21,13 @@ import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.spotless" version "5.9.0" apply false
+  id "com.diffplug.spotless" version "5.12.0" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'
@@ -189,9 +190,9 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
+boolean bwc_tests_enabled = false
 // place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = ""
+String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/71725"
 /*
  * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
  * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
@@ -283,7 +284,7 @@ allprojects {
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
-      project.configurations.compile.dependencies
+      project.configurations.compileClasspath.dependencies
         .findAll()
         .toSorted(sortClosure)
         .each({ c -> depJavadocClosure(hasShadow, c) })
@@ -343,6 +344,7 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
+    java.modularity.inferModulePath.set(false)
     eclipse.classpath.file.whenMerged { classpath ->
       /*
        * give each source folder a unique corresponding output folder
@@ -511,6 +513,14 @@ subprojects {
   project.ext.disableTasks = { String... tasknames ->
     for (String taskname : tasknames) {
       project.tasks.named(taskname).configure { enabled = false }
+    }
+  }
+}
+
+subprojects { Project subproj ->
+  plugins.withType(TestClustersPlugin).whenPluginAdded {
+    testClusters.all {
+      systemProperty "geoip.downloader.enabled.default", "false"
     }
   }
 }

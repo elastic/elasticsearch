@@ -130,6 +130,10 @@ final class FieldTypeLookup {
         if (fullNameToFieldType.isEmpty()) {
             return Set.of();
         }
+        if (dynamicKeyLookup.get(field) != null) {
+            return Set.of(field);
+        }
+
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {

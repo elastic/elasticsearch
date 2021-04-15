@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -33,6 +34,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -151,6 +153,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         nodes.removeAll(dataNodes.keys());
         nodes.removeAll(ingestNodes.keys());
         return nodes.build();
+    }
+
+    /**
+     * Return all the nodes as a collection
+     * @return
+     */
+    public Collection<DiscoveryNode> getAllNodes() {
+        return StreamSupport.stream(this.spliterator(), false).collect(Collectors.toUnmodifiableList());
     }
 
     /**

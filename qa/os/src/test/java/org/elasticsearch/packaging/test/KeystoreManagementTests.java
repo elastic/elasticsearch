@@ -105,7 +105,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         installation = Docker.runContainer(
             distribution(),
-            builder().envVars(Collections.singletonMap("geoip.downloader.enabled", "false"))
+            builder().envVars(Collections.singletonMap("ingest.geoip.downloader.enabled", "false"))
         );
 
         try {
@@ -310,7 +310,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = new HashMap<>();
         envVars.put("KEYSTORE_PASSWORD", password);
-        envVars.put("geoip.downloader.enabled", "false");
+        envVars.put("ingest.geoip.downloader.enabled", "false");
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
@@ -343,7 +343,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             Map<String, String> envVars = new HashMap<>();
             envVars.put("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
-            envVars.put("geoip.downloader.enabled", "false");
+            envVars.put("ingest.geoip.downloader.enabled", "false");
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 

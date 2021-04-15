@@ -1494,8 +1494,3 @@ See <<put-enrich-policy-api>>.
 === Rollup API
 
 See <<rollup-apis>>.
-
-[role="exclude",id="geoip-stats-api"]
-=== GeoIP stats API
-
-coming::[7.x]

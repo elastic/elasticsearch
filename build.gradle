@@ -516,7 +516,7 @@ subprojects {
 subprojects { Project subproj ->
   plugins.withType(TestClustersPlugin).whenPluginAdded {
     testClusters.all {
-      systemProperty "geoip.downloader.enabled.default", "false"
+      systemProperty "ingest.geoip.downloader.enabled.default", "false"
     }
   }
 }

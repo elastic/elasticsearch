@@ -67,7 +67,6 @@ public final class IngestDocument {
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
-        sourceAndMetadata.put(Metadata.DYNAMIC_TEMPLATES.getFieldName(), new HashMap<>());
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }

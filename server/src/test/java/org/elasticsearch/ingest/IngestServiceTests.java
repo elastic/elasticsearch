@@ -735,14 +735,13 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest =
             new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         CountDownLatch latch = new CountDownLatch(1);
-        final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail");};
-        final BiConsumer<Thread, Exception> completionHandler = (t, e) -> {latch.countDown();};
+        final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail", e);};
+        final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler,
             indexReq -> {}, Names.WRITE);
         latch.await();
         assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
     }
-
 
     public void testExecuteEmptyPipeline() throws Exception {
         IngestService ingestService = createWithProcessors(emptyMap());
@@ -789,6 +788,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
                 } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
+                } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }

@@ -1397,7 +1397,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .subAggregation(new TermsAggregationBuilder("str").field("str"));
         withNonMergingIndex(iw -> {
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new SortedNumericDocValuesField("n", 1),
                     new LongPoint("n", 1),
                     new SortedSetDocValuesField("str", new BytesRef("sheep")),
@@ -1406,7 +1406,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             );
             iw.commit();   // Force two segments
             iw.addDocument(
-                List.of(
+                org.elasticsearch.common.collect.List.of(
                     new SortedNumericDocValuesField("n", 1),
                     new LongPoint("n", 1),
                     new SortedSetDocValuesField("str", new BytesRef("cow")),

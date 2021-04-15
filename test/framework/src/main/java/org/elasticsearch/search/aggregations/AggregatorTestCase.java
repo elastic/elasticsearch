@@ -634,7 +634,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         aggregator.postCollection();
         InternalAggregation r = aggregator.buildTopLevel();
         r = r.reduce(
-            List.of(r),
+            org.elasticsearch.common.collect.List.of(r),
             ReduceContext.forFinalReduction(
                 context.bigArrays(),
                 getMockScriptService(),

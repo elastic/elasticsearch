@@ -8,20 +8,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -61,25 +61,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
          */
         public abstract Object format(T value, String format);
 
-        /**
-         * Parses the given value, then formats it according to the 'format' string.
-         *
-         * Used by value fetchers to validate and format geo objects
-         */
-        public Object parseAndFormatObject(Object value, String format) {
-            Object[] formatted = new Object[1];
-            try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
-                parser.nextToken(); // start object
-                parser.nextToken(); // field name
-                parser.nextToken(); // field value
-                parse(parser, v -> {
-                    formatted[0] = format(v, format);
-                }, e -> {} /* ignore malformed */);
+        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, String format) {
+            try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
+                parse(parser, v -> consumer.accept(format(v, format)), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return formatted[0];
         }
     }
 
@@ -105,19 +92,22 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
-            Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
             if (parsesArrayValue) {
                 return new ArraySourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
-                        return valueParser.apply(value);
+                        List<Object> values = new ArrayList<>();
+                        geometryParser.fetchFromSource(value, values::add, geoFormat);
+                        return values;
                     }
                 };
             } else {
                 return new SourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
-                        return valueParser.apply(value);
+                        SetOnce<Object> holder = new SetOnce<>();
+                        geometryParser.fetchFromSource(value, holder::set, geoFormat);
+                        return holder.get();
                     }
                 };
             }
@@ -156,9 +146,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
+    /**
+     * Build an index document using a parsed geometry
+     * @param context   the ParseContext holding the document
+     * @param geometry  the parsed geometry object
+     */
     protected abstract void index(ParseContext context, T geometry) throws IOException;
 
-    /** parsing logic for geometry indexing */
     @Override
     public final void parse(ParseContext context) throws IOException {
       parser.parse(context.parser(), v -> index(context, v), e -> {

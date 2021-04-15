@@ -184,8 +184,8 @@ setup:
 ---
 "Test fetching flattened subfields via fields option":
   - skip:
-      version: " - 7.99.99"
-      reason:  skip until backported to 7.13.0
+      version: " - 7.12.99"
+      reason:  fetching flattened subfields introduced in 7.13.0
   - do:
       indices.create:
         index:  test

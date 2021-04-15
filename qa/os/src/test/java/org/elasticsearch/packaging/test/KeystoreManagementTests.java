@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +103,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution(), builder().envVars(Map.of("geoip.downloader.enabled", "false")));
+        installation = Docker.runContainer(distribution(), builder().envVars(Collections.singletonMap("geoip.downloader.enabled",
+            "false")));
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));

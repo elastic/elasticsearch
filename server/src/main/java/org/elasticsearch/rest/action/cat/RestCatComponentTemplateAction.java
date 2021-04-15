@@ -13,8 +13,11 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -50,9 +53,11 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders();
         table.addCell("name", "alias:n;desc:component template name");
-        table.addCell("template", "alias:t;desc:component template");
         table.addCell("version", "alias:v;desc:version");
-        table.addCell("meta_data", "alias:m;desc:component templates comprising metadata");
+        table.addCell("alias_count", "alias:a;desc:alias count");
+        table.addCell("mapping_count", "alias:m;desc:mapping count");
+        table.addCell("settings_count", "alias:s;desc:settings count");
+        table.addCell("metadata_count", "alias:me;desc:metadata count");
         table.endHeaders();
         return table;
     }
@@ -78,14 +83,17 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
 
         for (Map.Entry<String, ComponentTemplate> entry : metadata.componentTemplates().entrySet()) {
             String name = entry.getKey();
-            ComponentTemplate template = entry.getValue();
+            ComponentTemplate componentTemplate = entry.getValue();
             if (patternString == null || Regex.simpleMatch(patternString, name)) {
                 table.startRow();
                 table.addCell(name);
-                table.addCell("[" + String.join(", ", template.toString()) + "]");
-                table.addCell(template.version());
-                table.addCell(template.metadata() == null ? "-":
-                    "[" + String.join(", ", template.metadata().toString()) + "]");
+                table.addCell(componentTemplate.version());
+                Template template = componentTemplate.template();
+                table.addCell(template == null || template.aliases() == null ? 0: template.aliases().size());
+                table.addCell(template == null || template.mappings() == null ? 0:
+                    XContentHelper.convertToMap(template.mappings().uncompressed(), true, XContentType.JSON).v2().size());
+                table.addCell(template == null  || template.settings() == null ? 0: template.settings().keySet().size());
+                table.addCell(componentTemplate.metadata() == null ? 0: componentTemplate.metadata().size());
                 table.endRow();
             }
         }

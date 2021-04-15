@@ -95,9 +95,9 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
         MetricValue metric = topMetrics.get(0).metricValues.get(index);
         if (metric == null) {
-            return Double.NaN;
+            return null;
         }
-        return metric.numberValue();
+        return metric.getValue().getKey();
     }
 
     @Override
@@ -171,7 +171,11 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         }
         assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
         // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
-        return topMetrics.get(0).metricValues.get(index).numberValue().doubleValue();
+        MetricValue value = topMetrics.get(0).metricValues.get(index);
+        if (value == null) {
+            return Double.NaN;
+        }
+        return value.numberValue().doubleValue();
     }
 
     @Override

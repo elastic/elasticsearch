@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
@@ -145,7 +146,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
 
         if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
             settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
-                .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
+                .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true)
+                .put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP);
         }
 
         return settings.build();

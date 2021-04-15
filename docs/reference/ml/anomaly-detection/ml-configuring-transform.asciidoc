@@ -496,7 +496,7 @@ PUT _ml/datafeeds/datafeed-test4
   },
   "runtime_mappings": {
     "my_coordinates": {
-      "type": "geo_point",
+      "type": "keyword",
       "script": {
         "source": "emit(doc['coords.lat'].value + ',' + doc['coords.lon'].value)",
       }

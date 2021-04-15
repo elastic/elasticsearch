@@ -498,7 +498,7 @@ PUT _ml/datafeeds/datafeed-test4
     "my_coordinates": {
       "type": "keyword",
       "script": {
-        "source": "emit(doc['coords.lat'].value + ',' + doc['coords.lon'].value)",
+        "source": "emit(doc['coords.lat'].value + ',' + doc['coords.lon'].value)"
       }
     }
   }

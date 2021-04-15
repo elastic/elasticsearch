@@ -165,17 +165,19 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
+        private final String rootName;
 
-        public KeyedFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, String key,
+        KeyedFlattenedFieldType(String rootName, boolean indexed, boolean hasDocValues, String key,
                                        boolean splitQueriesOnWhitespace, Map<String, String> meta) {
-            super(name, indexed, false, hasDocValues,
+            super(rootName + KEYED_FIELD_SUFFIX, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
             this.key = key;
+            this.rootName = rootName;
         }
 
-        private KeyedFlattenedFieldType(String name, String key, RootFlattenedFieldType ref) {
-            this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+        private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
+            this(rootName, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -261,8 +263,11 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // This is an internal field but it can match a field pattern so we return an empty list.
-            return lookup -> List.of();
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + rootName + "." + key + "] of type [" + typeName() +
+                    "] doesn't support formats.");
+            }
+            return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }
     }
 
@@ -426,7 +431,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                                  Builder builder) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, CopyTo.empty());
         this.builder = builder;
-        this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), keyedFieldName(),
+        this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), mappedFieldType.name() + KEYED_FIELD_SUFFIX,
             mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());
     }
 
@@ -450,11 +455,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public KeyedFlattenedFieldType keyedFieldType(String key) {
-        return new KeyedFlattenedFieldType(keyedFieldName(), key, fieldType());
-    }
-
-    public String keyedFieldName() {
-        return mappedFieldType.name() + KEYED_FIELD_SUFFIX;
+        return new KeyedFlattenedFieldType(name(), key, fieldType());
     }
 
     @Override

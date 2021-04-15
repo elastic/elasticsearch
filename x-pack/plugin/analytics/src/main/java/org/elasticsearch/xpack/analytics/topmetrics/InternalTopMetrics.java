@@ -95,7 +95,8 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
         MetricValue metric = topMetrics.get(0).metricValues.get(index);
         if (metric == null) {
-            return null;
+            // We've found the name but it doesn't have a value.
+            return Double.NaN;
         }
         return metric.getValue().getKey();
     }

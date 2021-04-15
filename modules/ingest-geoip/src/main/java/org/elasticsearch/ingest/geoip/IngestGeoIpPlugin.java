@@ -55,7 +55,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,7 +66,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
-import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemIndexPlugin, Closeable, PersistentTaskPlugin, ActionPlugin {
     public static final Setting<Long> CACHE_SIZE =
@@ -81,13 +79,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(Arrays.asList(CACHE_SIZE,
-            GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING));
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            settings.add(GeoIpDownloaderTaskExecutor.ENABLED_SETTING);
-        }
-        return settings;
+        return Arrays.asList(CACHE_SIZE, GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING,
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING);
     }
 
     @Override
@@ -119,11 +112,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
-            return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
-        }
-        return List.of(databaseRegistry.get());
+
+        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
+        return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
 
     @Override
@@ -135,19 +126,12 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
                                                                        Client client, SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            return List.of(geoIpDownloaderTaskExecutor);
-        } else {
-            return List.of();
-        }
+        return List.of(geoIpDownloaderTaskExecutor);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            return List.of(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE, GeoIpDownloaderStatsTransportAction.class));
-        }
-        return Collections.emptyList();
+        return List.of(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE, GeoIpDownloaderStatsTransportAction.class));
     }
 
     @Override
@@ -155,10 +139,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            return List.of(new RestGeoIpDownloaderStatsAction());
-        }
-        return Collections.emptyList();
+        return List.of(new RestGeoIpDownloaderStatsAction());
     }
 
     @Override

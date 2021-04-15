@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,6 +99,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         }
     }
 
+    // This test has failed once or twice in the past. This is enabled in case it were to fail again.
+    @TestLogging(
+        value = "org.elasticsearch.transport.ClusterConnectionManager:TRACE,org.elasticsearch.transport.ProxyConnectionStrategy:TRACE",
+        reason = "to ensure that connections are logged")
     public void testProxyStrategyWillOpenNewConnectionsOnDisconnect() throws Exception {
         try (MockTransportService transport1 = startTransport("node1", Version.CURRENT);
              MockTransportService transport2 = startTransport("node2", Version.CURRENT)) {

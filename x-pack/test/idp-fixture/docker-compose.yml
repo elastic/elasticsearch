@@ -15,6 +15,7 @@ services:
       - cluster.routing.allocation.disk.watermark.high=1b
       - cluster.routing.allocation.disk.watermark.flood_stage=1b
       - node.store.allow_mmap=false
+      - ingest.geoip.downloader.enabled=false
       - xpack.license.self_generated.type=trial
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true

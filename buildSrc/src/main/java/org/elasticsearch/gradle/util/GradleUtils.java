@@ -162,9 +162,8 @@ public abstract class GradleUtils {
      */
     public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName) {
         final List<Function<SourceSet, String>> configNameFunctions = Arrays.asList(
-            SourceSet::getCompileConfigurationName,
+            SourceSet::getCompileOnlyConfigurationName,
             SourceSet::getImplementationConfigurationName,
-            SourceSet::getRuntimeConfigurationName,
             SourceSet::getRuntimeOnlyConfigurationName
         );
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

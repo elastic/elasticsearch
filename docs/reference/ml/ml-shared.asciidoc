@@ -335,7 +335,8 @@ end::custom-preprocessor[]
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
-results should be skipped. For more examples, see
+results should be skipped. {kib} refers to custom rules as _job rules_. For more 
+examples, see
 {ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 end::custom-rules[]
 

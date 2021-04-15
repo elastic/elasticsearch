@@ -16,6 +16,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - ingest.geoip.downloader.enabled=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
@@ -69,6 +70,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - ingest.geoip.downloader.enabled=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true

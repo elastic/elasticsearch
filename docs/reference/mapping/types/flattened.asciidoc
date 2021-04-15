@@ -178,6 +178,7 @@ POST my-index-000001/_search
     "max_score": 1.0,
     "hits": [{
       "_index": "my-index-000001",
+      "_type" : "_doc",
       "_id": "1",
       "_score": 1.0,
       "fields": {

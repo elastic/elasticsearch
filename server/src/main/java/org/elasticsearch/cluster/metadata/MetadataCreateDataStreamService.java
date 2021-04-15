@@ -224,7 +224,7 @@ public class MetadataCreateDataStreamService {
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem ? false : template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, isSystem);
+            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false, isSystem);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
             writeIndex.getIndex().getName(),

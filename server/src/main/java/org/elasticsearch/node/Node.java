@@ -420,15 +420,9 @@ public class Node implements Closeable {
                 .stream()
                 .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
                 .collect(Collectors.toUnmodifiableMap(
-                    plugin -> plugin.getFeatureName(),
-                    plugin -> new SystemIndices.Feature(
-                        plugin.getFeatureDescription(),
-                        plugin.getSystemIndexDescriptors(settings),
-                        plugin.getSystemDataStreamDescriptors(),
-                        plugin.getAssociatedIndexPatterns(),
-                        plugin::cleanUpFeature
-                    ))
-                );
+                    SystemIndexPlugin::getFeatureName,
+                    plugin -> SystemIndices.pluginToFeature(plugin, settings)
+                ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
 
             ModulesBuilder modules = new ModulesBuilder();

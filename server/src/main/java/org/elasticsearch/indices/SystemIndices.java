@@ -26,8 +26,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Collection;
@@ -384,13 +386,20 @@ public class SystemIndices {
      * Given a collection of {@link SystemIndexDescriptor}s and their sources, checks to see if the index patterns of the listed
      * descriptors overlap with any of the other patterns. If any do, throws an exception.
      *
-     * @param sourceToDescriptors A map of source (plugin) names to the SystemIndexDescriptors they provide.
+     * @param sourceToFeature A map of source (plugin) names to the SystemIndexDescriptors they provide.
      * @throws IllegalStateException Thrown if any of the index patterns overlaps with another.
      */
-    static void checkForOverlappingPatterns(Map<String, Feature> sourceToDescriptors) {
-        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToDescriptors.entrySet().stream()
+    static void checkForOverlappingPatterns(Map<String, Feature> sourceToFeature) {
+        List<Tuple<String, SystemIndexDescriptor>> sourceDescriptorPair = sourceToFeature.entrySet().stream()
             .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
+            .collect(Collectors.toUnmodifiableList());
+        List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = sourceToFeature.entrySet().stream()
+            .filter(entry -> entry.getValue().getDataStreamDescriptors().isEmpty() == false)
+            .flatMap(entry ->
+                entry.getValue().getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
+            .sorted(
+                Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
             .collect(Collectors.toUnmodifiableList());
 
         // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
@@ -398,10 +407,10 @@ public class SystemIndices {
         // per pattern should be low as well. If these assumptions change, this might need to be reworked.
         sourceDescriptorPair.forEach(descriptorToCheck -> {
             List<Tuple<String, SystemIndexDescriptor>> descriptorsMatchingThisPattern = sourceDescriptorPair.stream()
-
                 .filter(d -> descriptorToCheck.v2() != d.v2()) // Exclude the pattern currently being checked
-                .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()))
-                .collect(Collectors.toUnmodifiableList());
+                .filter(d -> overlaps(descriptorToCheck.v2(), d.v2()) ||
+                    (d.v2().getAliasName() != null && descriptorToCheck.v2().matchesIndexPattern(d.v2().getAliasName())))
+                .collect(toUnmodifiableList());
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
                 throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from [" +
                     descriptorToCheck.v1() + "] overlaps with other system index descriptors: [" +
@@ -409,13 +418,28 @@ public class SystemIndices {
                         .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
                         .collect(Collectors.joining(", ")));
             }
+
+            List<Tuple<String, SystemDataStreamDescriptor>> dataStreamsMatching = sourceDataStreamDescriptorPair.stream()
+                .filter(dsTuple -> descriptorToCheck.v2().matchesIndexPattern(dsTuple.v2().getDataStreamName()) ||
+                    overlaps(descriptorToCheck.v2().getIndexPattern(), dsTuple.v2().getBackingIndexPattern()))
+                .collect(toUnmodifiableList());
+            if (dataStreamsMatching.isEmpty() == false) {
+                throw new IllegalStateException("a system index descriptor [" + descriptorToCheck.v2() + "] from [" +
+                    descriptorToCheck.v1() + "] overlaps with one or more data stream descriptors: [" +
+                    dataStreamsMatching.stream()
+                        .map(descriptor -> descriptor.v2() + " from [" + descriptor.v1() + "]")
+                        .collect(Collectors.joining(", ")));
+            }
         });
-        // TODO this needs to be re-worked to account for alias, primaryIndex, and datastreams
     }
 
     private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
-        Automaton a1Automaton = SystemIndexDescriptor.buildAutomaton(a1.getIndexPattern(), null);
-        Automaton a2Automaton = SystemIndexDescriptor.buildAutomaton(a2.getIndexPattern(), null);
+        return overlaps(a1.getIndexPattern(), a2.getIndexPattern());
+    }
+
+    private static boolean overlaps(String pattern1, String pattern2) {
+        Automaton a1Automaton = SystemIndexDescriptor.buildAutomaton(pattern1, null);
+        Automaton a2Automaton = SystemIndexDescriptor.buildAutomaton(pattern2, null);
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
@@ -556,5 +580,13 @@ public class SystemIndices {
                 }
             });
         }
+    }
+
+    public static Feature pluginToFeature(SystemIndexPlugin plugin, Settings settings) {
+        return new Feature(plugin.getFeatureDescription(),
+            plugin.getSystemIndexDescriptors(settings),
+            plugin.getSystemDataStreamDescriptors(),
+            plugin.getAssociatedIndexPatterns(),
+            plugin::cleanUpFeature);
     }
 }

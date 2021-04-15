@@ -26,21 +26,25 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     @After
+    @SuppressWarnings("unchecked")
     public void deletePolicies() throws Exception {
         Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
-        @SuppressWarnings("unchecked")
         List<Map<?, ?>> policies = (List<Map<?, ?>>) responseMap.get("policies");
 
         for (Map<?, ?> entry : policies) {
-            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("config.match.name", entry)));
-
-            List<?> sourceIndices = (List<?>) XContentMapValues.extractValue("config.match.indices", entry);
+            Map<String, ?> config = ((Map<?, Map<String, ?>>) entry.get("config")).values().iterator().next();
+            String endpoint = "/_enrich/policy/" + config.get("name");
+            assertOK(client().performRequest(new Request("DELETE", endpoint)));
+            
+            List<?> sourceIndices = (List<?>) config.get("indices");
             for (Object sourceIndex : sourceIndices) {
                 try {
                     client().performRequest(new Request("DELETE", "/" + sourceIndex));
@@ -51,21 +55,22 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
+    private void setupGenericLifecycleTest(boolean deletePipeilne, String field, String type) throws Exception {
         // Create source index:
         createSourceIndex("my-source-index");
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index"));
+        putPolicyRequest.setJsonEntity(generatePolicySource("my-source-index", field, type));
         assertOK(client().performRequest(putPolicyRequest));
 
         // Add entry to source index and then refresh:
         Request indexRequest = new Request("PUT", "/my-source-index/_doc/elastic.co");
-        indexRequest.setJsonEntity("{\"host\": \"elastic.co\",\"globalRank\": 25,\"tldRank\": 7,\"tld\": \"co\"}");
+        indexRequest.setJsonEntity("{\"host\": \"elastic.co\",\"globalRank\": 25,\"tldRank\": 7,\"tld\": \"co\"," +
+            "\"ip\":\"8.8.8.0/24\",\"date\":{\"gte\":1,\"lte\": 5},\"integer\":{\"gte\":1,\"lte\":5},\"long\":{\"gte\":1,\"lte\":5}," +
+            "\"double\":{\"gte\":1,\"lte\":5},\"float\":{\"gte\":1,\"lte\":5}}");
         assertOK(client().performRequest(indexRequest));
         Request refreshRequest = new Request("POST", "/my-source-index/_refresh");
         assertOK(client().performRequest(refreshRequest));
-
         // Execute the policy:
         Request executePolicyRequest = new Request("POST", "/_enrich/policy/my_policy/_execute");
         assertOK(client().performRequest(executePolicyRequest));
@@ -73,14 +78,15 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
         putPipelineRequest.setJsonEntity(
-            "{\"processors\":[" + "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\"host\",\"target_field\":\"entry\"}}" + "]}"
+            "{\"processors\":[" + "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\"" + field + "\",\"target_field\":\"entry\"}}]}"
         );
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index document using pipeline with enrich processor:
         indexRequest = new Request("PUT", "/my-index/_doc/1");
         indexRequest.addParameter("pipeline", "my_pipeline");
-        indexRequest.setJsonEntity("{\"host\": \"elastic.co\"}");
+        indexRequest.setJsonEntity("{\"host\": \"elastic.co\",\"ip\":\"8.8.8.8\",\"date\":3,\"integer\":3,\"long\":3,\"double\":3," +
+            "\"float\":3}");
         assertOK(client().performRequest(indexRequest));
 
         // Check if document has been enriched
@@ -88,7 +94,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         Map<String, Object> response = toMap(client().performRequest(getRequest));
         Map<?, ?> entry = (Map<?, ?>) ((Map<?, ?>) response.get("_source")).get("entry");
         assertThat(entry.size(), equalTo(4));
-        assertThat(entry.get("host"), equalTo("elastic.co"));
+        assertThat(entry.get(field), notNullValue());
         assertThat(entry.get("tld"), equalTo("co"));
         assertThat(entry.get("globalRank"), equalTo(25));
         assertThat(entry.get("tldRank"), equalTo(7));
@@ -99,8 +105,38 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    public void testBasicFlow() throws Exception {
-        setupGenericLifecycleTest(true);
+    public void testBasicFlowKeyword() throws Exception {
+        setupGenericLifecycleTest(true, "host", "match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowDate() throws Exception {
+        setupGenericLifecycleTest(true, "date", "date_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowInteger() throws Exception {
+        setupGenericLifecycleTest(true, "integer", "integer_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowLong() throws Exception {
+        setupGenericLifecycleTest(true, "long", "long_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowDouble() throws Exception {
+        setupGenericLifecycleTest(true, "double", "double_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowFloat() throws Exception {
+        setupGenericLifecycleTest(true, "float", "float_range_match");
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+    }
+
+    public void testBasicFlowIp() throws Exception {
+        setupGenericLifecycleTest(true, "ip", "ip_range_match");
         assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
@@ -129,7 +165,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testDeleteExistingPipeline() throws Exception {
         // lets not delete the pipeline at first, to test the failure
-        setupGenericLifecycleTest(false);
+        setupGenericLifecycleTest(false, "host", "match");
 
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/another_pipeline");
         putPipelineRequest.setJsonEntity(
@@ -156,14 +192,18 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     public static String generatePolicySource(String index) throws IOException {
-        XContentBuilder source = jsonBuilder().startObject().startObject("match");
+        return generatePolicySource(index, "host", "match");
+    }
+
+    public static String generatePolicySource(String index, String field, String type) throws IOException {
+        XContentBuilder source = jsonBuilder().startObject().startObject(type);
         {
             source.field("indices", index);
             if (randomBoolean()) {
                 source.field("query", QueryBuilders.matchAllQuery());
             }
-            source.field("match_field", "host");
-            source.field("enrich_fields", new String[] { "globalRank", "tldRank", "tld" });
+            source.field("match_field", field);
+            source.field("enrich_fields", new String[]{"globalRank", "tldRank", "tld"});
         }
         source.endObject().endObject();
         return Strings.toString(source);
@@ -179,7 +219,13 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             + "{\"host\": {\"type\":\"keyword\"},"
             + "\"globalRank\":{\"type\":\"keyword\"},"
             + "\"tldRank\":{\"type\":\"keyword\"},"
-            + "\"tld\":{\"type\":\"keyword\"}"
+            + "\"tld\":{\"type\":\"keyword\"},"
+            + "\"date\":{\"type\":\"date_range\"},"
+            + "\"integer\":{\"type\":\"integer_range\"},"
+            + "\"long\":{\"type\":\"long_range\"},"
+            + "\"double\":{\"type\":\"double_range\"},"
+            + "\"float\":{\"type\":\"float_range\"},"
+            + "\"ip\":{\"type\":\"ip_range\"}"
             + "}";
     }
 

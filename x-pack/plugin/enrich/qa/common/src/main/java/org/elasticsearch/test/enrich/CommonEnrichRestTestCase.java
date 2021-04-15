@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -43,7 +42,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             Map<String, ?> config = ((Map<?, Map<String, ?>>) entry.get("config")).values().iterator().next();
             String endpoint = "/_enrich/policy/" + config.get("name");
             assertOK(client().performRequest(new Request("DELETE", endpoint)));
-            
+
             List<?> sourceIndices = (List<?>) config.get("indices");
             for (Object sourceIndex : sourceIndices) {
                 try {

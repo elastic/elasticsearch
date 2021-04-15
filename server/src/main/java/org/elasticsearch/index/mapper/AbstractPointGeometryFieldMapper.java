@@ -147,7 +147,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         ) {
             try {
                 point = objectParser.apply(parser, point);
-                consumer.accept(point);
+                consumer.accept(process(point));
             } catch (Exception e) {
                 onMalformed.accept(e);
             }

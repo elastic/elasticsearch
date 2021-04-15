@@ -321,7 +321,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             CheckedConsumer<ShapeBuilder<?, ?, ?>, IOException> consumer,
             Consumer<Exception> onMalformed
         ) throws IOException {
-            consumer.accept(ShapeParser.parse(parser));
+            try {
+                consumer.accept(ShapeParser.parse(parser));
+            } catch (ElasticsearchParseException e) {
+                onMalformed.accept(e);
+            }
         }
 
         @Override

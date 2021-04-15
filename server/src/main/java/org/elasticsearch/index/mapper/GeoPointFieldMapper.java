@@ -100,10 +100,16 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<Parsed
 
         @Override
         public FieldMapper build(ContentPath contentPath) {
-            Parser<ParsedGeoPoint> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
-                GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
-                return point;
-            }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
+            Parser<ParsedGeoPoint> geoParser = new PointParser<>(
+                name,
+                ParsedGeoPoint::new,
+                (parser, point) -> {
+                    GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
+                    return point;
+                },
+                (ParsedGeoPoint) nullValue.get(),
+                ignoreZValue.get().value(),
+                ignoreMalformed.get().value());
             GeoPointFieldType ft
                 = new GeoPointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
             return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),

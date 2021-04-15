@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class ShapeIndexer  {
@@ -34,6 +35,9 @@ public class ShapeIndexer  {
     }
 
     public List<IndexableField> indexShape(Geometry shape) {
+        if (shape == null) {
+            return Collections.emptyList();
+        }
         LuceneGeometryVisitor visitor = new LuceneGeometryVisitor(name);
         shape.visit(visitor);
         return visitor.fields;

@@ -15,7 +15,7 @@
         id: "my_set_pipeline"
         body:  >
           {
-            "description": "_description",
+            "description": "Use location dynamic template for home_address and work_address",
             "processors": [
               {
                 "set" : {
@@ -35,7 +35,7 @@
         id: "my_script_pipeline"
         body: >
           {
-            "description": "_description",
+            "description": "Use location dynamic template for home_address and work_address",
             "processors": [
               {
                 "script" : {
@@ -119,3 +119,32 @@
   - match: { hits.hits.0._id: id_2 }
   - match: { hits.hits.1._id: id_4 }
 
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_5
+              pipeline: my_set_pipeline
+              dynamic_templates:
+                school_address: location
+          - { "school_address": [ -71.34, 41.12 ]}
+  - match: { errors: false }
+  - match: { items.0.index.result: created }
+  - match: { items.1.index.result: created }
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              school_address:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: id_5 }

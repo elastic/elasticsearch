@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -274,7 +275,7 @@ final class DynamicFieldsBuilder {
                 new NumberFieldMapper.Builder(
                     name,
                     NumberFieldMapper.NumberType.LONG,
-                    null,
+                    ScriptCompiler.NONE,
                     context.indexSettings().getSettings()
                 ), context);
         }
@@ -287,13 +288,13 @@ final class DynamicFieldsBuilder {
             createDynamicField(new NumberFieldMapper.Builder(
                 name,
                 NumberFieldMapper.NumberType.FLOAT,
-                null,
+                ScriptCompiler.NONE,
                 context.indexSettings().getSettings()), context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name), context);
+            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
         }
 
         @Override
@@ -301,7 +302,7 @@ final class DynamicFieldsBuilder {
             Settings settings = context.indexSettings().getSettings();
             boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
             createDynamicField(new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS,
-                dateTimeFormatter, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
+                dateTimeFormatter, ScriptCompiler.NONE, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
         }
 
         void newDynamicBinaryField(ParseContext context, String name) throws IOException {

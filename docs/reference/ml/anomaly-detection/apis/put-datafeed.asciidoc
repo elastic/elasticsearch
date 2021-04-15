@@ -77,6 +77,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
 (Required, array)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 
+`indices_options`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
 `job_id`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
@@ -93,6 +97,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
 
+`runtime_mappings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
+
 `script_fields`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
@@ -100,14 +108,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 `scroll_size`::
 (Optional, unsigned integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
-
-`indices_options`::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
-
-`runtime_mappings`::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
 
 [[ml-put-datafeed-example]]
 == {api-examples-title}

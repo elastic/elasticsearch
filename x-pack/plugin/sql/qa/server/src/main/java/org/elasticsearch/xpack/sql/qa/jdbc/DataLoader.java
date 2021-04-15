@@ -153,12 +153,12 @@ public class DataLoader {
             // define the runtime field
             createIndex.startObject("runtime");
             {
-                createIndex.startObject("birth_date_day_of_week").field("type", "keyword");
+                createIndex.startObject("name").field("type", "keyword");
                 createIndex.startObject("script")
                     .field(
                         "source",
-                        "if (doc['birth_date'].size()==0) return; "
-                            + "else emit(doc['birth_date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                        "if (doc['first_name.keyword'].size()==0) emit(' '.concat(doc['last_name.keyword'].value));"
+                            + " else emit(doc['first_name.keyword'].value.concat(' ').concat(doc['last_name.keyword'].value))"
                     );
                 createIndex.endObject();
                 createIndex.endObject();

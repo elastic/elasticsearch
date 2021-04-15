@@ -163,6 +163,8 @@ public class DiskThresholdMonitor {
             }
 
             if (isFrozenOnlyNode(routingNode)) {
+                // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
+                // and this allows us to use more of the local storage for cache.
                 continue;
             }
 

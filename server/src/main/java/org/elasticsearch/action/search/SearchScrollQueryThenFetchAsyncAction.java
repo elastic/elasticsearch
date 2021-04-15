@@ -38,6 +38,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request,
             searchTransportService);
         this.task = task;
+        searchPhaseController.setSearchTask(task);
         this.fetchResults = new AtomicArray<>(scrollId.getContext().length);
         this.queryResults = new AtomicArray<>(scrollId.getContext().length);
     }

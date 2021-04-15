@@ -9,12 +9,15 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -23,8 +26,11 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,8 +40,13 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class InternalAggregationsTests extends ESTestCase {
+
+    @Rule
+    public ExpectedException taskCancelledExceptionThrown = ExpectedException.none();
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
@@ -101,6 +112,31 @@ public class InternalAggregationsTests extends ESTestCase {
         InternalAggregations aggregations = createTestInstance();
         assertThat(DelayableWriteable.getSerializedSize(aggregations),
             equalTo((long) serialize(aggregations, Version.CURRENT).length));
+    }
+
+    public void testTaskCancelled() {
+        taskCancelledExceptionThrown.expect(TaskCancelledException.class);
+        taskCancelledExceptionThrown.expectMessage("Stopping aggregation reduce because search task 0 was cancelled");
+
+        // Mock a cancelled SearchTask
+        SearchTask mockedSearchTask = mock(SearchTask.class);
+        when(mockedSearchTask.isCancelled()).thenReturn(true);
+
+        InternalAggregation.ReduceContextBuilder reduceContextBuilder = new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public InternalAggregation.ReduceContext forPartialReduction() {
+                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+            }
+
+            @Override
+            public InternalAggregation.ReduceContext forFinalReduction() {
+                return null;
+            }
+        };
+
+        InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
+        reduceContext.setSearchTask(mockedSearchTask);
+        reduceContext.consumeBucketsAndMaybeBreak(1);
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {

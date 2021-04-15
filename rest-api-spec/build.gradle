@@ -221,6 +221,7 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.put_mapping/all_path_options_with_types/put mapping in prefix* index',
     'indices.put_mapping/all_path_options_with_types/put mapping with blank index',
     'indices.put_mapping/all_path_options_with_types/put one mapping per index',
+    // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'indices.segments/10_basic/basic segments test',
     'indices.segments/10_basic/closed segments test',

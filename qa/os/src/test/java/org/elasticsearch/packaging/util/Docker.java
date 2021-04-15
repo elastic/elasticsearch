@@ -472,8 +472,7 @@ public class Docker {
 
         assertPermissionsAndOwnership(es.home, "root", "root", p775);
 
-        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules)
-            .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
+        Stream.of(es.bin, es.bundledJdk, es.lib, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p555));
 
         Stream.of(es.data, es.logs, es.config.resolve("jvm.options.d"), es.plugins)
             .forEach(dir -> assertPermissionsAndOwnership(dir, "root", "root", p775));

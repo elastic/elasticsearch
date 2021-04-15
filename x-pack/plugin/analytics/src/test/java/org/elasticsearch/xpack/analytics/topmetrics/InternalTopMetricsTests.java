@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notANumber;
-import static org.hamcrest.Matchers.nullValue;
 
 public class InternalTopMetricsTests extends InternalAggregationTestCase<InternalTopMetrics> {
     /**

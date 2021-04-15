@@ -18,8 +18,5 @@ dependencies {
 
 testClusters.all {
   module ':modules:reindex'
-  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm){
-    setting 'xpack.security.enabled', 'false'
-  }
 }
 

@@ -21,9 +21,6 @@ restResources {
 
 testClusters.all {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
-  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm){
-    setting 'xpack.security.enabled', 'false'
-  }
 }
 
 tasks.named("yamlRestCompatTest").configure {

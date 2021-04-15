@@ -24,9 +24,6 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
-  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm){
-    setting 'xpack.security.enabled', 'false'
-  }
 }
 
 tasks.named("test").configure { enabled = false }

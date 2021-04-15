@@ -9,6 +9,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;

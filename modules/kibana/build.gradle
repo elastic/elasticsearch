@@ -18,7 +18,7 @@ dependencies {
 
 testClusters.all {
   module ':modules:reindex'
-  if (System.getProperty('tests.security.manager') == 'true') {
+  if (BuildParams.inFipsJvm){
     setting 'xpack.security.enabled', 'false'
   }
 }

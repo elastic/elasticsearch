@@ -21,7 +21,7 @@ restResources {
 
 testClusters.all {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
-  if (System.getProperty('tests.security.manager') == 'true') {
+  if (BuildParams.inFipsJvm){
     setting 'xpack.security.enabled', 'false'
   }
 }

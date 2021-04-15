@@ -40,6 +40,7 @@ import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -62,6 +63,7 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        disableGeoIpDownloader(installation);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -217,6 +219,7 @@ public class PackageTests extends PackagingTestCase {
         install();
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        disableGeoIpDownloader(installation);
 
         remove(distribution());
         assertRemoved(distribution());
@@ -226,6 +229,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             install();
             assertInstalled(distribution());
+            disableGeoIpDownloader(installation);
 
             startElasticsearch();
             restartElasticsearch(sh, installation);

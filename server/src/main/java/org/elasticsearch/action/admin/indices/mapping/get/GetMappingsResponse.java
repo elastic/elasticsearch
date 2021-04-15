@@ -71,9 +71,10 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
             builder.startObject(indexEntry.key);
             boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
                 DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName) {
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.value != null) {
                 builder.startObject(MAPPINGS.getPreferredName());
-                if (indexEntry.value.sourceAsMap().size() > 0) {
+
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
                     builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.value.sourceAsMap());
                 }
                 builder.endObject();

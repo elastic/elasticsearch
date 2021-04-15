@@ -110,6 +110,15 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertThat(e.getMessage(), containsString("Cannot define multifields on a field with a script"));
     }
 
+    public final void testCopyToNotPermitted() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", type());
+            b.field("script", "serializer_test");
+            b.array("copy_to", "foo");
+        })));
+        assertThat(e.getMessage(), containsString("Cannot define copy_to parameter on a field with a script"));
+    }
+
     public final void testOnScriptErrorParameterRequiresScript() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", type());

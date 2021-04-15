@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -370,14 +369,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
         filterPlugins(DiscoveryPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
         return electionStrategies;
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        Set<DiscoveryNodeRole> roles = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
-        roles.addAll(super.getRoles());
-        return roles;
     }
 
     @Override

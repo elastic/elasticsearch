@@ -1697,6 +1697,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
+        assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
         // Check application privileges
         assertKibanaFeatureReadButNotAll(role, "feature_discover");
         assertKibanaFeatureReadButNotAll(role, "feature_dashboard");
@@ -1718,6 +1720,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertKibanaFeatureReadButNotAll(role, "feature_fleet");
         assertKibanaFeatureReadButNotAll(role, "feature_actions");
         assertKibanaFeatureReadButNotAll(role, "feature_stackAlerts");
+
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }
 
     public void testPredefinedEditorRole() {
@@ -1765,6 +1769,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+        assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
+        assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
 
         // Check application privileges
         assertKibanaFeatureAll(role, "feature_discover");
@@ -1787,6 +1793,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertKibanaFeatureAll(role, "feature_fleet");
         assertKibanaFeatureAll(role, "feature_actions");
         assertKibanaFeatureAll(role, "feature_stackAlerts");
+
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }
 
     private void assertKibanaFeatureReadButNotAll(Role role, String featureName) {

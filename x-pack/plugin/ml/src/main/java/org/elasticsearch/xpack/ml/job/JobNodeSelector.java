@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +68,7 @@ public class JobNodeSelector {
     private final String jobId;
     private final String taskName;
     private final ClusterState clusterState;
+    private final Collection<DiscoveryNode> candidateNodes;
     private final MlMemoryTracker memoryTracker;
     private final Function<DiscoveryNode, String> nodeFilter;
     private final NodeLoadDetector nodeLoadDetector;
@@ -78,6 +80,7 @@ public class JobNodeSelector {
      *                   be <code>null</code> if no such function is needed.
      */
     public JobNodeSelector(ClusterState clusterState,
+                           Collection<DiscoveryNode> candidateNodes,
                            String jobId,
                            String taskName,
                            MlMemoryTracker memoryTracker,
@@ -86,6 +89,7 @@ public class JobNodeSelector {
         this.jobId = Objects.requireNonNull(jobId);
         this.taskName = Objects.requireNonNull(taskName);
         this.clusterState = Objects.requireNonNull(clusterState);
+        this.candidateNodes = Objects.requireNonNull(candidateNodes);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.nodeLoadDetector = new NodeLoadDetector(Objects.requireNonNull(memoryTracker));
         this.maxLazyNodes = maxLazyNodes;
@@ -101,8 +105,7 @@ public class JobNodeSelector {
                                                                                boolean useAutoMemoryPercentage,
                                                                                int maxOpenJobs,
                                                                                boolean isMemoryTrackerRecentlyRefreshed) {
-        List<DiscoveryNode> capableNodes = clusterState.getNodes()
-            .mastersFirstStream()
+        List<DiscoveryNode> capableNodes = candidateNodes.stream()
             .filter(n -> this.nodeFilter.apply(n) == null)
             .collect(Collectors.toList());
         NativeMemoryCapacity currentCapacityForMl = MlAutoscalingDeciderService.currentScale(
@@ -146,7 +149,7 @@ public class JobNodeSelector {
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
-        for (DiscoveryNode node : clusterState.getNodes()) {
+        for (DiscoveryNode node : candidateNodes) {
 
             // First check conditions that would rule out the node regardless of what other tasks are assigned to it
             String reason = nodeFilter.apply(node);
@@ -297,7 +300,7 @@ public class JobNodeSelector {
         assert currentAssignment.getExecutorNode() == null;
 
         int numMlNodes = 0;
-        for (DiscoveryNode node : clusterState.getNodes()) {
+        for (DiscoveryNode node : candidateNodes) {
             if (MachineLearning.isMlNode(node)) {
                 numMlNodes++;
             }

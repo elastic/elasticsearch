@@ -54,7 +54,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     ) throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
             NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
-            if (nodesShutdownMetadata.getAllNodeMetdataMap().get(request.getNodeId()) == null) {
+            if (nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
                 throw new IllegalArgumentException("node [" + request.getNodeId() + "] is not currently shutting down");
             }
         }

@@ -254,10 +254,10 @@ public class ServerUtils {
     }
 
     public static void disableGeoIpDownloader(Installation installation) throws IOException {
-        List<String> yaml = Collections.singletonList("geoip.downloader.enabled: false");
+        List<String> yaml = Collections.singletonList("ingest.geoip.downloader.enabled: false");
         Path yml = installation.config("elasticsearch.yml");
         try (Stream<String> lines = Files.readAllLines(yml).stream()) {
-            if (lines.noneMatch(s -> s.startsWith("geoip.downloader.enabled"))) {
+            if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
                 Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
             }
         }

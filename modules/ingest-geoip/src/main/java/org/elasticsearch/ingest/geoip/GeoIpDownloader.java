@@ -58,9 +58,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
-    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("geoip.downloader.poll.interval",
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("ingest.geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
-    public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("geoip.downloader.endpoint",
+    public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("ingest.geoip.downloader.endpoint",
         "https://geoip.elastic.co/v1/database", Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";

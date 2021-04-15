@@ -138,6 +138,10 @@ final class FieldTypeLookup {
         if (fullNameToFieldType.isEmpty()) {
             return org.elasticsearch.common.collect.Set.of();
         }
+        if (dynamicKeyLookup.get(field) != null) {
+            return Collections.singleton(field);
+        }
+
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {

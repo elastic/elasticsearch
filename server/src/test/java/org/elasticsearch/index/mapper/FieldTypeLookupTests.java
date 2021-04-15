@@ -198,7 +198,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         String searchFieldName = fieldName + "." + objectKey;
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertEquals(mapper.keyedFieldName(), searchFieldType.name());
+        assertEquals(mapper.keyedFieldType(objectKey).name(), searchFieldType.name());
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
 
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
@@ -219,7 +219,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         String searchFieldName = aliasName + "." + objectKey;
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertEquals(mapper.keyedFieldName(), searchFieldType.name());
+        assertEquals(mapper.keyedFieldType(objectKey).name(), searchFieldType.name());
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
 
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;

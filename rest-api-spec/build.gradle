@@ -221,9 +221,7 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.put_mapping/all_path_options_with_types/put mapping in prefix* index',
     'indices.put_mapping/all_path_options_with_types/put mapping with blank index',
     'indices.put_mapping/all_path_options_with_types/put one mapping per index',
-    // needs discussion about IndexTemplateMetadata#toInnerXContent and reducingMappings when includeTypeName and empty mappings etc
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    //
     'indices.segments/10_basic/basic segments test',
     'indices.segments/10_basic/closed segments test',
     'indices.shard_stores/10_basic/basic index test',

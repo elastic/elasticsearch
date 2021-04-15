@@ -102,7 +102,7 @@ public class ClientYamlTestSuite {
 
     public ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
                         List<ClientYamlTestSection> testSections) {
-        this.api = api;
+        this.api = api.replace("\\", "/");  //since api's are sourced from the filesystem normalize backslashes to "/"
         this.name = name;
         this.setupSection = Objects.requireNonNull(setupSection, "setup section cannot be null");
         this.teardownSection = Objects.requireNonNull(teardownSection, "teardown section cannot be null");

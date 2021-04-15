@@ -35,15 +35,18 @@ import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.BasePluginConvention;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
+import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.jvm.tasks.Jar;
 
 import java.io.File;
 import java.io.IOException;
@@ -187,7 +190,20 @@ public class PluginBuildPlugin implements Plugin<Project> {
         if (project.getPlugins().hasPlugin(MavenPublishPlugin.class)) {
             PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
             MavenPublication elastic = publishingExtension.getPublications().maybeCreate("elastic", MavenPublication.class);
-            elastic.setArtifactId(extension.getName());
+            if (extension.isHasClientJar()) {
+                project.getTasks()
+                    .withType(Jar.class)
+                    .configureEach(jar -> jar.getArchiveBaseName().set(jar.getArchiveBaseName().get() + "-client"));
+                project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> {
+                    String archivesBaseName = project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
+                    pomTask.setDestination(
+                        new File(project.getBuildDir(), "/distributions/" + archivesBaseName + "-client-" + project.getVersion() + ".pom")
+                    );
+                });
+                elastic.setArtifactId(extension.getName() + "-client");
+            } else {
+                elastic.setArtifactId(extension.getName());
+            }
         }
     }
 

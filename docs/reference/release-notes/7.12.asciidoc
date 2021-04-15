@@ -60,7 +60,7 @@ Features/Stats::
 * Avoid return negative value in `CounterMetric` {es-pull}71446[#71446] (issues: {es-issue}52411[#52411], {es-issue}70968[#70968])
 
 Features/Watcher::
-* Enable Setting Master Node Timeout in Watcher Start/Stop Requests {es-pull}70425[#70425]
+* Enable setting master node timeout in Watcher start/stop requests {es-pull}70425[#70425]
 
 Geo::
 * Do not over-allocate when resizing in `GeoGridTiler` {es-pull}70159[#70159]
@@ -83,7 +83,7 @@ Mapping::
 SQL::
 * Enforce and document dedicated client version compatibility {es-pull}70451[#70451] (issue: {es-issue}70400[#70400])
 * Fix manifest version tag in Tableau connector {es-pull}71524[#71524]
-* Resolve attributes recursively for improved subquery support {es-pull}69765[#69765] (issues: {es-issue}2[#2], {es-issue}4[#4], {es-issue}6[#6], {es-issue}7[#7], {es-issue}8[#8], {es-issue}22[#22], {es-issue}67237[#67237])
+* Resolve attributes recursively for improved subquery support {es-pull}69765[#69765] (issue:  {es-issue}67237[#67237])
 * Verify binary fields found in non-project to have the `doc_values` {es-pull}69128[#69128] (issue: {es-issue}68229[#68229])
 
 Search::
@@ -94,14 +94,14 @@ Search::
 Snapshot/Restore::
 * Avoid atomic overwrite tests on FS repositories {es-pull}70483[#70483] (issue: {es-issue}70303[#70303])
 * Drop alloc filters on mount of searchable snapshot {es-pull}70007[#70007] (issue: {es-issue}69759[#69759])
-* Fix Source Only Snapshot Permanently Broken on Broken `_snapshot` Directory {es-pull}71459[#71459]
+* Fix source only snapshot permanently broken on broken `_snapshot` directory {es-pull}71459[#71459]
 * Fix `isDedicatedVotingOnlyNode` {es-pull}71358[#71358] (issue: {es-issue}71352[#71352])
 * Fix human readable xcontent for snapshots in progress and deletion {es-pull}70256[#70256]
 * Fix wrongly computed offset in checksum {es-pull}69441[#69441] (issues: {es-issue}69415[#69415], {es-issue}69437[#69437])
 * Only allocate partial shards to nodes with cache {es-pull}69904[#69904]
 * Optimized read footer checksum from `FileInfo` {es-pull}69415[#69415]
-* Reduce Memory Use of Parallel Azure Blob Deletes {es-pull}71330[#71330] (issue: {es-issue}71267[#71267])
-* Stop Blocking Snapshot Deletes Due to Concurrency Limits {es-pull}71050[#71050]
+* Reduce memory use of parallel Azure blob deletes {es-pull}71330[#71330] (issue: {es-issue}71267[#71267])
+* Stop blocking snapshot deletes due to concurrency limits {es-pull}71050[#71050]
 
 
 [[release-notes-7.12.0]]

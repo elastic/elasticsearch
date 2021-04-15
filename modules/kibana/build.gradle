@@ -18,5 +18,8 @@ dependencies {
 
 testClusters.all {
   module ':modules:reindex'
+  if (System.getProperty('tests.security.manager') == 'true') {
+    setting 'xpack.security.enabled', 'false'
+  }
 }
 

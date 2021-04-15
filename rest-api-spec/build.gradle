@@ -24,6 +24,9 @@ artifacts {
 
 testClusters.all {
   module ':modules:mapper-extras'
+  if (System.getProperty('tests.security.manager') == 'true') {
+    setting 'xpack.security.enabled', 'false'
+  }
 }
 
 tasks.named("test").configure { enabled = false }

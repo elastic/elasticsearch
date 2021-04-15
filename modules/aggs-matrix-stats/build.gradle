@@ -13,6 +13,12 @@ esplugin {
   classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
 }
 
+testClusters.all {
+  if (System.getProperty('tests.security.manager') == 'true') {
+    setting 'xpack.security.enabled', 'false'
+  }
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'cluster', 'index', 'search', 'nodes'

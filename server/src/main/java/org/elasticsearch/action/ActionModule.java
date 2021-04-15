@@ -447,7 +447,7 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
                 if (restWrapper.getClass().getCanonicalName() == null ||
                     restWrapper.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
-                    logger.debug("The " + plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality " +
+                    logger.warn("The " + plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality " +
                         "should be disabled");
                 }
             }

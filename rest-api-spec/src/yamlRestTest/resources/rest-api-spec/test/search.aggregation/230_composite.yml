@@ -1211,5 +1211,5 @@ setup:
   - match: {hits.total: 3}
   - match: {aggregations.not_one.doc_count: 2}
   - length: {aggregations.not_one.keez.buckets: 2}
-  - match: {aggregations.not_one.keez.buckets.0.key.key: "one"}
+  - match: {aggregations.not_one.keez.buckets.0.key.key: "three"}
   - match: {aggregations.not_one.keez.buckets.1.key.key: "two"}

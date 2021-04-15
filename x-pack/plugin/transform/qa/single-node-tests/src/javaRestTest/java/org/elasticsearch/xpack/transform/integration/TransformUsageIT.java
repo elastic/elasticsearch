@@ -55,7 +55,7 @@ public class TransformUsageIT extends TransformRestTestCase {
         assertEquals(4, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
         assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", usageAsMap));
         assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
+        assertEquals(0, XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
         assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", usageAsMap));
 
         startAndWaitForTransform("test_usage", "pivot_reviews");
@@ -111,7 +111,7 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
             assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", statsMap));
-            assertNull(XContentMapValues.extractValue("transform.feature_counts.retention_policy", statsMap));
+            assertEquals(0, XContentMapValues.extractValue("transform.feature_counts.retention_policy", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", statsMap));
             for (String statName : PROVIDED_STATS) {
                 // the trigger count can be off: e.g. if the scheduler kicked in before usage has been called,
@@ -144,7 +144,7 @@ public class TransformUsageIT extends TransformRestTestCase {
         assertEquals(4, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
         assertEquals(3, XContentMapValues.extractValue("transform.feature_counts.pivot", usageAsMap));
         assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.latest", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
+        assertEquals(0, XContentMapValues.extractValue("transform.feature_counts.retention_policy", usageAsMap));
         assertEquals(1, XContentMapValues.extractValue("transform.feature_counts.sync", usageAsMap));
     }
 

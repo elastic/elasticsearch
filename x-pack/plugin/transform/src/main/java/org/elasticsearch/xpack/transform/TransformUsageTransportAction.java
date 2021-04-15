@@ -23,8 +23,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,9 +50,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
+
 public class TransformUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private static final Logger logger = LogManager.getLogger(TransformUsageTransportAction.class);
+
+    private static final String FEATURE_COUNTS = "feature_counts";
 
     /**
      * Features we want to measure the usage of.
@@ -130,7 +136,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
                 return;
             }
             transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
-            transformsCountByFeature.set(getFeatureCounts(transformCountSuccess.getHits()));
+            transformsCountByFeature.set(getFeatureCounts(transformCountSuccess.getAggregations()));
             TransformInfoTransportAction.getStatisticSummations(client, totalStatsListener);
         }, transformCountFailure -> {
             if (transformCountFailure instanceof ResourceNotFoundException) {
@@ -145,12 +151,21 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
         )
             .setTrackTotalHits(true)
-            // We don't need the whole configs but only fields related to features we want to measure the usage of.
-            .setFetchSource(FEATURES, null)
+            // We only need the total hits count and aggs.
+            .setSize(0)
+            .setFetchSource(false)
             .setQuery(
                 QueryBuilders.constantScoreQuery(
                     QueryBuilders.boolQuery()
                         .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))
+                )
+            )
+            .addAggregation(
+                AggregationBuilders.filters(
+                    FEATURE_COUNTS,
+                    Arrays.stream(FEATURES)
+                        .map(f -> new FiltersAggregator.KeyedFilter(f, QueryBuilders.existsQuery(f)))
+                        .toArray(FiltersAggregator.KeyedFilter[]::new)
                 )
             )
             .request();
@@ -167,23 +182,12 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
     /**
      * Returns the feature usage map.
      * For each feature it counts the number of transforms using this feature.
-     * If the feature is not used by any transform, there is no corresponding entry in the returned map.
      *
-     * TODO: Should the counts be obtained using ES query/aggregation instead? Which fields need to have mappings in order to allow that?
-     *
-     * @param hits hits returned by the search
+     * @param aggs aggs returned by the search
      * @return feature usage map
      */
-    private static Map<String, Long> getFeatureCounts(SearchHits hits) {
-        Map<String, Long> transformsCountByFeature = new HashMap<>();
-        for (SearchHit hit : hits) {
-            Map<String, Object> source = hit.getSourceAsMap();
-            for (String feature : FEATURES) {
-                if (source.containsKey(feature)) {
-                    transformsCountByFeature.merge(feature, 1L, Long::sum);
-                }
-            }
-        }
-        return transformsCountByFeature;
+    private static Map<String, Long> getFeatureCounts(Aggregations aggs) {
+        Filters filters = aggs.get(FEATURE_COUNTS);
+        return filters.getBuckets().stream().collect(toMap(Filters.Bucket::getKeyAsString, Filters.Bucket::getDocCount));
     }
 }

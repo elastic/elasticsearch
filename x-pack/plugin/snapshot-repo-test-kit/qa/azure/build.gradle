@@ -48,6 +48,10 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'azure-fixture-repository-test-kit')
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("integTest").configure {
   systemProperty 'test.azure.container', azureContainer
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed

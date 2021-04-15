@@ -502,6 +502,46 @@ Number of fields mapped to the field data type in selected nodes.
 `index_count`::
 (integer)
 Number of indices containing a mapping of the field data type in selected nodes.
+
+`script_count`::
+(integer)
+Number of fields that declare a script.
+
+`lang`::
+(array of strings)
+Script languages used for the optional scripts
+
+`lines_max`::
+(integer)
+Maximum number of lines for a single field script
+
+`lines_total`::
+(integer)
+Total number of lines for the scripts
+
+`chars_max`::
+(integer)
+Maximum number of characters for a single field script
+
+`chars_total`::
+(integer)
+Total number of characters for the scripts
+
+`source_max`::
+(integer)
+Maximum number of accesses to _source for a single field script
+
+`source_total`::
+(integer)
+Total number of accesses to _source for the scripts
+
+`doc_max`::
+(integer)
+Maximum number of accesses to doc_values for a single field script
+
+`doc_total`::
+(integer)
+Total number of accesses to doc_values for the scripts
 ======
 
 `runtime_field_types`::

@@ -15,13 +15,11 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
@@ -31,17 +29,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final boolean keyed;
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
-
-    public static void registerAggregators(
-        ValuesSourceRegistry.Builder builder,
-        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey
-    ) {
-        builder.register(
-            registryKey,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::build,
-                true);
-    }
 
     public AbstractRangeAggregatorFactory(String name,
                                           ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,

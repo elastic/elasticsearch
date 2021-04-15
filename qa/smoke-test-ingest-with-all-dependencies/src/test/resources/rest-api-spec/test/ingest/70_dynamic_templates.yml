@@ -132,7 +132,7 @@
           - { "school_address": [ -71.34, 41.12 ]}
   - match: { errors: false }
   - match: { items.0.index.result: created }
-  - match: { items.1.index.result: created }
+
   - do:
       search:
         index: test_index

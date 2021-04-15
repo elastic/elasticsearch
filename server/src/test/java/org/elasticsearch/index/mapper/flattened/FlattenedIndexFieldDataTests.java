@@ -46,12 +46,13 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             indexService.mapperService());
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(new ContentPath(1));
+        KeyedFlattenedFieldType fieldType1 = fieldMapper.keyedFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
             public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
-                assertEquals(fieldMapper.keyedFieldName(), fieldName);
+                assertEquals(fieldType1.name(), fieldName);
                 onCacheCalled.incrementAndGet();
             }
         });
@@ -71,7 +72,6 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        KeyedFlattenedFieldType fieldType1 = fieldMapper.keyedFieldType("key");
         IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });

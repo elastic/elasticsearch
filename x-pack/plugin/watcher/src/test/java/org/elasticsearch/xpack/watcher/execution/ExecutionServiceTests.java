@@ -157,7 +157,7 @@ public class ExecutionServiceTests extends ESTestCase {
         parser = mock(WatchParser.class);
 
         DiscoveryNode discoveryNode = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 

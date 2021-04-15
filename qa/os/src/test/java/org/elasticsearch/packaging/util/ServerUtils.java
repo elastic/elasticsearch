@@ -38,9 +38,14 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -245,5 +250,15 @@ public class ServerUtils {
         }
 
         return body;
+    }
+
+    public static void disableGeoIpDownloader(Installation installation) throws IOException {
+        List<String> yaml = Collections.singletonList("ingest.geoip.downloader.enabled: false");
+        Path yml = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
+            if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
+                Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+            }
+        }
     }
 }

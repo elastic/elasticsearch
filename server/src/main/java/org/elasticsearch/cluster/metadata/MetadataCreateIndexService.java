@@ -341,6 +341,7 @@ public class MetadataCreateIndexService {
             // The backing index may have a different name or prefix than the data stream name.
             final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
 
+            // The index being created is for a system data stream, so the backing index will also be a system index
             if (request.systemDataStreamDescriptor() != null) {
                 return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
             }

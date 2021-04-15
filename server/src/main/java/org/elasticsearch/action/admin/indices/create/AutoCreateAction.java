@@ -154,7 +154,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             }
                         }
 
-                        final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
+                        final SystemIndexDescriptor mainDescriptor =
+                            isSystemIndex ? systemIndices.findMatchingDescriptor(indexName) : null;
                         final boolean isManagedSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
 
                         final CreateIndexClusterStateUpdateRequest updateRequest;

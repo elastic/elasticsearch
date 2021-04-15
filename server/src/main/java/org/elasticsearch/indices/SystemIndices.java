@@ -137,6 +137,10 @@ public class SystemIndices {
                 new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))));
     }
 
+    /**
+     * Checks whether the given name matches a reserved name or pattern that is intended for use by a system component. The name
+     * is checked against index names, aliases, data stream names, and the names of indices that back a system data stream.
+     */
     public boolean isSystemName(String name) {
         return isSystemIndex(name) || isSystemDataStream(name) || isSystemIndexBackingDataStream(name);
     }
@@ -151,7 +155,8 @@ public class SystemIndices {
     }
 
     /**
-     * Determines whether a given index is a system index by comparing its name to the collection of loaded {@link SystemIndexDescriptor}s
+     * Determines whether a given index is a system index by comparing its name to the collection of loaded {@link SystemIndexDescriptor}s.
+     * This will also match alias names that belong to system indices.
      * @param indexName the index name to check against loaded {@link SystemIndexDescriptor}s
      * @return true if the index name matches a pattern from a {@link SystemIndexDescriptor}
      */
@@ -159,10 +164,17 @@ public class SystemIndices {
         return systemIndexAutomaton.run(indexName);
     }
 
+    /**
+     * Determines whether the provided name matches that of a system data stream that has been defined by a
+     * {@link SystemDataStreamDescriptor}
+     */
     public boolean isSystemDataStream(String name) {
         return systemDataStreamAutomaton.test(name);
     }
 
+    /**
+     * Determines whether the provided name matches that of an index that backs a system data stream.
+     */
     public boolean isSystemIndexBackingDataStream(String name) {
         return systemDataStreamIndicesAutomaton.run(name);
     }

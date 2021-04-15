@@ -219,6 +219,7 @@ public class PackageTests extends PackagingTestCase {
         install();
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        disableGeoIpDownloader(installation);
 
         remove(distribution());
         assertRemoved(distribution());

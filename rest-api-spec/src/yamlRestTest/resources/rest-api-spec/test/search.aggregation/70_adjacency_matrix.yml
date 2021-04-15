@@ -23,8 +23,6 @@ setup:
           { "index": {"_id": "3"}}
           { "num": [3, 4] }
 
-  - do:
-      indices.refresh: {}
 ---
 "Filters intersections":
 
@@ -94,6 +92,7 @@ setup:
           { "num": [2] }
           { "index": {"_id": 4} }
           { "num": [4] }
+
   - do:
       node_selector:
         version: current # the version of the node that parsed the request is part of the cache key.

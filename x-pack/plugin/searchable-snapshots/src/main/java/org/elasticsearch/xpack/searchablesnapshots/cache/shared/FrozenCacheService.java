@@ -506,6 +506,7 @@ public class FrozenCacheService implements Releasable {
     @Override
     public void close() {
         sharedBytes.decRef();
+        decayTask.close();
     }
 
     class CacheDecayTask extends AbstractAsyncTask {

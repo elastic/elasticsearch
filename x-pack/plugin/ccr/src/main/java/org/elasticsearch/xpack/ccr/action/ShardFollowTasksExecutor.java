@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -125,9 +126,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
 
     @Override
-    public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
+    public Assignment getAssignment(final ShardFollowTask params,
+                                    Collection<DiscoveryNode> candidateNodes,
+                                    final ClusterState clusterState) {
         final DiscoveryNode node = selectLeastLoadedNode(
-            clusterState,
+            clusterState, candidateNodes,
             ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );
         if (node == null) {

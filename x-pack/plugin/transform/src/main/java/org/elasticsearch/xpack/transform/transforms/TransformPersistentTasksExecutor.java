@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -91,7 +92,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params,
+                                                                  Collection<DiscoveryNode> candidateNodes,
+                                                                  ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
             return new PersistentTasksCustomMetadata.Assignment(null,
                 "Transform task will not be assigned as a feature reset is in progress.");
@@ -108,7 +111,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
-            clusterState,
+            clusterState, candidateNodes,
             (node) -> nodeCanRunThisTransform(node, params, null)
         );
 

@@ -86,7 +86,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             // a type is not included, add a dummy _doc type
-            request.createIndexRequest.mapping(parser.map());
+            Map<String, Object> mappings = parser.map();
+            if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+
+                throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
+            }
+            request.createIndexRequest.mapping(mappings);
         }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),

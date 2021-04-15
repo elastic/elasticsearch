@@ -43,7 +43,7 @@ public abstract class BaseRestHandler implements RestHandler {
 
     /**
      * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: This parameter is only available through compatible rest api.
+     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;

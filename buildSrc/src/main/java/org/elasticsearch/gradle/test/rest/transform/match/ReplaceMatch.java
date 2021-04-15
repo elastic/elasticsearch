@@ -21,22 +21,23 @@ import org.gradle.api.tasks.Optional;
  */
 public class ReplaceMatch implements RestTestTransformByParentObject {
     private final String replaceKey;
+    private final String newKeyName;
     private final JsonNode replacementNode;
     private final String testName;
 
     public ReplaceMatch(String replaceKey, JsonNode replacementNode) {
-
-        this.replaceKey = replaceKey;
-        this.replacementNode = replacementNode;
-        this.testName = null;
+        this(replaceKey, replacementNode, null);
     }
 
     public ReplaceMatch(String replaceKey, JsonNode replacementNode, String testName) {
+        this(replaceKey, replaceKey, replacementNode, testName);
+    }
+    public ReplaceMatch(String replaceKey, String newKeyName, JsonNode replacementNode, String testName) {
         this.replaceKey = replaceKey;
+        this.newKeyName = newKeyName;
         this.replacementNode = replacementNode;
         this.testName = testName;
     }
-
     @Override
     @Internal
     public String getKeyToFind() {
@@ -56,7 +57,8 @@ public class ReplaceMatch implements RestTestTransformByParentObject {
     @Override
     public void transformTest(ObjectNode matchParent) {
         ObjectNode matchNode = (ObjectNode) matchParent.get(getKeyToFind());
-        matchNode.set(replaceKey, replacementNode);
+        matchNode.remove(replaceKey);
+        matchNode.set(newKeyName, replacementNode);
     }
 
     @Input
@@ -65,6 +67,7 @@ public class ReplaceMatch implements RestTestTransformByParentObject {
     }
 
     @Input
+    @Optional
     public JsonNode getReplacementNode() {
         return replacementNode;
     }

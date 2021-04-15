@@ -346,6 +346,43 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceIsTrue("test_index.mappings.type_1", "test_index.mappings._doc")
   task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
   task.replaceIsFalse("test-1.mappings.my_type", "test-1.mappings._doc")
+  task.replaceKeyInLength("test_index.mappings.test_type.text.mapping.text.type",
+    "test_index.mappings._doc.text.mapping.text.type"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.text.mapping.text.analyzer",
+    "test_index.mappings._doc.text.mapping.text.analyzer"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.t1.full_name",
+    "test_index.mappings._doc.t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.t2.full_name",
+    "test_index.mappings._doc.t2.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.t1.full_name",
+    "test_index.mappings._doc.obj\\.t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.i_t1.full_name",
+    "test_index.mappings._doc.obj\\.i_t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.i_t3.full_name",
+    "test_index.mappings._doc.obj\\.i_t3.full_name"
+  )
+  task.replaceKeyInLength("test_index.mappings.test_type",
+    "test_index.mappings._doc"
+  )
+  task.replaceKeyInMatch("test_index_2.mappings.test_type_2.t1.full_name",
+    "test_index.mappings._doc.t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index_2.mappings.test_type_2.t2.full_name",
+    "test_index.mappings._doc.t2.full_name"
+  )
+  task.replaceKeyInLength("test_index_2.mappings.test_type_2",
+    "test_index.mappings._doc"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.text.mapping.text.type",
+    "test_index.mappings._doc.text.mapping.text.type"
+  )
+//TO ASK ON REVIEW - difference between 20_missing_field and 21_missing_field_with_types. Empty {} vs test_index.mappings: {}
 })
 
 tasks.register('enforceYamlTestConvention').configure {

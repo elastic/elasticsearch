@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,9 +37,10 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestGetMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
+    public static final String INCLUDE_TYPE_DEPRECATION_MSG = "[types removal] Using include_type_name in get"
         + " mapping requests is deprecated. The parameter will be removed in the next major version.";
-    public static final String MSG = "";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get mapping request is deprecated. " +
+        "Use typeless api instead";
 
     private final ThreadPool threadPool;
 
@@ -51,13 +53,13 @@ public class RestGetMappingAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_mapping"),
             new Route(GET, "/_mappings"),
-            Route.builder(GET, "/{index}/{type}/_mapping").deprecated(MSG, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/_mapping").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
             new Route(GET, "/{index}/_mapping"),
             new Route(GET, "/{index}/_mappings"),
-            Route.builder(GET, "/{index}/_mappings/{type}").deprecated(MSG, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_mapping/{type}").deprecated(MSG, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/_mapping/{type}").deprecated(MSG, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_mapping/{type}").deprecated(MSG, RestApiVersion.V_7).build());
+            Route.builder(GET, "/{index}/_mappings/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(HEAD, "/{index}/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_mapping/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build());
     }
 
     @Override
@@ -67,11 +69,21 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);
-            deprecationLogger.compatibleApiWarning("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                request.param(INCLUDE_TYPE_NAME_PARAMETER);
+                deprecationLogger.compatibleApiWarning("get_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MSG);
+            }
+            final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+            if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY) == false && types.length > 0) {
+                throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
+                    " include_type_name is set to true.");
+            }
+            if (request.method().equals(HEAD)) {
+                deprecationLogger.compatibleApiWarning("get_mapping_types_removal",
+                    "Type exists requests are deprecated, as types have been deprecated.");
+            }
         }
-
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();

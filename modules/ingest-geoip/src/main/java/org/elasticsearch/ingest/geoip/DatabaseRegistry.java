@@ -349,7 +349,7 @@ public final class DatabaseRegistry implements Closeable {
                     // This makes the code easier to understand and maintain.
                     SearchResponse searchResponse = client.search(searchRequest).actionGet();
                     SearchHit[] hits = searchResponse.getHits().getHits();
-                    assert hits.length == 1 : "expected 1 hit, but instead got [" + hits.length + "]";
+
                     if (searchResponse.getHits().getHits().length == 0) {
                         failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
                         return;

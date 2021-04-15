@@ -195,12 +195,17 @@ setup:
       snapshot.get:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_metadata
+        human: true
 
   - is_true: responses.0.snapshots
   - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_metadata }
   - match: { responses.0.snapshots.0.state: SUCCESS }
   - match: { responses.0.snapshots.0.metadata.taken_by: test }
   - match: { responses.0.snapshots.0.metadata.foo.bar: baz }
+  - gt:  { responses.0.snapshots.0.index_details.test_index.shard_count: 0 }
+  - gt:  { responses.0.snapshots.0.index_details.test_index.size_in_bytes: 0 }
+  - gte: { responses.0.snapshots.0.index_details.test_index.max_segments_per_shard: 0 }
+  - is_true: responses.0.snapshots.0.index_details.test_index.size
 
   - do:
       snapshot.delete:

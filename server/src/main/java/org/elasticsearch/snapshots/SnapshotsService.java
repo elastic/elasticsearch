@@ -64,6 +64,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,6 +77,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -607,9 +609,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String localNodeId = clusterService.localNode().getId();
         if (currentlyCloning.add(repoShardId)) {
             repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, repoShardId, shardStatusBefore.generation(), ActionListener.wrap(
-                    generation -> innerUpdateSnapshotState(
-                            new ShardSnapshotUpdate(target, repoShardId,
-                                    new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)),
+                    shardSnapshotResult -> innerUpdateSnapshotState(
+                            new ShardSnapshotUpdate(target, repoShardId, ShardSnapshotStatus.success(localNodeId, shardSnapshotResult)),
                             ActionListener.runBefore(
                                     ActionListener.wrap(
                                             v -> logger.trace("Marked [{}] as successfully cloned from [{}] to [{}]", repoShardId,
@@ -1255,15 +1256,59 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             metadataListener.whenComplete(meta -> {
                         final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
-                        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
+
+                        final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = new HashMap<>(finalIndices.size());
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
+                            indexSnapshotDetails.compute(shardEntry.key.getIndexName(), (indexName, current) -> {
+                                if (current != null && current.getShardCount() == 0) {
+                                    // already found an unsuccessful shard in this index, skip this shard
+                                    return current;
+                                }
+
+                                final ShardSnapshotStatus shardSnapshotStatus = shardEntry.value;
+                                if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
+                                    // first unsuccessful shard in this index found, record that this index should be skipped
+                                    return new SnapshotInfo.IndexSnapshotDetails(0, ByteSizeValue.ZERO, 0);
+                                }
+
+                                final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
+                                if (result == null) {
+                                    // detailed result not recorded, skip this index
+                                    return new SnapshotInfo.IndexSnapshotDetails(0, ByteSizeValue.ZERO, 0);
+                                }
+
+                                if (current == null) {
+                                    return new SnapshotInfo.IndexSnapshotDetails(
+                                        1,
+                                        result.getSize(),
+                                        result.getSegmentCount()
+                                    );
+                                } else {
+                                    return new SnapshotInfo.IndexSnapshotDetails(
+                                        current.getShardCount() + 1,
+                                        new ByteSizeValue(current.getSize().getBytes() + result.getSize().getBytes()),
+                                        Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
+                                    );
+                                }
+                            });
+                        }
+                        indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
+
+                        final SnapshotInfo snapshotInfo = new SnapshotInfo(
+                                snapshot.getSnapshotId(),
                                 finalIndices,
                                 entry.partial() ? entry.dataStreams().stream()
                                         .filter(metaForSnapshot.dataStreams()::containsKey)
                                         .collect(Collectors.toList()) : entry.dataStreams(),
                                 entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
-                                failure, threadPool.absoluteTimeInMillis(),
-                                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
-                                entry.includeGlobalState(), entry.userMetadata(), entry.startTime());
+                                failure,
+                                threadPool.absoluteTimeInMillis(),
+                                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
+                                shardFailures,
+                                entry.includeGlobalState(),
+                                entry.userMetadata(),
+                                entry.startTime(),
+                                indexSnapshotDetails);
                         repo.finalizeSnapshot(
                                 shardGenerations,
                                 repositoryData.getGenId(),

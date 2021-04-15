@@ -430,7 +430,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        if (alreadyAccountedForBuckets) {
+        if (false == alreadyAccountedForBuckets) {
             reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         }
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());

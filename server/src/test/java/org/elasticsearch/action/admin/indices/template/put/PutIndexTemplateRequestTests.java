@@ -162,6 +162,38 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         assertThat(actual.aliases(), equalTo(expected.aliases()));
         assertThat(actual.mappings(), equalTo(expected.mappings()));
         assertThat(actual.settings(), equalTo(expected.settings()));
+
+        XContentBuilder aliases1 = XContentFactory.jsonBuilder().startObject()
+            .startObject("aliases")
+                .startObject("filtered-data")
+                    .startObject("bool")
+                        .startObject("filter")
+                            .startObject("term")
+                            .field("a", "b")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(aliases1));
+        assertThat(e.getCause().getMessage(), containsString("Unknown field [bool] in alias [filtered-data]"));
+
+        XContentBuilder aliases2 = XContentFactory.jsonBuilder().startObject()
+            .startObject("aliases")
+                .startObject("filtered-data")
+                    .startArray("filter")
+                        .startObject()
+                            .startObject("term")
+                            .field("a", "b")
+                            .endObject()
+                        .endObject()
+                    .endArray()
+                .endObject()
+            .endObject()
+        .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(aliases2));
+        assertThat(e.getCause().getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
     }
 
     @Override

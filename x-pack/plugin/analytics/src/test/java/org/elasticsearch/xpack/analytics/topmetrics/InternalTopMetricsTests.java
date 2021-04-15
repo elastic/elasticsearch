@@ -223,7 +223,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         assertThat(metrics.getProperty("int"), equalTo(1L));
         assertThat(metrics.getProperty("double"), equalTo(5.0));
         assertThat(metrics.getProperty("bytes"), equalTo(new BytesRef("cat")));
-        assertThat(metrics.getProperty("null"), nullValue());
+        assertThat((Double) metrics.getProperty("null"), notANumber());
     }
 
     public void testValue() {

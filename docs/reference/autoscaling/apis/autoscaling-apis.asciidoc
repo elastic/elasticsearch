@@ -3,7 +3,7 @@
 [[autoscaling-apis]]
 == Autoscaling APIs
 
-include::../autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 You can use the following APIs to perform autoscaling operations.
 

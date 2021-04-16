@@ -454,7 +454,7 @@ public class PublicationTests extends ESTestCase {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes,
-                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)));
+                new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())));
             nodesList.add(node);
         }
         return nodesList;

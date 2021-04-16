@@ -229,7 +229,7 @@ end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
 The maximum number of examples stored per category in memory and in the results
-data store. The default value is 4.  If you increase this value, more examples
+data store. The default value is 4. If you increase this value, more examples
 are available, however it requires that you have more storage available. If you
 set this value to `0`, no examples are stored.
 +
@@ -335,7 +335,8 @@ end::custom-preprocessor[]
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
-results should be skipped. For more examples, see
+results should be skipped. {kib} refers to custom rules as _job rules_. For more 
+examples, see
 {ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 end::custom-rules[]
 
@@ -1321,11 +1322,12 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::out-of-order-timestamp-count[]
-The number of input documents that are out of time sequence and outside
-of the latency window. This information is applicable only when you provide data
-to the {anomaly-job} by using the <<ml-post-data,post data API>>. These out of
-order documents are  discarded, since jobs require time series data to be in
-ascending chronological order.
+The number of input documents that have a timestamp chronologically
+preceding the start of the current anomaly detection bucket offset by 
+the latency window. This information is applicable only when you provide 
+data to the {anomaly-job} by using the <<ml-post-data,post data API>>. 
+These out of order documents are discarded, since jobs require time 
+series data to be in ascending chronological order.
 end::out-of-order-timestamp-count[]
 
 tag::outlier-fraction[]

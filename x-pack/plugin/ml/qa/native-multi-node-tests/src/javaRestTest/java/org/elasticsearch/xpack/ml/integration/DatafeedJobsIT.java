@@ -6,16 +6,26 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -32,9 +42,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.hamcrest.Matcher;
 import org.junit.After;
-import org.junit.Before;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -54,11 +64,19 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanup() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.datafeed")
+                .build()).get();
         cleanUp();
     }
 
@@ -285,6 +303,146 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setQueryDelay(TimeValue.timeValueSeconds(777)).build());
         // Search_count is still greater than 0 (i.e. has not been reset by datafeed update)
         assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+    }
+
+    public void testStopAndRestartCompositeDatafeed() throws Exception {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.datafeed", "TRACE")
+                .build()).get();
+        String indexName = "stop-restart-data";
+        client().admin().indices().prepareCreate("stop-restart-data")
+            .setMapping("time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, indexName, numDocs, twoWeeksAgo, oneWeekAgo);
+        long numDocs2 = randomIntBetween(32, 2048);
+        indexDocs(logger, indexName, numDocs2, oneWeekAgo, now);
+        client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().get();
+
+        String scrollJobId = "stop-restart-scroll";
+        Job.Builder scrollJob = createScheduledJob(scrollJobId);
+        registerJob(scrollJob);
+        putJob(scrollJob);
+        openJob(scrollJobId);
+        assertBusy(() -> assertEquals(getJobStats(scrollJobId).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig datafeedConfig = createDatafeedBuilder(scrollJobId+ "-datafeed", scrollJobId, Collections.singletonList(indexName))
+            .setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)))
+            .build();
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+        startDatafeed(datafeedConfig.getId(), 0L, null);
+
+        // Wait until we have processed data
+        assertBusy(() -> assertThat(getDataCounts(scrollJobId).getProcessedRecordCount(), greaterThan(0L)));
+        stopDatafeed(datafeedConfig.getId());
+        assertBusy(() -> assertThat(getJobStats(scrollJobId).get(0).getState(), is(oneOf(JobState.CLOSED, JobState.OPENED))));
+        // If we are not OPENED, then we are closed and shouldn't restart as the datafeed finished running through the data
+        if (getJobStats(scrollJobId).get(0).getState().equals(JobState.OPENED)) {
+            updateDatafeed(new DatafeedUpdate.Builder().setId(datafeedConfig.getId()).setChunkingConfig(ChunkingConfig.newAuto()).build());
+            startDatafeed(
+                datafeedConfig.getId(),
+                randomLongBetween(0, getDataCounts(scrollJobId).getLatestRecordTimeStamp().getTime()),
+                now
+            );
+            waitUntilJobIsClosed(scrollJobId);
+        }
+
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(scrollJobId);
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+        }, 60, TimeUnit.SECONDS);
+
+        String compositeJobId = "stop-restart-composite";
+        Job.Builder compositeJob = createScheduledJob(compositeJobId);
+        compositeJob.setAnalysisConfig(
+            new AnalysisConfig.Builder(compositeJob.getAnalysisConfig()).setSummaryCountFieldName("doc_count")
+        );
+        registerJob(compositeJob);
+        putJob(compositeJob);
+        openJob(compositeJobId);
+        assertBusy(() -> assertEquals(getJobStats(compositeJobId).get(0).getState(), JobState.OPENED));
+
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
+        aggs.addAggregator(
+            AggregationBuilders.composite(
+                "buckets",
+                Collections.singletonList(
+                    new DateHistogramValuesSourceBuilder("timebucket")
+                        .fixedInterval(new DateHistogramInterval("1h"))
+                        .field("time")
+                )
+            ).subAggregation(AggregationBuilders.max("time").field("time"))
+        );
+        DatafeedConfig compositeDatafeedConfig = createDatafeedBuilder(
+            compositeJobId + "-datafeed",
+            compositeJobId,
+            Collections.singletonList(indexName))
+            .setParsedAggregations(aggs)
+            .setFrequency(TimeValue.timeValueHours(1))
+            // Start off chunking at an hour so that it runs more slowly and the test has time to stop it in the middle of processing
+            .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
+            .build();
+        registerDatafeed(compositeDatafeedConfig);
+        putDatafeed(compositeDatafeedConfig);
+        startDatafeed(compositeDatafeedConfig.getId(), 0L, null);
+
+        // Wait until we have processed data
+        assertBusy(() -> assertThat(getDataCounts(compositeJobId).getProcessedRecordCount(), greaterThan(0L)));
+        stopDatafeed(compositeDatafeedConfig.getId());
+        assertBusy(() ->
+            assertThat(getJobStats(compositeJobId).get(0).getState(), is(oneOf(JobState.CLOSED, JobState.OPENED)))
+        );
+        // If we are not OPENED, then we are closed and shouldn't restart as the datafeed finished running through the data
+        if (getJobStats(compositeJobId).get(0).getState().equals(JobState.OPENED)) {
+            updateDatafeed(new DatafeedUpdate.Builder()
+                .setId(compositeDatafeedConfig.getId())
+                // Set to auto to speed up and finish the job
+                .setChunkingConfig(ChunkingConfig.newAuto())
+                .build());
+            startDatafeed(
+                compositeDatafeedConfig.getId(),
+                randomLongBetween(0, getDataCounts(compositeJobId).getLatestRecordTimeStamp().getTime()),
+                now
+            );
+            waitUntilJobIsClosed(compositeJobId);
+        }
+
+        List<Bucket> scrollBuckets = getBuckets(scrollJobId);
+        List<Bucket> compositeBuckets = getBuckets(compositeJobId);
+        for (int i = 0; i < scrollBuckets.size(); i++) {
+            Bucket scrollBucket = scrollBuckets.get(i);
+            Bucket compositeBucket = compositeBuckets.get(i);
+            try {
+                assertThat(
+                    "composite bucket [" + compositeBucket.getTimestamp() + "] [" + compositeBucket.getEventCount() + "] does not equal"
+                        + " scroll bucket [" + scrollBucket.getTimestamp() + "] [" + scrollBucket.getEventCount() + "]",
+                    compositeBucket.getEventCount(),
+                    equalTo(scrollBucket.getEventCount())
+                );
+            } catch (AssertionError ae) {
+                String originalMessage = ae.getMessage();
+                try {
+                    SearchSourceBuilder builder = new SearchSourceBuilder().query(QueryBuilders.rangeQuery("time")
+                        .gte(scrollBucket.getTimestamp().getTime())
+                        .lte(scrollBucket.getTimestamp().getTime() + TimeValue.timeValueHours(1).getMillis()))
+                        .size(10_000);
+                    SearchHits hits = client().search(new SearchRequest()
+                        .indices(indexName)
+                        .source(builder)).actionGet().getHits();
+                    fail("Hits: " + Strings.arrayToDelimitedString(hits.getHits(), "\n") + " \n failure: " + originalMessage);
+                } catch (ElasticsearchException ee) {
+                    fail("could not search indices for better info. Original failure: " + originalMessage);
+                }
+            }
+        }
     }
 
     private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {

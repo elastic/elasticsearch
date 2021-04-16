@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
@@ -58,6 +58,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -71,7 +72,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -558,9 +559,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(new ContentPath());
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+                "@timestamp",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                ScriptCompiler.NONE,
+                false,
+                Version.CURRENT).build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
@@ -656,9 +661,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(new ContentPath());
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+                "@timestamp",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                ScriptCompiler.NONE,
+                false,
+                Version.CURRENT).build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {

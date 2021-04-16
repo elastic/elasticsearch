@@ -63,7 +63,7 @@ import java.util.List;
 /**
  * The master rollup action that coordinates
  *  -  creating rollup temporary index
- *  -  calling {@link TransportRollupIndexerAction} to index rolluped up documents
+ *  -  calling {@link TransportRollupIndexerAction} to index rollup-ed documents
  *  -  cleaning up state
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
@@ -139,9 +139,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // 3. run rollup indexer
         // 4. make temp index read-only
         // 5. shrink index
-        // 6. delete temporary index
+        // 6. publish rollup metadata and add rollup index to datastream
+        // 7. delete temporary index
         // at any point if there is an issue, then cleanup temp index
 
+        // 1.
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
             RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
             if (fieldCapsResponse.get().size() == 0) {
@@ -156,6 +158,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 return;
             }
 
+            // 2.
             clusterService.submitStateUpdateTask("rollup create index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -170,12 +173,16 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     // index created
+                    // 3.
                     client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
                         if (indexerResp.isCreated()) {
+                            // 4.
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
                                 if (updateSettingsResponse.isAcknowledged()) {
+                                    // 5.
                                     client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                         if (resizeResponse.isAcknowledged()) {
+                                            // 6.
                                             publishMetadata(originalIndexName, tmpIndexName, rollupIndexName, listener);
                                         } else {
                                             deleteTmpIndex(originalIndexName, tmpIndexName, listener,

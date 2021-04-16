@@ -13,9 +13,11 @@ These tier attributes are set using the data node roles:
 * <<data-hot-node, data_hot>>
 * <<data-warm-node, data_warm>>
 * <<data-cold-node, data_cold>>
+* <<data-frozen-node, data_frozen>>
 
 NOTE: The <<data-node, data>> role is not a valid data tier and cannot be used
-for data tier filtering.
+for data tier filtering. The <<data-frozen-node, data_frozen>> role can only be
+used for searchable snapshots mounted with the `shared_cache` option.
 
 [discrete]
 [[data-tier-allocation-filters]]

@@ -318,7 +318,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Client client = mock(Client.class);
         GeoIpCache cache = new GeoIpCache(1000);
         DatabaseRegistry databaseRegistry = new DatabaseRegistry(createTempDir(), client, cache, localDatabases, Runnable::run);
-        databaseRegistry.initialize(resourceWatcherService, mock(IngestService.class));
+        databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
         for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
             assertNull(lazyLoader.databaseReader.get());

@@ -62,22 +62,30 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      *
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
-     * @param afterKey composite key
      */
-    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, CompositeKey afterKey) {
+    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size) {
         super(size);
         this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;
         this.map = new HashMap<>(size);
-        if (afterKey != null) {
-            assert afterKey.size() == sources.length;
-            afterKeyIsSet = true;
-            for (int i = 0; i < afterKey.size(); i++) {
-                sources[i].setAfter(afterKey.get(i));
+        this.docCounts = bigArrays.newLongArray(1, false);
+    }
+
+    /**
+     * Sets after key
+     * @param afterKey composite key
+     */
+    public void setAfterKey(CompositeKey afterKey) {
+        assert afterKey.size() == arrays.length;
+        afterKeyIsSet = true;
+        for (int i = 0; i < afterKey.size(); i++) {
+            try {
+                arrays[i].setAfter(afterKey.get(i));
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("incompatible value in the position " + i + ": " + ex.getMessage(), ex);
             }
         }
-        this.docCounts = bigArrays.newLongArray(1, false);
     }
 
     @Override

@@ -23,10 +23,10 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
 
     public static SnapshotLifecycleStats.SnapshotPolicyStats randomPolicyStats(String policyId) {
         return new SnapshotLifecycleStats.SnapshotPolicyStats(policyId,
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong());
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE));
     }
 
     public static SnapshotLifecycleStats randomLifecycleStats() {
@@ -37,10 +37,10 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
             policyStats.put(policy, randomPolicyStats(policy));
         }
         return new SnapshotLifecycleStats(
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
-            randomBoolean() ? 0 : randomNonNegativeLong(),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             policyStats);
     }
 

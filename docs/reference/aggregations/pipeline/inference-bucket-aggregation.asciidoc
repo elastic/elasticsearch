@@ -6,13 +6,13 @@
 <titleabbrev>{infer-cap} bucket</titleabbrev>
 ++++
 
-beta::[]
 
 A parent pipeline aggregation which loads a pre-trained model and performs 
 {infer} on the collated result fields from the parent bucket aggregation.
 
 To use the {infer} bucket aggregation, you need to have the same security
-privileges that are required for using the <<get-trained-models,get trained models API>>.
+privileges that are required for using the 
+<<get-trained-models,get trained models API>>.
 
 [[inference-bucket-agg-syntax]]
 ==== Syntax

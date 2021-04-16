@@ -21,15 +21,20 @@ final class ElasticServiceAccounts {
 
     static final String NAMESPACE = "elastic";
 
-    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet",
+    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet-server",
         new RoleDescriptor(
-            NAMESPACE + "/fleet",
+            NAMESPACE + "/fleet-server",
             new String[]{"monitor", "manage_own_api_key"},
             new RoleDescriptor.IndicesPrivileges[]{
                 RoleDescriptor.IndicesPrivileges
                     .builder()
-                    .indices("logs-*", "metrics-*", "traces-*")
+                    .indices("logs-*", "metrics-*", "traces-*", ".logs-endpoint.diagnostic.collection-*")
                     .privileges("write", "create_index", "auto_configure")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges
+                    .builder()
+                    .indices(".fleet-*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure")
                     .build()
             },
             null,
@@ -39,8 +44,8 @@ final class ElasticServiceAccounts {
             null
         ));
 
-    static Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
-        .collect(Collectors.toMap(a -> a.id().serviceName(), Function.identity()));;
+    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT).stream()
+        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));;
 
     private ElasticServiceAccounts() {}
 

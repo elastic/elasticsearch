@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
@@ -16,8 +17,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
-import org.elasticsearch.xpack.transform.Transform;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -131,20 +132,24 @@ public final class TransformNodes {
      */
     public static long getNumberOfTransformNodes(ClusterState clusterState) {
         return StreamSupport.stream(clusterState.getNodes().spliterator(), false)
-            .filter(node -> node.getRoles().contains(Transform.TRANSFORM_ROLE))
+            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE))
             .count();
     }
 
     /**
      * Check if cluster has at least 1 transform nodes and add a header warning if not.
      * To be used by transport actions only.
+     * Don't do this if a reset is in progress, because the feature reset API touches
+     * all features even if they have never been used.
      *
      * @param clusterState state
      */
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
-        long transformNodes = getNumberOfTransformNodes(clusterState);
-        if (transformNodes == 0) {
-            HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
+        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
+            long transformNodes = getNumberOfTransformNodes(clusterState);
+            if (transformNodes == 0) {
+                HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
+            }
         }
     }
 }

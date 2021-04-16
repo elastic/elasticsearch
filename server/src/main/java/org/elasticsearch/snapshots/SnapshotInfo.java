@@ -37,8 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
-
 /**
  * Information about a snapshot
  */
@@ -324,11 +322,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
-        if (in.getVersion().before(FEATURE_STATES_VERSION)) {
-            featureStates = Collections.emptyList();
-        } else {
-            featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
-        }
+        featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
     }
 
     /**
@@ -771,9 +765,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeOptionalBoolean(includeGlobalState);
         out.writeMap(userMetadata);
         out.writeStringCollection(dataStreams);
-        if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            out.writeList(featureStates);
-        }
+        out.writeList(featureStates);
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

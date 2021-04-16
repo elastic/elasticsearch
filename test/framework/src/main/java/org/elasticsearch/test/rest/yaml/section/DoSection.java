@@ -437,6 +437,8 @@ public class DoSection implements ExecutableSection {
             }
         }
 
+        // Log and remove all deprecation warnings for legacy index templates as a shortcut to dealing with all the legacy
+        // templates used in YAML tests. Once they have all been migrated to composable templates, this should be removed.
         for (Iterator<String> warnings = unexpected.iterator(); warnings.hasNext();) {
             if (warnings.next().endsWith(RestPutIndexTemplateAction.DEPRECATION_WARNING + "\"")) {
                 logger.warn(

@@ -127,7 +127,7 @@ public class MetadataMigrateToDataStreamService {
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, currentState, request.aliasName,
-            backingIndices, writeIndex, threadContext);
+            backingIndices, writeIndex);
     }
 
     // package-visible for testing

@@ -487,7 +487,8 @@ public class SystemIndices {
         /**
          * Construct a Feature with a custom cleanup function
          * @param description Description of the feature
-         * @param indexDescriptors Patterns describing system indices for this feature
+         * @param indexDescriptors Collection of objects describing system indices for this feature
+         * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          * @param associatedIndexPatterns Patterns describing associated indices
          * @param cleanUpFunction A function that will clean up the feature's state
          */
@@ -512,6 +513,20 @@ public class SystemIndices {
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
             this(description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
+                (clusterService, client, listener) ->
+                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
+            );
+        }
+        /**
+         * Construct a Feature using the default clean-up function
+         * @param name Name of the feature, used in logging
+         * @param description Description of the feature
+         * @param indexDescriptors Patterns describing system indices for this feature
+         * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
+         */
+        public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors,
+                       Collection<SystemDataStreamDescriptor> dataStreamDescriptors) {
+            this(description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
                 (clusterService, client, listener) ->
                     cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
             );

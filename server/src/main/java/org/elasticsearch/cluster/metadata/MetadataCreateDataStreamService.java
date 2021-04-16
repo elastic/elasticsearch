@@ -24,7 +24,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.Index;
@@ -49,7 +48,6 @@ public class MetadataCreateDataStreamService {
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
-    private final ThreadContext threadContext;
 
     public MetadataCreateDataStreamService(ThreadPool threadPool,
                                            ClusterService clusterService,
@@ -57,7 +55,6 @@ public class MetadataCreateDataStreamService {
         this.clusterService = clusterService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
-        this.threadContext = threadPool.getThreadContext();
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request,
@@ -84,7 +81,7 @@ public class MetadataCreateDataStreamService {
             new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request, threadContext);
+                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
                 }
@@ -92,7 +89,7 @@ public class MetadataCreateDataStreamService {
     }
 
     public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, request, threadContext);
+        return createDataStream(metadataCreateIndexService, current, request);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest
@@ -128,17 +125,14 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request,
-                                         ThreadContext threadContext) throws Exception {
+                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
         return createDataStream(
             metadataCreateIndexService,
             currentState,
             request.name,
             List.of(),
             null,
-            request.getSystemDataStreamDescriptor(),
-            threadContext
-        );
+            request.getSystemDataStreamDescriptor());
     }
 
     /**
@@ -155,20 +149,18 @@ public class MetadataCreateDataStreamService {
                                          ClusterState currentState,
                                          String dataStreamName,
                                          List<IndexMetadata> backingIndices,
-                                         IndexMetadata writeIndex,
-                                         ThreadContext threadContext) throws Exception {
+                                         IndexMetadata writeIndex) throws Exception {
         assert metadataCreateIndexService.getSystemIndices().isSystemDataStream(dataStreamName) == false :
             "dataStream [" + dataStreamName + "] is system but no system descriptor was provided!";
-        return createDataStream(metadataCreateIndexService, currentState, dataStreamName, backingIndices, writeIndex, null, threadContext);
+        return createDataStream(metadataCreateIndexService, currentState, dataStreamName, backingIndices, writeIndex, null);
     }
 
-    private static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
+    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                                  ClusterState currentState,
                                                  String dataStreamName,
                                                  List<IndexMetadata> backingIndices,
                                                  IndexMetadata writeIndex,
-                                                 SystemDataStreamDescriptor systemDataStreamDescriptor,
-                                                 ThreadContext threadContext) throws Exception
+                                                 SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception
     {
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);

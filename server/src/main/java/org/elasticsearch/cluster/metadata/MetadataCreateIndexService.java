@@ -332,12 +332,6 @@ public class MetadataCreateIndexService {
             // in which case templates don't apply, so create the index from the source metadata
             return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
         } else {
-            // Hidden indices apply templates slightly differently (ignoring wildcard '*'
-            // templates), so we need to check to see if the request is creating a hidden index
-            // prior to resolving which templates it matches
-            final Boolean isHiddenFromRequest = IndexMetadata.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
-                IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
-
             // The backing index may have a different name or prefix than the data stream name.
             final String name = request.dataStreamName() != null ? request.dataStreamName() : request.index();
 
@@ -345,6 +339,13 @@ public class MetadataCreateIndexService {
             if (request.systemDataStreamDescriptor() != null) {
                 return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
             }
+
+            // Hidden indices apply templates slightly differently (ignoring wildcard '*'
+            // templates), so we need to check to see if the request is creating a hidden index
+            // prior to resolving which templates it matches
+            final Boolean isHiddenFromRequest = IndexMetadata.INDEX_HIDDEN_SETTING.exists(request.settings()) ?
+                IndexMetadata.INDEX_HIDDEN_SETTING.get(request.settings()) : null;
+
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(currentState.metadata(),
                 name, isHiddenFromRequest == null ? false : isHiddenFromRequest);

@@ -99,6 +99,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
+    private SearchTask searchTask;
+
     public SearchRequest() {
         this((Version) null);
     }
@@ -686,7 +688,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+        searchTask = new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers);
+        return searchTask;
+    }
+
+    public SearchTask getSearchTask() {
+        return searchTask;
     }
 
     public final String buildDescription() {

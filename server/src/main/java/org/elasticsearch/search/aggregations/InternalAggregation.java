@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -55,7 +56,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
-        private SearchTask searchTask;
+        private SearchRequest searchRequest;
         /**
          * Supplies the pipelines when the result of the reduce is serialized
          * to node versions that need pipeline aggregators to be serialized
@@ -130,6 +131,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         public void consumeBucketsAndMaybeBreak(int size) {
             multiBucketConsumer.accept(size);
 
+            SearchTask searchTask = searchRequest.getSearchTask();
             if (searchTask != null && searchTask.isCancelled()) {
                 String exceptionMessage = String.format(
                     "Stopping aggregation reduce because search task %d was cancelled", searchTask.getId());
@@ -137,8 +139,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             }
         }
 
-        public void setSearchTask(SearchTask searchTask) {
-            this.searchTask = searchTask;
+        public void setSearchRequest(SearchRequest searchRequest) {
+            this.searchRequest = searchRequest;
         }
 
     }

@@ -772,6 +772,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             AggregatorFactories.Builder aggs = AggregatorFactories.builder();
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            Map<String, Object> runtimeMappings = Collections.emptyMap();
             // tag::update-datafeed-config
             DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId) // <1>
                 .setAggregations(aggs) // <2>
@@ -782,6 +783,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
                 .setScriptFields(scriptFields) // <8>
                 .setScrollSize(1000); // <9>
+                .setRuntimeMappings(runtimeMappings); // <10>
             // end::update-datafeed-config
 
             // Clearing aggregation to avoid complex validation rules

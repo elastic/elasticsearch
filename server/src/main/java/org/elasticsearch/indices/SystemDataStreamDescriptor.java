@@ -33,7 +33,12 @@ import org.elasticsearch.cluster.metadata.DataStream;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+/**
+ * Describes a {@link DataStream} that is reserved for use by a system component. The data stream will be managed by the system and also
+ * protected by the system against user modification so that system features are not broken by inadvertent user operations.
+ */
 public class SystemDataStreamDescriptor {
 
     private final String dataStreamName;
@@ -47,12 +52,16 @@ public class SystemDataStreamDescriptor {
                                       ComposableIndexTemplate composableIndexTemplate, Map<String, ComponentTemplate> componentTemplates,
                                       List<String> allowedElasticProductOrigins) {
         // TODO validation and javadocs
-        this.dataStreamName = dataStreamName;
-        this.description = description;
-        this.type = type;
-        this.composableIndexTemplate = composableIndexTemplate;
-        this.componentTemplates = Map.copyOf(componentTemplates);
-        this.allowedElasticProductOrigins = allowedElasticProductOrigins;
+        this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
+        this.description = Objects.requireNonNull(description, "description must be specified");
+        this.type = Objects.requireNonNull(type, "type must be specified");
+        this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
+        this.componentTemplates = componentTemplates == null ? Map.of() : Map.copyOf(componentTemplates);
+        this.allowedElasticProductOrigins =
+            Objects.requireNonNull(allowedElasticProductOrigins, "allowedElasticProductOrigins must not be null");
+        if (type == Type.EXTERNAL && allowedElasticProductOrigins.isEmpty()) {
+            throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
+        }
     }
 
     public String getDataStreamName() {

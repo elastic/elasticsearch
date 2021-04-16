@@ -149,6 +149,10 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
+    public static final RequestOptions LEGACY_TEMPLATE_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings ->
+            org.elasticsearch.common.collect.List.of(RestPutIndexTemplateAction.DEPRECATION_WARNING).equals(warnings) == false).build();
+
     public void testIndicesExists() throws IOException {
         // Index present
         {
@@ -1590,7 +1594,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
-            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS);
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
         Map<String, Object> templates = getAsMap("/_template/my-template");
@@ -1705,22 +1709,26 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(withoutPatternError.validationErrors(), contains("index patterns are missing"));
 
         // Create-only specified but an template exists already
-        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2").patterns(Arrays.asList("qa-*", "prod-*"));
-        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2")
+            .patterns(org.elasticsearch.common.collect.List.of("qa-*", "prod-*"));
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
+            .isAcknowledged());
         goodTemplate.create(true);
         ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
-            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS));
         assertThat(alreadyExistsError.getDetailedMessage(),
             containsString("[type=illegal_argument_exception, reason=index_template [t2] already exists]"));
         goodTemplate.create(false);
-        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
+            .isAcknowledged());
 
         // Rejected due to unknown settings
         PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3")
             .patterns(Collections.singletonList("any"))
             .settings(Settings.builder().put("this-setting-does-not-exist", 100));
         ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync,
+                LEGACY_TEMPLATE_OPTIONS));
         assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
     }
 
@@ -1857,14 +1865,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1")
-            .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
-        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
+            .patterns(org.elasticsearch.common.collect.List.of("pattern-1", "name-1"))
+            .alias(new Alias("alias-1"));
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
+            .isAcknowledged(),
             equalTo(true));
         PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2")
             .patterns(Arrays.asList("pattern-2", "name-2"))
             .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", XContentType.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
-        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync)
+        assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
                 .isAcknowledged(), equalTo(true));
 
         GetIndexTemplatesResponse getTemplate1 = execute(
@@ -1939,7 +1949,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("template-" + suffix)
                     .patterns(Arrays.asList("pattern-" + suffix, "name-" + suffix))
                     .alias(new Alias("alias-" + suffix));
-                assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+                assertTrue(
+                    execute(
+                        putRequest,
+                        client.indices()::putTemplate,
+                        client.indices()::putTemplateAsync,
+                        LEGACY_TEMPLATE_OPTIONS
+                        ).isAcknowledged()
+                    );
 
                 final IndexTemplatesExistRequest existsRequest = new IndexTemplatesExistRequest("template-" + suffix);
                 assertTrue(execute(existsRequest, client.indices()::existsTemplate, client.indices()::existsTemplateAsync));

@@ -86,5 +86,9 @@ public abstract class AbstractRefCounted implements RefCounted {
         return name;
     }
 
+    /**
+     * Method that is invoked once the reference count reaches zero.
+     * Implementations of this method must handle all exceptions and may not throw any exceptions.
+     */
     protected abstract void closeInternal();
 }

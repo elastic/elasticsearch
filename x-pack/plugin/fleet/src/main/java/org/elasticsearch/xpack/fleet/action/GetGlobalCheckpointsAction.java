@@ -12,14 +12,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -157,14 +160,17 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState state = clusterService.state();
-            final Index index = resolver.concreteSingleIndex(state, request);
-            final IndexMetadata indexMetadata = state.getMetadata().index(index);
 
-            if (indexMetadata == null) {
-                // Index not found
-                listener.onFailure(new IndexNotFoundException(request.index));
-                return;
+            Index index = null;
+            try {
+                index = resolver.concreteSingleIndex(state, request);
+            } catch (IndexNotFoundException e) {
+                handleIndexNotReady(request, listener);
             }
+            final IndexMetadata indexMetadata = state.getMetadata().index(index);
+            final IndexRoutingTable routingTable = state.routingTable().index(index);
+
+            boolean allPrimaryShardsActive = routingTable.allPrimaryShardsActive();
 
             final int numberOfShards = indexMetadata.getNumberOfShards();
 
@@ -240,6 +246,63 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                         }
                     }
                 });
+            }
+        }
+
+        private void handleIndexNotReady(final Request request, final ActionListener<Response> responseListener) {
+            boolean waitOnIndex = true;
+            if (waitOnIndex) {
+                client.admin()
+                    .cluster()
+                    .prepareHealth(request.index)
+                    .setLocal(true)
+                    .setTimeout(request.timeout)
+                    .setWaitForYellowStatus()
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterHealthResponse healthResponse) {
+                            if (healthResponse.isTimedOut()) {
+
+                            } else {
+                                final ClusterState state = clusterService.state();
+                                final Index index = resolver.concreteSingleIndex(state, request);
+                                final IndexMetadata indexMetadata = state.getMetadata().index(index);
+                                afterIndexFound(request, responseListener, indexMetadata);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            responseListener.onFailure(e);
+                        }
+                    });
+            } else {
+                responseListener.onFailure(new IndexNotFoundException(request.index));
+            }
+        }
+
+        private void afterIndexFound(Request request, ActionListener<Response> listener, IndexMetadata indexMetadata) {
+            final int numberOfShards = indexMetadata.getNumberOfShards();
+            if (request.waitForAdvance() && numberOfShards != 1) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "wait_for_advance only supports indices with one shard. " + "[shard count: " + numberOfShards + "]",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
+        }
+
+        private static class CheckpointFetcher extends ActionRunnable<Response> {
+
+            public CheckpointFetcher(ActionListener<Response> listener) {
+                super(listener);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+
             }
         }
     }

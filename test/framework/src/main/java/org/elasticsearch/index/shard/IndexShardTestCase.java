@@ -570,7 +570,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES,
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.roles(),
             Version.CURRENT);
     }
 

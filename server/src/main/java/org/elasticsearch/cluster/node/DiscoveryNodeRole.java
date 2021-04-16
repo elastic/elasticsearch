@@ -11,10 +11,15 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.Optional;
 import java.util.SortedSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Represents a node role.
@@ -57,6 +62,12 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private final boolean isKnownRole;
 
+    /**
+     * Whether or not the role is enabled by default given the specified settings
+     *
+     * @param settings the settings instance
+     * @return true if the role is enabled by default given the specified settings, otherwise false
+     */
     public boolean isEnabledByDefault(final Settings settings) {
         return true;
     }
@@ -127,6 +138,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
      */
     public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true);
 
+    /**
+     * Represents the role for a content node.
+     */
     public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
 
         @Override
@@ -136,6 +150,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     };
 
+    /**
+     * Represents the role for a hot node.
+     */
     public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
 
         @Override
@@ -145,6 +162,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     };
 
+    /**
+     * Represents the role for a warm node.
+     */
     public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
 
         @Override
@@ -154,6 +174,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     };
 
+    /**
+     * Represents the role for a cold node.
+     */
     public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
 
         @Override
@@ -163,6 +186,9 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     };
 
+    /**
+     * Represents the role for a frozen node.
+     */
     public static DiscoveryNodeRole DATA_FROZEN_NODE_ROLE = new DiscoveryNodeRole("data_frozen", "f", true) {
 
         @Override
@@ -182,13 +208,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
      */
     public static final DiscoveryNodeRole MASTER_ROLE = new DiscoveryNodeRole("master", "m");
 
-    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r");
-
-    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
-
-    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
-
-    public static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
+    /**
+     * Represents the role for a voting-only node.
+     */
+    public static final DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -197,7 +220,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
         @Override
         public void validateRoles(final List<DiscoveryNodeRole> roles) {
-            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE) == false) {
+            if (roles.contains(MASTER_ROLE) == false) {
                 throw new IllegalArgumentException("voting-only node must be master-eligible");
             }
         }
@@ -205,23 +228,19 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     };
 
     /**
-     * The built-in node roles.
+     * Represents the role for a node that can be a remote cluster client.
      */
-    public static final SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES =
-        Set.of(
-            DATA_ROLE,
-            INGEST_ROLE,
-            MASTER_ROLE,
-            REMOTE_CLUSTER_CLIENT_ROLE,
-            DATA_CONTENT_NODE_ROLE,
-            DATA_HOT_NODE_ROLE,
-            DATA_WARM_NODE_ROLE,
-            DATA_COLD_NODE_ROLE,
-            DATA_FROZEN_NODE_ROLE,
-            ML_ROLE,
-            TRANSFORM_ROLE,
-            VOTING_ONLY_NODE_ROLE
-        ).stream().collect(Sets.toUnmodifiableSortedSet());
+    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r");
+
+    /**
+     * Represents the role for a machine learning node.
+     */
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l");
+
+    /**
+     * Represents the role for a transform node.
+     */
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t");
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer
@@ -240,6 +259,80 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             super(false, roleName, roleNameAbbreviation, canContainData);
         }
 
+    }
+
+    // the set of possible roles
+    private static final SortedSet<DiscoveryNodeRole> ROLES;
+
+    // a map from role names to their role representations
+    private static final Map<String, DiscoveryNodeRole> ROLE_MAP;
+
+    static {
+        final List<Field> roleFields = Arrays.stream(DiscoveryNodeRole.class.getFields())
+            .filter(f -> f.getType().equals(DiscoveryNodeRole.class))
+            .collect(Collectors.toUnmodifiableList());
+        // this will detect duplicate role names
+        final Map<String, DiscoveryNodeRole> roleMap = roleFields.stream()
+            .map(f -> {
+                try {
+                    return (DiscoveryNodeRole) f.get(null);
+                } catch (final IllegalAccessException e) {
+                    throw new AssertionError(e);
+                }
+            })
+            .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
+        assert roleMap.size() == roleFields.size() :
+            "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
+        // now we can collect the roles, don't do this first and then collect the role map because the set collector will allow duplicates
+        final SortedSet<DiscoveryNodeRole> roles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
+        // this will detect duplicate role abbreviations
+        final Map<String, DiscoveryNodeRole> abbreviations = roles
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
+        assert abbreviations.size() == roleFields.size() :
+            "role abbreviations [" + abbreviations + "], role fields [" + roleFields + "]";
+        ROLES = roles;
+        ROLE_MAP = roleMap;
+    }
+
+    /**
+     * The possible node roles.
+     *
+     * @return an ordered, immutable set of possible roles
+     */
+    public static SortedSet<DiscoveryNodeRole> roles() {
+        return ROLES;
+    }
+
+    /**
+     * The set of possible role names.
+     *
+     * @return an ordered, immutable set of possible role names
+     */
+    public static SortedSet<String> roleNames() {
+        return ROLE_MAP.keySet().stream().collect(Sets.toUnmodifiableSortedSet());
+    }
+
+    /**
+     * Get an optional representing the role with the given role name, if such a role exists.
+     *
+     * @param roleName the role name to get the associated role representation for
+     * @return an optional node role
+     */
+    public static Optional<DiscoveryNodeRole> maybeGetRoleFromRoleName(final String roleName) {
+        return Optional.ofNullable(ROLE_MAP.get(roleName));
+    }
+
+    /**
+     * Get a representation of the role with the given role name, if such a role exists, otherwise an exception is thrown.
+     *
+     * @param roleName the role name to get the associated role representation for
+     * @return a node role
+     *
+     * @throws IllegalArgumentException if no node role with the given role name exists
+     */
+    public static DiscoveryNodeRole getRoleFromRoleName(final String roleName) {
+        return maybeGetRoleFromRoleName(roleName).orElseThrow(() -> new IllegalArgumentException("unknown role [" + roleName + "]"));
     }
 
 }

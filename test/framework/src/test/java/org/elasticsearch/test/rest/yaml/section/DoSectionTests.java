@@ -619,6 +619,29 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         }
     }
 
+    public void testNodeSelectorCurrentVersion() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    version: current\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node v170 = nodeWithVersion("1.7.0");
+        Node v521 = nodeWithVersion("5.2.1");
+        Node v550 = nodeWithVersion("5.5.0");
+        Node current = nodeWithVersion(Version.CURRENT.toString());
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(v170);
+        nodes.add(v521);
+        nodes.add(v550);
+        nodes.add(current);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(List.of(current), nodes);
+    }
+
     private static Node nodeWithVersion(String version) {
         return new Node(new HttpHost("dummy"), null, null, version, null, null);
     }

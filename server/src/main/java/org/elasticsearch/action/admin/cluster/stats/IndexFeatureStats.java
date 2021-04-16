@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.Objects;
 /**
  * Statistics about an index feature.
  */
-public class IndexFeatureStats implements ToXContent, Writeable {
+public class IndexFeatureStats implements ToXContentObject, Writeable {
 
     final String name;
     int count;

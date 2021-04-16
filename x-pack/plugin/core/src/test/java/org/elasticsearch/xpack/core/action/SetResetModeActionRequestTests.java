@@ -14,7 +14,8 @@ public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<
 
     @Override
     protected SetResetModeActionRequest createTestInstance() {
-        return new SetResetModeActionRequest(randomBoolean());
+        boolean enabled = randomBoolean();
+        return new SetResetModeActionRequest(enabled, enabled == false && randomBoolean());
     }
 
     @Override

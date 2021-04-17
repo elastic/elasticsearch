@@ -18,7 +18,8 @@ if (BuildParams.inFipsJvm) {
         fipsSecurity = new File(fipsResourcesDir, "fips_java_bcjsse_8.security")
         fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_8.policy")
       } else {
-        fipsSecurity = new File(fipsResourcesDir, "fips_java_sunjsse.security")
+        fipsSecurity = new File(fipsResourcesDir,
+          BuildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : "fips_java_sunjsse.security")
         fipsPolicy = new File(fipsResourcesDir, "fips_java_sunjsse.policy")
       }
     } else {

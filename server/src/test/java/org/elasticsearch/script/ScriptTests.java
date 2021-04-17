@@ -41,6 +41,26 @@ public class ScriptTests extends ESTestCase {
                 assertThat(actualScript, equalTo(expectedScript));
             }
         }
+
+        Script expectedJsonScript = createScript(Map.of(Script.CONTENT_TYPE_OPTION, "application/json"));
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            expectedJsonScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            try (XContentParser xParser = createParser(builder)) {
+                Settings settings = Settings.fromXContent(xParser);
+                Script actualScript = Script.parse(settings);
+                assertThat(actualScript, equalTo(expectedJsonScript));
+            }
+        }
+
+        Script expectedScriptWithCharset = createScript(Map.of(Script.CONTENT_TYPE_OPTION, "application/json;charset=utf-8"));
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            expectedScriptWithCharset.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            try (XContentParser xParser = createParser(builder)) {
+                Settings settings = Settings.fromXContent(xParser);
+                Script actualScript = Script.parse(settings);
+                assertThat(actualScript, equalTo(expectedScriptWithCharset));
+            }
+        }
     }
 
     public void testScriptSerialization() throws IOException {
@@ -55,6 +75,10 @@ public class ScriptTests extends ESTestCase {
     }
 
     private Script createScript() throws IOException {
+        return createScript(Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+    }
+
+    private Script createScript(Map<String, String> options) throws IOException {
         final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
@@ -72,8 +96,7 @@ public class ScriptTests extends ESTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ?
-                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null, params
+            scriptType == ScriptType.INLINE ? options : null, params
         );
     }
 
@@ -199,4 +222,5 @@ public class ScriptTests extends ESTestCase {
         );
         assertEquals("Value must be of type Map: [params]", exc.getMessage());
     }
+
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -520,7 +521,10 @@ public final class Script implements ToXContentObject, Writeable {
 
         if (type == ScriptType.INLINE) {
             this.lang = Objects.requireNonNull(lang);
-            this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
+            // making sure if content_type was application/json, application/json; charset=UTF-8 (note space and casing)
+            // it will be treated as the XContentType.JSON.mediaType() -> application/json;charset=utf-8
+            this.options = Maps.copyMapWithModifiedEntryWhenPresent(Collections.unmodifiableMap(options), CONTENT_TYPE_OPTION,
+                value -> value.startsWith("application/json") ? XContentType.JSON.mediaType() : value);
         } else if (type == ScriptType.STORED) {
             if (lang != null) {
                 throw new IllegalArgumentException("lang cannot be specified for stored scripts");
@@ -622,7 +626,8 @@ public final class Script implements ToXContentObject, Writeable {
         String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
 
         if (type == ScriptType.INLINE) {
-            if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
+            // treating application/json;charset=utf-8 the same as application/json
+            if (contentType != null && (contentType.startsWith(builder.contentType().mediaTypeWithoutParameters()))) {
                 try (InputStream stream = new BytesArray(idOrCode).streamInput()) {
                     builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), stream);
                 }

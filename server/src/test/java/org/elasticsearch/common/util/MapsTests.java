@@ -84,6 +84,47 @@ public class MapsTests extends ESTestCase {
                         Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
     }
 
+    public void testReplaceEntryIfPresentInImmutableMap() {
+        final var numberOfEntries = randomIntBetween(1, 32);
+        final var entries = new ArrayList<Map.Entry<String, String>>(numberOfEntries);
+        final var keys = new HashSet<String>();
+
+        int entryToBeReplaced = randomIntBetween(0,numberOfEntries);
+        String keyToBeChanged = null;
+        for (int i = 0; i < numberOfEntries; i++) {
+            final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
+            keys.add(key);
+            if (i == entryToBeReplaced) {
+                entries.add(entry(key, "to_be_changed_value"));
+                keyToBeChanged = key;
+            } else {
+                entries.add(entry(key, randomAlphaOfLength(16)));
+            }
+
+        }
+        {
+            //test when key present
+            final Map<String, String> map = Maps.ofEntries(entries);
+            final String key = keyToBeChanged;
+            final Map<String, String> replaced = Maps.copyMapWithModifiedEntryWhenPresent(map, key,
+                v -> "changed");
+            assertMapEntriesAndImmutability(
+                replaced,
+                Stream.concat(
+                    entries.stream().filter(e -> key.equals(e.getKey()) == false),
+                    Stream.of(entry(key, "changed"))).collect(Collectors.toUnmodifiableList()));
+        }
+        {
+            //test when key NOT present
+            final Map<String, String> map = Maps.ofEntries(entries);
+            final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16)); // key does not exist in a map
+            final Map<String, String> nothing_replaced = Maps.copyMapWithModifiedEntryWhenPresent(map, key,
+                v -> "changed");
+            assertMapEntriesAndImmutability(
+                nothing_replaced, entries.stream().collect(Collectors.toUnmodifiableList()));
+        }
+    }
+
     public void testOfEntries() {
         final var numberOfEntries = randomIntBetween(0, 32);
         final var entries = new ArrayList<Map.Entry<String, String>>(numberOfEntries);

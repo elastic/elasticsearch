@@ -13,6 +13,7 @@ import org.elasticsearch.Assertions;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,6 +60,26 @@ public class Maps {
         assertImmutableMap(map, key, value);
         return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+    /**
+     * Modifies entry only when existing in an immutable map by copying the underlying map and replacing
+     * the existing entry.
+     *
+     * @param map   the immutable map to add to or replace in
+     * @param key   the key of the new entry
+     * @param function the function that creates a new value
+     * @param <K>   the type of the keys in the map
+     * @param <V>   the type of the values in the map
+     * @return an immutable map that contains the items from the specified map and a mapping from the specified key and new value
+     */
+    public static <K, V> Map<K, V> copyMapWithModifiedEntryWhenPresent(final Map<K, V> map, final K key, final Function<V, V> function) {
+        if (map.containsKey(key)) {
+            V value = function.apply(map.get(key));
+            assertImmutableMap(map, key, value);
+            return copyMapWithAddedOrReplacedEntry(map, key, value);
+        } else {
+            return map;
+        }
     }
 
     /**

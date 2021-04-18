@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -106,7 +106,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, RuntimeFieldType> runtimeMappings;
+    private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -199,7 +199,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, RuntimeFieldType> runtimeMappings) {
+                                   Map<String, MappedFieldType> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -227,8 +227,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.nestedScope = new NestedScope();
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity getSearchSimilarity() {
         return similarityService != null ? similarityService.similarity(this::fieldType) : null;
+    }
+
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
+        return similarityService != null ? similarityService.getDefaultSimilarity() : null;
     }
 
     public List<String> defaultFields() {
@@ -608,11 +618,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, RuntimeFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        return RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false);
+        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
+        for (RuntimeField runtimeField : runtimeFields.values()) {
+            MappedFieldType fieldType = runtimeField.asMappedFieldType();
+            runtimeFieldTypes.put(fieldType.name(), fieldType);
+        }
+        return Collections.unmodifiableMap(runtimeFieldTypes);
     }
 
     /**

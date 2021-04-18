@@ -20,7 +20,7 @@ The simplest version uses a built-in analyzer:
 include-tagged::{doc-tests-file}[{api}-builtin-request]
 ---------------------------------------------------
 <1> A built-in analyzer
-<2> The text to include.  Multiple strings are treated as a multi-valued field
+<2> The text to include. Multiple strings are treated as a multi-valued field
 
 You can configure a custom analyzer:
 ["source","java",subs="attributes,callouts,macros"]

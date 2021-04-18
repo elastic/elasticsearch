@@ -44,7 +44,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * The default implementation returns the least loaded data node
      */
     public Assignment getAssignment(Params params, ClusterState clusterState) {
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, DiscoveryNode::isDataNode);
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, DiscoveryNode::canContainData);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {

@@ -124,6 +124,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final AnomalyDetectionAuditor auditor;
 
     private volatile boolean upgradeInProgress;
+    private volatile boolean resetInProgress;
     private volatile boolean nodeDying;
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
@@ -163,21 +164,26 @@ public class AutodetectProcessManager implements ClusterStateListener {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
 
             for (ProcessContext process : processByAllocation.values()) {
-                closeJob(process.getJobTask(), false, reason);
+                closeJob(process.getJobTask(), reason);
             }
         }
     }
 
     public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
-        logger.trace("[{}] Killing process: awaitCompletion = [{}]; reason = [{}]", jobTask.getJobId(), awaitCompletion, reason);
+        logger.trace(() -> new ParameterizedMessage(
+            "[{}] Killing process: awaitCompletion = [{}]; reason = [{}]",
+            jobTask.getJobId(),
+            awaitCompletion,
+            reason
+        ));
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
             processContext.newKillBuilder()
-                    .setAwaitCompletion(awaitCompletion)
-                    .setFinish(true)
-                    .setReason(reason)
-                    .setShouldFinalizeJob(upgradeInProgress == false)
-                    .kill();
+                .setAwaitCompletion(awaitCompletion)
+                .setFinish(true)
+                .setReason(reason)
+                .setShouldFinalizeJob(upgradeInProgress == false && resetInProgress == false)
+                .kill();
         } else {
             // If the process is missing but the task exists this is most likely
             // due to 2 reasons. The first is because the job went into the failed
@@ -187,7 +193,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             // Force-delete issues a kill but the process will not be present
             // as it is cleaned up already. In both cases, we still need to remove
             // the task from the TaskManager (which is what the kill would do)
-            logger.trace("[{}] Marking job task as completed", jobTask.getJobId());
+            logger.trace(() -> new ParameterizedMessage("[{}] Marking job task as completed", jobTask.getJobId()));
             jobTask.markAsCompleted();
         }
     }
@@ -530,6 +536,18 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
                     try {
                         if (createProcessAndSetRunning(processContext, job, params, closeHandler)) {
+                            if (processContext.getJobTask().isClosing()) {
+                                logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
+                                closeProcessAndTask(processContext, jobTask, "job is already closing");
+                                return;
+                            }
+                            // It is possible that a `kill` request came in before the communicator was set
+                            // This means that the kill was not handled appropriately and we continued down this execution path
+                            if (processContext.shouldBeKilled()) {
+                                logger.debug("Aborted opening job [{}] as it is being killed", job.getId());
+                                processContext.killIt();
+                                return;
+                            }
                             processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
                             setJobState(jobTask, JobState.OPENED);
                         }
@@ -710,25 +728,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
         };
     }
 
-    /**
-     * Stop the running job and mark it as finished.
-     *
-     * @param jobTask The job to stop
-     * @param restart Whether the job should be restarted by persistent tasks
-     * @param reason  The reason for closing the job
-     */
-    public void closeJob(JobTask jobTask, boolean restart, String reason) {
+    private void closeProcessAndTask(ProcessContext processContext, JobTask jobTask, String reason) {
         String jobId = jobTask.getJobId();
         long allocationId = jobTask.getAllocationId();
-        logger.debug("Attempting to close job [{}], because [{}]", jobId, reason);
-        // don't remove the process context immediately, because we need to ensure
-        // it is reachable to enable killing a job while it is closing
-        ProcessContext processContext = processByAllocation.get(allocationId);
-        if (processContext == null) {
-            logger.debug("Cannot close job [{}] as it has already been closed or is closing", jobId);
-            return;
-        }
-
         processContext.tryLock();
         try {
             if (processContext.setDying() == false) {
@@ -749,7 +751,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 logger.debug("Job [{}] is being closed before its process is started", jobId);
                 jobTask.markAsCompleted();
             } else {
-                communicator.close(restart, reason);
+                communicator.close();
             }
 
             processByAllocation.remove(allocationId);
@@ -773,6 +775,26 @@ public class AutodetectProcessManager implements ClusterStateListener {
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobId), e);
         }
+    }
+
+    /**
+     * Stop the running job and mark it as finished.
+     *
+     * @param jobTask The job to stop
+     * @param reason  The reason for closing the job
+     */
+    public void closeJob(JobTask jobTask, String reason) {
+        String jobId = jobTask.getJobId();
+        long allocationId = jobTask.getAllocationId();
+        logger.debug("Attempting to close job [{}], because [{}]", jobId, reason);
+        // don't remove the process context immediately, because we need to ensure
+        // it is reachable to enable killing a job while it is closing
+        ProcessContext processContext = processByAllocation.get(allocationId);
+        if (processContext == null) {
+            logger.debug("Cannot close job [{}] as it has already been closed or is closing", jobId);
+            return;
+        }
+        closeProcessAndTask(processContext, jobTask, reason);
     }
 
     int numberOfOpenJobs() {
@@ -868,6 +890,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         upgradeInProgress = MlMetadata.getMlMetadata(event.state()).isUpgradeMode();
+        resetInProgress = MlMetadata.getMlMetadata(event.state()).isResetMode();
     }
 
 }

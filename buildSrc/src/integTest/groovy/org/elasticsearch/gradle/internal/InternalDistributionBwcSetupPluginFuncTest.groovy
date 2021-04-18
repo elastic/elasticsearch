@@ -8,10 +8,16 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.IgnoreIf
 import spock.lang.Unroll
 
+/*
+ * Test is ignored on ARM since this test case tests the ability to build certain older BWC branches that we don't support on ARM
+ */
+@IgnoreIf({ Architecture.current() == Architecture.AARCH64 })
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {

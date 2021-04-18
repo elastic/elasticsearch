@@ -417,7 +417,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // build settings using same path.data as original but without data and master roles
         Settings noDataNoMasterSettings = Settings.builder()
             .put(settings)
-            .put(NodeRoles.removeRoles(settings, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+            .put(NodeRoles.removeRoles(nonDataNode(settings), Set.of(DiscoveryNodeRole.MASTER_ROLE)))
             .build();
 
         // test that we can create data=false and master=false with no meta information

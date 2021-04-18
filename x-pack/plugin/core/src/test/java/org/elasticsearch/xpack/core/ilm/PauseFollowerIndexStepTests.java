@@ -123,7 +123,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Mockito.doAnswer(invocation -> {
             PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
             assertThat(request.getFollowIndex(), equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());

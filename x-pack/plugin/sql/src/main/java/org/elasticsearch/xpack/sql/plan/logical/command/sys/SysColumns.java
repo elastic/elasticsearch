@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -129,7 +130,7 @@ public class SysColumns extends Command {
 
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen,
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, emptyMap(),
                 ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
@@ -140,7 +141,7 @@ public class SysColumns extends Command {
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen,
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, emptyMap(),
                 ActionListener.wrap(r -> {
                     List<List<?>> rows = new ArrayList<>();
                     // populate the data only when a target is found

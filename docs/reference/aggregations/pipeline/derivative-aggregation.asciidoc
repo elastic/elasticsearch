@@ -226,7 +226,7 @@ second derivative
 ==== Units
 
 The derivative aggregation allows the units of the derivative values to be specified. This returns an extra field in the response
-`normalized_value` which reports the derivative value in the desired x-axis units.  In the below example we calculate the derivative
+`normalized_value` which reports the derivative value in the desired x-axis units. In the below example we calculate the derivative
 of the total sales per month but ask for the derivative of the sales as in the units of sales per day:
 
 [source,console]

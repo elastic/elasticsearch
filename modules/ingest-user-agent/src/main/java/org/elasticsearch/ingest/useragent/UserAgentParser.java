@@ -26,17 +26,21 @@ import java.util.regex.Pattern;
 final class UserAgentParser {
 
     private final UserAgentCache cache;
+    private final DeviceTypeParser deviceTypeParser = new DeviceTypeParser();
     private final List<UserAgentSubpattern> uaPatterns = new ArrayList<>();
     private final List<UserAgentSubpattern> osPatterns = new ArrayList<>();
     private final List<UserAgentSubpattern> devicePatterns = new ArrayList<>();
     private final String name;
 
-    UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
+    UserAgentParser(String name, InputStream regexStream, InputStream deviceTypeRegexStream, UserAgentCache cache) {
         this.name = name;
         this.cache = cache;
 
         try {
             init(regexStream);
+            if (deviceTypeRegexStream != null) {
+                deviceTypeParser.init(deviceTypeRegexStream);
+            }
         } catch (IOException e) {
             throw new ElasticsearchParseException("error parsing regular expression file", e);
         }
@@ -96,8 +100,8 @@ final class UserAgentParser {
         }
     }
 
-    private List<Map<String, String>> readParserConfigurations(XContentParser yamlParser) throws IOException {
-        List <Map<String, String>> patternList = new ArrayList<>();
+    static List<Map<String, String>> readParserConfigurations(XContentParser yamlParser) throws IOException {
+        List<Map<String, String>> patternList = new ArrayList<>();
 
         XContentParser.Token token = yamlParser.nextToken();
         if (token != XContentParser.Token.START_ARRAY) {
@@ -149,16 +153,15 @@ final class UserAgentParser {
         return name;
     }
 
-    public Details parse(String agentString) {
+    public Details parse(String agentString, boolean extractDeviceType) {
         Details details = cache.get(name, agentString);
 
         if (details == null) {
             VersionedName userAgent = findMatch(uaPatterns, agentString);
             VersionedName operatingSystem = findMatch(osPatterns, agentString);
             VersionedName device = findMatch(devicePatterns, agentString);
-
-            details = new Details(userAgent, operatingSystem, device);
-
+            String deviceType = extractDeviceType ? deviceTypeParser.findDeviceType(agentString, userAgent, operatingSystem, device) : null;
+            details = new Details(userAgent, operatingSystem, device, deviceType);
             cache.put(name, agentString, details);
         }
 
@@ -182,11 +185,13 @@ final class UserAgentParser {
         public final VersionedName userAgent;
         public final VersionedName operatingSystem;
         public final VersionedName device;
+        public final String deviceType;
 
-        Details(VersionedName userAgent, VersionedName operatingSystem, VersionedName device) {
+        Details(VersionedName userAgent, VersionedName operatingSystem, VersionedName device, String deviceType) {
             this.userAgent = userAgent;
             this.operatingSystem = operatingSystem;
             this.device = device;
+            this.deviceType = deviceType;
         }
     }
 

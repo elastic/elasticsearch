@@ -1,7 +1,7 @@
 [[api-conventions]]
 == API conventions
 
-The *Elasticsearch* REST APIs are exposed using JSON over HTTP.
+The {es} REST APIs are exposed over HTTP.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -199,7 +199,7 @@ Statistics are returned in a format suitable for humans
 The human readable values can be turned off by adding `?human=false`
 to the query string. This makes sense when the stats results are
 being consumed by a monitoring tool, rather than intended for human
-consumption.  The default for the `human` flag is
+consumption. The default for the `human` flag is
 `false`.
 
 [[date-math]]
@@ -499,7 +499,7 @@ of supporting the native JSON number types.
 ==== Time units
 
 Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
-the unit, like `2d` for 2 days.  The supported units are:
+the unit, like `2d` for 2 days. The supported units are:
 
 [horizontal]
 `d`::       Days
@@ -683,7 +683,7 @@ should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
 [discrete]
-==== Content-Type Requirements
+==== Content-type requirements
 
 The type of the content sent in a request body must be specified using
 the `Content-Type` header. The value of this header must map to one of
@@ -691,9 +691,11 @@ the supported formats that the API supports. Most APIs support JSON,
 YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
 JSON, and SMILE; other types will result in an error response.
 
-Additionally, when using the `source` query string parameter, the
-content type must be specified using the `source_content_type` query
-string parameter.
+When using the `source` query string parameter, the content type must be
+specified using the `source_content_type` query string parameter.
+
+{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
+sent with a request. Responses are also UTF-8 encoded.
 
 [[url-access-control]]
 === URL-based access control

@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.Version;
@@ -24,11 +25,14 @@ import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsFalse;
+import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
@@ -65,6 +69,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
+    private final FileSystemOperations fileSystemOperations;
     private final int compatibleVersion;
     private final DirectoryProperty sourceDirectory;
     private final DirectoryProperty outputDirectory;
@@ -72,7 +77,12 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
 
     @Inject
-    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory, ObjectFactory objectFactory) {
+    public RestCompatTestTransformTask(
+        FileSystemOperations fileSystemOperations,
+        Factory<PatternSet> patternSetFactory,
+        ObjectFactory objectFactory
+    ) {
+        this.fileSystemOperations = fileSystemOperations;
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
@@ -85,13 +95,36 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a match assertion all project REST tests. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
+     * Replaces all the values of a match assertion for all project REST tests.
+     * For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
      *
      * @param subKey the key name directly under match to replace. For example "_type"
      * @param value  the value used in the replacement. For example "bar"
      */
     public void replaceMatch(String subKey, Object value) {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_true assertion for all project REST tests.
+     * For example "is_true": "value_to_replace" to "match": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsTrue(String oldValue, Object newValue) {
+        transformations.add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_true assertion for all project REST tests.
+     * For example "is_false": "value_to_replace" to "match": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsFalse(String oldValue, Object newValue) {
+        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
     /**
@@ -194,6 +227,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @TaskAction
     public void transform() throws IOException {
+        // clean the output directory to ensure no stale files persist
+        fileSystemOperations.delete(d -> d.delete(outputDirectory));
+
         RestTestTransformer transformer = new RestTestTransformer();
         // TODO: instead of flattening the FileTree here leverage FileTree.visit() so we can preserve folder hierarchy in a more robust way
         for (File file : getTestFiles().getFiles()) {

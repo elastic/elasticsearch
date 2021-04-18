@@ -27,9 +27,10 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
-@TestLogging(value = "org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction:debug",
-    // spotless hack
-    reason = "to ensure we log autoscaling capacity response on DEBUG level")
+@TestLogging(
+    value = "org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction:debug",
+    reason = "to ensure we log autoscaling capacity response on DEBUG level"
+)
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 

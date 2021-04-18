@@ -76,7 +76,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -90,6 +89,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.LongUnaryOperator;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -337,10 +337,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     * @param localSizeFunction to calculate the local size of the shard based on the shard size.
      */
-    public StoreStats stats(long reservedBytes) throws IOException {
+    public StoreStats stats(long reservedBytes, LongUnaryOperator localSizeFunction) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize(), reservedBytes);
+        long sizeInBytes = directory.estimateSize();
+        return new StoreStats(localSizeFunction.applyAsLong(sizeInBytes), sizeInBytes, reservedBytes);
     }
 
     /**
@@ -417,7 +419,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 onClose.accept(shardLock);
             }
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            assert false : e;
+            logger.warn(() -> new ParameterizedMessage("exception on closing store for [{}]", shardId), e);
         }
     }
 

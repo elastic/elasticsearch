@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 
-public class Not extends UnaryScalarFunction {
+public class Not extends UnaryScalarFunction implements Negatable<Expression> {
 
     public Not(Source source, Expression child) {
         super(source, child);
@@ -60,15 +60,23 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     protected Expression canonicalize() {
-        Expression canonicalChild = field().canonical();
-        if (canonicalChild instanceof Negatable) {
-            return ((Negatable) canonicalChild).negate();
+        if (field() instanceof Negatable) {
+            return ((Negatable) field()).negate().canonical();
         }
-        return this;
+        return super.canonicalize();
+    }
+
+    @Override
+    public Expression negate() {
+        return field();
     }
 
     @Override
     public DataType dataType() {
         return DataTypes.BOOLEAN;
+    }
+
+    static Expression negate(Expression exp) {
+        return exp instanceof Negatable ? ((Negatable) exp).negate() : new Not(exp.source(), exp);
     }
 }

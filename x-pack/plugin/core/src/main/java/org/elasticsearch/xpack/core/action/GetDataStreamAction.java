@@ -57,18 +57,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
-            if (in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
-                this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            }
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalStringArray(names);
-            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
-                indicesOptions.writeIndicesOptions(out);
-            }
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override

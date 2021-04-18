@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
@@ -28,6 +29,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
  * TransformAuditor class that abstracts away generic templating for easier injection
  */
 public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
+
+    private volatile boolean isResetMode = false;
 
     public TransformAuditor(Client client, String nodeName, ClusterService clusterService) {
         super(new OriginSettingClient(client, TRANSFORM_ORIGIN), TransformInternalIndexConstants.AUDIT_INDEX,
@@ -62,5 +65,19 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                 }
             },
             nodeName, TransformAuditMessage::new, clusterService);
+        clusterService.addListener(event -> {
+            if (event.metadataChanged()) {
+                isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
+            }
+        });
+    }
+
+    @Override
+    protected void writeBacklog() {
+        if (isResetMode) {
+            clearBacklog();
+        } else {
+            super.writeBacklog();
+        }
     }
 }

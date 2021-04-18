@@ -10,8 +10,12 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation(project(xpackModule('ql:test')))
-  testImplementation project(path: xpackModule('sql'), configuration: 'default')
+  testImplementation(project(xpackModule('ql:test-fixtures')))
+  testImplementation project(xpackModule('sql'))
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("integTest").configure{ enabled = false}

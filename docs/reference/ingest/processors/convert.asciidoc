@@ -7,17 +7,20 @@
 Converts a field in the currently ingested document to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
-The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, and `auto`.
+The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, `ip`, and `auto`.
 
 Specifying `boolean` will set the field to true if its string value is equal to `true` (ignore case), to
 false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
-Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string type.
+Specifying `ip` will set the target field to the value of `field` if it contains a valid IPv4 or IPv6 address
+that can be indexed into an <<ip,IP field type>>.
+
+Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string, non-IP type.
 For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. Do note
 that float takes precedence of double in `auto`. A value of `"242.15"` will "automatically" be converted to
-`242.15` of type `float`. If a provided field cannot be appropriately converted, the Convert Processor will
+`242.15` of type `float`. If a provided field cannot be appropriately converted, the processor will
 still process successfully and leave the field value as-is. In such a case, `target_field` will
-still be updated with the unconverted field value.
+be updated with the unconverted field value.
 
 [[convert-options]]
 .Convert Options

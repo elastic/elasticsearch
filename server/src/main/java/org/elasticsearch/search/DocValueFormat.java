@@ -165,7 +165,6 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(BytesRef value) {
             return Base64.getEncoder()
-                    .withoutPadding()
                     .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
         }
 
@@ -228,7 +227,7 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 this.formatSortValues = in.readBoolean();
             } else {
                 this.formatSortValues = false;
@@ -252,7 +251,7 @@ public interface DocValueFormat extends NamedWriteable {
                 */
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
                 out.writeBoolean(formatSortValues);
             }
         }

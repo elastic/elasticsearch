@@ -89,6 +89,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), snapshotRepository);
     }

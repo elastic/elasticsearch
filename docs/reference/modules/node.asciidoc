@@ -97,8 +97,8 @@ phases which are coordinated by the node which receives the client request --
 the _coordinating node_.
 
 In the _scatter_ phase, the coordinating node forwards the request to the data
-nodes which hold the data.  Each data node executes the request locally and
-returns its results to the coordinating node. In the _gather_  phase, the
+nodes which hold the data. Each data node executes the request locally and
+returns its results to the coordinating node. In the _gather_ phase, the
 coordinating node reduces each data node's results into a single global
 result set.
 
@@ -275,10 +275,8 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== [x-pack]#Frozen data node#
 
-Frozen data nodes store read-only indices that are accessed rarely. Nodes in the
-frozen tier use less performant hardware than the cold tier. To minimize
-resources, indices in the frozen tier may rely on searchable snapshots for
-resiliency.
+Frozen data nodes store searchable snapshots mounted with the `shared_cache`
+option exclusively.
 
 To create a dedicated frozen node, set:
 [source,yaml]
@@ -310,7 +308,7 @@ can only route requests, handle the search reduce phase, and distribute bulk
 indexing. Essentially, coordinating only nodes behave as smart load balancers.
 
 Coordinating only nodes can benefit large clusters by offloading the
-coordinating node role from data and master-eligible nodes.  They join the
+coordinating node role from data and master-eligible nodes. They join the
 cluster and receive the full <<cluster-state,cluster state>>, like every other
 node, and they use the cluster state to route requests directly to the
 appropriate place(s).

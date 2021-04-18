@@ -26,8 +26,12 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class NullIf extends ConditionalFunction {
 
+    private final Expression left, right;
+
     public NullIf(Source source, Expression left, Expression right) {
         super(source, Arrays.asList(left, right));
+        this.left = left;
+        this.right = right;
     }
 
     @Override
@@ -40,9 +44,25 @@ public class NullIf extends ConditionalFunction {
         return new NullIf(source(), newChildren.get(0), newChildren.get(1));
     }
 
+    public Expression left() {
+        return left;
+    }
+
+    public Expression right() {
+        return right;
+    }
+
+    @Override
+    public boolean foldable() {
+        return left.semanticEquals(right) || super.foldable();
+    }
+
     @Override
     public Object fold() {
-        return NullIfProcessor.apply(children().get(0).fold(), children().get(1).fold());
+        if (left.semanticEquals(right)) {
+            return null;
+        }
+        return NullIfProcessor.apply(left.fold(), right.fold());
     }
 
     @Override

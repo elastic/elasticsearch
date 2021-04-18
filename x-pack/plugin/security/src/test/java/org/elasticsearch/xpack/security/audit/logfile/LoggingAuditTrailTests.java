@@ -2225,7 +2225,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 authBy = new RealmRef("authRealm", "auth", "foo");
                 authenticationType= randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN,
                     AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS);
-                authMetadata = Map.of();
+                authMetadata = org.elasticsearch.common.collect.Map.of();
                 break;
             case 1:
                 user = new User(randomAlphaOfLength(4), "r1");
@@ -2233,16 +2233,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 authBy = new RealmRef(randomAlphaOfLength(4), "auth", "by");
                 authenticationType= randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN,
                     AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS);
-                authMetadata = Map.of();
+                authMetadata = org.elasticsearch.common.collect.Map.of();
                 break;
             default:  // service account
                 final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
                 user = new User(principal, Strings.EMPTY_ARRAY, "Service account - " + principal, null,
-                    Map.of("_elastic_service_account", true), true);
+                    org.elasticsearch.common.collect.Map.of("_elastic_service_account", true), true);
                 lookedUpBy = null;
                 authBy = new RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8));
                 authenticationType = AuthenticationType.TOKEN;
-                authMetadata = Map.of("_token_name", ValidationTests.randomTokenName());
+                authMetadata = org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName());
         }
         return new Authentication(user, authBy, lookedUpBy, Version.CURRENT, authenticationType, authMetadata);
     }

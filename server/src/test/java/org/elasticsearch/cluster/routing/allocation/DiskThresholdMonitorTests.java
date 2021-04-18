@@ -644,7 +644,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private static DiscoveryNode newNormalNode(String nodeId) {
         Set<DiscoveryNodeRole> randomRoles =
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES.size()));
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
         Set<DiscoveryNodeRole> roles = Sets.union(randomRoles,
             org.elasticsearch.common.collect.Set.of(randomFrom(DiscoveryNodeRole.DATA_ROLE,
                 DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_WARM_NODE_ROLE,

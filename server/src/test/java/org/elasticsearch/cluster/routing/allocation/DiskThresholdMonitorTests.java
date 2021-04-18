@@ -636,14 +636,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private static DiscoveryNode newFrozenOnlyNode(String nodeId) {
         Set<DiscoveryNodeRole> irrelevantRoles =
-            new HashSet<>(randomSubsetOf(DiscoveryNode.getPossibleRoles().stream()
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles().stream()
                 .filter(Predicate.not(DiscoveryNodeRole::canContainData)).collect(Collectors.toSet())));
         return newNode(nodeId, Sets.union(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), irrelevantRoles));
     }
 
     private static DiscoveryNode newNormalNode(String nodeId) {
         Set<DiscoveryNodeRole> randomRoles =
-            new HashSet<>(randomSubsetOf(DiscoveryNode.getPossibleRoles()));
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Set<DiscoveryNodeRole> roles = Sets.union(randomRoles, Set.of(randomFrom(DiscoveryNodeRole.DATA_ROLE,
             DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));

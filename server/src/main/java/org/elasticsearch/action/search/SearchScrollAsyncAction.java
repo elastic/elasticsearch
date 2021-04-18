@@ -82,8 +82,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         if (context.length == 0) {
             listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
         } else {
-            collectNodesAndRun(Arrays.asList(context), nodes, searchTransportService, ActionListener.wrap(lookup -> run(lookup, context),
-                listener::onFailure));
+            collectNodesAndRun(Arrays.asList(context), nodes, searchTransportService, listener.wrap(lookup -> run(lookup, context)));
         }
     }
 

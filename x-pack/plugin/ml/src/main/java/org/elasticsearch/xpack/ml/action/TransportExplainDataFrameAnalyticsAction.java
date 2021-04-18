@@ -127,21 +127,12 @@ public class TransportExplainDataFrameAnalyticsAction
                     .setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()))
                     .build();
                 extractedFieldsDetectorFactory.createFromSource(
-                    config,
-                    ActionListener.wrap(
-                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, listener),
-                        listener::onFailure
-                    )
-                );
+                        config, listener.wrap((l, extractedFieldsDetector) -> explain(task, config, extractedFieldsDetector, l)));
             });
         } else {
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
-                ActionListener.wrap(
-                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, listener),
-                    listener::onFailure
-                )
-            );
+                listener.wrap((l, extractedFieldsDetector) -> explain(task, request.getConfig(), extractedFieldsDetector, l)));
         }
     }
 
@@ -158,10 +149,8 @@ public class TransportExplainDataFrameAnalyticsAction
             return;
         }
 
-        ActionListener<MemoryEstimation> memoryEstimationListener = ActionListener.wrap(
-            memoryEstimation -> listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)),
-            listener::onFailure
-        );
+        ActionListener<MemoryEstimation> memoryEstimationListener = listener.wrap(
+            (l, memoryEstimation) -> l.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)));
 
         estimateMemoryUsage(task, config, fieldExtraction.v1(), memoryEstimationListener);
     }

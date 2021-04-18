@@ -42,10 +42,7 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
             return;
         }
         final Set<String> names = Sets.newHashSet(request.privileges());
-        this.privilegeStore.deletePrivileges(request.application(), names, request.getRefreshPolicy(), ActionListener.wrap(
-                privileges -> listener.onResponse(
-                        new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList()))
-                ), listener::onFailure
-        ));
+        this.privilegeStore.deletePrivileges(request.application(), names, request.getRefreshPolicy(), listener.wrap((l, privileges) ->
+            l.onResponse(new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList())))));
     }
 }

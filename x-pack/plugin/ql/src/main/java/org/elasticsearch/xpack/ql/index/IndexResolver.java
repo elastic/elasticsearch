@@ -228,9 +228,7 @@ public class IndexResolver {
             }
 
             client.admin().indices().getIndex(indexRequest,
-                wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
-                    listener::onFailure));
-
+                listener.wrap((l, response) -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, l)));
         } else {
             filterResults(javaRegex, aliases, null, false, false, listener);
         }

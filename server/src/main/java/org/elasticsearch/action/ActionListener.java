@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
@@ -116,6 +117,64 @@ public interface ActionListener<Response> {
         }
     }
 
+    abstract class WrappedActionListener<T, U> extends Delegating<T, U> {
+
+        protected WrappedActionListener(ActionListener<U> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public final void onResponse(T response) {
+            try {
+                innerOnResponse(response);
+            } catch (Exception e) {
+                onFailure(e);
+            }
+        }
+
+        protected abstract void innerOnResponse(T response) throws Exception;
+
+        @Override
+        public final <R> ActionListener<R> wrap(CheckedConsumer<R, ? extends Exception> fn) {
+            return delegate.wrap(fn);
+        }
+    }
+
+    /**
+     * Same as {@link ActionListener#wrap(CheckedConsumer, Consumer)} when using {@code this::onFailure} as the failure callback.
+     */
+    default <T> ActionListener<T> wrap(CheckedConsumer<T, ? extends Exception> fn) {
+        return new WrappedActionListener<>(this) {
+            @Override
+            protected void innerOnResponse(T response) throws Exception {
+                fn.accept(response);
+            }
+
+            @Override
+            public String toString() {
+                return "WrappedFailureDelegatingActionListener{" + fn + "}{" + delegate + "}";
+            }
+        };
+    }
+
+    /**
+     * Same as {@link ActionListener#wrap(CheckedConsumer, Consumer)} when using {@code this::onFailure} as the failure callback.
+     * The given response callback {@code fn} is passed this instance when invoked.
+     */
+    default <T> ActionListener<T> wrap(CheckedBiConsumer<ActionListener<Response>, T, ? extends Exception> fn) {
+        return new WrappedActionListener<>(this) {
+            @Override
+            protected void innerOnResponse(T response) throws Exception {
+                fn.accept(delegate, response);
+            }
+
+            @Override
+            public String toString() {
+                return "WrappedDelegatingActionListener{" + fn + "}{" + delegate + "}";
+            }
+        };
+    }
+
     /**
      * Creates a listener that listens for a response (or failure) and executes the
      * corresponding consumer when the response (or failure) is received.
@@ -140,6 +199,11 @@ public interface ActionListener<Response> {
             @Override
             public void onFailure(Exception e) {
                 onFailure.accept(e);
+            }
+
+            @Override
+            public <U> ActionListener<U> wrap(CheckedConsumer<U, ? extends Exception> fn) {
+                return ActionListener.wrap(fn, onFailure);
             }
 
             @Override

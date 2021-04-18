@@ -78,9 +78,8 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             }
         }
 
-        resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors ->
-                authorizationService.checkPrivileges(authentication, request, applicationPrivilegeDescriptors, listener),
-            listener::onFailure));
+        resolveApplicationPrivileges(request, listener.wrap((l, applicationPrivilegeDescriptors) ->
+                authorizationService.checkPrivileges(authentication, request, applicationPrivilegeDescriptors, l)));
     }
 
     private void resolveApplicationPrivileges(HasPrivilegesRequest request,

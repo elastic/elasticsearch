@@ -83,7 +83,6 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
 
 // TODO: add retry/back-off
@@ -481,8 +480,7 @@ public class Querier {
             }
 
             ScrollCursor.handle(response, () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
-                    p -> listener.onResponse(p),
-                    p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)), schema);
+                    listener::onResponse, p -> clear(response.getScrollId(), listener.wrap((l, success) -> l.onResponse(p))), schema);
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {

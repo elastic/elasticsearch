@@ -228,8 +228,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             PutMappingRequest request = new PutMappingRequest(indexName);
             request.source(newMapping);
             client.execute(PutMappingAction.INSTANCE, request,
-                    ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService),
-                            listener::onFailure));
+                listener.wrap((l, putMappingResponse) -> startPersistentTask(job, l, persistentTasksService)));
         };
 
         GetMappingsRequest request = new GetMappingsRequest();

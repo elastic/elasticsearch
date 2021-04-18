@@ -36,8 +36,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     @Override
     protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-                jobExists -> {
+        jobManager.jobExists(request.getJobId(), listener.wrap((l, jobExists) -> {
                     RecordsQueryBuilder query = new RecordsQueryBuilder()
                             .includeInterim(request.isExcludeInterim() == false)
                             .epochStart(request.getStart())
@@ -48,9 +47,8 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
                             .sortField(request.getSort())
                             .sortDescending(request.isDescending());
                     jobResultsProvider.records(request.getJobId(), query, page ->
-                            listener.onResponse(new GetRecordsAction.Response(page)), listener::onFailure, client);
-                },
-                listener::onFailure
+                            l.onResponse(new GetRecordsAction.Response(page)), l::onFailure, client);
+                }
         ));
     }
 }

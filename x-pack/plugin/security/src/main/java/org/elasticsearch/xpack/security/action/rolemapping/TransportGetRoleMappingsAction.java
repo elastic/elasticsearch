@@ -42,14 +42,10 @@ public class TransportGetRoleMappingsAction
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
-        this.roleMappingStore.getRoleMappings(names, ActionListener.wrap(
-                mappings -> {
-                    ExpressionRoleMapping[] array = mappings.toArray(
-                            new ExpressionRoleMapping[mappings.size()]
-                    );
-                    listener.onResponse(new GetRoleMappingsResponse(array));
-                },
-                listener::onFailure
+        this.roleMappingStore.getRoleMappings(names, listener.wrap((l, mappings) -> {
+                    ExpressionRoleMapping[] array = mappings.toArray(new ExpressionRoleMapping[mappings.size()]);
+                    l.onResponse(new GetRoleMappingsResponse(array));
+                }
         ));
     }
 }

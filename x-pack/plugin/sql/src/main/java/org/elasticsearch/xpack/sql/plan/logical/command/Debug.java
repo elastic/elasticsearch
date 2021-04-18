@@ -30,7 +30,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
 
 public class Debug extends Command {
 
@@ -79,11 +78,11 @@ public class Debug extends Command {
     public void execute(SqlSession session, ActionListener<Page> listener) {
         switch (type) {
             case ANALYZED:
-                session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
+                session.debugAnalyzedPlan(plan, listener.wrap((l, i) -> handleInfo(i, l)));
                 break;
             case OPTIMIZED:
                 session.analyzedPlan(plan, true,
-                        wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure));
+                    listener.wrap((l,analyzedPlan) -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), l)));
                 break;
             default:
                 break;

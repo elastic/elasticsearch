@@ -63,15 +63,13 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                    ActionListener<GetDatafeedsStatsAction.Response> listener) {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        ActionListener<SortedSet<String>> expandIdsListener = ActionListener.wrap(
-            expandedIds -> {
+        ActionListener<SortedSet<String>> expandIdsListener = listener.wrap((l, expandedIds) ->
                 datafeedConfigProvider.expandDatafeedConfigs(
                     request.getDatafeedId(),
                     // Already took into account the request parameter when we expanded the IDs with the tasks earlier
                     // Should allow for no datafeeds in case the config is gone
                     true,
-                    ActionListener.wrap(
-                        datafeedBuilders -> {
+                    l.wrap((ll, datafeedBuilders) -> {
                             Map<String, DatafeedConfig> existingConfigs = datafeedBuilders.stream()
                                 .map(DatafeedConfig.Builder::build)
                                 .collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
@@ -82,7 +80,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                 .collect(Collectors.toList());
                             jobResultsProvider.datafeedTimingStats(
                                 jobIds,
-                                ActionListener.wrap(timingStatsByJobId -> {
+                                ll.wrap((lll, timingStatsByJobId) -> {
                                     List<GetDatafeedsStatsAction.Response.DatafeedStats> results = expandedIds.stream()
                                         .map(datafeedId -> {
                                             DatafeedConfig config = existingConfigs.get(datafeedId);
@@ -99,15 +97,9 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                         .collect(Collectors.toList());
                                     QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage =
                                         new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
-                                    listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
-                                },
-                                listener::onFailure));
-                        },
-                        listener::onFailure)
-                );
-            },
-            listener::onFailure
-        );
+                                    lll.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+                            }));
+        })));
 
         // This might also include datafeed tasks that exist but no longer have a config
         datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),

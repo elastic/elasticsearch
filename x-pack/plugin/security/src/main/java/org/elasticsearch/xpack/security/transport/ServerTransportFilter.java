@@ -100,22 +100,22 @@ final class ServerTransportFilter {
         }
 
         final Version version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
+        authcService.authenticate(securityAction, request, true, listener.wrap((l, authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                    SystemUser.is(authentication.getUser()) == false) {
+                        SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = securityContext.getAuthentication();
-                        authzService.authorize(replaced, securityAction, request, listener);
+                        authzService.authorize(replaced, securityAction, request, l);
                     }, version);
                 } else {
-                    authzService.authorize(authentication, securityAction, request, listener);
+                    authzService.authorize(authentication, securityAction, request, l);
                 }
             } else if (licenseState.isSecurityEnabled() == false) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
-                listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                l.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }));
     }
 }

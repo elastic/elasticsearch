@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.Entry;
 import com.unboundid.ldap.sdk.Filter;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
@@ -57,27 +58,23 @@ class SearchGroupsResolver implements GroupsResolver {
     @Override
     public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
                         Collection<Attribute> attributes, ActionListener<List<String>> listener) {
-        getUserId(userDn, attributes, connection, timeout, ActionListener.wrap((userId) -> {
+        getUserId(userDn, attributes, connection, timeout, listener.wrap((l, userId) -> {
             if (userId == null) {
-                listener.onResponse(List.of());
+                l.onResponse(List.of());
             } else {
                 try {
                     Filter userFilter = createFilter(filter, userId);
                     search(connection, baseDn, scope.scope(), userFilter,
                             Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                            ActionListener.wrap(
-                                    (results) -> listener.onResponse(results
+                            l.wrap((ll, results) -> ll.onResponse(results
                                             .stream()
-                                            .map((r) -> r.getDN())
-                                            .collect(Collectors.toUnmodifiableList())
-                                    ),
-                                    listener::onFailure),
-                            SearchRequest.NO_ATTRIBUTES);
+                                            .map(Entry::getDN)
+                                            .collect(Collectors.toUnmodifiableList()))), SearchRequest.NO_ATTRIBUTES);
                 } catch (LDAPException e) {
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override
@@ -108,14 +105,13 @@ class SearchGroupsResolver implements GroupsResolver {
                            ActionListener<String> listener) {
         searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
                 Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                ActionListener.wrap((entry) -> {
+                listener.wrap((l, entry) -> {
                     if (entry == null || entry.hasAttribute(userAttribute) == false) {
-                        listener.onResponse(null);
+                        l.onResponse(null);
                     } else {
-                        listener.onResponse(entry.getAttributeValue(userAttribute));
+                        l.onResponse(entry.getAttributeValue(userAttribute));
                     }
-                }, listener::onFailure),
-                userAttribute);
+                }), userAttribute);
     }
 
 

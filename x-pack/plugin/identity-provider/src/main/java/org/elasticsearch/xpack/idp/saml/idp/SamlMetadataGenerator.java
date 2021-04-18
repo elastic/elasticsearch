@@ -43,25 +43,22 @@ public class SamlMetadataGenerator {
     }
 
     public void generateMetadata(String spEntityId, String acs, ActionListener<SamlMetadataResponse> listener) {
-        idp.resolveServiceProvider(spEntityId, acs, true, ActionListener.wrap(
-            sp -> {
+        idp.resolveServiceProvider(spEntityId, acs, true, listener.wrap((l, sp) -> {
                 try {
                     if (null == sp) {
-                        listener.onFailure(new IllegalArgumentException("Service provider with Entity ID [" + spEntityId
+                        l.onFailure(new IllegalArgumentException("Service provider with Entity ID [" + spEntityId
                             + "] is not registered with this Identity Provider"));
                         return;
                     }
                     EntityDescriptor metadata = buildEntityDescriptor(sp);
                     final X509Credential signingCredential = idp.getMetadataSigningCredential();
                     Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
-                    listener.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
+                    l.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
                 } catch (Exception e) {
                     logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
-            },
-            listener::onFailure
-        ));
+        }));
     }
 
     EntityDescriptor buildEntityDescriptor(SamlServiceProvider sp) throws Exception {

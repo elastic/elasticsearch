@@ -55,10 +55,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
             getModelSnapshots(request, listener);
             return;
         }
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-            ok -> getModelSnapshots(request, listener),
-            listener::onFailure
-        ));
+        jobManager.jobExists(request.getJobId(), listener.wrap((l, ok) -> getModelSnapshots(request, l)));
     }
 
     private void getModelSnapshots(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {

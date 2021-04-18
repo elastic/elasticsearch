@@ -151,23 +151,21 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = actionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
-                ActionListener.wrap((authc) -> {
+        authcService.authenticate(securityAction, request, SystemUser.INSTANCE, listener.wrap((wrapped, authc) -> {
                     if (authc != null) {
                         final String requestId = AuditUtil.extractRequestId(threadContext);
                         assert Strings.hasText(requestId);
-                        authorizeRequest(authc, securityAction, request, listener.delegateFailure(
+                        authorizeRequest(authc, securityAction, request, wrapped.delegateFailure(
                                 (ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
-                                    auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
-                                            response);
+                                    auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
                                     l.onResponse(response);
                                 }))));
                     } else if (licenseState.isSecurityEnabled() == false) {
-                        listener.onResponse(null);
+                        wrapped.onResponse(null);
                     } else {
-                        listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                        wrapped.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
                     }
-                }, listener::onFailure));
+                }));
     }
 
     private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,

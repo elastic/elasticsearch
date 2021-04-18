@@ -64,13 +64,11 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
     protected void doExecute(Task task,
                              EvaluateDataFrameAction.Request request,
                              ActionListener<EvaluateDataFrameAction.Response> listener) {
-        ActionListener<List<Void>> resultsListener = ActionListener.wrap(
-            unused -> {
+        ActionListener<List<Void>> resultsListener = listener.wrap((l, unused) -> {
                 EvaluateDataFrameAction.Response response =
                     new EvaluateDataFrameAction.Response(request.getEvaluation().getName(), request.getEvaluation().getResults());
-                listener.onResponse(response);
-            },
-            listener::onFailure
+                l.onResponse(response);
+            }
         );
 
         // Create an immutable collection of parameters to be used by evaluation metrics.
@@ -123,15 +121,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
                     () -> client.execute(
                         SearchAction.INSTANCE,
                         searchRequest,
-                        ActionListener.wrap(
-                            searchResponse -> {
+                        listener.wrap((l, searchResponse) -> {
                                 evaluation.process(searchResponse);
                                 if (evaluation.hasAllResults() == false) {
                                     add(nextTask());
                                 }
-                                listener.onResponse(null);
-                            },
-                            listener::onFailure)));
+                                l.onResponse(null);
+                        })));
             };
         }
     }

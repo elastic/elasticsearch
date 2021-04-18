@@ -86,8 +86,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                        ClusterState state,
                                        ActionListener<CreateIndexResponse> finalListener) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
-            ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
-                response -> {
+            ActionListener<AcknowledgedResponse> listener = finalListener.wrap((l, response) -> {
                     String indexName = indexNameRef.get();
                     assert indexName != null;
                     if (response.isAcknowledged()) {
@@ -95,17 +94,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             new String[]{indexName},
                             ActiveShardCount.DEFAULT,
                             request.timeout(),
-                            shardsAcked -> {
-                                finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName));
-                            },
-                            finalListener::onFailure
+                            shardsAcked -> l.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
+                            l::onFailure
                         );
                     } else {
-                        finalListener.onResponse(new CreateIndexResponse(false, false, indexName));
+                        l.onResponse(new CreateIndexResponse(false, false, indexName));
                     }
-                },
-                finalListener::onFailure
-            );
+            });
             clusterService.submitStateUpdateTask("auto create [" + request.index() + "]",
                 new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 

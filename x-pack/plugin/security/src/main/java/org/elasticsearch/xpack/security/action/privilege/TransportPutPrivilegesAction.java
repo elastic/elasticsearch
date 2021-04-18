@@ -38,10 +38,8 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
         if (request.getPrivileges() == null || request.getPrivileges().size() == 0) {
             listener.onResponse(new PutPrivilegesResponse(Collections.emptyMap()));
         } else {
-            this.privilegeStore.putPrivileges(request.getPrivileges(), request.getRefreshPolicy(), ActionListener.wrap(
-                created -> listener.onResponse(new PutPrivilegesResponse(created)),
-                listener::onFailure
-            ));
+            this.privilegeStore.putPrivileges(request.getPrivileges(), request.getRefreshPolicy(),
+                    listener.wrap((l, created) -> l.onResponse(new PutPrivilegesResponse(created))));
         }
     }
 }

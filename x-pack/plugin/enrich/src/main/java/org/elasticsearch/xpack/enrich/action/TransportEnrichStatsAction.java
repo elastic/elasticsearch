@@ -64,7 +64,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
         ActionListener<EnrichStatsAction.Response> listener
     ) throws Exception {
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
-        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(response -> {
+        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = listener.wrap((l, response) -> {
             if (response.hasFailures()) {
                 // Report failures even if some node level requests succeed:
                 Exception failure = null;
@@ -75,7 +75,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                         failure.addSuppressed(nodeFailure);
                     }
                 }
-                listener.onFailure(failure);
+                l.onFailure(failure);
                 return;
             }
 
@@ -92,8 +92,8 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .map(t -> new ExecutingPolicy(t.getDescription(), t))
                 .sorted(Comparator.comparing(ExecutingPolicy::getName))
                 .collect(Collectors.toList());
-            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
-        }, listener::onFailure);
+            l.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
+        });
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }
 

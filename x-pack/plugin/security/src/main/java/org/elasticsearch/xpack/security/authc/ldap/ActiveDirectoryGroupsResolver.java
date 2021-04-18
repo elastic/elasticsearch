@@ -51,23 +51,18 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
     public void resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger, Collection<Attribute> attributes,
                         ActionListener<List<String>> listener) {
         buildGroupQuery(connection, userDn, timeout,
-                ignoreReferralErrors, ActionListener.wrap((filter) -> {
+                ignoreReferralErrors, listener.wrap((l, filter) -> {
                     if (filter == null) {
-                        listener.onResponse(List.of());
+                        l.onResponse(List.of());
                     } else {
                         logger.debug("group SID to DN [{}] search filter: [{}]", userDn, filter);
                         search(connection, baseDn, scope.scope(), filter,
                                 Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                                ActionListener.wrap((results) -> {
-                                            List<String> groups = results.stream()
-                                                    .map(SearchResultEntry::getDN)
-                                                    .collect(Collectors.toUnmodifiableList());
-                                            listener.onResponse(groups);
-                                        },
-                                        listener::onFailure),
+                                l.wrap((ll, results) -> ll.onResponse(
+                                    results.stream().map(SearchResultEntry::getDN).collect(Collectors.toUnmodifiableList()))),
                                 SearchRequest.NO_ATTRIBUTES);
                     }
-                }, listener::onFailure));
+                }));
     }
 
     @Override
@@ -79,19 +74,17 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
     static void buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout,
                                 boolean ignoreReferralErrors, ActionListener<Filter> listener) {
         searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
-                Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                ActionListener.wrap((entry) -> {
+                Math.toIntExact(timeout.seconds()), ignoreReferralErrors, listener.wrap((l, entry) -> {
                     if (entry == null || entry.hasAttribute(TOKEN_GROUPS) == false) {
-                        listener.onResponse(null);
+                        l.onResponse(null);
                     } else {
                         final byte[][] tokenGroupSIDBytes = entry.getAttributeValueByteArrays(TOKEN_GROUPS);
                         List<Filter> orFilters = Arrays.stream(tokenGroupSIDBytes)
                                 .map((sidBytes) -> Filter.createEqualityFilter("objectSid", convertToString(sidBytes)))
                                 .collect(Collectors.toList());
-                        listener.onResponse(Filter.createORFilter(orFilters));
+                        l.onResponse(Filter.createORFilter(orFilters));
                     }
-                }, listener::onFailure),
-                TOKEN_GROUPS);
+            }), TOKEN_GROUPS);
     }
 
 }

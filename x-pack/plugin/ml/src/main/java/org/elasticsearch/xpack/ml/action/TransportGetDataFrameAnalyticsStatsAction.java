@@ -107,13 +107,12 @@ public class TransportGetDataFrameAnalyticsStatsAction
                                  ActionListener<QueryPage<Stats>> listener) {
         logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Void> updateProgressListener = ActionListener.wrap(
-            aVoid -> {
+        ActionListener<Void> updateProgressListener = listener.wrap((l, aVoid) -> {
                 StatsHolder statsHolder = task.getStatsHolder();
                 if (statsHolder == null) {
                     // The task has just been assigned and has not been initialized with its stats holder yet.
                     // We return empty result here so that we treat it as a stopped task and return its stored stats.
-                    listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+                    l.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
                     return;
                 }
                 Stats stats = buildStats(
@@ -123,10 +122,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
                     statsHolder.getMemoryUsage(),
                     statsHolder.getAnalysisStats()
                 );
-                listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
-            }, listener::onFailure
-        );
+                l.onResponse(new QueryPage<>(Collections.singletonList(stats), 1, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+        });
 
         // We must update the progress of the reindexing task as it might be stale
         task.updateTaskProgress(updateProgressListener);
@@ -137,28 +134,23 @@ public class TransportGetDataFrameAnalyticsStatsAction
                              ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
         logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
-        ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
-            getResponse -> {
+        ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = listener.wrap((l, getResponse) -> {
                 List<String> expandedIds = getResponse.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
                     .collect(Collectors.toList());
                 request.setExpandedIds(expandedIds);
-                ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(getResponse.getResources().results(), runningTasksStatsResponse,
-                        ActionListener.wrap(
-                            finalResponse -> {
-
+                ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = l.wrap(
+                    (ll, runningTasksStatsResponse) ->
+                                gatherStatsForStoppedTasks(getResponse.getResources().results(), runningTasksStatsResponse, ll.wrap(
+                                        (lll, finalResponse) -> {
                                 // While finalResponse has all the stats objects we need, we should report the count
                                 // from the get response
                                 QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),
                                     getResponse.getResources().count(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD);
-                                listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
-                            },
-                            listener::onFailure)),
-                    listener::onFailure
+                                lll.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
+                            }))
                 );
                 super.doExecute(task, request, runningTasksStatsListener);
-            },
-            listener::onFailure
+            }
         );
 
         GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request();

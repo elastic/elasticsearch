@@ -47,17 +47,16 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
         Response.Builder responseBuilder = Response.builder();
 
-        ActionListener<Tuple<Long, Map<String, Set<String>>>> idExpansionListener = ActionListener.wrap(
-            totalAndIds -> {
+        ActionListener<Tuple<Long, Map<String, Set<String>>>> idExpansionListener = listener.wrap((l, totalAndIds) -> {
                 responseBuilder.setTotalCount(totalAndIds.v1());
 
                 if (totalAndIds.v2().isEmpty()) {
-                    listener.onResponse(responseBuilder.build());
+                    l.onResponse(responseBuilder.build());
                     return;
                 }
 
                 if (request.getIncludes().isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
-                    listener.onFailure(
+                    l.onFailure(
                         ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED)
                     );
                     return;
@@ -69,25 +68,17 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                         modelIdAndAliases.getKey(),
                         modelIdAndAliases.getValue(),
                         request.getIncludes(),
-                        ActionListener.wrap(
-                            config -> listener.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()),
-                            listener::onFailure
-                        )
+                        l.wrap((ll, config) -> ll.onResponse(responseBuilder.setModels(Collections.singletonList(config)).build()))
                     );
                 } else {
                     provider.getTrainedModels(
                         totalAndIds.v2(),
                         request.getIncludes(),
                         request.isAllowNoResources(),
-                        ActionListener.wrap(
-                            configs -> listener.onResponse(responseBuilder.setModels(configs).build()),
-                            listener::onFailure
-                        )
+                        l.wrap((ll,configs) -> ll.onResponse(responseBuilder.setModels(configs).build()))
                     );
                 }
-            },
-            listener::onFailure
-        );
+        });
         provider.expandIds(request.getResourceId(),
             request.isAllowNoResources(),
             request.getPageParams(),

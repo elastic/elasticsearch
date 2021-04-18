@@ -84,9 +84,8 @@ public class ServiceAccountService {
     }
 
     public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountTokensResponse> listener) {
-        serviceAccountsTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
-            listener.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos));
-        }, listener::onFailure));
+        serviceAccountsTokenStore.findTokensFor(accountId, listener.wrap((l, tokenInfos) ->
+                l.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos))));
     }
 
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
@@ -106,15 +105,15 @@ public class ServiceAccountService {
                 return;
             }
 
-            serviceAccountsTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
+            serviceAccountsTokenStore.authenticate(serviceAccountToken, listener.wrap((l, success) -> {
                 if (success) {
-                    listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
+                    l.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
                 } else {
                     final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
                     logger.debug(e.getMessage());
-                    listener.onFailure(e);
+                    l.onFailure(e);
                 }
-            }, listener::onFailure));
+            }));
         });
     }
 

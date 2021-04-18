@@ -70,21 +70,14 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
             updateRequest.doc(update);
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            voidChainTaskExecutor.add(chainedListener -> {
-                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, ActionListener.wrap(
-                        updateResponse -> chainedListener.onResponse(null),
-                        chainedListener::onFailure
-                ));
-            });
+            voidChainTaskExecutor.add(chainedListener -> executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest,
+                chainedListener.wrap((l, updateResponse) -> l.onResponse(null))));
         }
 
-        voidChainTaskExecutor.execute(ActionListener.wrap(
-                aVoids ->  {
+        voidChainTaskExecutor.execute(listener.wrap((l, aVoids) ->  {
                     logger.debug("finalized job [{}]", jobIdString);
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                },
-                listener::onFailure
-        ));
+                    l.onResponse(AcknowledgedResponse.TRUE);
+        }));
     }
 
     @Override

@@ -197,15 +197,15 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", claims.getClaim("id_token_hint"));
-        ActionListener<AuthenticationResult> wrappedAuthResultListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult> wrappedAuthResultListener = authResultListener.wrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the ID Token as metadata on the authentication, so that it can be used for logout requests
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
                 auth = AuthenticationResult.success(auth.getUser(), metadata);
             }
-            authResultListener.onResponse(auth);
-        }, authResultListener::onFailure);
+            l.onResponse(auth);
+        });
 
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(principal, wrappedAuthResultListener);
@@ -225,10 +225,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         final String mail = mailAttribute.getClaimValue(claims);
         final String name = nameAttribute.getClaimValue(claims);
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, config);
-        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        roleMapper.resolveRoles(userData, wrappedAuthResultListener.wrap((l, roles) -> {
             final User user = new User(principal, roles.toArray(Strings.EMPTY_ARRAY), name, mail, userMetadata, true);
-            wrappedAuthResultListener.onResponse(AuthenticationResult.success(user));
-        }, wrappedAuthResultListener::onFailure));
+            l.onResponse(AuthenticationResult.success(user));
+        }));
 
     }
 

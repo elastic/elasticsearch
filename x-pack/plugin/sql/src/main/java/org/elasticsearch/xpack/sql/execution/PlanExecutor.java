@@ -71,10 +71,10 @@ public class PlanExecutor {
             ActionListener<SearchSourceBuilder> listener) {
         metrics.translate();
 
-        newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
+        newSession(cfg).sqlExecutable(sql, params, listener.wrap((l, exec) -> {
             if (exec instanceof EsQueryExec) {
                 EsQueryExec e = (EsQueryExec) exec;
-                listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
+                l.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             }
             // try to provide a better resolution of what failed
             else {
@@ -88,9 +88,9 @@ public class PlanExecutor {
                 } else {
                     message = "Cannot generate a query DSL";
                 }
-                listener.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
+                l.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
             }
-        }, listener::onFailure));
+        }));
     }
 
     public void sql(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {

@@ -59,7 +59,7 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
     protected void doExecute(QueryWatchesAction.Request request, ActionListener<QueryWatchesAction.Response> listener) {
         SearchRequest searchRequest = createSearchRequest(request);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, searchRequest,
-            ActionListener.<SearchResponse>wrap(r -> transformResponse(r, listener), listener::onFailure), client::search);
+            listener.<SearchResponse>wrap((l, r) -> transformResponse(r, l)), client::search);
     }
 
     SearchRequest createSearchRequest(QueryWatchesAction.Request request) {

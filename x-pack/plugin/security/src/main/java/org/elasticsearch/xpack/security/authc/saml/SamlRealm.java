@@ -446,15 +446,15 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
-        ActionListener<AuthenticationResult> wrappedListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult> wrappedListener = baseListener.wrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
                 auth = AuthenticationResult.success(auth.getUser(), metadata);
             }
-            baseListener.onResponse(auth);
-        }, baseListener::onFailure);
+            l.onResponse(auth);
+        });
 
         if (delegatedRealms.hasDelegation()) {
             delegatedRealms.resolve(principal, wrappedListener);
@@ -483,10 +483,10 @@ public final class SamlRealm extends Realm implements Releasable {
         final String name = resolveSingleValueAttribute(attributes, nameAttribute, NAME_ATTRIBUTE.name(config));
         final String mail = resolveSingleValueAttribute(attributes, mailAttribute, MAIL_ATTRIBUTE.name(config));
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
-        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        roleMapper.resolveRoles(userData, wrappedListener.wrap((l, roles) -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
-            wrappedListener.onResponse(AuthenticationResult.success(user));
-        }, wrappedListener::onFailure));
+            l.onResponse(AuthenticationResult.success(user));
+        }));
     }
 
     public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {

@@ -316,13 +316,11 @@ public final class LdapUtils {
         LdapSearchResultListener searchResultListener = new LdapSearchResultListener(
                 ldap,
                 ignoreReferralErrors,
-                ActionListener.wrap(
-                        searchResult -> {
+                listener.wrap((l, searchResult) -> {
                             assert isLdapConnectionThread(Thread.currentThread()) : "Expected current thread [" + Thread.currentThread()
                                     + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
-                            listener.onResponse(Collections.unmodifiableList(searchResult.getSearchEntries()));
-                        },
-                        listener::onFailure),
+                            l.onResponse(Collections.unmodifiableList(searchResult.getSearchEntries()));
+                        }),
                 1);
         try {
             SearchRequest request = new SearchRequest(searchResultListener, baseDN, scope,
@@ -533,8 +531,7 @@ public final class LdapUtils {
                 final CountDown countDown = new CountDown(referralUrls.length);
                 final List<String> referralUrlsList = new ArrayList<>(Arrays.asList(referralUrls));
 
-                ActionListener<SearchResult> referralListener = ActionListener.wrap(
-                        innerResult -> {
+                ActionListener<SearchResult> referralListener = listener.wrap((l, innerResult) -> {
                             // synchronize here since we are possibly sending out a lot of requests
                             // and the result lists are not thread safe and this also provides us
                             // with a consistent view
@@ -557,9 +554,9 @@ public final class LdapUtils {
                                         referralUrlsList.toArray(Strings.EMPTY_ARRAY), entryList,
                                         referenceList, entryList.size(), referenceList.size(),
                                         searchResult.getResponseControls());
-                                listener.onResponse(resultWithValues);
+                                l.onResponse(resultWithValues);
                             }
-                        }, listener::onFailure);
+                        });
 
                 for (String referralUrl : referralUrls) {
                     try {

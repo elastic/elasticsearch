@@ -101,8 +101,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
             planExecutor.nextPage(cfg, decoded.v1(),
-                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p)),
-                            listener::onFailure));
+                listener.wrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p))));
         }
     }
 

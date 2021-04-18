@@ -79,10 +79,10 @@ public class UserPrivilegeResolver {
      * Requires that the active user is set in the {@link org.elasticsearch.xpack.core.security.SecurityContext}.
      */
     public void resolve(ServiceProviderPrivileges service, ActionListener<UserPrivileges> listener) {
-        buildResourcePrivilege(service, ActionListener.wrap(resourcePrivilege -> {
+        buildResourcePrivilege(service, listener.wrap((l, resourcePrivilege) -> {
             final String username = securityContext.requireUser().principal();
             if (resourcePrivilege == null) {
-                listener.onResponse(UserPrivileges.noAccess(username));
+                l.onResponse(UserPrivileges.noAccess(username));
                 return;
             }
             HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -90,17 +90,14 @@ public class UserPrivilegeResolver {
             request.clusterPrivileges(Strings.EMPTY_ARRAY);
             request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
             request.applicationPrivileges(resourcePrivilege);
-            client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
-                response -> {
+            client.execute(HasPrivilegesAction.INSTANCE, request, l.wrap((ll, response) -> {
                     logger.debug("Checking access for user [{}] to application [{}] resource [{}]",
                         username, service.getApplicationName(), service.getResource());
                     UserPrivileges privileges = buildResult(response, service);
                     logger.debug("Resolved service privileges [{}]", privileges);
-                    listener.onResponse(privileges);
-                },
-                listener::onFailure
-            ));
-        }, listener::onFailure));
+                    ll.onResponse(privileges);
+            }));
+        }));
 
     }
 
@@ -126,18 +123,18 @@ public class UserPrivilegeResolver {
 
     private void buildResourcePrivilege(ServiceProviderPrivileges service,
                                         ActionListener<RoleDescriptor.ApplicationResourcePrivileges> listener) {
-        actionsResolver.getActions(service.getApplicationName(), ActionListener.wrap(actions -> {
+        actionsResolver.getActions(service.getApplicationName(), listener.wrap((l, actions) -> {
             if (actions == null || actions.isEmpty()) {
                 logger.warn("No application-privilege actions defined for application [{}]", service.getApplicationName());
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 logger.debug("Using actions [{}] for application [{}]", actions, service.getApplicationName());
                 final RoleDescriptor.ApplicationResourcePrivileges.Builder builder = RoleDescriptor.ApplicationResourcePrivileges.builder();
                 builder.application(service.getApplicationName());
                 builder.resources(service.getResource());
                 builder.privileges(actions);
-                listener.onResponse(builder.build());
+                l.onResponse(builder.build());
             }
-        }, listener::onFailure));
+        }));
     }
 }

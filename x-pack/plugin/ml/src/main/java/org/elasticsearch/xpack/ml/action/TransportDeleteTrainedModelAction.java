@@ -104,17 +104,11 @@ public class TransportDeleteTrainedModelAction
             }
         }
 
-        ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
-            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(
-                    r -> {
+        ActionListener<AcknowledgedResponse> nameDeletionListener = listener.wrap((l, ack) ->
+                trainedModelProvider.deleteTrainedModel(request.getId(), l.wrap((ll, r) -> {
                         auditor.info(request.getId(), "trained model deleted");
-                        listener.onResponse(AcknowledgedResponse.TRUE);
-                    },
-                    listener::onFailure
-            )),
-
-            listener::onFailure
-        );
+                        ll.onResponse(AcknowledgedResponse.TRUE);
+                })));
 
         // No reason to update cluster state, simply delete the model
         if (modelAliases.isEmpty()) {

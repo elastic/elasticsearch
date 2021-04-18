@@ -62,12 +62,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         Map<String, DatafeedConfig> clusterStateConfigs =
                 expandClusterStateDatafeeds(request.getDatafeedId(), request.allowNoMatch(), state);
 
-        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoMatch(), ActionListener.wrap(
-                datafeedBuilders -> {
+        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoMatch(), listener.wrap(
+                (l, datafeedBuilders) -> {
                     // Check for duplicate datafeeds
                     for (DatafeedConfig.Builder datafeed : datafeedBuilders) {
                         if (clusterStateConfigs.containsKey(datafeed.getId())) {
-                            listener.onFailure(new IllegalStateException("Datafeed [" + datafeed.getId() + "] configuration " +
+                            l.onFailure(new IllegalStateException("Datafeed [" + datafeed.getId() + "] configuration " +
                                     "exists in both clusterstate and index"));
                             return;
                         }
@@ -81,11 +81,9 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
 
                     datafeeds.addAll(clusterStateConfigs.values());
                     Collections.sort(datafeeds, Comparator.comparing(DatafeedConfig::getId));
-                    listener.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(),
+                    l.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(),
                             DatafeedConfig.RESULTS_FIELD)));
-                },
-                listener::onFailure
-        ));
+        }));
     }
 
     Map<String, DatafeedConfig> expandClusterStateDatafeeds(String datafeedExpression, boolean allowNoMatch, ClusterState clusterState) {

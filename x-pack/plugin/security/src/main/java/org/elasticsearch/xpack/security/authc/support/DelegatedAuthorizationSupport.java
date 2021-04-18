@@ -95,16 +95,16 @@ public class DelegatedAuthorizationSupport {
                 "No [" + DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + "] have been configured", null));
             return;
         }
-        ActionListener<Tuple<User, Realm>> userListener = ActionListener.wrap(tuple -> {
+        ActionListener<Tuple<User, Realm>> userListener = resultListener.wrap((l, tuple) -> {
             if (tuple != null) {
                 logger.trace("Found user " + tuple.v1() + " in realm " + tuple.v2());
-                resultListener.onResponse(AuthenticationResult.success(tuple.v1()));
+                l.onResponse(AuthenticationResult.success(tuple.v1()));
             } else {
-                resultListener.onResponse(AuthenticationResult.unsuccessful("the principal [" + username
+                l.onResponse(AuthenticationResult.unsuccessful("the principal [" + username
                     + "] was authenticated, but no user could be found in realms [" + collectionToDelimitedString(lookup.getRealms(), ",")
                     + "]", null));
             }
-        }, resultListener::onFailure);
+        });
         lookup.lookup(username, userListener);
     }
 

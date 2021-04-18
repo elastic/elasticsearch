@@ -137,7 +137,7 @@ public class SysTables extends Command {
             }
         }
 
-        session.indexResolver().resolveNames(idx, regex, tableTypes, ActionListener.wrap(result -> listener.onResponse(
+        session.indexResolver().resolveNames(idx, regex, tableTypes, listener.wrap((l, result) -> l.onResponse(
                 of(session, result.stream()
                  // sort by type, then by name
                  .sorted(Comparator.<IndexInfo, String> comparing(i -> i.type().toSql())
@@ -152,8 +152,7 @@ public class SysTables extends Command {
                          null,
                          null,
                          null))
-                .collect(toList())))
-        , listener::onFailure));
+                .collect(toList())))));
     }
 
     @Override

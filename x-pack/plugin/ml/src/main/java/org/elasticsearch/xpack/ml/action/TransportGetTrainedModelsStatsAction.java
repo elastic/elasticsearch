@@ -79,15 +79,13 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
-        ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
-            inferenceStats -> listener.onResponse(responseBuilder.setInferenceStatsByModelId(inferenceStats.stream()
+        ActionListener<List<InferenceStats>> inferenceStatsListener = listener.wrap(
+            (l, inferenceStats) -> l.onResponse(responseBuilder.setInferenceStatsByModelId(inferenceStats.stream()
                     .collect(Collectors.toMap(InferenceStats::getModelId, Function.identity())))
-                    .build()),
-            listener::onFailure
+                    .build())
         );
 
-        ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(
-            nodesStatsResponse -> {
+        ActionListener<NodesStatsResponse> nodesStatsListener = listener.wrap(nodesStatsResponse -> {
                 Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
                     .entrySet()
                     .stream()
@@ -105,20 +103,15 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
                     inferenceStatsListener
                 );
-            },
-            listener::onFailure
-        );
+        });
 
-        ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener = ActionListener.wrap(
-            tuple -> {
+        ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener = listener.wrap(tuple -> {
                 responseBuilder.setExpandedIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
                 String[] ingestNodes = ingestNodes(clusterService.state());
                 NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
                     .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                 executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
-            },
-            listener::onFailure
-        );
+        });
         trainedModelProvider.expandIds(request.getResourceId(),
             request.isAllowNoResources(),
             request.getPageParams(),

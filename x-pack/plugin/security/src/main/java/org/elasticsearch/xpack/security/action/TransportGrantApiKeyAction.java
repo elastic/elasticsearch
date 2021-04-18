@@ -61,10 +61,8 @@ public final class TransportGrantApiKeyAction extends HandledTransportAction<Gra
     @Override
     protected void doExecute(Task task, GrantApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            resolveAuthentication(request.getGrant(), request, ActionListener.wrap(
-                authentication -> generator.generateApiKey(authentication, request.getApiKeyRequest(), listener),
-                listener::onFailure
-            ));
+            resolveAuthentication(request.getGrant(), request, listener.wrap(
+                (l, authentication) -> generator.generateApiKey(authentication, request.getApiKeyRequest(), l)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

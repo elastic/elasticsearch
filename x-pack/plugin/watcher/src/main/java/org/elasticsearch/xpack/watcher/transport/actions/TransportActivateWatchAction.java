@@ -72,23 +72,23 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
             updateRequest.retryOnConflict(2);
 
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
-                    ActionListener.<UpdateResponse>wrap(updateResponse -> {
+                    listener.<UpdateResponse>wrap((l, updateResponse) -> {
                 GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
                         .preference(Preference.LOCAL.type()).realtime(true);
 
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
-                        ActionListener.<GetResponse>wrap(getResponse -> {
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest, l.<GetResponse>wrap(
+                        (ll, getResponse) -> {
                             if (getResponse.isExists()) {
                                 Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
                                         XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                                 watch.status().version(getResponse.getVersion());
-                                listener.onResponse(new ActivateWatchResponse(watch.status()));
+                                ll.onResponse(new ActivateWatchResponse(watch.status()));
                             } else {
-                                listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist",
+                                ll.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist",
                                         request.getWatchId()));
                             }
-                        }, listener::onFailure), client::get);
-            }, listener::onFailure), client::update);
+                        }), client::get);
+            }), client::update);
         } catch (IOException e) {
             listener.onFailure(e);
         }

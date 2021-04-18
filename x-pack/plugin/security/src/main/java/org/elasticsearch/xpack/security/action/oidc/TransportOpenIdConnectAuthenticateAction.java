@@ -73,11 +73,11 @@ public class TransportOpenIdConnectAuthenticateAction
                     @SuppressWarnings("unchecked") final Map<String, Object> tokenMetadata = (Map<String, Object>) result.getMetadata()
                         .get(OpenIdConnectRealm.CONTEXT_TOKEN_DATA);
                     tokenService.createOAuth2Tokens(authentication, originatingAuthentication, tokenMetadata, true,
-                        ActionListener.wrap(tokenResult -> {
+                            listener.wrap((l, tokenResult) -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tokenResult.getAccessToken(),
+                            l.onResponse(new OpenIdConnectAuthenticateResponse(authentication, tokenResult.getAccessToken(),
                                 tokenResult.getRefreshToken(), expiresIn));
-                        }, listener::onFailure));
+                        }));
                 }, e -> {
                     logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);
                     listener.onFailure(e);

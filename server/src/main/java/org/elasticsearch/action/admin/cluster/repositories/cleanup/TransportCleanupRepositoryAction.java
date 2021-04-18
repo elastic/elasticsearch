@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
@@ -142,9 +140,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             return;
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-        repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repository.getRepositoryData(listener.wrap((resultListener, repositoryData) -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
             clusterService.submitStateUpdateTask("cleanup repository [" + repositoryName + "][" + repositoryStateId + ']',
@@ -186,7 +182,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
-                        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
+                        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(resultListener,
                             l -> blobStoreRepository.cleanup(
                                 repositoryStateId,
                                 snapshotsService.minCompatibleVersion(
@@ -205,7 +201,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         assert failure != null || result != null;
                         if (startedCleanup == false) {
                             logger.debug("No cleanup task to remove from cluster state because we failed to start one", failure);
-                            listener.onFailure(failure);
+                            resultListener.onFailure(failure);
                             return;
                         }
                         clusterService.submitStateUpdateTask(
@@ -223,7 +219,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     }
                                     logger.warn(() ->
                                         new ParameterizedMessage("[{}] failed to remove repository cleanup task", repositoryName), e);
-                                    listener.onFailure(e);
+                                    resultListener.onFailure(e);
                                 }
 
                                 @Override
@@ -231,17 +227,17 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     if (failure == null) {
                                         logger.info("Done with repository cleanup on [{}][{}] with result [{}]",
                                             repositoryName, repositoryStateId, result);
-                                        listener.onResponse(result);
+                                        resultListener.onResponse(result);
                                     } else {
                                         logger.warn(() -> new ParameterizedMessage(
                                             "Failed to run repository cleanup operations on [{}][{}]",
                                             repositoryName, repositoryStateId), failure);
-                                        listener.onFailure(failure);
+                                        resultListener.onFailure(failure);
                                     }
                                 }
                             });
                     }
                 });
-        }, listener::onFailure);
+        }));
     }
 }

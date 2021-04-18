@@ -79,17 +79,17 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
                 return new ListenableFuture<>();
             });
             if (valueAlreadyInCache.get()) {
-                listenableCacheEntry.addListener(ActionListener.wrap(result -> {
+                listenableCacheEntry.addListener(listener.wrap((l, result) -> {
                     if (result.success) {
-                        listener.onResponse(result.verify(token));
+                        l.onResponse(result.verify(token));
                     } else if (result.verify(token)) {
                         // same wrong token
-                        listener.onResponse(false);
+                        l.onResponse(false);
                     } else {
                         cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
-                        authenticateWithCache(token, listener);
+                        authenticateWithCache(token, l);
                     }
-                }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+                }), threadPool.generic(), threadPool.getThreadContext());
             } else {
                 doAuthenticate(token, ActionListener.wrap(success -> {
                     logger.trace("cache service token [{}] authentication result", token.getQualifiedName());

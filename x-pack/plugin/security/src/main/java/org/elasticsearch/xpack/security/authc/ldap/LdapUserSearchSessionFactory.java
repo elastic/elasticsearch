@@ -77,17 +77,17 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
      */
     @Override
     void getSessionWithPool(LDAPConnectionPool connectionPool, String user, SecureString password, ActionListener<LdapSession> listener) {
-        findUser(user, connectionPool, ActionListener.wrap((entry) -> {
+        findUser(user, connectionPool, listener.wrap((l, entry) -> {
             if (entry == null) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 final String dn = entry.getDN();
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                 final SimpleBindRequest bind = new SimpleBindRequest(dn, passwordBytes);
-                LdapUtils.maybeForkThenBindAndRevert(connectionPool, bind, threadPool, ActionRunnable.supply(listener, () ->
+                LdapUtils.maybeForkThenBindAndRevert(connectionPool, bind, threadPool, ActionRunnable.supply(l, () ->
                     new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout, entry.getAttributes())));
             }
-        }, listener::onFailure));
+        }));
     }
 
     /**
@@ -167,16 +167,16 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
     @Override
     void getUnauthenticatedSessionWithPool(LDAPConnectionPool connectionPool, String user, ActionListener<LdapSession> listener) {
-        findUser(user, connectionPool, ActionListener.wrap((entry) -> {
+        findUser(user, connectionPool, listener.wrap((l, entry) -> {
             if (entry == null) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 final String dn = entry.getDN();
                 LdapSession session = new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout,
                         entry.getAttributes());
-                listener.onResponse(session);
+                l.onResponse(session);
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

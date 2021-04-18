@@ -93,9 +93,7 @@ public class NativeUsersStore {
      * Blocking version of {@code getUser} that blocks until the User is returned
      */
     public void getUser(String username, ActionListener<User> listener) {
-        getUserAndPassword(username, ActionListener.wrap((uap) -> {
-            listener.onResponse(uap == null ? null : uap.user());
-        }, listener::onFailure));
+        getUserAndPassword(username, listener.wrap((l, uap) -> l.onResponse(uap == null ? null : uap.user())));
     }
 
     /**
@@ -450,15 +448,15 @@ public class NativeUsersStore {
      * @param password the plaintext password to verify
      */
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
-        getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
+        getUserAndPassword(username, listener.wrap((l, userAndPassword) -> {
             if (userAndPassword == null || userAndPassword.passwordHash() == null) {
-                listener.onResponse(AuthenticationResult.notHandled());
+                l.onResponse(AuthenticationResult.notHandled());
             } else if (userAndPassword.verifyPassword(password)) {
-                listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+                l.onResponse(AuthenticationResult.success(userAndPassword.user()));
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                l.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
             }
-        }, listener::onFailure));
+        }));
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {

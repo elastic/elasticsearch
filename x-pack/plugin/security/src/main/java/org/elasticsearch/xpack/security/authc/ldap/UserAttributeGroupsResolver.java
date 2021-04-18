@@ -54,13 +54,13 @@ class UserAttributeGroupsResolver implements GroupsResolver {
             listener.onResponse(groups);
         } else {
             searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, Math.toIntExact(timeout.seconds()),
-                    ignoreReferralErrors, ActionListener.wrap((entry) -> {
+                    ignoreReferralErrors, listener.wrap((l, entry) -> {
                         if (entry == null || entry.hasAttribute(attribute) == false) {
-                            listener.onResponse(List.of());
+                            l.onResponse(List.of());
                         } else {
-                            listener.onResponse(List.of(entry.getAttributeValues(attribute)));
+                            l.onResponse(List.of(entry.getAttributeValues(attribute)));
                         }
-                    }, listener::onFailure), attribute);
+                    }), attribute);
         }
     }
 

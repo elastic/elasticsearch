@@ -88,17 +88,17 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                     return list;
                 }));
             authorizationEngine.validateIndexPermissionsAreSubset(requestInfo, authorizationInfo, indexToAliasesMap,
-                wrapPreservingContext(ActionListener.wrap(authzResult -> {
+                wrapPreservingContext(listener.wrap((l, authzResult) -> {
                     if (authzResult.isGranted()) {
                         // do not audit success again
-                        listener.onResponse(null);
+                        l.onResponse(null);
                     } else {
                         auditTrail.accessDenied(AuditUtil.extractRequestId(threadContext), requestInfo.getAuthentication(),
                             requestInfo.getAction(), request, authorizationInfo);
-                        listener.onFailure(Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
+                        l.onFailure(Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                             "has more permissions than any of the indices"));
                     }
-                }, listener::onFailure), threadContext));
+                }), threadContext));
             } else {
                 listener.onResponse(null);
             }

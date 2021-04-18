@@ -259,8 +259,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             }, null));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
             Set<String> names = (Set<String>) i.getArguments()[0];
             assertNotNull(names);
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
@@ -275,8 +274,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 callback.onResponse(Role.EMPTY);
             } else {
                 CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
-                        ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
-                );
+                    callback.wrap((l, r) -> l.onResponse(r)));
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(ActionListener.class));

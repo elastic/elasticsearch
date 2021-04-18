@@ -289,10 +289,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
             .id(asyncExecutionId.getDocId());
-        clientWithOrigin.get(internalGet, ActionListener.wrap(
-            get -> {
+        clientWithOrigin.get(internalGet, listener.wrap((l, get) -> {
                 if (get.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    l.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                     return;
                 }
 
@@ -300,7 +299,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 @SuppressWarnings("unchecked")
                 Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
                 if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
-                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    l.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                     return;
                 }
 
@@ -313,13 +312,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 if (encoded != null) {
-                    listener.onResponse(new Tuple<>(encoded, expirationTime));
+                    l.onResponse(new Tuple<>(encoded, expirationTime));
                 } else {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 }
-            },
-            listener::onFailure
-        ));
+        }));
     }
 
     /**
@@ -331,10 +328,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void getResponse(AsyncExecutionId asyncExecutionId,
                             boolean restoreResponseHeaders,
                             ActionListener<R> listener) {
-        getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
-            (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
-            listener::onFailure
-        ));
+        getEncodedResponse(asyncExecutionId, restoreResponseHeaders,
+                listener.wrap((l, t) -> l.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2()))));
     }
 
     /**
@@ -377,21 +372,19 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncId)
             .id(asyncExecutionId.getDocId());
-        clientWithOrigin.get(internalGet, ActionListener.wrap(
-            get -> {
+        clientWithOrigin.get(internalGet, listener.wrap((l, get) -> {
                 if (get.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    l.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                     return;
                 }
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 if (encoded != null) {
                     Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
-                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime, asyncId));
+                    l.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime, asyncId));
                 } else {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 }
-            },
-            listener::onFailure
+            }
         ));
     }
 

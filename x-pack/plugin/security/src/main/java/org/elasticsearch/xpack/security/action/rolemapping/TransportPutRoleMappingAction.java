@@ -31,9 +31,6 @@ public class TransportPutRoleMappingAction
 
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
-        roleMappingStore.putRoleMapping(request, ActionListener.wrap(
-                created -> listener.onResponse(new PutRoleMappingResponse(created)),
-                listener::onFailure
-        ));
+        roleMappingStore.putRoleMapping(request, listener.wrap((l, created) -> l.onResponse(new PutRoleMappingResponse(created))));
     }
 }

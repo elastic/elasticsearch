@@ -173,14 +173,14 @@ public class PkiRealm extends Realm implements CachingRealm {
                             principalPattern.toString()));
                     listener.onResponse(AuthenticationResult.unsuccessful("Could not parse principal from Subject DN " + token.dn(), null));
                 } else {
-                    final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
+                    final ActionListener<AuthenticationResult> cachingListener = listener.wrap((l, result) -> {
                         if (result.isAuthenticated()) {
                             try (ReleasableLock ignored = readLock.acquire()) {
                                 cache.put(fingerprint, result.getUser());
                             }
                         }
-                        listener.onResponse(result);
-                    }, listener::onFailure);
+                        l.onResponse(result);
+                    });
                     if (false == principal.equals(token.principal())) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                                 "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
@@ -208,10 +208,10 @@ public class PkiRealm extends Realm implements CachingRealm {
             metadata = Map.of("pki_dn", token.dn());
         }
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, token.dn(), Set.of(), metadata, config);
-        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        roleMapper.resolveRoles(userData, listener.wrap((l, roles) -> {
             final User computedUser = new User(principal, roles.toArray(new String[roles.size()]), null, null, metadata, true);
-            listener.onResponse(AuthenticationResult.success(computedUser));
-        }, listener::onFailure));
+            l.onResponse(AuthenticationResult.success(computedUser));
+        }));
     }
 
     @Override
@@ -335,13 +335,13 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     @Override
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        super.usageStats(ActionListener.wrap(stats -> {
+        super.usageStats(listener.wrap((l, stats) -> {
             stats.put("has_truststore", trustManager != null);
             stats.put("has_authorization_realms", delegatedRealms != null && delegatedRealms.hasDelegation());
             stats.put("has_default_username_pattern", PkiRealmSettings.DEFAULT_USERNAME_PATTERN.equals(principalPattern.pattern()));
             stats.put("is_authentication_delegated", delegationEnabled);
-            listener.onResponse(stats);
-        }, listener::onFailure));
+            l.onResponse(stats);
+        }));
     }
 
     private void validateAuthenticationDelegationConfiguration(RealmConfig config) {

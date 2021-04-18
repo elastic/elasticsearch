@@ -59,7 +59,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
                 username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY,
                 Protocol.INDEX_INCLUDE_FROZEN);
 
-        planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
-                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));
+        planExecutor.searchSource(cfg, request.query(), request.params(),
+                listener.wrap((l, searchSourceBuilder) -> l.onResponse(new SqlTranslateResponse(searchSourceBuilder))));
     }
 }

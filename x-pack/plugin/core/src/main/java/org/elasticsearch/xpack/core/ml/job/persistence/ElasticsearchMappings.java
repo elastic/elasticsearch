@@ -164,15 +164,14 @@ public class ElasticsearchMappings {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.source(mapping, XContentType.JSON);
                 putMappingRequest.origin(ML_ORIGIN);
-                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
-                    ActionListener.wrap(response -> {
-                        if (response.isAcknowledged()) {
-                            listener.onResponse(true);
-                        } else {
-                            listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
+                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest, listener.wrap((l, response) -> {
+                    if (response.isAcknowledged()) {
+                        listener.onResponse(true);
+                    } else {
+                        listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
                                 + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
-                        }
-                    }, listener::onFailure));
+                    }
+                }));
             } catch (IOException e) {
                 listener.onFailure(e);
             }

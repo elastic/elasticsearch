@@ -67,18 +67,18 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
 
                 authorizationEngine.validateIndexPermissionsAreSubset(requestInfo, authorizationInfo,
                     Collections.singletonMap(request.getSourceIndex(), Collections.singletonList(request.getTargetIndexRequest().index())),
-                    wrapPreservingContext(ActionListener.wrap(authzResult -> {
+                    wrapPreservingContext(listener.wrap((l, authzResult) -> {
                         if (authzResult.isGranted()) {
-                            listener.onResponse(null);
+                            l.onResponse(null);
                         } else {
                             if (authzResult.isAuditable()) {
                                 auditTrail.accessDenied(extractRequestId(threadContext), requestInfo.getAuthentication(),
                                     requestInfo.getAction(), request, authorizationInfo);
                             }
-                            listener.onFailure(Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
+                            l.onFailure(Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
                                 "has more permissions than the source index"));
                         }
-                    }, listener::onFailure), threadContext));
+                    }), threadContext));
             } else {
                 listener.onResponse(null);
             }

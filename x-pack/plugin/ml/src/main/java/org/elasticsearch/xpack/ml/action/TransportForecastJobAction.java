@@ -72,8 +72,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
     @Override
     protected void taskOperation(ForecastJobAction.Request request, JobTask task, ActionListener<ForecastJobAction.Response> listener) {
-        jobManager.getJob(task.getJobId(), ActionListener.wrap(
-                job -> {
+        jobManager.getJob(task.getJobId(), listener.wrap((l, job) -> {
                     validate(job, request);
 
                     ForecastParams.Builder paramsBuilder = ForecastParams.builder();
@@ -105,14 +104,12 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     ForecastParams params = paramsBuilder.build();
                     processManager.forecastJob(task, params, e -> {
                         if (e == null) {
-                            getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
+                            getForecastRequestStats(request.getJobId(), params.getForecastId(), l);
                         } else {
-                            listener.onFailure(e);
+                            l.onFailure(e);
                         }
                     });
-                },
-                listener::onFailure
-        ));
+        }));
     }
 
     private void getForecastRequestStats(String jobId, String forecastId, ActionListener<ForecastJobAction.Response> listener) {

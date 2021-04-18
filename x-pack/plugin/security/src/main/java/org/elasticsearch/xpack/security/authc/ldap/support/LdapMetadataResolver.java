@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPInterface;
-import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -57,13 +56,13 @@ public class LdapMetadataResolver {
         } else {
             searchForEntry(connection, userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER,
                     Math.toIntExact(timeout.seconds()), ignoreReferralErrors,
-                    ActionListener.wrap((SearchResultEntry entry) -> {
+                    listener.wrap((l, entry) -> {
                         if (entry == null) {
-                            listener.onResponse(Map.of());
+                            l.onResponse(Map.of());
                         } else {
-                            listener.onResponse(toMap(entry::getAttribute));
+                            l.onResponse(toMap(entry::getAttribute));
                         }
-                    }, listener::onFailure), this.attributeNames);
+                    }), this.attributeNames);
         }
     }
 

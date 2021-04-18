@@ -189,7 +189,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 "the upgrade API is run on the security index"));
         } else {
             try {
-                inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
+                inner.accept(request, listener.wrap(this::refreshRealms));
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage("failed to modify role-mapping [{}]", name), e);
                 listener.onFailure(e);
@@ -306,7 +306,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (securityIndex.isAvailable() == false) {
             reportStats(listener, Collections.emptyList());
         } else {
-            getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));
+            getMappings(listener.wrap(this::reportStats));
         }
     }
 
@@ -348,8 +348,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
-        getRoleMappings(null, ActionListener.wrap(
-                mappings -> {
+        getRoleMappings(null, listener.wrap((l, mappings) -> {
                     final ExpressionModel model = user.asModel();
                     final Set<String> roles = mappings.stream()
                         .filter(ExpressionRoleMapping::isEnabled)
@@ -362,9 +361,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         })
                         .collect(Collectors.toSet());
                     logger.debug("Mapping user [{}] to roles [{}]", user, roles);
-                    listener.onResponse(roles);
-                }, listener::onFailure
-        ));
+                    l.onResponse(roles);
+        }));
     }
 
     /**

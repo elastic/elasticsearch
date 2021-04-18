@@ -152,8 +152,7 @@ public class MetadataIndexStateService {
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                            .execute(new WaitForClosedBlocksApplied(blockedIndices, request,
-                                ActionListener.wrap(verifyResults ->
+                            .execute(new WaitForClosedBlocksApplied(blockedIndices, request, listener.wrap((l, verifyResults) ->
                                     clusterService.submitStateUpdateTask("close-indices", new ClusterStateUpdateTask(Priority.URGENT) {
                                         private final List<IndexResult> indices = new ArrayList<>();
 
@@ -168,7 +167,7 @@ public class MetadataIndexStateService {
 
                                         @Override
                                         public void onFailure(final String source, final Exception e) {
-                                            listener.onFailure(e);
+                                            l.onFailure(e);
                                         }
 
                                         @Override
@@ -193,15 +192,13 @@ public class MetadataIndexStateService {
                                                         // we maintain a kind of coherency by overriding the shardsAcknowledged value
                                                         // (see ShardsAcknowledgedResponse constructor)
                                                         boolean shardsAcked = acknowledged ? shardsAcknowledged : false;
-                                                        listener.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
-                                                    }, listener::onFailure);
+                                                        l.onResponse(new CloseIndexResponse(acknowledged, shardsAcked, indices));
+                                                    }, l::onFailure);
                                             } else {
-                                                listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
+                                                l.onResponse(new CloseIndexResponse(acknowledged, false, indices));
                                             }
                                         }
-                                    }),
-                                    listener::onFailure)
-                                )
+                                })))
                             );
                     }
                 }
@@ -400,9 +397,8 @@ public class MetadataIndexStateService {
                         listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                            .execute(new WaitForBlocksApplied(blockedIndices, request,
-                                    ActionListener.wrap(verifyResults ->
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new WaitForBlocksApplied(blockedIndices, request,
+                                listener.wrap((l, verifyResults) ->
                                             clusterService.submitStateUpdateTask("finalize-index-block-[" + request.getBlock().name +
                                                     "]-[" + blockedIndices.keySet().stream().map(Index::getName)
                                                         .collect(Collectors.joining(", ")) + "]",
@@ -420,7 +416,7 @@ public class MetadataIndexStateService {
 
                                                 @Override
                                                 public void onFailure(final String source, final Exception e) {
-                                                    listener.onFailure(e);
+                                                    l.onFailure(e);
                                                 }
 
                                                 @Override
@@ -430,11 +426,9 @@ public class MetadataIndexStateService {
 
                                                     final boolean acknowledged = indices.stream().noneMatch(
                                                         AddBlockResult::hasFailures);
-                                                    listener.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
+                                                    l.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
                                                 }
-                                            }),
-                                        listener::onFailure)
-                                )
+                                    })))
                             );
                     }
                 }
@@ -750,7 +744,7 @@ public class MetadataIndexStateService {
 
     public void openIndex(final OpenIndexClusterStateUpdateRequest request,
                           final ActionListener<ShardsAcknowledgedResponse> listener) {
-        onlyOpenIndex(request, ActionListener.wrap(response -> {
+        onlyOpenIndex(request, listener.wrap((l, response) -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
                 activeShardsObserver.waitForActiveShards(indexNames, request.waitForActiveShards(), request.ackTimeout(),
@@ -759,12 +753,12 @@ public class MetadataIndexStateService {
                             logger.debug("[{}] indices opened, but the operation timed out while waiting for " +
                                 "enough shards to be started.", Arrays.toString(indexNames));
                         }
-                        listener.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
-                    }, listener::onFailure);
+                        l.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
+                    }, l::onFailure);
             } else {
-                listener.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
+                l.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void onlyOpenIndex(final OpenIndexClusterStateUpdateRequest request,

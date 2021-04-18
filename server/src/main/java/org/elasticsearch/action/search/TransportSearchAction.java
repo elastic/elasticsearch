@@ -266,7 +266,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
             new SearchTimeProvider(original.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
-        ActionListener<SearchRequest> rewriteListener = ActionListener.wrap(rewritten -> {
+        ActionListener<SearchRequest> rewriteListener = listener.wrap((l, rewritten) -> {
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
             if (rewritten.pointInTimeBuilder() != null) {
@@ -279,22 +279,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final ClusterState clusterState = clusterService.state();
             if (remoteClusterIndices.isEmpty()) {
-                executeLocalSearch(
-                    task, timeProvider, rewritten, localIndices, clusterState, listener, searchContext, searchAsyncActionProvider);
+                executeLocalSearch(task, timeProvider, rewritten, localIndices, clusterState, l, searchContext, searchAsyncActionProvider);
             } else {
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
                     ccsRemoteReduce(parentTaskId, rewritten, localIndices, remoteClusterIndices, timeProvider,
                         searchService.aggReduceContextBuilder(rewritten),
-                        remoteClusterService, threadPool, listener,
-                        (r, l) -> executeLocalSearch(
-                            task, timeProvider, r, localIndices, clusterState, l, searchContext, searchAsyncActionProvider));
+                        remoteClusterService, threadPool, l,
+                        (r, ll) -> executeLocalSearch(
+                            task, timeProvider, r, localIndices, clusterState, ll, searchContext, searchAsyncActionProvider));
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(rewritten.indicesOptions(), rewritten.preference(), rewritten.routing(),
                         skippedClusters, remoteClusterIndices, remoteClusterService, threadPool,
-                        ActionListener.wrap(
-                            searchShardsResponses -> {
+                            l.wrap((ll, searchShardsResponses) -> {
                                 final BiFunction<String, String, DiscoveryNode> clusterNodeLookup =
                                     getRemoteClusterNodeLookup(searchShardsResponses);
                                 final Map<String, AliasFilter> remoteAliasFilters;
@@ -312,14 +310,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 int totalClusters = remoteClusterIndices.size() + localClusters;
                                 int successfulClusters = searchShardsResponses.size() + localClusters;
                                 executeSearch((SearchTask) task, timeProvider, rewritten, localIndices, remoteShardIterators,
-                                    clusterNodeLookup, clusterState, remoteAliasFilters, listener,
+                                    clusterNodeLookup, clusterState, remoteAliasFilters, ll,
                                     new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()),
                                     searchContext, searchAsyncActionProvider);
-                            },
-                            listener::onFailure));
+                            }));
                 }
             }
-        }, listener::onFailure);
+        });
         Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
             rewriteListener);
     }

@@ -60,10 +60,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
     @Override
     protected void doExecute(Task task, GetDataFrameAnalyticsAction.Request request,
                              ActionListener<GetDataFrameAnalyticsAction.Response> listener) {
-        searchResources(request, ActionListener.wrap(
-            queryPage -> listener.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)),
-            listener::onFailure
-        ));
+        searchResources(request, listener.wrap((l, queryPage) -> l.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage))));
     }
 
     @Nullable

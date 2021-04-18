@@ -68,16 +68,14 @@ public class ShowColumns extends Command {
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
-        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, emptyMap(), ActionListener.wrap(
-                indexResult -> {
-                    List<List<?>> rows = emptyList();
-                    if (indexResult.isValid()) {
-                        rows = new ArrayList<>();
-                        fillInRows(indexResult.get().mapping(), null, rows);
-                    }
-                    listener.onResponse(of(session, rows));
-                },
-                listener::onFailure));
+        session.indexResolver().resolveAsMergedMapping(idx, regex, withFrozen, emptyMap(), listener.wrap((l, indexResult) -> {
+            List<List<?>> rows = emptyList();
+            if (indexResult.isValid()) {
+                rows = new ArrayList<>();
+                fillInRows(indexResult.get().mapping(), null, rows);
+            }
+            l.onResponse(of(session, rows));
+        }));
     }
 
     private void fillInRows(Map<String, EsField> mapping, String prefix, List<List<?>> rows) {

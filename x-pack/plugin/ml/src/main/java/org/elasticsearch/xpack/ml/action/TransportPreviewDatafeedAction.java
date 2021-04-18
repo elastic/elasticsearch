@@ -67,24 +67,19 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
-        ActionListener<DatafeedConfig> datafeedConfigActionListener = ActionListener.wrap(
-            datafeedConfig -> {
+        ActionListener<DatafeedConfig> datafeedConfigActionListener = listener.wrap((l, datafeedConfig) -> {
                 if (request.getJobConfig() != null) {
-                    previewDatafeed(datafeedConfig, request.getJobConfig().build(new Date()), listener);
+                    previewDatafeed(datafeedConfig, request.getJobConfig().build(new Date()), l);
                     return;
                 }
-                jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
-                    jobBuilder -> previewDatafeed(datafeedConfig, jobBuilder.build(), listener),
-                    listener::onFailure));
-            },
-            listener::onFailure
-        );
+                jobConfigProvider.getJob(datafeedConfig.getJobId(),
+                    l.wrap((ll,  jobBuilder) -> previewDatafeed(datafeedConfig, jobBuilder.build(), ll)));
+        });
         if (request.getDatafeedConfig() != null) {
             datafeedConfigActionListener.onResponse(request.getDatafeedConfig());
         } else {
             datafeedConfigProvider.getDatafeedConfig(
-                request.getDatafeedId(),
-                ActionListener.wrap(builder -> datafeedConfigActionListener.onResponse(builder.build()), listener::onFailure));
+                request.getDatafeedId(), listener.wrap(builder -> datafeedConfigActionListener.onResponse(builder.build())));
         }
     }
 

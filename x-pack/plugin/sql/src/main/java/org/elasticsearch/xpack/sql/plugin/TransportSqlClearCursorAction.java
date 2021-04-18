@@ -50,8 +50,7 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
                 new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
                         emptyMap(), request.mode(), StringUtils.EMPTY, request.version(), StringUtils.EMPTY, StringUtils.EMPTY,
                         Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN),
-                cursor, ActionListener.wrap(
-                success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure));
+                cursor, listener.wrap((l, success) -> l.onResponse(new SqlClearCursorResponse(success))));
     }
 }
 

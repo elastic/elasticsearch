@@ -83,11 +83,11 @@ public final class TransportDelegatePkiAuthenticationAction
                     ActionListener.wrap(authentication -> {
                         assert authentication != null : "authentication should never be null at this point";
                         tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false,
-                                ActionListener.wrap(tokenResult -> {
+                                listener.wrap((l, tokenResult) -> {
                                     final TimeValue expiresIn = tokenService.getExpirationDelay();
-                                    listener.onResponse(new DelegatePkiAuthenticationResponse(tokenResult.getAccessToken(), expiresIn,
+                                    l.onResponse(new DelegatePkiAuthenticationResponse(tokenResult.getAccessToken(), expiresIn,
                                         authentication));
-                                }, listener::onFailure));
+                                }));
                     }, e -> {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated",
                                 x509DelegatedToken), e);

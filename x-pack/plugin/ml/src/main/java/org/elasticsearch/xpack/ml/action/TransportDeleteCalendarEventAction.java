@@ -54,36 +54,33 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                              ActionListener<AcknowledgedResponse> listener) {
         final String eventId = request.getEventId();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(
-                calendar -> {
+        ActionListener<Calendar> calendarListener = listener.wrap((l, calendar) -> {
                     GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), eventId);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
-                            getResponse -> {
+                    executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, l.wrap((ll, getResponse) -> {
                                 if (getResponse.isExists() == false) {
-                                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
+                                    ll.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                                     return;
                                 }
 
                                 Map<String, Object> source = getResponse.getSourceAsMap();
                                 String calendarId = (String) source.get(Calendar.ID.getPreferredName());
                                 if (calendarId == null) {
-                                    listener.onFailure(ExceptionsHelper.badRequestException("Event [" + eventId + "] does not have a valid "
+                                    ll.onFailure(ExceptionsHelper.badRequestException("Event [" + eventId + "] does not have a valid "
                                             + Calendar.ID.getPreferredName()));
                                     return;
                                 }
 
                                 if (calendarId.equals(request.getCalendarId()) == false) {
-                                    listener.onFailure(ExceptionsHelper.badRequestException(
+                                    ll.onFailure(ExceptionsHelper.badRequestException(
                                             "Event [" + eventId + "] has " + Calendar.ID.getPreferredName()
                                                     + " [" + calendarId + "] which does not match the request "
                                                     + Calendar.ID.getPreferredName() + " [" + request.getCalendarId() + "]"));
                                     return;
                                 }
 
-                                deleteEvent(eventId, calendar, listener);
-                            }, listener::onFailure)
-                    );
-                }, listener::onFailure);
+                                deleteEvent(eventId, calendar, ll);
+                    }));
+            });
 
         // Get the calendar first so we check the calendar exists before checking the event exists
         jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
@@ -101,10 +98,8 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                         if (response.status() == RestStatus.NOT_FOUND) {
                             listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                         } else {
-                            jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                    r -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                    listener::onFailure
-                            ));
+                            jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(),
+                                    listener.wrap((l, r) -> l.onResponse(AcknowledgedResponse.TRUE)));
                         }
                     }
 

@@ -68,10 +68,7 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
             return;
         }
         if (USERNAME.equals(username)) {
-            buildUser(username, ActionListener.wrap(
-                u -> listener.onResponse(cache.computeIfAbsent(username, k -> u)),
-                listener::onFailure
-            ));
+            buildUser(username, listener.wrap((l, u) -> l.onResponse(cache.computeIfAbsent(username, k -> u))));
         } else {
             listener.onResponse(null);
         }
@@ -79,10 +76,7 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
 
     private void buildUser(String username, ActionListener<User> listener) {
         final UserRoleMapper.UserData data = new UserRoleMapper.UserData(username, null, List.of(USER_GROUP), Map.of(), super.config);
-        roleMapper.resolveRoles(data, ActionListener.wrap(
-            roles -> listener.onResponse(new User(username, roles.toArray(String[]::new))),
-            listener::onFailure
-        ));
+        roleMapper.resolveRoles(data, listener.wrap((l, roles) -> listener.onResponse(new User(username, roles.toArray(String[]::new)))));
     }
 
     @Override

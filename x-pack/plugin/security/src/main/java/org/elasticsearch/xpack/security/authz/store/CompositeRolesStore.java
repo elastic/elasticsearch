@@ -166,8 +166,7 @@ public class CompositeRolesStore {
             roleActionListener.onResponse(existing);
         } else {
             final long invalidationCounter = numInvalidation.get();
-            roleDescriptors(roleNames, ActionListener.wrap(
-                    rolesRetrievalResult -> {
+            roleDescriptors(roleNames, roleActionListener.wrap((l, rolesRetrievalResult) -> {
                         logDeprecatedRoles(rolesRetrievalResult.roleDescriptors);
                         final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
                         if (missingRoles) {
@@ -190,9 +189,8 @@ public class CompositeRolesStore {
                         logger.trace(() -> new ParameterizedMessage("Building role from descriptors [{}] for role names [{}]",
                                 effectiveDescriptors, roleNames));
                         buildThenMaybeCacheRole(roleKey, effectiveDescriptors, rolesRetrievalResult.getMissingRoles(),
-                            rolesRetrievalResult.isSuccess(), invalidationCounter, roleActionListener);
-                    },
-                    roleActionListener::onFailure));
+                            rolesRetrievalResult.isSuccess(), invalidationCounter, l);
+                    }));
         }
     }
 
@@ -254,51 +252,42 @@ public class CompositeRolesStore {
     }
 
     private void getRolesForServiceAccount(Authentication authentication, ActionListener<Role> roleActionListener) {
-        serviceAccountService.getRoleDescriptor(authentication, ActionListener.wrap(roleDescriptor -> {
+        serviceAccountService.getRoleDescriptor(authentication, roleActionListener.wrap((l, roleDescriptor) -> {
             final RoleKey roleKey = new RoleKey(Set.of(roleDescriptor.getName()), "service_account");
             final Role existing = roleCache.get(roleKey);
             if (existing == null) {
                 final long invalidationCounter = numInvalidation.get();
-                buildThenMaybeCacheRole(roleKey, List.of(roleDescriptor), Set.of(), true, invalidationCounter, roleActionListener);
+                buildThenMaybeCacheRole(roleKey, List.of(roleDescriptor), Set.of(), true, invalidationCounter, l);
             } else {
-                roleActionListener.onResponse(existing);
+                l.onResponse(existing);
             }
-        }, roleActionListener::onFailure));
+        }));
     }
 
     private void getRolesForApiKey(Authentication authentication, ActionListener<Role> roleActionListener) {
         if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
-            buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
-                role -> {
+            buildAndCacheRoleForApiKey(authentication, false, roleActionListener.wrap((l, role) -> {
                     if (role == Role.EMPTY) {
-                        buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
+                        buildAndCacheRoleForApiKey(authentication, true, l);
                     } else {
-                        buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
-                            limitedByRole -> roleActionListener.onResponse(
-                                limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
-                            roleActionListener::onFailure
-                        ));
+                        buildAndCacheRoleForApiKey(authentication, true, l.wrap((ll, limitedByRole) -> ll.onResponse(
+                            limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole))));
                     }
-                },
-                roleActionListener::onFailure
-            ));
+            }));
         } else {
-            apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
+            apiKeyService.getRoleForApiKey(authentication, roleActionListener.wrap((l, apiKeyRoleDescriptors) -> {
                 final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
                 if (descriptors == null) {
-                    roleActionListener.onFailure(new IllegalStateException("missing role descriptors"));
+                    l.onFailure(new IllegalStateException("missing role descriptors"));
                 } else if (apiKeyRoleDescriptors.getLimitedByRoleDescriptors() == null) {
-                    buildAndCacheRoleFromDescriptors(descriptors,
-                        apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
+                    buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", l);
                 } else {
                     buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
-                        ActionListener.wrap(
-                            role -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
-                                apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc", ActionListener.wrap(
-                                    limitedBy -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedBy)),
-                                    roleActionListener::onFailure)), roleActionListener::onFailure));
+                        l.wrap((ll, role) -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
+                                apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc",
+                                ll.wrap((lll, limitedBy) -> lll.onResponse(LimitedRole.createLimitedRole(role, limitedBy))))));
                 }
-            }, roleActionListener::onFailure));
+            }));
         }
     }
 
@@ -320,7 +309,7 @@ public class CompositeRolesStore {
     private void buildThenMaybeCacheRole(RoleKey roleKey, Collection<RoleDescriptor> roleDescriptors, Set<String> missing,
                                          boolean tryCache, long invalidationCounter, ActionListener<Role> listener) {
         logger.trace("Building role from descriptors [{}] for names [{}] from source [{}]", roleDescriptors, roleKey.names, roleKey.source);
-        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
+        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, listener.wrap((l, role) -> {
             if (role != null && tryCache) {
                 try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
                     /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
@@ -339,8 +328,8 @@ public class CompositeRolesStore {
                     negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                 }
             }
-            listener.onResponse(role);
-        }, listener::onFailure));
+            l.onResponse(role);
+        }));
     }
 
     private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
@@ -360,13 +349,13 @@ public class CompositeRolesStore {
     }
 
     public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+        roleDescriptors(roleNames, listener.wrap((l, rolesRetrievalResult) -> {
             if (rolesRetrievalResult.isSuccess()) {
-                listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+                l.onResponse(rolesRetrievalResult.getRoleDescriptors());
             } else {
-                listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+                l.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
@@ -387,16 +376,16 @@ public class CompositeRolesStore {
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders =
             licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS) ? allRoleProviders : builtInRoleProviders;
 
-        final ActionListener<RoleRetrievalResult> descriptorsListener =
-            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {
+        final ActionListener<RoleRetrievalResult> descriptorsListener = ContextPreservingActionListener.wrapPreservingContext(
+                listener.wrap((l, ignore) -> {
                     rolesResult.setMissingRoles(roleNames);
-                    listener.onResponse(rolesResult);
-                }, listener::onFailure), threadContext);
+                    l.onResponse(rolesResult);
+                }), threadContext);
 
         final Predicate<RoleRetrievalResult> iterationPredicate = result -> roleNames.isEmpty() == false;
         new IteratingActionListener<>(descriptorsListener, (rolesProvider, providerListener) -> {
             // try to resolve descriptors with role provider
-            rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
+            rolesProvider.accept(roleNames, providerListener.wrap((l, result) -> {
                 if (result.isSuccess()) {
                     logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved by [{}]",
                         names(result.getDescriptors()), rolesProvider));
@@ -410,8 +399,8 @@ public class CompositeRolesStore {
                     logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
                     rolesResult.setFailure();
                 }
-                providerListener.onResponse(result);
-            }, providerListener::onFailure));
+                l.onResponse(result);
+            }));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
 
@@ -486,11 +475,11 @@ public class CompositeRolesStore {
             final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values().stream()
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
-            privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, ActionListener.wrap(appPrivileges -> {
+            privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, listener.wrap((l, appPrivileges) -> {
                 applicationPrivilegesMap.forEach((key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
                     .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2())));
-                listener.onResponse(builder.build());
-            }, listener::onFailure));
+                l.onResponse(builder.build());
+            }));
         }
     }
 
@@ -520,10 +509,10 @@ public class CompositeRolesStore {
         final Map<String, Object> usage = new HashMap<>(2);
         usage.put("file", fileRolesStore.usageStats());
         usage.put("dls", Map.of("bit_set_cache", dlsBitsetCache.usageStats()));
-        nativeRolesStore.usageStats(ActionListener.wrap(map -> {
+        nativeRolesStore.usageStats(listener.wrap((l, map) -> {
             usage.put("native", map);
-            listener.onResponse(usage);
-        }, listener::onFailure));
+            l.onResponse(usage);
+        }));
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {

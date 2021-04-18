@@ -135,11 +135,10 @@ public class PITAwareQueryClient extends BasicQueryClient {
             null,
             null
         );
-        client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
-                pitId = r.getSearchContextId();
-                runnable.run();
-            },
-            listener::onFailure));
+        client.execute(OpenPointInTimeAction.INSTANCE, request, listener.wrap(r -> {
+            pitId = r.getSearchContextId();
+            runnable.run();
+        }));
     }
 
     @Override

@@ -131,12 +131,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             });
             if (authenticationInCache.get()) {
                 // there is a cached or an inflight authenticate request
-                listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
+                listenableCacheEntry.addListener(listener.wrap((l, cachedResult) -> {
                     final boolean credsMatch = cachedResult.verify(token.credentials());
                     if (cachedResult.authenticationResult.isAuthenticated()) {
                         if (credsMatch) {
                             // cached credential hash matches the credential hash for this forestalled request
-                            handleCachedAuthentication(cachedResult.user, ActionListener.wrap(cacheResult -> {
+                            handleCachedAuthentication(cachedResult.user, l.wrap((ll, cacheResult) -> {
                                 if (cacheResult.isAuthenticated()) {
                                     logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
                                         name(), token.principal(), cacheResult.getUser().roles());
@@ -144,25 +144,25 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                                     logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
                                         name(), token.principal(), cacheResult.getMessage());
                                 }
-                                listener.onResponse(cacheResult);
-                            }, listener::onFailure));
+                                ll.onResponse(cacheResult);
+                            }));
                         } else {
                             // its credential hash does not match the
                             // hash of the credential for this forestalled request.
                             // clear cache and try to reach the authentication source again because password
                             // might have changed there and the local cached hash got stale
                             cache.invalidate(token.principal(), listenableCacheEntry);
-                            authenticateWithCache(token, listener);
+                            authenticateWithCache(token, l);
                         }
                     } else if (credsMatch) {
                         // not authenticated but instead of hammering reuse the result. a new
                         // request will trigger a retried auth
-                        listener.onResponse(cachedResult.authenticationResult);
+                        l.onResponse(cachedResult.authenticationResult);
                     } else {
                         cache.invalidate(token.principal(), listenableCacheEntry);
-                        authenticateWithCache(token, listener);
+                        authenticateWithCache(token, l);
                     }
-                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
+                }), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
             } else {
                 // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
@@ -200,10 +200,10 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     @Override
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        super.usageStats(ActionListener.wrap(stats -> {
+        super.usageStats(listener.wrap((l, stats) -> {
             stats.put("cache", Collections.singletonMap("size", getCacheSize()));
-            listener.onResponse(stats);
-        }, listener::onFailure));
+            l.onResponse(stats);
+        }));
     }
 
     protected int getCacheSize() {
@@ -253,13 +253,8 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     listenableCacheEntry.onFailure(e);
                 }));
             }
-            listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
-                if (cachedResult.user != null) {
-                    listener.onResponse(cachedResult.user);
-                } else {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
+            listenableCacheEntry.addListener(listener.wrap((l, cachedResult) -> l.onResponse(cachedResult.user)),
+                    threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
         } catch (final ExecutionException e) {
             listener.onFailure(e);
         }

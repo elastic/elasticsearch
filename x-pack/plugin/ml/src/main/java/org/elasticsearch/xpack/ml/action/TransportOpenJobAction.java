@@ -109,16 +109,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
 
             // Clear job finished time once the job is started and respond
-            ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
-                response -> {
+            ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = listener.wrap((l, response) -> {
                     if (response.isAcknowledged()) {
-                        clearJobFinishedTime(response, state, jobParams.getJobId(), listener);
+                        clearJobFinishedTime(response, state, jobParams.getJobId(), l);
                     } else {
-                        listener.onResponse(response);
+                        l.onResponse(response);
                     }
-                },
-                listener::onFailure
-            );
+            });
 
             // Wait for job to be started
             ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
@@ -142,27 +139,19 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             };
 
             // Start job task
-            ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
-                mem -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()), MlTasks.JOB_TASK_NAME, jobParams,
-                    waitForJobToStart),
-                listener::onFailure
-            );
+            ActionListener<Long> memoryRequirementRefreshListener = listener.wrap(mem ->
+                persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()), MlTasks.JOB_TASK_NAME, jobParams,
+                    waitForJobToStart));
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<Boolean> getJobHandler = ActionListener.wrap(
-                response -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(jobParams.getJobId(),
-                    memoryRequirementRefreshListener),
-                listener::onFailure
-            );
+            ActionListener<Boolean> getJobHandler = listener.wrap(response ->
+                memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(jobParams.getJobId(), memoryRequirementRefreshListener));
 
             // Get the job config
-            jobConfigProvider.getJob(jobParams.getJobId(), ActionListener.wrap(
-                    builder -> {
-                        jobParams.setJob(builder.build());
-                        getJobHandler.onResponse(null);
-                    },
-                    listener::onFailure
-            ));
+            jobConfigProvider.getJob(jobParams.getJobId(), listener.wrap(builder -> {
+                jobParams.setJob(builder.build());
+                getJobHandler.onResponse(null);
+            }));
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }

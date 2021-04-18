@@ -22,7 +22,6 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -94,15 +93,15 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
             .setFetchSource(true)
             .request();
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client, SECURITY_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.<GetResponse>wrap(response -> {
+            executeAsyncWithOrigin(client, SECURITY_ORIGIN, GetAction.INSTANCE, getRequest, listener.wrap((l, response) -> {
                 if (response.isExists()) {
                     final String tokenHash = (String) response.getSource().get("password");
                     assert tokenHash != null : "service account token hash cannot be null";
-                    listener.onResponse(Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()));
+                    l.onResponse(Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()));
                 } else {
                     logger.trace("service account token [{}] not found in index", token.getQualifiedName());
-                    listener.onResponse(false);
-                }}, listener::onFailure)));
+                    l.onResponse(false);
+                }})));
     }
 
     public void createToken(Authentication authentication, CreateServiceAccountTokenRequest request,
@@ -123,15 +122,13 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
                     .request();
             final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
 
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
-                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(response -> {
-                        assert DocWriteResponse.Result.CREATED == response.getResult()
-                            : "an successful response of an OpType.CREATE request must have result of CREATED";
-                        listener.onResponse(CreateServiceAccountTokenResponse.created(
-                            token.getTokenName(), token.asBearerString()));
-                    }, listener::onFailure)));
-            });
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> executeAsyncWithOrigin(
+                client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
+                TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(listener.wrap((l, response) -> {
+                    assert DocWriteResponse.Result.CREATED == response.getResult()
+                        : "an successful response of an OpType.CREATE request must have result of CREATED";
+                    l.onResponse(CreateServiceAccountTokenResponse.created(token.getTokenName(), token.asBearerString()));
+                }))));
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -182,20 +179,19 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
                 final DeleteRequest deleteRequest = client.prepareDelete(SECURITY_MAIN_ALIAS, docIdForToken(qualifiedTokenName)).request();
                 deleteRequest.setRefreshPolicy(request.getRefreshPolicy());
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteAction.INSTANCE, deleteRequest,
-                    ActionListener.wrap(deleteResponse -> {
+                    listener.wrap((l, deleteResponse) -> {
                         final ClearSecurityCacheRequest clearSecurityCacheRequest =
                             new ClearSecurityCacheRequest().cacheName("index_service_account_token").keys(qualifiedTokenName);
                         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest,
-                            ActionListener.wrap(clearSecurityCacheResponse -> {
-                                listener.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                            }, e -> {
+                            ActionListener.wrap(clearSecurityCacheResponse ->
+                                    l.onResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED), e -> {
                                 final ParameterizedMessage message = new ParameterizedMessage(
                                     "clearing the cache for service token [{}] failed. please clear the cache manually",
                                     qualifiedTokenName);
                                 logger.error(message, e);
-                                listener.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
+                                l.onFailure(new ElasticsearchException(message.getFormattedMessage(), e));
                             }));
-                    }, listener::onFailure));
+                    }));
             });
         }
     }

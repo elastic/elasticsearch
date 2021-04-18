@@ -66,12 +66,12 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                 assert authentication != null : "authentication should never be null at this point";
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
                 tokenService.createOAuth2Tokens(authentication, originatingAuthentication,
-                        tokenMeta, true, ActionListener.wrap(tokenResult -> {
+                        tokenMeta, true, listener.wrap((l, tokenResult) -> {
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(
+                            l.onResponse(
                                 new SamlAuthenticateResponse(authentication, tokenResult.getAccessToken(), tokenResult.getRefreshToken(),
                                     expiresIn));
-                        }, listener::onFailure));
+                        }));
             }, e -> {
                 logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);
                 listener.onFailure(e);

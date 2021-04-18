@@ -119,21 +119,18 @@ public class SamlIdentityProvider {
      */
     public void resolveServiceProvider(String spEntityId, @Nullable String acs, boolean allowDisabled,
                                        ActionListener<SamlServiceProvider> listener) {
-        serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(
-            sp -> {
+        serviceProviderResolver.resolve(spEntityId, listener.wrap((l, sp) -> {
                 if (sp == null) {
                     logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
-                    resolveWildcardService(spEntityId, acs, listener);
+                    resolveWildcardService(spEntityId, acs, l);
                 } else if (allowDisabled == false && sp.isEnabled() == false) {
                     logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 } else {
                     logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
-                    listener.onResponse(sp);
+                    l.onResponse(sp);
                 }
-            },
-            listener::onFailure
-        ));
+        }));
     }
 
     private void resolveWildcardService(String entityId, String acs, ActionListener<SamlServiceProvider> listener) {

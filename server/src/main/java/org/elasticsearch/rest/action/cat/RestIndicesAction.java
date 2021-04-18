@@ -117,11 +117,11 @@ public class RestIndicesAction extends AbstractCatAction {
                     // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve the
                     // index names with the same indices options that we used for the initial cluster state request (strictExpand).
                     sendIndicesStatsRequest(indices, subRequestIndicesOptions, includeUnloadedSegments, client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+                        groupedListener.wrap((l, r) -> l.onResponse(r)));
                     sendClusterStateRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+                        groupedListener.wrap((l, r) -> l.onResponse(r)));
                     sendClusterHealthRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+                        groupedListener.wrap((l, r) -> l.onResponse(r)));
                 }
             });
         };

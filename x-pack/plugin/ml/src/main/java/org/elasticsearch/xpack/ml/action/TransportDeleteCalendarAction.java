@@ -50,25 +50,19 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
         final String calendarId = request.getCalendarId();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(
-                calendar -> {
+        ActionListener<Calendar> calendarListener = listener.wrap((l, calendar) -> {
                     // Delete calendar and events
                     DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, ActionListener.wrap(
-                            response -> {
+                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, l.wrap((ll, response) -> {
                                 if (response.getDeleted() == 0) {
-                                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                                    ll.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
                                     return;
                                 }
 
-                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                        r -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                        listener::onFailure
-                                ));
-                            },
-                            listener::onFailure));
-                },
-                listener::onFailure
+                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(),
+                                        ll.wrap((lll, r) -> lll.onResponse(AcknowledgedResponse.TRUE)));
+                    }));
+                }
         );
 
         jobResultsProvider.calendar(calendarId, calendarListener);

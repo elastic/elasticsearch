@@ -1376,10 +1376,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
         if (hasAllPeerRecoveryRetentionLeases == false) {
             final List<ShardRouting> shardRoutings = routingTable.assignedShards();
-            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(vs -> {
+            final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(listener.wrap((l, vs) -> {
                 setHasAllPeerRecoveryRetentionLeases();
-                listener.onResponse(null);
-            }, listener::onFailure), shardRoutings.size());
+                l.onResponse(null);
+            }), shardRoutings.size());
             for (ShardRouting shardRouting : shardRoutings) {
                 if (retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
                     groupedActionListener.onResponse(null);

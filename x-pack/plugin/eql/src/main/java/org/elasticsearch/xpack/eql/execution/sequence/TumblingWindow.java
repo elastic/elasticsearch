@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 
 /**
@@ -181,7 +180,7 @@ public class TumblingWindow implements Executable {
         log.trace("{}", matcher);
         log.trace("Querying base stage [{}] {}", stage, base.queryRequest());
 
-        client.query(base.queryRequest(), wrap(p -> baseCriterion(stage, p, listener), listener::onFailure));
+        client.query(base.queryRequest(), listener.wrap((l, p) -> baseCriterion(stage, p, l)));
     }
 
     /**
@@ -344,7 +343,7 @@ public class TumblingWindow implements Executable {
 
         log.trace("Querying until stage {}", request);
 
-        client.query(request, wrap(r -> {
+        client.query(request, listener.wrap((l, r) -> {
             List<SearchHit> hits = searchHits(r);
 
             log.trace("Found [{}] hits", hits.size());
@@ -357,15 +356,14 @@ public class TumblingWindow implements Executable {
 
             // keep running the query runs out of the results (essentially returns less than what we want)
             if (hits.size() == windowSize && request.after().before(window.end)) {
-                untilCriterion(window, listener, next);
+                untilCriterion(window, l, next);
             }
             // looks like this stage is done, move on
             else {
                 // to the next query
                 next.run();
             }
-
-        }, listener::onFailure));
+        }));
     }
 
     private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
@@ -376,7 +374,7 @@ public class TumblingWindow implements Executable {
 
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
-        client.query(request, wrap(r -> {
+        client.query(request, listener.wrap((l, r) -> {
             List<SearchHit> hits = searchHits(r);
 
             // filter hits that are escaping the window (same timestamp but different tiebreaker)
@@ -410,7 +408,7 @@ public class TumblingWindow implements Executable {
 
                 // if the limit has been reached, return what's available
                 if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
-                    payload(listener);
+                    payload(l);
                     return;
                 }
 
@@ -428,19 +426,19 @@ public class TumblingWindow implements Executable {
             // keep running the query runs out of the results (essentially returns less than what we want)
             // however check if the window has been fully consumed
             if (hits.size() == windowSize && request.after().before(window.end)) {
-                secondaryCriterion(window, currentStage, listener);
+                secondaryCriterion(window, currentStage, l);
             }
             // looks like this stage is done, move on
             else {
                 // but first check is there are still candidates within the current window
                 if (currentStage + 1 < maxStages && matcher.hasFollowingCandidates(criterion.stage())) {
-                    secondaryCriterion(window, currentStage + 1, listener);
+                    secondaryCriterion(window, currentStage + 1, l);
                 } else {
                     // otherwise, advance it
-                    tumbleWindow(window.baseStage, listener);
+                    tumbleWindow(window.baseStage, l);
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     /**

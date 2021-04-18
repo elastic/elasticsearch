@@ -66,20 +66,20 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
         WatcherStatsRequest watcherStatsRequest = new WatcherStatsRequest();
         watcherStatsRequest.includeCurrentWatches(true);
 
-        executeAsyncWithOrigin(client, WATCHER_ORIGIN, WatcherStatsAction.INSTANCE, watcherStatsRequest, ActionListener.wrap(response -> {
+        executeAsyncWithOrigin(client, WATCHER_ORIGIN, WatcherStatsAction.INSTANCE, watcherStatsRequest, listener.wrap((l, response) -> {
             boolean isWatchRunning = response.getNodes().stream()
                 .anyMatch(node -> node.getSnapshots().stream().anyMatch(snapshot -> snapshot.watchId().equals(request.getWatchId())));
             if (isWatchRunning) {
-                listener.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
+                l.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
                     RestStatus.CONFLICT, request.getWatchId()));
             } else {
                 GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
                     .preference(Preference.LOCAL.type()).realtime(true);
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
-                    ActionListener.<GetResponse>wrap(getResponse -> {
+                    l.<GetResponse>wrap((ll, getResponse) -> {
                         if (getResponse.isExists() == false) {
-                            listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
+                            ll.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
                         } else {
                             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(),
@@ -93,7 +93,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                             // exit early in case nothing changes
                             boolean isChanged = watch.ack(now, actionIds);
                             if (isChanged == false) {
-                                listener.onResponse(new AckWatchResponse(watch.status()));
+                                ll.onResponse(new AckWatchResponse(watch.status()));
                                 return;
                             }
 
@@ -121,14 +121,11 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                             updateRequest.doc(builder);
 
                             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
-                                ActionListener.<UpdateResponse>wrap(
-                                    (updateResponse) -> listener.onResponse(new AckWatchResponse(watch.status())),
-                                    listener::onFailure), client::update);
+                                    ll.<UpdateResponse>wrap((lll, updateResponse) ->
+                                            lll.onResponse(new AckWatchResponse(watch.status()))), client::update);
                         }
-                    }, listener::onFailure), client::get);
-
+                    }), client::get);
             }
-
-        }, listener::onFailure));
+        }));
     }
 }

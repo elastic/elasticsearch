@@ -100,19 +100,16 @@ public class SamlAuthnRequestValidator {
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
-            getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(
-                sp -> {
+            getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), listener.wrap((l, sp) -> {
                     try {
-                        validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
+                        validateAuthnRequest(authnRequest, sp, parsedQueryString, l);
                     } catch (ElasticsearchSecurityException e) {
                         logger.debug("Could not validate AuthnRequest", e);
-                        listener.onFailure(e);
+                        l.onFailure(e);
                     } catch (Exception e) {
-                        logAndRespond("Could not validate AuthnRequest", e, listener);
+                        logAndRespond("Could not validate AuthnRequest", e, l);
                     }
-                },
-                listener::onFailure
-            ));
+            }));
         } catch (ElasticsearchSecurityException e) {
             logger.debug("Could not process AuthnRequest", e);
             listener.onFailure(e);
@@ -231,16 +228,14 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("SAML authentication request has no issuer", RestStatus.BAD_REQUEST);
         }
         final String issuerString = issuer.getValue();
-        idp.resolveServiceProvider(issuerString, acs, false, ActionListener.wrap(
-            serviceProvider -> {
+        idp.resolveServiceProvider(issuerString, acs, false, listener.wrap((l, serviceProvider) -> {
                 if (null == serviceProvider) {
                     throw new ElasticsearchSecurityException(
                         "Service Provider with Entity ID [{}] and ACS [{}] is not known to this Identity Provider", RestStatus.BAD_REQUEST,
                         issuerString, acs);
                 }
-                listener.onResponse(serviceProvider);
-            },
-            listener::onFailure
+                l.onResponse(serviceProvider);
+            }
         ));
     }
 

@@ -109,19 +109,14 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                 () -> deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier)
             );
         } else {
-            jobConfigProvider.expandJobs(request.getJobId(), false, true, ActionListener.wrap(
-                jobBuilders -> {
+            jobConfigProvider.expandJobs(request.getJobId(), false, true, listener.wrap((l, jobBuilders) ->
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                             List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
                             String [] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
                             request.setExpandedJobIds(jobIds);
                             List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, auditor);
-                            deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier);
-                        }
-                    );
-                },
-                listener::onFailure
-            ));
+                            deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier);
+                    })));
         }
     }
 
@@ -152,17 +147,14 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                            boolean haveAllPreviousDeletionsCompleted) {
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
-            ActionListener<Boolean> nextListener = ActionListener.wrap(
-                booleanResponse ->
-                    deleteExpiredData(
-                        request,
-                        mlDataRemoversIterator,
-                        requestsPerSecond,
-                        listener,
-                        isTimedOutSupplier,
-                        booleanResponse
-                    ),
-                listener::onFailure);
+            ActionListener<Boolean> nextListener = listener.wrap((l, booleanResponse) -> deleteExpiredData(
+                    request,
+                    mlDataRemoversIterator,
+                    requestsPerSecond,
+                    l,
+                    isTimedOutSupplier,
+                    booleanResponse
+            ));
             // Removing expired ML data and artifacts requires multiple operations.
             // These are queued up and executed sequentially in the action listener,
             // the chained calls must all run the ML utility thread pool NOT the thread

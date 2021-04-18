@@ -49,10 +49,8 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
         }
 
         final Collection<String> applications = isNullOrEmpty(request.application()) ? null : Collections.singleton(request.application());
-        this.privilegeStore.getPrivileges(applications, names, ActionListener.wrap(
-            privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)),
-            listener::onFailure
-        ));
+        this.privilegeStore.getPrivileges(applications, names, listener.wrap((l, privileges) ->
+                l.onResponse(new GetPrivilegesResponse(privileges))));
     }
 
 }

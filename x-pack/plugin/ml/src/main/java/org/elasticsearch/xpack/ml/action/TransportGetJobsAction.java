@@ -43,12 +43,8 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
     protected void masterOperation(Task task, GetJobsAction.Request request, ClusterState state,
                                    ActionListener<GetJobsAction.Response> listener) {
         logger.debug("Get job '{}'", request.getJobId());
-        jobManager.expandJobs(request.getJobId(), request.allowNoMatch(), ActionListener.wrap(
-                jobs -> {
-                    listener.onResponse(new GetJobsAction.Response(jobs));
-                },
-                listener::onFailure
-        ));
+        jobManager.expandJobs(request.getJobId(), request.allowNoMatch(),
+                listener.wrap((l, jobs) -> l.onResponse(new GetJobsAction.Response(jobs))));
     }
 
     @Override

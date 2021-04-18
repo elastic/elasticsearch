@@ -31,12 +31,12 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
 
     @Override
     protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
-        tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tokenResult -> {
+        tokenService.refreshToken(request.getRefreshToken(), listener.wrap((l, tokenResult) -> {
             final String scope = getResponseScopeValue(request.getScope());
             final CreateTokenResponse response =
                 new CreateTokenResponse(tokenResult.getAccessToken(), tokenService.getExpirationDelay(), scope,
                     tokenResult.getRefreshToken(), null, tokenResult.getAuthentication());
-            listener.onResponse(response);
-        }, listener::onFailure));
+            l.onResponse(response);
+        }));
     }
 }

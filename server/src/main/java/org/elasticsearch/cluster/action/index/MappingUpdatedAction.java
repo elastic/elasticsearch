@@ -103,8 +103,7 @@ public class MappingUpdatedAction {
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
-        client.execute(AutoPutMappingAction.INSTANCE, putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
+        client.execute(AutoPutMappingAction.INSTANCE, putMappingRequest, listener.wrap((l, r) -> l.onResponse(null)));
     }
 
     static class AdjustableSemaphore extends Semaphore {

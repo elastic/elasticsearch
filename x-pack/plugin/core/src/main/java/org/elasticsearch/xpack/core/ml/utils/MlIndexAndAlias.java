@@ -102,16 +102,13 @@ public final class MlIndexAndAlias {
         );
 
         // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
-        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
-            created -> {
+        ActionListener<Boolean> indexCreatedListener = loggingListener.wrap((l, created) -> {
                 if (created) {
-                    waitForShardsReady(client, alias, loggingListener);
+                    waitForShardsReady(client, alias, l);
                 } else {
-                    loggingListener.onResponse(false);
+                    l.onResponse(false);
                 }
-            },
-            loggingListener::onFailure
-        );
+        });
 
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
@@ -142,9 +139,8 @@ public final class MlIndexAndAlias {
                     firstConcreteIndex,
                     alias,
                     false,
-                    ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
-                        loggingListener::onFailure)
+                    loggingListener.wrap(
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener))
                 );
                 return;
             }
@@ -199,10 +195,7 @@ public final class MlIndexAndAlias {
         createIndexRequest.origin(ML_ORIGIN);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
-            ActionListener.<CreateIndexResponse>wrap(
-                r -> indexCreatedListener.onResponse(r.isAcknowledged()),
-                indexCreatedListener::onFailure
-            ), client.admin().indices()::create);
+            indexCreatedListener.<CreateIndexResponse>wrap((l, r) -> l.onResponse(r.isAcknowledged())), client.admin().indices()::create);
     }
 
     private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
@@ -214,9 +207,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             healthRequest,
-            ActionListener.<ClusterHealthResponse>wrap(
-                response -> listener.onResponse(response.isTimedOut() == false),
-                listener::onFailure),
+            listener.<ClusterHealthResponse>wrap((l, response) -> l.onResponse(response.isTimedOut() == false)),
             client.admin().cluster()::health
         );
     }
@@ -277,9 +268,7 @@ public final class MlIndexAndAlias {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            ActionListener.<AcknowledgedResponse>wrap(
-                resp -> listener.onResponse(resp.isAcknowledged()),
-                listener::onFailure),
+            listener.<AcknowledgedResponse>wrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
             client.admin().indices()::aliases);
     }
 
@@ -342,14 +331,12 @@ public final class MlIndexAndAlias {
 
         templateRequest.masterNodeTimeout(TimeValue.timeValueMinutes(1));
 
-        ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
-            response ->  {
+        ActionListener<AcknowledgedResponse> innerListener = listener.wrap((l, response) ->  {
                 if (response.isAcknowledged() == false) {
                     logger.warn("error adding legacy template [{}], request was not acknowledged", templateName);
                 }
-                listener.onResponse(response.isAcknowledged());
-            },
-            listener::onFailure);
+                l.onResponse(response.isAcknowledged());
+            });
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, templateRequest, innerListener,
             client.admin().indices()::putTemplate);

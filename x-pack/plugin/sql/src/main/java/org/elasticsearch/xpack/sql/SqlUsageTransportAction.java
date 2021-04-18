@@ -51,7 +51,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         SqlStatsRequest sqlRequest = new SqlStatsRequest();
         sqlRequest.includeStats(true);
         sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(SqlStatsAction.INSTANCE, sqlRequest, ActionListener.wrap(r -> {
+        client.execute(SqlStatsAction.INSTANCE, sqlRequest, listener.wrap((l, r) -> {
             List<Counters> countersPerNode = r.getNodes()
                 .stream()
                 .map(SqlStatsResponse.NodeStatsResponse::getStats)
@@ -59,7 +59,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
             SqlFeatureSetUsage usage = new SqlFeatureSetUsage(mergedCounters.toNestedMap());
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }, listener::onFailure));
+            l.onResponse(new XPackUsageFeatureResponse(usage));
+        }));
     }
 }

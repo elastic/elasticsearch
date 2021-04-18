@@ -128,14 +128,14 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     @Override
     void getUnauthenticatedSessionWithPool(LDAPConnectionPool connectionPool, String user, ActionListener<LdapSession> listener) {
-        getADAuthenticator(user).searchForDN(connectionPool, user, null, Math.toIntExact(timeout.seconds()), ActionListener.wrap(entry -> {
+        getADAuthenticator(user).searchForDN(connectionPool, user, null, Math.toIntExact(timeout.seconds()), listener.wrap((l, entry) -> {
             if (entry == null) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 final String dn = entry.getDN();
-                listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout, null));
+                l.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout, null));
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override
@@ -251,17 +251,15 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     final ActionRunnable<LdapSession> searchRunnable = new ActionRunnable<LdapSession>(listener) {
                         @Override
                         protected void doRun() throws Exception {
-                            searchForDN(connection, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
+                            searchForDN(connection, username, password, Math.toIntExact(timeout.seconds()), listener.wrap((l, entry) -> {
                                 if (entry == null) {
                                     // we did not find the user, cannot authenticate in this realm
-                                    listener.onFailure(new ElasticsearchSecurityException(
+                                    l.onFailure(new ElasticsearchSecurityException(
                                             "search for user [" + username + "] by principal name yielded no results"));
                                 } else {
-                                    listener.onResponse(new LdapSession(logger, realm, connection, entry.getDN(), groupsResolver,
+                                    l.onResponse(new LdapSession(logger, realm, connection, entry.getDN(), groupsResolver,
                                             metadataResolver, timeout, null));
                                 }
-                            }, e -> {
-                                listener.onFailure(e);
                             }));
                         }
                     };
@@ -282,17 +280,15 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             LdapUtils.maybeForkThenBindAndRevert(pool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
                 @Override
                 protected void doRun() throws Exception {
-                    searchForDN(pool, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {
+                    searchForDN(pool, username, password, Math.toIntExact(timeout.seconds()), listener.wrap((l, entry) -> {
                         if (entry == null) {
                             // we did not find the user, cannot authenticate in this realm
-                            listener.onFailure(new ElasticsearchSecurityException(
+                            l.onFailure(new ElasticsearchSecurityException(
                                     "search for user [" + username + "] by principal name yielded no results"));
                         } else {
-                            listener.onResponse(
+                            l.onResponse(
                                     new LdapSession(logger, realm, pool, entry.getDN(), groupsResolver, metadataResolver, timeout, null));
                         }
-                    }, e -> {
-                        listener.onFailure(e);
                     }));
                 }
             });
@@ -391,14 +387,14 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             final String netBiosDomainName = parts[0];
             final String accountName = parts[1];
 
-            netBiosDomainNameToDn(connection, netBiosDomainName, username, password, timeLimitSeconds, ActionListener.wrap((domainDN) -> {
+            netBiosDomainNameToDn(connection, netBiosDomainName, username, password, timeLimitSeconds, listener.wrap((l, domainDN) -> {
                 if (domainDN == null) {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 } else {
                     searchForEntry(connection, domainDN, LdapSearchScope.SUB_TREE.scope(), createFilter(userSearchFilter, accountName),
-                            timeLimitSeconds, ignoreReferralErrors, listener, attributesToSearchFor(groupsResolver.attributes()));
+                            timeLimitSeconds, ignoreReferralErrors, l, attributesToSearchFor(groupsResolver.attributes()));
                 }
-            }, listener::onFailure));
+            }));
         }
 
         void netBiosDomainNameToDn(LDAPInterface ldapInterface, String netBiosDomainName, String username, SecureString password,
@@ -412,9 +408,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 } else if (usingGlobalCatalog(ldapInterface) == false) {
                     search(ldapInterface, "CN=Configuration," + domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
                             ignoreReferralErrors,
-                            ActionListener.wrap((results) -> handleSearchResults(results, netBiosDomainName, domainNameCache, listener),
-                                    listener::onFailure),
-                            "ncname");
+                            listener.wrap((l, results) -> handleSearchResults(results, netBiosDomainName, domainNameCache, l)), "ncname");
                 } else {
                     // the global catalog does not replicate the necessary information to map a
                     // netbios dns name to a DN so we need to instead connect to the normal ports.

@@ -58,8 +58,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                              ActionListener<PostCalendarEventsAction.Response> listener) {
         List<ScheduledEvent> events = request.getScheduledEvents();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(
-                calendar -> {
+        ActionListener<Calendar> calendarListener = listener.wrap((l, calendar) -> {
                     BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
 
                     for (ScheduledEvent event: events) {
@@ -80,19 +79,16 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                             new ActionListener<BulkResponse>() {
                                 @Override
                                 public void onResponse(BulkResponse response) {
-                                    jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                            r -> listener.onResponse(new PostCalendarEventsAction.Response(events)),
-                                            listener::onFailure
-                                    ));
+                                    jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(),
+                                        l.wrap((ll, r) -> ll.onResponse(new PostCalendarEventsAction.Response(events))));
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    listener.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
+                                    l.onFailure(ExceptionsHelper.serverError("Error indexing event", e));
                                 }
                             });
-                },
-                listener::onFailure);
+            });
 
         jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }

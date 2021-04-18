@@ -62,11 +62,8 @@ public class ShowTables extends Command {
         EnumSet<IndexType> withFrozen = session.configuration().includeFrozen() || includeFrozen ?
                 IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
 
-        session.indexResolver().resolveNames(idx, regex, withFrozen, ActionListener.wrap(result -> {
-            listener.onResponse(of(session, result.stream()
-                 .map(t -> asList(t.name(), t.type().toSql(), t.type().toNative()))
-                .collect(toList())));
-        }, listener::onFailure));
+        session.indexResolver().resolveNames(idx, regex, withFrozen, listener.wrap((l, result) -> l.onResponse(of(session,
+                result.stream().map(t -> asList(t.name(), t.type().toSql(), t.type().toNative())).collect(toList())))));
     }
 
     @Override

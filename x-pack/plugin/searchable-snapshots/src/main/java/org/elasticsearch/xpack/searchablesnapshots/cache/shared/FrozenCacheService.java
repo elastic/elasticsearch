@@ -700,7 +700,7 @@ public class FrozenCacheService implements Releasable {
             ActionListener<Integer> listener,
             SharedBytes.IO fileChannel
         ) {
-            return ActionListener.wrap(success -> {
+            return listener.wrap((l, success) -> {
                 final long physicalStartOffset = physicalStartOffset();
                 assert regionOwners[sharedBytesPos].get() == CacheFileRegion.this;
                 final int read = reader.onRangeAvailable(
@@ -717,8 +717,8 @@ public class FrozenCacheService implements Releasable {
                         + '-'
                         + rangeToRead.start()
                         + ']';
-                listener.onResponse(read);
-            }, listener::onFailure);
+                l.onResponse(read);
+            });
         }
 
         private void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {

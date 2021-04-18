@@ -93,7 +93,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
-            getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
+            getUserInfo(token.principal(), listener.wrap((l, userInfo) -> {
                 AuthenticationResult result;
                 if (userInfo != null) {
                     try {
@@ -114,8 +114,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                 }
                 // we want the finally block to clear out the chars before we proceed further so we handle the result here
-                listener.onResponse(result);
-            }, listener::onFailure));
+                l.onResponse(result);
+            }));
         }
     }
 
@@ -132,14 +132,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
         } else {
-            getUserInfo(username, ActionListener.wrap((userInfo) -> {
+            getUserInfo(username, listener.wrap((l, userInfo) -> {
                 if (userInfo != null) {
-                    listener.onResponse(getUser(username, userInfo));
+                    l.onResponse(getUser(username, userInfo));
                 } else {
                     // this was a reserved username - don't allow this to go to another realm...
-                    listener.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
+                    l.onFailure(Exceptions.authenticationError("failed to lookup user [{}]", username));
                 }
-            }, listener::onFailure));
+            }));
         }
     }
 

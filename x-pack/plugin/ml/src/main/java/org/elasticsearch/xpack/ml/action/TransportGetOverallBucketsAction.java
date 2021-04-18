@@ -80,11 +80,9 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     @Override
     protected void doExecute(Task task, GetOverallBucketsAction.Request request,
                              ActionListener<GetOverallBucketsAction.Response> listener) {
-        jobManager.expandJobs(request.getJobId(), request.allowNoMatch(), ActionListener.wrap(
-                jobPage -> {
+        jobManager.expandJobs(request.getJobId(), request.allowNoMatch(), listener.wrap((l, jobPage) -> {
                     if (jobPage.count() == 0) {
-                        listener.onResponse(new GetOverallBucketsAction.Response(
-                            new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
+                        l.onResponse(new GetOverallBucketsAction.Response(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
                         return;
                     }
 
@@ -92,13 +90,12 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                     // we run in a different thread to avoid blocking the network thread.
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                         try {
-                            getOverallBuckets(request, jobPage.results(), listener);
+                            getOverallBuckets(request, jobPage.results(), l);
                         } catch (Exception e) {
-                            listener.onFailure(e);
+                            l.onFailure(e);
                         }
                     });
-                },
-                listener::onFailure
+                }
         ));
     }
 
@@ -106,10 +103,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                                    ActionListener<GetOverallBucketsAction.Response> listener) {
         JobsContext jobsContext = JobsContext.build(jobs, request);
 
-        ActionListener<List<OverallBucket>> overallBucketsListener = ActionListener.wrap(overallBuckets -> {
-            listener.onResponse(new GetOverallBucketsAction.Response(new QueryPage<>(overallBuckets, overallBuckets.size(),
-                    OverallBucket.RESULTS_FIELD)));
-        }, listener::onFailure);
+        ActionListener<List<OverallBucket>> overallBucketsListener = listener.wrap((l, overallBuckets) -> l.onResponse(
+            new GetOverallBucketsAction.Response(new QueryPage<>(overallBuckets, overallBuckets.size(), OverallBucket.RESULTS_FIELD))));
 
         ActionListener<ChunkedBucketSearcher> chunkedBucketSearcherListener = ActionListener.wrap(searcher -> {
             if (searcher == null) {
@@ -147,7 +142,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         searchRequest.source().aggregation(AggregationBuilders.min(EARLIEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
-                ActionListener.<SearchResponse>wrap(searchResponse -> {
+            listener.<SearchResponse>wrap((l, searchResponse) -> {
                     long totalHits = searchResponse.getHits().getTotalHits().value;
                     if (totalHits > 0) {
                         Aggregations aggregations = searchResponse.getAggregations();
@@ -155,13 +150,12 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                         long earliestTime = Intervals.alignToFloor((long) min.getValue(), maxBucketSpanMillis);
                         Max max = aggregations.get(LATEST_TIME);
                         long latestTime = Intervals.alignToCeil((long) max.getValue() + 1, maxBucketSpanMillis);
-                        listener.onResponse(new ChunkedBucketSearcher(jobsContext, earliestTime, latestTime, request.isExcludeInterim(),
+                        l.onResponse(new ChunkedBucketSearcher(jobsContext, earliestTime, latestTime, request.isExcludeInterim(),
                                 overallBucketsProvider, overallBucketsProcessor));
                     } else {
-                        listener.onResponse(null);
+                        l.onResponse(null);
                     }
-                }, listener::onFailure),
-                client::search);
+                }), client::search);
     }
 
     private static class JobsContext {
@@ -231,19 +225,18 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 return;
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, nextSearch(),
-                    ActionListener.<SearchResponse>wrap(searchResponse -> {
+                listener.<SearchResponse>wrap((l, searchResponse) -> {
                         Histogram histogram = searchResponse.getAggregations().get(Result.TIMESTAMP.getPreferredName());
                         overallBucketsProcessor.process(overallBucketsProvider.computeOverallBuckets(histogram));
                         if (overallBucketsProcessor.size() > MAX_RESULT_COUNT) {
-                            listener.onFailure(
+                            l.onFailure(
                                     ExceptionsHelper.badRequestException("Unable to return more than [{}] results; please use " +
                                     "parameters [{}] and [{}] to limit the time range", MAX_RESULT_COUNT,
                                             GetOverallBucketsAction.Request.START, GetOverallBucketsAction.Request.END));
                             return;
                         }
-                        searchAndComputeOverallBuckets(listener);
-                    }, listener::onFailure),
-                    client::search);
+                        searchAndComputeOverallBuckets(l);
+                }), client::search);
         }
 
         SearchRequest nextSearch() {

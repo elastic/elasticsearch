@@ -120,17 +120,14 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
     private void loadActions(String applicationName, ActionListener<Set<String>> listener) {
         final GetPrivilegesRequest request = new GetPrivilegesRequest();
         request.application(applicationName);
-        this.client.execute(GetPrivilegesAction.INSTANCE, request, ActionListener.wrap(
-            response -> {
+        this.client.execute(GetPrivilegesAction.INSTANCE, request, listener.wrap((l, response) -> {
                 final Set<String> fixedActions = Stream.of(response.privileges())
                     .map(p -> p.getActions())
                     .flatMap(Collection::stream)
                     .filter(s -> s.indexOf('*') == -1)
                     .collect(Collectors.toUnmodifiableSet());
                 cache.put(applicationName, fixedActions);
-                listener.onResponse(fixedActions);
-            },
-            listener::onFailure
-        ));
+                l.onResponse(fixedActions);
+        }));
     }
 }

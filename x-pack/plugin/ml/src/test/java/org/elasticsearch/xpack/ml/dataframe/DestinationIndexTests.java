@@ -366,7 +366,7 @@ public class DestinationIndexTests extends ESTestCase {
             expectThrows(
                 ElasticsearchStatusException.class,
                 () -> DestinationIndex.updateMappingsToDestIndex(
-                    client, config, getIndexResponse, ActionListener.wrap(Assert::fail)));
+                    client, config, getIndexResponse, ActionListener.wrap((Runnable) Assert::fail)));
         assertThat(
             e.getMessage(),
             equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field"));

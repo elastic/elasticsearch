@@ -41,19 +41,17 @@ public class ApiKeyGenerator {
         }
         apiKeyService.ensureEnabled();
         rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
-            ActionListener.wrap(roleDescriptors -> {
-                    for (RoleDescriptor rd : roleDescriptors) {
-                        try {
-                            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
-                        } catch (ElasticsearchException | IllegalArgumentException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
+            listener.wrap((l, roleDescriptors) -> {
+                for (RoleDescriptor rd : roleDescriptors) {
+                    try {
+                        DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+                    } catch (ElasticsearchException | IllegalArgumentException e) {
+                        l.onFailure(e);
+                        return;
                     }
-                    apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
-                },
-                listener::onFailure));
-
+                }
+                apiKeyService.createApiKey(authentication, request, roleDescriptors, l);
+        }));
     }
 
 }

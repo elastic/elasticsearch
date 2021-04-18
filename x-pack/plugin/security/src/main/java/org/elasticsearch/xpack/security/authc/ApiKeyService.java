@@ -275,13 +275,10 @@ public class ApiKeyService {
 
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
-                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
-                        indexResponse -> {
+                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(listener.wrap((l, indexResponse) -> {
                             assert request.getId().equals(indexResponse.getId());
-                            listener.onResponse(
-                                    new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                        },
-                        listener::onFailure))));
+                            l.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                        }))));
         } catch (IOException e) {
             listener.onFailure(e);
         }

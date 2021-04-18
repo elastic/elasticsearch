@@ -60,7 +60,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         client.admin().cluster().prepareNodesStats()
             .all()
             .setIndices(CommonStatsFlags.ALL)
-            .execute(ActionListener.wrap(nodesStatsResponse -> {
+            .execute(listener.wrap((l, nodesStatsResponse) -> {
                 final RoutingNodes routingNodes = state.getRoutingNodes();
 
                 // First separate the nodes into separate tiers, note that nodes *may* be duplicated
@@ -70,8 +70,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = tierSpecificNodeStats.entrySet()
                     .stream().collect(Collectors.toMap(Map.Entry::getKey, ns -> calculateStats(ns.getValue(), routingNodes)));
 
-                listener.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
-            }, listener::onFailure));
+                l.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
+            }));
     }
 
     // Visible for testing

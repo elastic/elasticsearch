@@ -68,8 +68,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
             var featureSets = new HashSet<FeatureSet>();
             for (var infoAction : infoActions) {
                 // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
-                client.executeLocally(infoAction, request,
-                    ActionListener.wrap(response -> featureSets.add(response.getInfo()), listener::onFailure));
+                client.executeLocally(infoAction, request, listener.wrap(response -> featureSets.add(response.getInfo())));
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);
         }

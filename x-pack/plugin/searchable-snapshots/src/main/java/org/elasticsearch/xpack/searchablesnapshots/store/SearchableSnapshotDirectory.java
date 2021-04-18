@@ -496,10 +496,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
+        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(listener.wrap((l, voids) -> {
             recoveryState.setPreWarmComplete();
-            listener.onResponse(null);
-        }, listener::onFailure), snapshot().totalFileCount());
+            l.onResponse(null);
+        }), snapshot().totalFileCount());
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {

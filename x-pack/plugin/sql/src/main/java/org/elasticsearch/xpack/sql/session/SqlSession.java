@@ -32,8 +32,6 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.ActionListener.wrap;
-
 public class SqlSession implements Session {
 
     private final Client client;
@@ -142,7 +140,7 @@ public class SqlSession implements Session {
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
             indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
-                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
+                listener.wrap((l, indexResult) -> l.onResponse(action.apply(indexResult))));
         } else {
             try {
                 // occurs when dealing with local relations (SELECT 5+2)
@@ -154,15 +152,15 @@ public class SqlSession implements Session {
     }
 
     public void optimizedPlan(LogicalPlan verified, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(verified, true, wrap(v -> listener.onResponse(optimizer.optimize(v)), listener::onFailure));
+        analyzedPlan(verified, true, listener.wrap((l, v) -> l.onResponse(optimizer.optimize(v))));
     }
 
     public void physicalPlan(LogicalPlan optimized, boolean verify, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure));
+        optimizedPlan(optimized, listener.wrap((l, o) -> l.onResponse(planner.plan(o, verify))));
     }
 
     public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
-        sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
+        sqlExecutable(sql, params, listener.wrap((l, e) -> e.execute(this, l)));
     }
 
     public void sqlExecutable(String sql, List<SqlTypedParamValue> params, ActionListener<PhysicalPlan> listener) {

@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ActionListener.wrap;
 /**
  * The cursor that wraps all necessary information for textual representation of the result table
  */
@@ -51,11 +50,10 @@ public class TextFormatterCursor implements Cursor {
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         // keep wrapping the text formatter
-        delegate.nextPage(cfg, client, registry,
-                wrap(p -> {
-                    Cursor next = p.next();
-                    listener.onResponse(next == Cursor.EMPTY ? p : new Page(p.rowSet(), new TextFormatterCursor(next, formatter)));
-                }, listener::onFailure));
+        delegate.nextPage(cfg, client, registry, listener.wrap((l, p) -> {
+            Cursor next = p.next();
+            l.onResponse(next == Cursor.EMPTY ? p : new Page(p.rowSet(), new TextFormatterCursor(next, formatter)));
+        }));
     }
 
     @Override

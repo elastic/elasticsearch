@@ -99,17 +99,13 @@ public class LdapSession implements Releasable {
 
     public void resolve(ActionListener<LdapUserData> listener) {
         logger.debug("Resolving LDAP groups + meta-data for user [{}]", userDn);
-        groups(ActionListener.wrap(
-                groups -> {
-                    logger.debug("Resolved {} LDAP groups [{}] for user [{}]",  groups.size(), groups, userDn);
-                    metadata(ActionListener.wrap(
-                            meta -> {
-                                logger.debug("Resolved {} meta-data fields [{}] for user [{}]",  meta.size(), meta, userDn);
-                                listener.onResponse(new LdapUserData(groups, meta));
-                            },
-                            listener::onFailure));
-                },
-                listener::onFailure));
+        groups(listener.wrap((l, groups) -> {
+            logger.debug("Resolved {} LDAP groups [{}] for user [{}]", groups.size(), groups, userDn);
+            metadata(l.wrap((ll, meta) -> {
+                logger.debug("Resolved {} meta-data fields [{}] for user [{}]", meta.size(), meta, userDn);
+                ll.onResponse(new LdapUserData(groups, meta));
+            }));
+        }));
     }
 
     public static class LdapUserData {

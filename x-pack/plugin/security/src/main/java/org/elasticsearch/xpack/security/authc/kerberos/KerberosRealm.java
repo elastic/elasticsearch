@@ -227,13 +227,13 @@ public final class KerberosRealm extends Realm implements CachingRealm {
 
     private void buildUser(final String username, final Map<String, Object> metadata, final ActionListener<AuthenticationResult> listener) {
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(username, null, Set.of(), metadata, this.config);
-        userRoleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+        userRoleMapper.resolveRoles(userData, listener.wrap((l, roles) -> {
             final User computedUser = new User(username, roles.toArray(new String[roles.size()]), null, null, userData.getMetadata(), true);
             if (userPrincipalNameToUserCache != null) {
                 userPrincipalNameToUserCache.put(username, computedUser);
             }
-            listener.onResponse(AuthenticationResult.success(computedUser));
-        }, listener::onFailure));
+            l.onResponse(AuthenticationResult.success(computedUser));
+        }));
     }
 
     @Override

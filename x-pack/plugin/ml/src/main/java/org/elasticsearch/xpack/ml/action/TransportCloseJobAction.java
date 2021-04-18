@@ -115,20 +115,17 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 true,
                 tasksMetadata,
                 request.isForce(),
-                ActionListener.wrap(
-                    expandedJobIds -> {
-                        validate(expandedJobIds, request.isForce(), tasksMetadata, ActionListener.wrap(
-                            response -> {
+                listener.wrap((l, expandedJobIds) -> validate(expandedJobIds, request.isForce(), tasksMetadata, l.wrap((ll, response) -> {
                                 request.setOpenJobIds(response.openJobIds.toArray(new String[0]));
                                 if (response.openJobIds.isEmpty() && response.closingJobIds.isEmpty()) {
-                                    listener.onResponse(new CloseJobAction.Response(true));
+                                    ll.onResponse(new CloseJobAction.Response(true));
                                     return;
                                 }
 
                                 if (request.isForce()) {
                                     List<String> jobIdsToForceClose = new ArrayList<>(response.openJobIds);
                                     jobIdsToForceClose.addAll(response.closingJobIds);
-                                    forceCloseJob(state, request, jobIdsToForceClose, listener);
+                                    forceCloseJob(state, request, jobIdsToForceClose, ll);
                                 } else {
                                     Set<String> executorNodes = new HashSet<>();
                                     PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -169,15 +166,9 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                                         }
                                     }
                                     request.setNodes(executorNodes.toArray(new String[0]));
-
-                                    normalCloseJob(state, task, request, response.openJobIds, response.closingJobIds, listener);
+                                    normalCloseJob(state, task, request, response.openJobIds, response.closingJobIds, ll);
                                 }
-                                },
-                            listener::onFailure
-                    ));
-                    },
-                listener::onFailure
-            ));
+            }))));
         }
     }
 

@@ -191,12 +191,12 @@ public class OpenIdConnectAuthenticator {
             validateResponseType(response);
             if (rpConfig.getResponseType().impliesCodeFlow()) {
                 final AuthorizationCode code = response.getAuthorizationCode();
-                exchangeCodeForToken(code, ActionListener.wrap(tokens -> {
+                exchangeCodeForToken(code, listener.wrap((l, tokens) -> {
                     final AccessToken accessToken = tokens.v1();
                     final JWT idToken = tokens.v2();
                     validateAccessToken(accessToken, idToken);
-                    getUserClaims(accessToken, idToken, expectedNonce, true, listener);
-                }, listener::onFailure));
+                    getUserClaims(accessToken, idToken, expectedNonce, true, l);
+                }));
             } else {
                 final JWT idToken = response.getIDToken();
                 final AccessToken accessToken = response.getAccessToken();

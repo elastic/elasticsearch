@@ -118,15 +118,14 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        getRoles(authentication.getUser(), authentication, ActionListener.wrap(role -> {
+        getRoles(authentication.getUser(), authentication, listener.wrap((l, role) -> {
             if (authentication.getUser().isRunAs()) {
-                getRoles(authentication.getUser().authenticatedUser(), authentication, ActionListener.wrap(
-                    authenticatedUserRole -> listener.onResponse(new RBACAuthorizationInfo(role, authenticatedUserRole)),
-                    listener::onFailure));
+                getRoles(authentication.getUser().authenticatedUser(), authentication, l.wrap((ll, authenticatedUserRole) ->
+                        ll.onResponse(new RBACAuthorizationInfo(role, authenticatedUserRole))));
             } else {
-                listener.onResponse(new RBACAuthorizationInfo(role, role));
+                l.onResponse(new RBACAuthorizationInfo(role, role));
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void getRoles(User user, Authentication authentication, ActionListener<Role> listener) {
@@ -265,15 +264,13 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    ActionRunnable.supply(
-                        ActionListener.wrap(parsedScrollId -> {
+                    ActionRunnable.supply(listener.wrap((l, parsedScrollId) -> {
                             if (parsedScrollId.hasLocalIndices()) {
-                                authorizeIndexActionName(action, authorizationInfo, null, listener);
+                                authorizeIndexActionName(action, authorizationInfo, null, l);
                             } else {
-                                listener.onResponse(new IndexAuthorizationResult(true, null));
+                                l.onResponse(new IndexAuthorizationResult(true, null));
                             }
-                        }, listener::onFailure),
-                        ((SearchScrollRequest) request)::parseScrollId
+                        }), ((SearchScrollRequest) request)::parseScrollId
                     ).run();
                 } else {
                     // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
@@ -308,39 +305,39 @@ public class RBACEngine implements AuthorizationEngine {
         } else if (request instanceof IndicesRequest &&
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
             // remote indices are allowed
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+            indicesAsyncSupplier.getAsync(listener.wrap((l, resolvedIndices) -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 //'-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
                     // check action name
-                    authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, listener);
+                    authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, l);
                 } else {
                     buildIndicesAccessControl(authentication, action, authorizationInfo,
-                        Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
+                        Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, l);
                 }
-            }, listener::onFailure));
+            }));
         } else {
             authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES,
-                ActionListener.wrap(indexAuthorizationResult -> {
+                listener.wrap((l, indexAuthorizationResult) -> {
                     if (indexAuthorizationResult.isGranted()) {
-                        indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                        indicesAsyncSupplier.getAsync(l.wrap((ll, resolvedIndices) -> {
                             assert resolvedIndices.isEmpty() == false
                                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                             //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                             //'-*' matches no indices so we allow the request to go through, which will yield an empty response
                             if (resolvedIndices.isNoIndicesPlaceholder()) {
-                                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                                ll.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                             } else {
                                 buildIndicesAccessControl(authentication, action, authorizationInfo,
-                                    Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
+                                    Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, ll);
                             }
-                        }, listener::onFailure));
+                        }));
                     } else {
-                        listener.onResponse(indexAuthorizationResult);
+                        l.onResponse(indexAuthorizationResult);
                     }
-                }, listener::onFailure));
+                }));
         }
     }
 

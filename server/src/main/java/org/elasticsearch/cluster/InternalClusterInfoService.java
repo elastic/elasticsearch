@@ -161,7 +161,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             nodesStatsRequest.clear();
             nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
             nodesStatsRequest.timeout(fetchTimeout);
-            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
+            client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodesStatsResponse) {
                     logger.trace("received node stats response");
@@ -193,14 +193,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     leastAvailableSpaceUsages = ImmutableOpenMap.of();
                     mostAvailableSpaceUsages = ImmutableOpenMap.of();
                 }
-            }, this::onStatsProcessed));
+            }.runAfter(this::onStatsProcessed));
 
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
             indicesStatsRequest.store(true);
             indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
             indicesStatsRequest.timeout(fetchTimeout);
-            client.admin().indices().stats(indicesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     logger.trace("received indices stats response");
@@ -253,7 +253,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     }
                     indicesStatsSummary = IndicesStatsSummary.EMPTY;
                 }
-            }, this::onStatsProcessed));
+            }.runAfter(this::onStatsProcessed));
         }
 
         private void onStatsProcessed() {

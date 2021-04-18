@@ -569,7 +569,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             if (next == null) {
                 return;
             }
-            executor.execute(ActionRunnable.run(ActionListener.runAfter(next.v1(), () -> prewarmNext(executor, queue)), next.v2()));
+            executor.execute(ActionRunnable.run(next.v1().runAfter(() -> prewarmNext(executor, queue)), next.v2()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(() -> new ParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);

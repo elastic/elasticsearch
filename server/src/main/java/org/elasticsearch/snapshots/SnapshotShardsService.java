@@ -332,7 +332,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
                     snapshotRef.getIndexCommit(), getShardStateId(indexShard, snapshotIndexCommit), snapshotStatus, version, userMetadata,
-                    ActionListener.runBefore(listener, snapshotRef::close));
+                    listener.runBefore(snapshotRef::close));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);
                 throw e;

@@ -175,10 +175,9 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         AtomicReference<Object> response = new AtomicReference<>();
         CountDownLatch doneLatch = new CountDownLatch(1);
         client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)),
-            ActionListener.runAfter(ActionListener.wrap(
+            ActionListener.<Response>wrap(
                 r -> assertTrue(response.compareAndSet(null, r)),
-                e -> assertTrue(response.compareAndSet(null, e))),
-                doneLatch::countDown));
+                e -> assertTrue(response.compareAndSet(null, e))).runAfter(doneLatch::countDown));
 
         assertTrue(primaryTestPlugin.actionRunningLatch.await(10, TimeUnit.SECONDS));
 

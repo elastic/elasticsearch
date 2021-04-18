@@ -225,7 +225,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                                                                       TransportRequestOptions options, ActionListener<T> actionListener,
                                                                       Writeable.Reader<T> reader) {
         final Object key = new Object();
-        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
+        final ActionListener<T> removeListener = actionListener.runBefore(() -> onGoingRetryableActions.remove(key));
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
         final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
         final RetryableAction<T> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener) {

@@ -175,7 +175,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
             super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,
-                repositoryMetaVersion, userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+                repositoryMetaVersion, userMetadata, listener.runBefore(() -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);

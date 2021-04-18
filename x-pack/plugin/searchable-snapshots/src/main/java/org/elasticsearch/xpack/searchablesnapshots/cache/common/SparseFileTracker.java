@@ -360,10 +360,7 @@ public class SparseFileTracker {
 
     private ActionListener<Void> wrapWithAssertions(ActionListener<Void> listener) {
         if (Assertions.ENABLED) {
-            return ActionListener.runAfter(
-                listener,
-                () -> { assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held in listener"; }
-            );
+            return listener.runAfter(() -> { assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held in listener"; });
         } else {
             return listener;
         }

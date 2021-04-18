@@ -290,13 +290,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         long startTime = nowNanoSupplier.getAsLong();
         final AtomicInteger deleted = new AtomicInteger(0);
         final AtomicInteger failed = new AtomicInteger(0);
-        final GroupedActionListener<Void> allDeletesListener =
-                new GroupedActionListener<>(ActionListener.runAfter(listener.map(v -> null),
-                        () -> {
-                            TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
-                            logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
-                            slmStats.deletionTime(totalElapsedTime);
-                        }), snapshotsToDelete.size());
+        final GroupedActionListener<Void> allDeletesListener = new GroupedActionListener<>(
+                listener.<Collection<Void>>map(v -> null).runAfter(() -> {
+                    TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
+                    logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
+                    slmStats.deletionTime(totalElapsedTime);
+                }), snapshotsToDelete.size());
         for (Map.Entry<String, List<Tuple<SnapshotId, String>>> entry : snapshotsToDelete.entrySet()) {
             String repo = entry.getKey();
             List<Tuple<SnapshotId, String>> snapshots = entry.getValue();
@@ -324,8 +323,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 final long deleteStartTime = nowNanoSupplier.getAsLong();
                 // TODO: Use snapshot multi-delete instead of this loop if all nodes in the cluster support it
                 //       i.e are newer or equal to SnapshotsService#MULTI_DELETE_VERSION
-                deleteSnapshot(policyId, repo, snapshotId, slmStats, ActionListener.runAfter(
-                        ActionListener.wrap(acknowledgedResponse -> {
+                deleteSnapshot(policyId, repo, snapshotId, slmStats, ActionListener.<AcknowledgedResponse>wrap(acknowledgedResponse -> {
                             deleted.incrementAndGet();
                             assert acknowledgedResponse.isAcknowledged();
                             historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
@@ -345,7 +343,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                             } finally {
                                 allDeletesListener.onFailure(e);
                             }
-                        }), () -> {
+                        }).runAfter(() -> {
                             runningDeletions.remove(snapshotId);
                             long finishTime = nowNanoSupplier.getAsLong();
                             TimeValue deletionTime = TimeValue.timeValueNanos(finishTime - deleteStartTime);

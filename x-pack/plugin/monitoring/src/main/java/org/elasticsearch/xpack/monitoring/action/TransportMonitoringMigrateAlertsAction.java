@@ -75,7 +75,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         }
         try {
             // Wrap the listener to unblock resource installation before completing
-            listener = ActionListener.runBefore(listener, migrationCoordinator::unblockInstallationTasks);
+            listener = listener.runBefore(migrationCoordinator::unblockInstallationTasks);
             Settings.Builder decommissionAlertSetting = Settings.builder().put(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey(), true);
             client.admin().cluster().prepareUpdateSettings().setPersistentSettings(decommissionAlertSetting)
                 .execute(completeOnManagementThread(listener));
@@ -226,7 +226,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      */
     private void deleteAlertsFromDisabledExporter(Exporter.Config exporterConf, ActionListener<ExporterResourceStatus> listener) {
         Exporter disabledExporter = exporters.openExporter(exporterConf);
-        deleteAlertsFromOpenExporter(disabledExporter, ActionListener.runBefore(listener, disabledExporter::close));
+        deleteAlertsFromOpenExporter(disabledExporter, listener.runBefore(disabledExporter::close));
     }
 
     @Override

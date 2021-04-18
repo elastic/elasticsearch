@@ -317,11 +317,11 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Wraps a given listener and returns a new listener which executes the provided {@code runAfter}
+     * Wraps the current instance and returns a new listener which executes the provided {@code runAfter}
      * callback when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
-    static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
-        return new RunAfterActionListener<>(delegate, runAfter);
+    default ActionListener<Response> runAfter(Runnable runAfter) {
+        return new RunAfterActionListener<>(this, runAfter);
     }
 
     final class RunAfterActionListener<T> extends Delegating<T, T> {
@@ -358,13 +358,13 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Wraps a given listener and returns a new listener which executes the provided {@code runBefore}
+     * Wraps the current listener and returns a new listener which executes the provided {@code runBefore}
      * callback before the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      * If the callback throws an exception then it will be passed to the listener's {@code #onFailure} and its {@code #onResponse} will
      * not be executed.
      */
-    static <Response> ActionListener<Response> runBefore(ActionListener<Response> delegate, CheckedRunnable<?> runBefore) {
-        return new RunBeforeActionListener<>(delegate, runBefore);
+    default ActionListener<Response> runBefore(CheckedRunnable<?> runBefore) {
+        return new RunBeforeActionListener<>(this, runBefore);
     }
 
     final class RunBeforeActionListener<T> extends Delegating<T, T> {

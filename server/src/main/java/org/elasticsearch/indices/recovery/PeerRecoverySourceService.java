@@ -139,7 +139,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         RecoverySourceHandler handler = ongoingRecoveries.addNewRecovery(request, shard);
         logger.trace("[{}][{}] starting recovery to {}", request.shardId().getIndex().getName(), request.shardId().id(),
             request.targetNode());
-        handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
+        handler.recoverToTarget(listener.runAfter(() -> ongoingRecoveries.remove(shard, handler)));
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {

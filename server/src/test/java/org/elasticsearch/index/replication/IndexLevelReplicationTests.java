@@ -120,7 +120,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
                                            Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener) {
-                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, ActionListener.runAfter(listener, () -> {
+                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener.runAfter(() -> {
                             latch.countDown();
                             try {
                                 latch.await();

@@ -932,9 +932,8 @@ public class RecoverySourceHandler {
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     cancellableThreads.checkForCancel();
                     final ReleasableBytesReference content = new ReleasableBytesReference(request.content, request);
-                    recoveryTarget.writeFileChunk(
-                        request.md, request.position, content, request.lastChunk,
-                            translogOps.getAsInt(), ActionListener.runBefore(listener, content::close));
+                    recoveryTarget.writeFileChunk(request.md, request.position, content, request.lastChunk, translogOps.getAsInt(),
+                        listener.runBefore(content::close));
                 }
 
                 @Override

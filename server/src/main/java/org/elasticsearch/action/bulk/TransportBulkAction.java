@@ -152,7 +152,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
-        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        final ActionListener<BulkResponse> releasingListener = listener.runBefore(releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         try {
             doInternalExecute(task, bulkRequest, executorName, releasingListener);

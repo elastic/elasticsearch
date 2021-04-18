@@ -1786,8 +1786,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (snapshotIdsWithoutVersion.isEmpty() == false) {
                 final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
                 final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
-                    ActionListener.runAfter(
-                        new ActionListener<>() {
+                        new ActionListener<Collection<Void>>() {
                             @Override
                             public void onResponse(Collection<Void> voids) {
                                 logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
@@ -1799,7 +1798,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             public void onFailure(Exception e) {
                                 logger.warn("Failure when trying to load missing version information from snapshot metadata", e);
                             }
-                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withVersions(updatedVersionMap))),
+                        }.runAfter(() -> filterRepositoryDataStep.onResponse(repositoryData.withVersions(updatedVersionMap))),
                     snapshotIdsWithoutVersion.size());
                 for (SnapshotId snapshotId : snapshotIdsWithoutVersion) {
                     threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadAllVersionsListener, () ->

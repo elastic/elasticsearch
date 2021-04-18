@@ -219,7 +219,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     listener.onFailure(new IllegalStateException("Blob cache service is closed"));
                     return;
                 }
-                final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
+                final ActionListener<Void> wrappedListener = listener.runAfter(release);
                 client.index(request, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {

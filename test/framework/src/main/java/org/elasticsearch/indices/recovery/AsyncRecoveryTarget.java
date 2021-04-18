@@ -71,7 +71,7 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         final ReleasableBytesReference retained = content.retain();
-        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, retained::close);
+        final ActionListener<Void> wrappedListener = listener.runBefore(retained::close);
         boolean success = false;
         try {
             executor.execute(() -> target.writeFileChunk(fileMetadata, position, retained, lastChunk, totalTranslogOps, wrappedListener));

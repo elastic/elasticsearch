@@ -243,7 +243,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {
         final AtomicInteger callCount = new AtomicInteger(0);
-        return ActionListener.runBefore(delegate, () -> {
+        return delegate.runBefore(() -> {
             if (callCount.incrementAndGet() != 1) {
                 fail("Listener was called twice");
             }

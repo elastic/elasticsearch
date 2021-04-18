@@ -306,8 +306,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             boolean success = false;
             try {
                 recoveryRef.target().handoffPrimaryContext(request.primaryContext(),
-                        ActionListener.runBefore(new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request)
-                                .map(v -> TransportResponse.Empty.INSTANCE), recoveryRef::close));
+                    new ChannelActionListener<>(channel, Actions.HANDOFF_PRIMARY_CONTEXT, request).<Void>map(
+                        v -> TransportResponse.Empty.INSTANCE).runBefore(recoveryRef::close));
                 success = true;
             } finally {
                 if (success == false) {

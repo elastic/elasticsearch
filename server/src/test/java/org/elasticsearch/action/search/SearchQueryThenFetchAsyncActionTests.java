@@ -157,7 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, executor,
-            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, searchRequest, ActionListener.wrap(() -> {}), shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -353,7 +353,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, executor,
-            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, searchRequest, ActionListener.wrap(() -> {}), shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -454,7 +454,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, executor,
-            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, searchRequest, ActionListener.wrap(() -> {}), shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

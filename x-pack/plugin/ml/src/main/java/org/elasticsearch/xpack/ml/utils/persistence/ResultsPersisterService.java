@@ -202,10 +202,7 @@ public class ResultsPersisterService {
         }
         final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
         final Object key = new Object();
-        final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
-            getResponse,
-            () -> onGoingRetryableBulkActions.remove(key)
-        );
+        final ActionListener<BulkResponse> removeListener = getResponse.runBefore(() -> onGoingRetryableBulkActions.remove(key));
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
             jobId,
             new BulkRequestRewriter(bulkRequest),
@@ -230,10 +227,7 @@ public class ResultsPersisterService {
                                           Consumer<String> retryMsgHandler) {
         final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
         final Object key = new Object();
-        final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
-            getResponse,
-            () -> onGoingRetryableSearchActions.remove(key)
-        );
+        final ActionListener<SearchResponse> removeListener = getResponse.runBefore(() -> onGoingRetryableSearchActions.remove(key));
         SearchRetryableAction mlRetryableAction = new SearchRetryableAction(
             jobId,
             searchRequest,

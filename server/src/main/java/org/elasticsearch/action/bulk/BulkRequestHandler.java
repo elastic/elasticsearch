@@ -48,7 +48,7 @@ public final class BulkRequestHandler {
             semaphore.acquire();
             toRelease = semaphore::release;
             CountDownLatch latch = new CountDownLatch(1);
-            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<BulkResponse>() {
+            retry.withBackoff(consumer, bulkRequest, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     listener.afterBulk(executionId, bulkRequest, response);
@@ -58,7 +58,7 @@ public final class BulkRequestHandler {
                 public void onFailure(Exception e) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
-            }, () -> {
+            }.runAfter(() -> {
                 semaphore.release();
                 latch.countDown();
             }));

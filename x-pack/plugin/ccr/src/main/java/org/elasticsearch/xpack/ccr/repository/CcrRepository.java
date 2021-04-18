@@ -327,9 +327,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                              ActionListener<Void> listener) {
         final ShardId shardId = store.shardId();
         final LinkedList<Closeable> toClose = new LinkedList<>();
-        final ActionListener<Void> restoreListener = ActionListener.runBefore(listener.delegateResponse(
-            (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e))),
-            () -> IOUtils.close(toClose));
+        final ActionListener<Void> restoreListener = listener.delegateResponse(
+            (l, e) -> l.onFailure(new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e)))
+                .runBefore(() -> IOUtils.close(toClose));
         try {
             // TODO: Add timeouts to network calls / the restore process.
             createEmptyStore(store);

@@ -82,7 +82,7 @@ public class MappingUpdatedAction {
         }
         boolean successFullySent = false;
         try {
-            sendUpdateMapping(index, mappingUpdate, ActionListener.runBefore(listener, release::run));
+            sendUpdateMapping(index, mappingUpdate, listener.runBefore(release::run));
             successFullySent = true;
         } finally {
             if (successFullySent == false) {

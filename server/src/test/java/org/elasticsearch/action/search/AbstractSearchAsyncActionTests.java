@@ -118,7 +118,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private void runTestTook(final boolean controlled) {
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(new SearchRequest(),
-            new ArraySearchPhaseResults<>(10), null, controlled, expected);
+            new ArraySearchPhaseResults<>(10), ActionListener.wrap(() -> {}), controlled, expected);
         final long actual = action.buildTookInMillis();
         if (controlled) {
             // with a controlled clock, we can assert the exact took time
@@ -133,7 +133,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            new ArraySearchPhaseResults<>(10), null, false, expected);
+            new ArraySearchPhaseResults<>(10), ActionListener.wrap(() -> {}), false, expected);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));

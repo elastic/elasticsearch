@@ -264,7 +264,7 @@ class S3Repository extends MeteredBlobStoreRepository {
      * See {@link #COOLDOWN_PERIOD} for details.
      */
     private <T> ActionListener<T> delayedListener(ActionListener<T> listener) {
-        final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
+        final ActionListener<T> wrappedListener = listener.runBefore(() -> {
             final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
             assert cancellable != null;
         });

@@ -140,7 +140,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, this::releaseContext);
+        this.listener = listener.runAfter(this::releaseContext);
         this.nodeIdToConnection = nodeIdToConnection;
         this.clusterState = clusterState;
         this.concreteIndexBoosts = concreteIndexBoosts;

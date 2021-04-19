@@ -99,8 +99,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertTrue(
             "Actions may no longer be valid: ["
                 + redundant
-                + "]. They should be removed from either "
-                + "the operator-only action registry in ["
+                + "]. They should be removed from either the operator-only action registry in ["
                 + OperatorOnlyRegistry.class.getName()
                 + "] or the non-operator action list in ["
                 + Constants.class.getName()

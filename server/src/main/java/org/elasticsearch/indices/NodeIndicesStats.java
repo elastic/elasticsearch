@@ -8,11 +8,9 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -55,25 +54,16 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
 
-        final boolean hasStatsByShard;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            hasStatsByShard = true;
-        } else {
-            hasStatsByShard = in.readBoolean();
-        }
-
         statsByShard = new HashMap<>();
-        if (hasStatsByShard) {
-            int entries = in.readVInt();
-            for (int i = 0; i < entries; i++) {
-                Index index = new Index(in);
-                int indexShardListSize = in.readVInt();
-                List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
-                for (int j = 0; j < indexShardListSize; j++) {
-                    indexShardStats.add(new IndexShardStats(in));
-                }
-                statsByShard.put(index, indexShardStats);
+        int entries = in.readVInt();
+        for (int i = 0; i < entries; i++) {
+            Index index = new Index(in);
+            int indexShardListSize = in.readVInt();
+            List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
+            for (int j = 0; j < indexShardListSize; j++) {
+                indexShardStats.add(new IndexShardStats(in));
             }
+            statsByShard.put(index, indexShardStats);
         }
     }
 
@@ -179,9 +169,6 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeBoolean(true);
-        }
         out.writeVInt(statsByShard.size());
         for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
             entry.getKey().writeTo(out);

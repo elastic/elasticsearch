@@ -30,6 +30,11 @@ testClusters {
 
   'mixed-cluster' {
     testDistribution = 'DEFAULT'
+    numberOfNodes = 2
+    // Node roles are configured this way in order to verify redirecting the transform request from the node lacking
+    // remote_cluster_client role to the node that is remote_cluster_client.
+    nodes."mixed-cluster-0".setting 'node.roles', '[data,ingest,master,transform]'
+    nodes."mixed-cluster-1".setting 'node.roles', '[data,ingest,master,transform,remote_cluster_client]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'

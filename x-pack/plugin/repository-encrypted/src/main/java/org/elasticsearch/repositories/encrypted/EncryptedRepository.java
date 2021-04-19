@@ -46,6 +46,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -248,7 +249,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<ShardSnapshotResult> listener
     ) {
         try {
             validateLocalRepositorySecret(userMetadata);

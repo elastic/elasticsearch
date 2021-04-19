@@ -35,12 +35,14 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 2
       versions = [bwcVersionStr, project.version]
       setting 'cluster.remote.node.attr', 'gateway'
+      setting 'xpack.security.enabled', 'false'
     }
     "${baseName}-remote" {
       numberOfNodes = 3
       versions = [bwcVersionStr, project.version]
       firstNode.setting 'node.attr.gateway', 'true'
       lastNode.setting 'node.attr.gateway', 'true'
+      setting 'xpack.security.enabled', 'false'
     }
   }
 

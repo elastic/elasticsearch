@@ -76,7 +76,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -420,7 +419,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 onClose.accept(shardLock);
             }
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            assert false : e;
+            logger.warn(() -> new ParameterizedMessage("exception on closing store for [{}]", shardId), e);
         }
     }
 

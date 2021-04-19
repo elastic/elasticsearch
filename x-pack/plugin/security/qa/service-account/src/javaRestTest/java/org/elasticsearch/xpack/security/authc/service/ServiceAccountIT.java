@@ -27,6 +27,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -48,9 +49,13 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"roles\": [],\n"
         + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
+        + "  \"token\": {\n"
+        + "    \"name\": \"%s\"\n"
+        + "  },\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
-        + "  },\n" + "  \"enabled\": true,\n"
+        + "  },\n"
+        + "  \"enabled\": true,\n"
         + "  \"authentication_realm\": {\n"
         + "    \"name\": \"service_account\",\n"
         + "    \"type\": \"service_account\"\n"
@@ -62,7 +67,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
 
-    private static final String ELASTIC_FLEET_ROLE_DESCRIPTOR = ""
+    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = ""
         + "{\n"
         + "      \"cluster\": [\n"
         + "        \"monitor\",\n"
@@ -73,10 +78,25 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "          \"names\": [\n"
         + "            \"logs-*\",\n"
         + "            \"metrics-*\",\n"
-        + "            \"traces-*\"\n"
+        + "            \"traces-*\",\n"
+        + "            \"synthetics-*\",\n"
+        + "            \".logs-endpoint.diagnostic.collection-*\"\n"
         + "          ],\n"
         + "          \"privileges\": [\n"
         + "            \"write\",\n"
+        + "            \"create_index\",\n"
+        + "            \"auto_configure\"\n"
+        + "          ],\n"
+        + "          \"allow_restricted_indices\": false\n"
+        + "        },\n"
+        + "        {\n"
+        + "          \"names\": [\n"
+        + "            \".fleet-*\"\n"
+        + "          ],\n"
+        + "          \"privileges\": [\n"
+        + "            \"read\",\n"
+        + "            \"write\",\n"
+        + "            \"monitor\",\n"
         + "            \"create_index\",\n"
         + "            \"auto_configure\"\n"
         + "          ],\n"
@@ -120,19 +140,19 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response getServiceAccountResponse1 = client().performRequest(getServiceAccountRequest1);
         assertOK(getServiceAccountResponse1);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse1,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest2 = new Request("GET", "_security/service/elastic");
         final Response getServiceAccountResponse2 = client().performRequest(getServiceAccountRequest2);
         assertOK(getServiceAccountResponse2);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse2,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest3 = new Request("GET", "_security/service/elastic/fleet-server");
         final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);
@@ -147,7 +167,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
@@ -223,7 +245,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testFileTokenAndApiTokenCanShareTheSameNameAndBothWorks() throws IOException {

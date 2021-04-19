@@ -160,19 +160,21 @@ SELECT count(*) AS c FROM test_emp WHERE birth_date::time IN ('00:00:00Z'::TIME,
 ;
 
 inWithRuntimeField
-SELECT COUNT(*) AS c, birth_date_day_of_week FROM test_emp WHERE birth_date_day_of_week IN ('Saturday', 'Sunday') GROUP BY birth_date_day_of_week;
+SELECT COUNT(*) AS c, LEFT(name, 1) AS first_letter FROM test_emp WHERE first_letter IN ('X', 'Y', 'Z') GROUP BY first_letter;
 
-       c:l     |birth_date_day_of_week:s
----------------+------------------------
-13             |Saturday              
-10             |Sunday                
+       c:l     |first_letter:s
+---------------+--------------
+1              |X              
+3              |Y              
+2              |Z              
 ;
 
-inWithDayName
-SELECT COUNT(*) AS c, DAY_NAME(birth_date) FROM test_emp WHERE DAY_NAME(birth_date) IN ('Saturday', 'Sunday') GROUP BY DAY_NAME(birth_date);
+inWithConcat
+SELECT COUNT(*) AS c, LEFT(CONCAT(first_name, last_name), 1) AS first_letter FROM test_emp WHERE first_letter IN ('X', 'Y', 'Z') GROUP BY first_letter;
 
-       c:l     |DAY_NAME(birth_date):s
----------------+----------------------
-13             |Saturday            
-10             |Sunday              
+       c:l     |first_letter:s
+---------------+--------------
+1              |X              
+3              |Y              
+2              |Z                            
 ;

@@ -28,13 +28,21 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
+    public static final String DEPRECATION_WARNING = "Legacy index templates are deprecated and will be removed completely in a " +
+        "future version. Please use composable templates instead.";
+    private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_8;
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_template/{name}"),
-            new Route(PUT, "/_template/{name}"));
+            Route.builder(POST, "/_template/{name}")
+                .deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION)
+                .build(),
+            Route.builder(PUT, "/_template/{name}")
+                .deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION)
+                .build()
+        );
     }
 
     @Override

@@ -397,6 +397,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Query filterQuery(Query query) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
                 return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
@@ -520,6 +525,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
+
+        SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        when(searchExecutionContext.getDefaultSimilarity()).thenReturn(similarityService.getDefaultSimilarity());
+
         return searchExecutionContext;
     }
 }

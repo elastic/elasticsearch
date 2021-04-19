@@ -218,8 +218,14 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
                         // segment ordinals match global ordinals
                         return values;
                     }
-                    final TermsEnum[] atomicLookups = getOrLoadTermsEnums();
-                    return new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord);
+                    TermsEnum[] atomicLookups = getOrLoadTermsEnums();
+                    SortedSetDocValues singleton = SingletonGlobalOrdinalMapping.singletonIfPossible(
+                        ordinalMap,
+                        values,
+                        atomicLookups,
+                        context.ord
+                    );
+                    return singleton == null ? new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord) : singleton;
                 }
 
                 @Override

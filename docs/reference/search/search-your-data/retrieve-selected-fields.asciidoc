@@ -14,9 +14,9 @@ fields present in the index mapping
 * Use the <<source-filtering,`_source` option>> if you need to access the original data that was passed at index time
 
 You can use both of these methods, though the `fields` option is preferred
-because it consults both the document `_source` and the index mappings to load
-and return values. In some instances, you might want to use
-<<field-retrieval-methods,other methods>> of retrieving data.
+because it consults both the document data and index mappings. In some
+instances, you might want to use <<field-retrieval-methods,other methods>> of
+retrieving data.
 
 [discrete]
 [[search-fields-param]]
@@ -34,11 +34,13 @@ parameter:
 * Retrieves <<runtime-retrieving-fields,runtime field values>>
 // end::fields-param-desc[]
 
-The `fields` parameter also handles field types like <<alias,field aliases>> and
-<<constant-keyword-field-type,`constant_keyword`>> whose values aren't always
-present in the `_source`. Other mapping options are also respected, including
+Other mapping options are also respected, including
 <<ignore-above,`ignore_above`>>, <<ignore-malformed,`ignore_malformed`>> and
 <<null-value,`null_value`>>.
+
+When retrieving standard fields, the `fields` option returns values in the way
+that {es} sees them. For most field types, this means that the `fields` option \
+returns values from `_source` exactly how they are indexed.
 
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
@@ -79,16 +81,20 @@ POST my-index-000001/_search
     Other field types do not support the `format` parameter.
 // end::fields-param-callouts[]
 
-The response includes values as a flat list in the `fields` section for each
-hit. Because the `fields` parameter doesn't fetch entire objects, only leaf
-fields are returned.
-
-NOTE: The `fields` response always returns an array of values for each field,
+[[search-fields-array]]
+.Response always returns an array
+****
+The `fields` response always returns an array of values for each field,
 even when there is a single value in the `_source`. This is because {es} has
 no dedicated array type, and any field could contain multiple values. The
 `fields` parameter also does not guarantee that array values are returned in
-a specific order. See the mapping documentation on <<array, arrays>> for more
+a specific order. See the mapping documentation on <<array,arrays>> for more
 background.
+****
+
+The response includes values as a flat list in the `fields` section for each
+hit. Because the `fields` parameter doesn't fetch entire objects, only leaf
+fields are returned.
 
 [source,console-result]
 ----
@@ -181,7 +187,7 @@ POST my-index-000001/_search
 }
 --------------------------------------------------
 
-the response will group `first` and `last` name instead of
+The response will group `first` and `last` name instead of
 returning them as a flat list.
 
 [source,console-result]
@@ -457,10 +463,10 @@ GET /_search
 [discrete]
 [[field-retrieval-methods]]
 === Other methods of retrieving data
-A document's `_source` is stored as a single field in Lucene. So the whole
-`_source` object must be loaded and parsed even if only a small number of
-fields are requested. To avoid this limitation, you can try other options for
-loading fields:
+A document's `_source` is stored as a single field in Lucene. This structure
+means that the whole `_source` object must be loaded and parsed even if you're
+only requesting part of it. To avoid this limitation, you can try other options
+for loading fields:
 
 * Use the <<docvalue-fields, `docvalue_fields`>>
 parameter to get values for selected fields. This can be a good
@@ -469,8 +475,10 @@ such as keywords and dates.
 * Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
-* Use the <<script-fields,`script_field`>> parameter to transform
-field values in the response using a script.
+
+{es} always attempts to load values from `_source`. This behavior has the same
+implications of source filtering where {es} needs to load and parse the entire
+`_source` to retrieve just one field.
 
 [discrete]
 [[docvalue-fields]]

@@ -152,11 +152,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
-
-        @Override
-        protected boolean isCancelled(Task task) {
-            return false;
-        }
     }
 
     public static class TestNode implements Releasable {

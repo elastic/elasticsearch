@@ -264,8 +264,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
     }
 
-    // Visible for testing, allows bypassing task cancellation handling
-    protected boolean isCancelled(Task task) {
+    private boolean isCancelled(Task task) {
         return task instanceof CancellableTask && ((CancellableTask) task).isCancelled();
     }
 

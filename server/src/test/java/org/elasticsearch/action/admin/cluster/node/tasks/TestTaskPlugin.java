@@ -300,11 +300,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
         }
-
-        @Override
-        protected boolean isCancelled(Task task) {
-            return false;
-        }
     }
 
     public static class TestTaskAction extends ActionType<NodesResponse> {

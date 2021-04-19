@@ -1602,7 +1602,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private void updateDanglingIndicesInfo(Index index) {
-        assert DiscoveryNode.isDataNode(settings) : "dangling indices information should only be persisted on data nodes";
+        assert DiscoveryNode.canContainData(settings) : "dangling indices information should only be persisted on data nodes";
         assert nodeWriteDanglingIndicesInfo : "writing dangling indices info is not enabled";
         assert danglingIndicesThreadPoolExecutor != null : "executor for dangling indices info is not available";
         if (danglingIndicesToWrite.add(index)) {

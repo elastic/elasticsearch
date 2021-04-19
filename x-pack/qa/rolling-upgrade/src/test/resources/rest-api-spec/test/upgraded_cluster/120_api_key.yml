@@ -49,7 +49,4 @@
   - length: { api_keys: 1 }
 
   - match: { api_keys.0.name: "my-mixed-api-key-2" }
-# We cannot assert metadata for this API key because it is possible
-# that the security index is on an old node and the metadata is dropped
-# when transfer through the wire. But at least the key will be created
-# and retrieved successfully
+  - match: { api_keys.0.metadata: {"foo": "bar"} }

@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.containsString;
 //TODO: please convert to unit tests!
 public class StoredExpressionIT extends ESIntegTestCase {
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put("script.allowed_contexts", "update");
         return builder.build();
     }

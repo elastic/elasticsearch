@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -90,6 +92,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
+            return new PersistentTasksCustomMetadata.Assignment(null,
+                "Transform task will not be assigned as a feature reset is in progress.");
+        }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
@@ -137,7 +143,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         // transform enabled?
-        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
+        if (node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a transform node");
             }

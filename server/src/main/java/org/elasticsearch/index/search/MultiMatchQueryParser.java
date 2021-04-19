@@ -78,7 +78,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
 
     private Query combineGrouped(List<Query> groupQuery, float tieBreaker) {
         if (groupQuery.isEmpty()) {
-            return zeroTermsQuery();
+            return zeroTermsQuery.asQuery();
         }
         if (groupQuery.size() == 1) {
             return groupQuery.get(0);
@@ -144,7 +144,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             String representativeField = group.getValue().get(0).fieldType.name();
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
             if (query == null) {
-                query = zeroTermsQuery();
+                query = zeroTermsQuery.asQuery();
             }
 
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);

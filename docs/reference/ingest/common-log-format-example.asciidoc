@@ -29,7 +29,7 @@ Pipelines**.
 [role="screenshot"]
 image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
 
-. Click **Create a pipeline**.
+. Click **Create pipeline**.
 . Provide a name and description for the pipeline.
 . Add a <<grok-processor,grok processor>> to parse the log message:
 
@@ -63,7 +63,7 @@ the processors as follows:
 | <<geoip-processor,**GeoIP**>>
 | `source.ip`
 | **Target field**: `source.geo`
-| `Add 'source.geo' geoIP data for 'source.ip'`
+| `Add 'source.geo' GeoIP data for 'source.ip'`
 
 | <<user-agent-processor,**User agent**>>
 | `user_agent`
@@ -114,7 +114,7 @@ PUT _ingest/pipeline/my-pipeline
     },
     {
       "geoip": {
-        "description": "Add 'source.geo' geoIP data for 'source.ip'",
+        "description": "Add 'source.geo' GeoIP data for 'source.ip'",
         "field": "source.ip",
         "target_field": "source.geo"
       }
@@ -156,7 +156,7 @@ pipeline**.
 You’re now ready to index the logs data to a <<data-streams,data stream>>.
 
 . Create an <<index-templates,index template>> with
-<<create-a-data-stream-template,data stream enabled>>.
+<<create-index-template,data stream enabled>>.
 +
 [source,console]
 ----
@@ -247,8 +247,7 @@ The API returns:
             },
             "name": "Chrome",
             "device": {
-              "name": "Mac",
-              "type": "Desktop"
+              "name": "Mac"
             },
             "version": "52.0.2743.116"
           }

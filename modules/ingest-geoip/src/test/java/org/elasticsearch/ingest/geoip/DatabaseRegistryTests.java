@@ -62,6 +62,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -82,7 +83,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -122,7 +122,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         resourceWatcherService.close();
         threadPool.shutdownNow();
     }
-    
+
     public void testCheckDatabases() throws Exception {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -258,6 +258,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
 
+        Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
             SearchHit hit = new SearchHit(i);
@@ -270,17 +271,20 @@ public class DatabaseRegistryTests extends ESTestCase {
                 throw new UncheckedIOException(ex);
             }
 
-            SearchHits hits = new SearchHits(new SearchHit[] {hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+            SearchHits hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
             SearchResponse searchResponse =
                 new SearchResponse(new SearchResponseSections(hits, null, null, false, null, null, 0), null, 1, 1, 0, 1L, null, null);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenReturn(searchResponse);
-            SearchRequest expectedSearchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-            String id = String.format(Locale.ROOT, "%s_%d", databaseName, i);
-            expectedSearchRequest.source().query(new TermQueryBuilder("_id", id));
-            when(client.search(eq(expectedSearchRequest))).thenReturn(actionFuture);
+            requestMap.put(databaseName + "_" + i, actionFuture);
         }
+        when(client.search(any())).thenAnswer(invocationOnMock -> {
+            SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
+            TermQueryBuilder term = (TermQueryBuilder) req.source().query();
+            String id = (String) term.value();
+            return requestMap.get(id.substring(0, id.lastIndexOf('_')));
+        });
 
         MessageDigest md = MessageDigests.md5();
         data.forEach(md::update);
@@ -322,7 +326,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         int chunkSize = all.length / chunks;
         List<byte[]> data = new ArrayList<>();
 
-        for (int from = 0; from < all.length;) {
+        for (int from = 0; from < all.length; ) {
             int to = from + chunkSize;
             if (to > all.length) {
                 to = all.length;

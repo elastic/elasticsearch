@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 import org.elasticsearch.gradle.info.BuildParams
 
@@ -23,4 +24,5 @@ testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
 }

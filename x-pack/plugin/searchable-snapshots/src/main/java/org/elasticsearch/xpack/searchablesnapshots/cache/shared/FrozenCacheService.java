@@ -16,8 +16,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -111,10 +109,8 @@ public class FrozenCacheService implements Releasable {
                     @SuppressWarnings("unchecked")
                     final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
                     if (DataTier.isFrozenNode(Set.of(roles.toArray(DiscoveryNodeRole[]::new))) == false) {
-                        deprecationLogger.deprecate(
-                            DeprecationCategory.SETTINGS,
-                            "shared_cache",
-                            "setting [{}] to be positive [{}] on node without the data_frozen role is deprecated, roles are [{}]",
+                        throw new SettingsException(
+                            "setting [{}] to be positive [{}] is only permitted on nodes with the data_frozen role, roles are [{}]",
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
@@ -165,7 +161,6 @@ public class FrozenCacheService implements Releasable {
     );
 
     private static final Logger logger = LogManager.getLogger(FrozenCacheService.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FrozenCacheService.class);
 
     private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
 
@@ -502,6 +497,7 @@ public class FrozenCacheService implements Releasable {
     @Override
     public void close() {
         sharedBytes.decRef();
+        decayTask.close();
     }
 
     class CacheDecayTask extends AbstractAsyncTask {
@@ -667,7 +663,6 @@ public class FrozenCacheService implements Releasable {
                         @Override
                         protected void doRun() throws Exception {
                             if (CacheFileRegion.this.tryIncRef() == false) {
-                                // assert false : "expected a non-closed channel reference";
                                 throw new AlreadyClosedException("Cache file channel has been released and closed");
                             }
                             try {
@@ -714,13 +709,14 @@ public class FrozenCacheService implements Releasable {
                     rangeToRead.start(),
                     rangeToRead.length()
                 );
-                assert read == rangeToRead.length() : "partial read ["
-                    + read
-                    + "] does not match the range to read ["
-                    + rangeToRead.end()
-                    + '-'
-                    + rangeToRead.start()
-                    + ']';
+                assert read == rangeToRead.length()
+                    : "partial read ["
+                        + read
+                        + "] does not match the range to read ["
+                        + rangeToRead.end()
+                        + '-'
+                        + rangeToRead.start()
+                        + ']';
                 listener.onResponse(read);
             }, listener::onFailure);
         }

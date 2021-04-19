@@ -251,14 +251,15 @@ public class CacheFile {
     private boolean assertRefCounted(boolean isReleased) {
         final boolean isEvicted = evicted.get();
         final boolean fileExists = Files.exists(file);
-        assert isReleased == false || (isEvicted && fileExists == false) : "fully released cache file should be deleted from disk but got ["
-            + "released="
-            + isReleased
-            + ", evicted="
-            + isEvicted
-            + ", file exists="
-            + fileExists
-            + ']';
+        assert isReleased == false || (isEvicted && fileExists == false)
+            : "fully released cache file should be deleted from disk but got ["
+                + "released="
+                + isReleased
+                + ", evicted="
+                + isEvicted
+                + ", file exists="
+                + fileExists
+                + ']';
         return true;
     }
 
@@ -365,7 +366,6 @@ public class CacheFile {
                     @Override
                     protected void doRun() throws Exception {
                         if (reference.tryIncRef() == false) {
-                            assert false : "expected a non-closed channel reference";
                             throw new AlreadyClosedException("Cache file channel has been released and closed");
                         }
                         try {
@@ -436,13 +436,8 @@ public class CacheFile {
     ) {
         return ActionListener.runAfter(ActionListener.wrap(success -> {
             final int read = reader.onRangeAvailable(reference.fileChannel);
-            assert read == rangeToRead.length() : "partial read ["
-                + read
-                + "] does not match the range to read ["
-                + rangeToRead.end()
-                + '-'
-                + rangeToRead.start()
-                + ']';
+            assert read == rangeToRead.length()
+                : "partial read [" + read + "] does not match the range to read [" + rangeToRead.end() + '-' + rangeToRead.start() + ']';
             future.onResponse(read);
         }, future::onFailure), releasable::close);
     }

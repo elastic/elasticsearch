@@ -395,7 +395,9 @@ match all of those selectors. The following selectors are supported:
 
 - `version`: Only nodes who's version is within the range will receive the
 request. The syntax for the pattern is the same as when `version` is within
-`skip`.
+`skip` but also supports `current` which selects nodes of the current version.
+`current` is useful when running mixed version tests if the results vary based
+on the version of the node that received the request.
 - `attribute`: Only nodes that have an attribute matching the name and value
 of the provided attribute match.
 Looks like:

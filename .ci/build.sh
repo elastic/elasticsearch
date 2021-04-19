@@ -4,10 +4,10 @@
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
 
 rm -Rfv ~/.gradle/init.d/init.gradle
-mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
+mkdir -p ~/.gradle/init.d && cp -v "$WORKSPACE/.ci/init.gradle" ~/.gradle/init.d
 
 if [ -f /proc/cpuinfo ] ; then
-   MAX_WORKERS=`grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2`
+   MAX_WORKERS=$(grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2)
 else
    if [[ "$OSTYPE" == "darwin"* ]]; then
       # Parallel is disabled at  this time (eventually set to 1) due to errors on the Mac workers
@@ -22,7 +22,7 @@ fi
 
 if pwd | grep -v -q ^/dev/shm ; then
    echo "Not running on a ramdisk, reducing number of workers"
-   MAX_WORKERS=$(($MAX_WORKERS*2/3))
+   MAX_WORKERS=$((MAX_WORKERS*2/3))
 fi
 
 set -e

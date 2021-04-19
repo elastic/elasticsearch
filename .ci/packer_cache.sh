@@ -18,9 +18,9 @@ done
 if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
   ## On ARM we use a different properties file for setting java home
   ## Also, we don't bother attempting to resolve dependencies for the 6.8 branch
-  source $(dirname "${SCRIPT}")/java-versions-aarch64.properties
+  source "$(dirname "${SCRIPT}")"/java-versions-aarch64.properties
 else
-  source $(dirname "${SCRIPT}")/java-versions.properties
+  source "$(dirname "${SCRIPT}")"/java-versions.properties
   ## We are caching BWC versions too, need these so we can build those
   export JAVA8_HOME="${HOME}"/.java/java8
   export JAVA11_HOME="${HOME}"/.java/java11
@@ -31,7 +31,7 @@ else
   ## 6.8 branch is not referenced from any bwc project in master so we need to
   ## resolve its dependencies explicitly
   rm -rf checkout/6.8
-  git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
+  git clone --reference "$(dirname "${SCRIPT}")"/../.git https://github.com/elastic/elasticsearch.git --branch 6.8 --single-branch checkout/6.8
   export JAVA_HOME="${JAVA11_HOME}"
   ./checkout/6.8/gradlew --project-dir ./checkout/6.8 --parallel clean --scan -Porg.elasticsearch.acceptScanTOS=true --stacktrace resolveAllDependencies
   rm -rf ./checkout/6.8

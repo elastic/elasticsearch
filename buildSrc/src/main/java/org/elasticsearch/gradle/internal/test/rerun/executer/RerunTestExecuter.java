@@ -73,20 +73,21 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
     private class TestJvmCrashReporter {
         private List<TestDescriptorInternal> failPaths;
 
-        public TestJvmCrashReporter(List<TestDescriptorInternal> failPaths) {
+        TestJvmCrashReporter(List<TestDescriptorInternal> failPaths) {
             this.failPaths = failPaths;
         }
 
-        public void report() {
-            if(failPaths.size() > 0) {
-                String report = "================\n" +
-                        "Test JDK System exit trace:\n" +
-                        failPaths.stream()
-                                .filter(d -> d.getId() instanceof CompositeIdGenerator.CompositeId)
-                                .sorted(Comparator.comparing(o -> o.getId().toString()))
-                                .map(TestDescriptorInternal::getName)
-                                .collect(Collectors.joining(" > ")) + "\n" +
-                        "================\n";
+        void report() {
+            if (failPaths.size() > 0) {
+                String report = "================\n"
+                    + "Test JDK System exit trace:\n"
+                    + failPaths.stream()
+                        .filter(d -> d.getId() instanceof CompositeIdGenerator.CompositeId)
+                        .sorted(Comparator.comparing(o -> o.getId().toString()))
+                        .map(TestDescriptorInternal::getName)
+                        .collect(Collectors.joining(" > "))
+                    + "\n"
+                    + "================\n";
                 System.out.println(report);
             }
         }

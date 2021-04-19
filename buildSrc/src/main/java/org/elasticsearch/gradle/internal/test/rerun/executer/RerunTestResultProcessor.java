@@ -22,20 +22,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.gradle.api.tasks.testing.TestResult.ResultType.SKIPPED;
-
 final class RerunTestResultProcessor implements TestResultProcessor {
 
     private final TestResultProcessor delegate;
 
     private final Map<Object, TestDescriptorInternal> activeDescriptorsById = new HashMap<>();
 
-    private TestNames currentRoundFailedTests = new TestNames();
-    private TestNames previousRoundFailedTests = new TestNames();
-
     private Object rootTestDescriptorId;
 
-    private List<Map<Object,TestDescriptorInternal>> storedActiveDescriptorsWhenFailed = new ArrayList<>();
+    private List<Map<Object, TestDescriptorInternal>> storedActiveDescriptorsWhenFailed = new ArrayList<>();
 
     RerunTestResultProcessor(TestResultProcessor delegate) {
         this.delegate = delegate;
@@ -60,15 +55,7 @@ final class RerunTestResultProcessor implements TestResultProcessor {
                 return;
             }
         } else {
-            TestDescriptorInternal descriptor = activeDescriptorsById.remove(testId);
-            if (descriptor != null && descriptor.getClassName() != null) {
-                String className = descriptor.getClassName();
-                String name = descriptor.getName();
-                boolean failedInPreviousRound = previousRoundFailedTests.remove(className, name);
-                if (failedInPreviousRound && testCompleteEvent.getResultType() == SKIPPED) {
-                    currentRoundFailedTests.add(className, name);
-                }
-            }
+            activeDescriptorsById.remove(testId);
         }
 
         delegate.completed(testId, testCompleteEvent);
@@ -81,14 +68,6 @@ final class RerunTestResultProcessor implements TestResultProcessor {
 
     @Override
     public void failure(Object testId, Throwable throwable) {
-        final TestDescriptorInternal descriptor = activeDescriptorsById.get(testId);
-        if (descriptor != null) {
-            String className = descriptor.getClassName();
-            if (className != null) {
-                currentRoundFailedTests.add(className, descriptor.getName());
-            }
-        }
-
         delegate.failure(testId, throwable);
     }
 
@@ -96,14 +75,8 @@ final class RerunTestResultProcessor implements TestResultProcessor {
         return activeDescriptorsById.size() == 1;
     }
 
-    public RoundResult getResult() {
-        return new RoundResult(currentRoundFailedTests, previousRoundFailedTests, lastRun());
-    }
-
     public void reset(boolean lastRetry) {
         storeActiveDescriptors();
-        this.previousRoundFailedTests = currentRoundFailedTests;
-        this.currentRoundFailedTests = new TestNames();
         this.activeDescriptorsById.clear();
     }
 
@@ -111,11 +84,13 @@ final class RerunTestResultProcessor implements TestResultProcessor {
         this.storedActiveDescriptorsWhenFailed.add(new HashMap<>(activeDescriptorsById));
     }
 
-
     public List<TestDescriptorInternal> getFailPaths() {
-        return storedActiveDescriptorsWhenFailed.stream().flatMap(
-            (Function<Map<Object, TestDescriptorInternal>, Stream<TestDescriptorInternal>>) objectTestDescriptorInternalMap ->
-                objectTestDescriptorInternalMap.values().stream()).collect(Collectors.toList()
-        );
+        return storedActiveDescriptorsWhenFailed.stream()
+            .flatMap(
+                (Function<
+                    Map<Object, TestDescriptorInternal>,
+                    Stream<TestDescriptorInternal>>) objectTestDescriptorInternalMap -> objectTestDescriptorInternalMap.values().stream()
+            )
+            .collect(Collectors.toList());
     }
 }

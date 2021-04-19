@@ -56,10 +56,9 @@ public class PointFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of points in [x, y] array format with a malformed entry
-        // TODO Point Field parsers have a weird `ignore_malformed` impl that still throws errors
-        // on many types of malformed input
-        // sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
-        // assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        // assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+        sourceValue = Arrays.asList(Arrays.asList(42.0, 27.1), Arrays.asList("a", "b"), Arrays.asList(30.0, 50.0));
+        assertEquals(Arrays.asList(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(Arrays.asList(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
     }
 }

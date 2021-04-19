@@ -234,7 +234,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
                     builder.field("evictions", evictions);
                     builder.field("num_regions", numRegions);
                     builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(size));
-                    builder.humanReadableField("region__size_in_bytes", "region_size", ByteSizeValue.ofBytes(regionSize));
+                    builder.humanReadableField("region_size_in_bytes", "region_size", ByteSizeValue.ofBytes(regionSize));
                 }
                 builder.endObject();
             }

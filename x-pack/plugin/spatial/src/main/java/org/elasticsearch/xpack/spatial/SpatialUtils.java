@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.util.SloppyMath;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 /**
  * Utility class for storing different helpful re-usable spatial functions

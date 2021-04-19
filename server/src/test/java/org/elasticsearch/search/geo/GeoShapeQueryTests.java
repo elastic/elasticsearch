@@ -528,7 +528,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                     .setRefreshPolicy(IMMEDIATE).get();
         } catch (MapperParsingException e) {
             // RandomShapeGenerator created something other than a POINT type, verify the correct exception is thrown
-            assertThat(e.getCause().getMessage(), containsString("is configured for points only"));
+            assertThat(e.getMessage(), containsString("is configured for points only"));
             return;
         }
 

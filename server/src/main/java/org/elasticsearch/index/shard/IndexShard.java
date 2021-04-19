@@ -2155,7 +2155,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the retention leases
      */
     public RetentionLeases getRetentionLeases() {
-        return getRetentionLeases(false).v2();
+        return getRetentionLeases(false);
     }
 
     /**
@@ -2164,9 +2164,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
      * expire leases parameter is true, this replication tracker must be in primary mode.
      *
-     * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
+     * @return the non-expired retention leases
      */
-    public Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
+    public RetentionLeases getRetentionLeases(final boolean expireLeases) {
         assert expireLeases == false || assertPrimaryMode();
         verifyNotClosed();
         return replicationTracker.getRetentionLeases(expireLeases);
@@ -2284,10 +2284,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.renewPeerRecoveryRetentionLeases();
-        final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
-        logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
+        final RetentionLeases retentionLeases = getRetentionLeases(true);
+        logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases);
         retentionLeaseSyncer.backgroundSync(
-            shardId, shardRouting.allocationId().getId(), getPendingPrimaryTerm(), retentionLeases.v2());
+            shardId, shardRouting.allocationId().getId(), getPendingPrimaryTerm(), retentionLeases);
     }
 
     /**

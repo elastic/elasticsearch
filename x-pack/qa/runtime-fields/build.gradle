@@ -29,6 +29,7 @@ subprojects {
     testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
+      setting 'xpack.security.enabled', 'false'
     }
 
     tasks.named("yamlRestTest").configure {
@@ -57,13 +58,13 @@ subprojects {
           'search.aggregation/40_range/Date range', //source only date field should also emit values for numbers, it expects strings only
           'search/115_multiple_field_collapsing/two levels fields collapsing', // Field collapsing on a runtime field does not work
           'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
-          'search.aggregation/220_filters_bucket/cache', // runtime keyword does not support split_queries_on_whitespace
+          'search.aggregation/220_filters_bucket/cache busting', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
           //completion suggester does not return options when the context field is a geo_point runtime field
           'suggest/30_context/Multi contexts should work',
 
           //there is something wrong when using dotted document syntax here, passes in main yaml tests
-	        'search/330_fetch_fields/Test nested field inside object structure',
+          'search/330_fetch_fields/Test nested field inside object structure',
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////

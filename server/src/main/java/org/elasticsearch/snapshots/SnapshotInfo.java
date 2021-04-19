@@ -947,6 +947,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private static final String SIZE = "size_in_bytes";
         private static final String MAX_SEGMENTS_PER_SHARD = "max_segments_per_shard";
 
+        public static final IndexSnapshotDetails SKIPPED = new IndexSnapshotDetails(0, ByteSizeValue.ZERO, 0);
+
         private final int shardCount;
         private final ByteSizeValue size;
         private final int maxSegmentsPerShard;

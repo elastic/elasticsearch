@@ -1260,7 +1260,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = new HashMap<>(finalIndices.size());
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
                             indexSnapshotDetails.compute(shardEntry.key.getIndexName(), (indexName, current) -> {
-                                if (current != null && current.getShardCount() == 0) {
+                                if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {
                                     // already found an unsuccessful shard in this index, skip this shard
                                     return current;
                                 }
@@ -1268,13 +1268,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 final ShardSnapshotStatus shardSnapshotStatus = shardEntry.value;
                                 if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
                                     // first unsuccessful shard in this index found, record that this index should be skipped
-                                    return new SnapshotInfo.IndexSnapshotDetails(0, ByteSizeValue.ZERO, 0);
+                                    return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
                                 }
 
                                 final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
                                 if (result == null) {
                                     // detailed result not recorded, skip this index
-                                    return new SnapshotInfo.IndexSnapshotDetails(0, ByteSizeValue.ZERO, 0);
+                                    return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
                                 }
 
                                 if (current == null) {

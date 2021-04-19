@@ -9,6 +9,7 @@
 * <<sql-rest-filtering>>
 * <<sql-rest-columnar>>
 * <<sql-rest-params>>
+* <<sql-runtime-fields>>
 * <<sql-rest-fields>>
 
 [[sql-rest-overview]]

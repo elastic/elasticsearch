@@ -26,7 +26,14 @@ is for you. This configuration prevents unauthorized access to your local
 cluster by setting up passwords for the built-in users. You also configure
 password authentication for {kib}.
 
-IMPORTANT: Only use this security configuration for local development.
+// tag::minimal-security-note[]
+IMPORTANT: Only use this security configuration for local development. The
+minimal security scenario is not meant for <<dev-vs-prod-mode,production mode>>
+clusters. If your cluster has multiple nodes, then you must
+<<security-basic-setup,configure Transport Layer Security (TLS)>> between
+nodes.
+
+// end::minimal-security-note[]
 
 <<security-minimal-setup,Set up minimal security>>
 

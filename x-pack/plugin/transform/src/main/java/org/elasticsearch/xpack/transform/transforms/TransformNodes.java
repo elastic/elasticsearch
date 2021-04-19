@@ -270,4 +270,64 @@ public final class TransformNodes {
         // we found no reason that the transform can not run on this node
         return true;
     }
+
+
+
+
+
+
+
+
+
+
+    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
+        if (node.canContainData() == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "not a data node");
+            }
+            return false;
+        }
+
+        // version of the transform run on a node that has at least the same version
+        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
+            if (explain != null) {
+                explain.put(
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
+                );
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    public static boolean nodeCanRunThisTransformXXX(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
+        // version of the transform run on a node that has at least the same version
+        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
+            if (explain != null) {
+                explain.put(
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
+                );
+            }
+            return false;
+        }
+
+        // transform enabled?
+        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "not a transform node");
+            }
+            return false;
+        }
+
+        // does the transform require a remote and remote is enabled?
+        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
+            }
+            return false;
+        }
+
 }

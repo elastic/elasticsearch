@@ -117,6 +117,10 @@ public class SnapshotFiles {
         return physicalFiles.get(physicalName);
     }
 
+    public long totalSize() {
+        return BlobStoreIndexShardSnapshot.totalSize(indexFiles);
+    }
+
     @Override
     public String toString() {
         return "SnapshotFiles{snapshot=[" + snapshot + "], shardStateIdentifier=[" + shardStateIdentifier + "], indexFiles=" + indexFiles

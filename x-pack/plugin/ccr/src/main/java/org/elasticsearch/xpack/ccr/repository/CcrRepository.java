@@ -71,6 +71,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -327,7 +328,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
+                              ActionListener<ShardSnapshotResult> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
@@ -484,7 +486,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                   ActionListener<String> listener) {
+                                   ActionListener<ShardSnapshotResult> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 

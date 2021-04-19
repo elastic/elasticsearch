@@ -559,9 +559,10 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 The set processor above tells ES to use the dynamic template named `geo_point`
-for the field `address` (if this field does not exist in the index). Note that 
-this processor overrides only the `_dynamic_templates` of the field `address`
-but leaves the settings of other fields intact.
+for the field `address` if this field is not defined in the mapping of the index
+yet. This processor overrides the dynamic template for the field `address` if 
+already defined in the bulk request, but has no effect on other dynamic 
+templates defined in the bulk request.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
 document IDs, you cannot use `{{{_id}}}` in a processor. {es} assigns

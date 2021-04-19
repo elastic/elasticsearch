@@ -47,7 +47,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
@@ -464,6 +464,26 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             df.getIndices(),
             SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
         assertThat(result, equalTo(MlTasks.AWAITING_UPGRADE));
+    }
+
+    public void testSelectNode_GivenResetInProgress() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("foo"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+        mlMetadata = new MlMetadata.Builder().isResetMode(true).build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS).selectNode();
+        assertThat(result, equalTo(MlTasks.RESET_IN_PROGRESS));
     }
 
     public void testCheckDatafeedTaskCanBeCreated_GivenMlUpgradeMode() {

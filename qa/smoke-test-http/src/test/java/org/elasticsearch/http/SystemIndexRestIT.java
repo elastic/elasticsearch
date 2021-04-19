@@ -166,7 +166,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                     .setVersionMetaKey("version")
                     .setMappings(builder)
                     .setSettings(SETTINGS)
-                    .setType(Type.INTERNAL)
+                    .setType(Type.INTERNAL_MANAGED)
                     .build()
                 );
             } catch (IOException e) {

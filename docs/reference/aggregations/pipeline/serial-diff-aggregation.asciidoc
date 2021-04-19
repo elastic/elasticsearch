@@ -13,10 +13,10 @@ next. Single periods are useful for removing constant, linear trends.
 Single periods are also useful for transforming data into a stationary series. In this example, the Dow Jones is
 plotted over ~250 days. The raw data is not stationary, which would make it difficult to use with some techniques.
 
-By calculating the first-difference, we de-trend the data (e.g. remove a constant, linear trend).  We can see that the
+By calculating the first-difference, we de-trend the data (e.g. remove a constant, linear trend). We can see that the
 data becomes a stationary series (e.g. the first difference is randomly distributed around zero, and doesn't seem to
 exhibit any pattern/behavior). The transformation reveals that the dataset is following a random-walk; the value is the
-previous value +/- a random amount.  This insight allows selection of further tools for analysis.
+previous value +/- a random amount. This insight allows selection of further tools for analysis.
 
 [[serialdiff_dow]]
 .Dow Jones plotted and made stationary with first-differencing
@@ -93,10 +93,10 @@ POST /_search
 --------------------------------------------------
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
-<2> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)
+<2> A `sum` metric is used to calculate the sum of a field. This could be any metric (sum, min, max, etc)
 <3> Finally, we specify a `serial_diff` aggregation which uses "the_sum" metric as its input.
 
-Serial differences are built by first specifying a `histogram` or `date_histogram` over a field.  You can then optionally
-add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `serial_diff` is embedded inside the histogram.
+Serial differences are built by first specifying a `histogram` or `date_histogram` over a field. You can then optionally
+add normal metrics, such as a `sum`, inside of that histogram. Finally, the `serial_diff` is embedded inside the histogram.
 The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see
 <<buckets-path-syntax>> for a description of the syntax for `buckets_path`.

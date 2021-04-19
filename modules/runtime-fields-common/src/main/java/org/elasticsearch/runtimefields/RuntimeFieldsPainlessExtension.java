@@ -13,16 +13,12 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
-import org.elasticsearch.runtimefields.mapper.AbstractFieldScript;
-import org.elasticsearch.runtimefields.mapper.BooleanFieldScript;
-import org.elasticsearch.runtimefields.mapper.DateFieldScript;
-import org.elasticsearch.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.runtimefields.mapper.GeoPointFieldScript;
-import org.elasticsearch.runtimefields.mapper.IpFieldScript;
-import org.elasticsearch.runtimefields.mapper.LongFieldScript;
-import org.elasticsearch.runtimefields.mapper.StringFieldScript;
+import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptModule;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -55,14 +51,10 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Map.ofEntries(
-            Map.entry(BooleanFieldScript.CONTEXT, whitelists),
-            Map.entry(DateFieldScript.CONTEXT, whitelists),
-            Map.entry(DoubleFieldScript.CONTEXT, whitelists),
-            Map.entry(GeoPointFieldScript.CONTEXT, whitelists),
-            Map.entry(IpFieldScript.CONTEXT, whitelists),
-            Map.entry(LongFieldScript.CONTEXT, whitelists),
-            Map.entry(StringFieldScript.CONTEXT, whitelists)
-        );
+        Map<ScriptContext<?>, List<Whitelist>> whiteLists = new HashMap<>();
+        for (ScriptContext<?> scriptContext : ScriptModule.RUNTIME_FIELDS_CONTEXTS) {
+            whiteLists.put(scriptContext, whitelists);
+        }
+        return Collections.unmodifiableMap(whiteLists);
     }
 }

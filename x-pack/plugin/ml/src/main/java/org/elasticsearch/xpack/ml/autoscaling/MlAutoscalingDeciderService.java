@@ -684,7 +684,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return List.of(MachineLearning.ML_ROLE);
+        return List.of(DiscoveryNodeRole.ML_ROLE);
     }
 }
 

@@ -28,7 +28,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final Version version = VersionUtils.randomVersion(random());
         final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, randomBoolean()) {
+            new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
                         HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
@@ -60,7 +60,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     public void testStashHeadersOnException() throws IOException {
         final Version version = VersionUtils.randomVersion(random());
         final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, randomBoolean()) {
+            new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
                                                        HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {

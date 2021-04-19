@@ -334,7 +334,7 @@ pattern.
 (Optional, string)
 Format in which the doc values are returned.
 +
-For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+For <<date,date fields>>, you can specify a date <<mapping-date-format,date
 `format`>>. For <<number,numeric fields>> fields, you can specify a
 https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
 pattern].
@@ -428,38 +428,85 @@ Period of time used to extend the life of the PIT.
 <<query-dsl,Query DSL>>.
 
 [[search-api-body-runtime]]
+// tag::runtime-mappings-def[]
 `runtime_mappings`::
-(Optional, object)
-Defines a <<runtime-search-request,runtime field>> in the search request that
-exist only as part of the query. Fields defined in the search request take
-precedence over fields defined with the same name in the index mappings.
+(Optional, object of objects)
+Defines one or more <<runtime-search-request,runtime fields>> in the search
+request. These fields take precedence over mapped fields with the same name.
 +
 .Properties of `runtime_mappings` objects
 [%collapsible%open]
 ====
+
+`<field-name>`::
+(Required, object)
+Configuration for the runtime field. The key is the field name.
++
+.Properties of `<field-name>`
+[%collapsible%open]
+=====
+
 `type`::
 (Required, string)
-<<mapping-types,Data type>> of the object, which can be any of the following:
+<<mapping-types,Field type>>, which can be any of the following:
 +
 include::{es-ref-dir}/mapping/runtime.asciidoc[tag=runtime-data-types]
 
 `script`::
 (Optional, string)
-<<modules-scripting-using,Painless script>> that is executed at query time. The
+<<modules-scripting-using,Painless script>> executed at query time. The
 script has access to the entire context of a document, including the original
 `_source` and any mapped fields plus their values.
 +
-Your script must include `emit` to return calculated values. For
-example:
+This script must include `emit` to return calculated values. For example:
 +
-[source,js]
+[source,js,indent=0]
 ----
-"script": {
-  "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
-        }
+include::search.asciidoc[tag=runtime-script]
 ----
 // NOTCONSOLE
+
+=====
 ====
+// end::runtime-mappings-def[]
+
+////
+[source,console]
+----
+POST _search?size=1&filter_path=hits.hits
+{
+  "runtime_mappings": {
+    "dow": {
+      "type": "keyword",
+      // tag::runtime-script[]
+      "script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
+      // end::runtime-script[]
+    }
+  },
+  "fields": [{"field": "dow"}]
+}
+----
+// TEST[setup:my_index]
+
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_index": $body.hits.hits.0._index,
+        "_id": $body.hits.hits.0._id,
+        "_score": $body.hits.hits.0._score,
+        "_source": $body.hits.hits.0._source,
+        "fields": {
+          "dow": ["SUNDAY"]
+        }
+      }
+    ]
+  }
+}
+----
+////
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::

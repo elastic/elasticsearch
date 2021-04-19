@@ -98,7 +98,7 @@ If this object is included, the template is used to create data streams and
 their backing indices. Supports an empty object: `data_stream: { }`
 +
 Data streams require a matching index template with a `data_stream` object.
-See <<create-a-data-stream-template>>.
+See <<create-index-template,create an index template>>.
 +
 .Properties of `data_stream`
 [%collapsible%open]
@@ -294,7 +294,7 @@ To check the `_meta`, you can use the <<indices-get-template, get index template
 To use an index template for a data stream, the template must include an empty `data_stream` object. 
 Data stream templates are only used for a stream's backing indices, 
 they are not applied to regular indices.
-See <<create-a-data-stream-template>>.
+See <<create-index-template,create an index template>>.
 
 [source,console]
 --------------------------------------------------

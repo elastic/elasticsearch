@@ -119,7 +119,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());
+        && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
 
     private final List<String> configuredSeedNodes;
@@ -406,7 +406,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode("", clusterAlias + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
+                transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.roles(),
                 Version.CURRENT.minimumCompatibilityVersion());
         }
     }

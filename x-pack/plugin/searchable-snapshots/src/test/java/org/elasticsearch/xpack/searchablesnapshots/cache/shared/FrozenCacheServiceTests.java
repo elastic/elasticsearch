@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -17,15 +18,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
@@ -196,22 +198,27 @@ public class FrozenCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testCacheSizeDeprecatedOnNonFrozenNodes() {
-        DiscoveryNode.setAdditionalRoles(
-            Set.of(DataTier.DATA_HOT_NODE_ROLE, DataTier.DATA_WARM_NODE_ROLE, DataTier.DATA_COLD_NODE_ROLE, DataTier.DATA_FROZEN_NODE_ROLE)
-        );
+    public void testCacheSizeRejectedOnNonFrozenNodes() {
         final Settings settings = Settings.builder()
             .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DataTier.DATA_HOT_NODE_ROLE.roleName())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
             .build();
-        FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        assertWarnings(
-            "setting ["
-                + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-                + "] to be positive ["
-                + new ByteSizeValue(size(500)).getStringRep()
-                + "] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
+        );
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                "setting ["
+                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                    + "] to be positive ["
+                    + new ByteSizeValue(size(500)).getStringRep()
+                    + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
+            )
         );
     }
 

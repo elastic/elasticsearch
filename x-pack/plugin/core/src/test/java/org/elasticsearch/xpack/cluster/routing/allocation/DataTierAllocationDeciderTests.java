@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,10 +55,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
     public static final Set<Setting<?>> ALL_SETTINGS;
-    private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE));
-    private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE));
-    private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DataTier.DATA_COLD_NODE_ROLE));
-    private static final DiscoveryNode CONTENT_NODE = newNode("node-content", Collections.singleton(DataTier.DATA_CONTENT_NODE_ROLE));
+    private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+    private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+    private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
+    private static final DiscoveryNode CONTENT_NODE =
+        newNode("node-content", Collections.singleton(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);
@@ -730,22 +732,75 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testFrozenLegalForPartialSnapshot() {
-        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
-        if (tierList.contains(DATA_FROZEN) == false) {
-            tierList.add(DATA_FROZEN);
-        }
-        Randomness.shuffle(tierList);
-
-        String value = Strings.join(tierList, ",");
         Setting<String> setting = randomTierSetting();
-        Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
+        Settings.Builder builder = Settings.builder().put(setting.getKey(), DATA_FROZEN);
         builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
         builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
 
         // validate do not throw
-        assertThat(setting.get(settings), equalTo(value));
+        assertThat(setting.get(settings), equalTo(DATA_FROZEN));
+    }
+
+    public void testNonFrozenIllegalForPartialSnapshot() {
+        List<String> tierList = new ArrayList<>(randomSubsetOf(DataTier.ALL_DATA_TIERS));
+        if (tierList.contains(DATA_FROZEN)) {
+            tierList.remove(DATA_FROZEN);
+            tierList.add(DATA_COLD);
+        }
+        Randomness.shuffle(tierList);
+
+        {
+            String value = Strings.join(tierList, ",");
+            Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, value);
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+            Settings settings = builder.build();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+            assertThat(e.getMessage(),
+                containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+        }
+
+        {
+            Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "");
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+            Settings settings = builder.build();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+            assertThat(e.getMessage(),
+                containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+        }
+
+        {
+            Settings.Builder builder = Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "  ");
+            builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+            builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+            Settings settings = builder.build();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings));
+            assertThat(e.getMessage(),
+                containsString("only the [data_frozen] tier preference may be used for partial searchable snapshots"));
+        }
+    }
+
+    public void testDefaultValueForPreference() {
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(Settings.EMPTY), equalTo(""));
+
+        Settings.Builder builder = Settings.builder();
+        builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY);
+        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+
+        Settings settings = builder.build();
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(DATA_FROZEN));
     }
 
     public Setting<String> randomTierSetting() {

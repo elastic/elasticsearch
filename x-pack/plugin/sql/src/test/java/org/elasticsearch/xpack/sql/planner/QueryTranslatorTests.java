@@ -1025,7 +1025,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
 
     public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
+        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(int, 2) AS c, COALESCE(max(date), '2020-01-01'::date) as m FROM test " +
                                          "WHERE c > 10 GROUP BY c HAVING m > '2020-01-01'::date");
         assertTrue(p instanceof EsQueryExec);
         EsQueryExec esQExec = (EsQueryExec) p;
@@ -1036,19 +1036,20 @@ public class QueryTranslatorTests extends ESTestCase {
         String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
         String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
         assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
-                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
-                ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])\",\"lang\":\"painless\"" +
+                ",\"params\":{\"v0\":\"int\",\"v1\":2}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
                 "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
                 "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
                 "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
-                "[InternalSqlScriptUtils.asDateTime(params.a0)]),InternalSqlScriptUtils.asDateTime(params.v0)))\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+                "[InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)])," +
+                "InternalSqlScriptUtils.asDateTime(params.v1)))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\",\"v1\":\"2020-01-01T00:00:00.000Z"));
         assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
-                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1]),params.v2))",
                 sq.script().toString());
-        assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
+        assertEquals("[{v=int}, {v=2}, {v=10}]", sq.script().params().toString());
     }
 
     public void testTranslateInExpression_WhereClause() {
@@ -2599,7 +2600,7 @@ public class QueryTranslatorTests extends ESTestCase {
             "WHERE i IS NOT NULL " +
             "ORDER BY i");
     }
-    
+
     public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
@@ -2657,32 +2658,32 @@ public class QueryTranslatorTests extends ESTestCase {
             "( SELECT int AS i FROM test ) AS s " +
             "ORDER BY s.i > 10");
     }
-    
+
     public void testMultiLevelSubqueriesOrderByByAlias() {
         optimizeAndPlan("SELECT i AS j FROM ( SELECT int AS i FROM test) ORDER BY j");
         optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test)) ORDER BY k");
     }
-    
+
     public void testSubqueryGroupByOrderByAliasedExpression() {
         optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
-            "FROM (" + 
+            "FROM (" +
             "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
             "    FROM test WHERE date > '1970-01-01'::datetime " +
-            "    GROUP BY int_group" + 
+            "    GROUP BY int_group" +
             ") " +
             "ORDER BY d DESC");
     }
 
     public void testSubqueryGroupByOrderByAliasedAggFunction() {
         optimizeAndPlan("SELECT int_group AS g, min_date AS d " +
-            "FROM (" + 
+            "FROM (" +
             "    SELECT int % 2 AS int_group, MIN(date) AS min_date " +
             "    FROM test WHERE date > '1970-01-01'::datetime " +
-            "    GROUP BY int_group " + 
+            "    GROUP BY int_group " +
             ")" +
             "ORDER BY g DESC");
     }
-    
+
     public void testMultiLevelSubquerySelectStar() {
         optimizeAndPlan("SELECT * FROM (SELECT * FROM ( SELECT * FROM test ))");
         optimizeAndPlan("SELECT * FROM (SELECT * FROM ( SELECT * FROM test ) b) c");
@@ -2696,7 +2697,7 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testSubqueryGroupByFilterAndOrderByByRealiased() {
         optimizeAndPlan("SELECT g as h FROM (SELECT date AS f, int AS g FROM test) WHERE h IS NOT NULL GROUP BY h ORDER BY h ASC");
     }
-    
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
     public void testFilterAfterGroupBy() {
         optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j) WHERE j < 5");

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,8 +18,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.junit.After;
 import org.junit.Before;
 
@@ -29,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -39,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class FileServiceAccountsTokenStoreTests extends ESTestCase {
 
@@ -78,19 +83,19 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
         assertThat(parsedTokenHashes, notNullValue());
         assertThat(parsedTokenHashes.size(), is(5));
 
-        assertThat(new String(parsedTokenHashes.get("elastic/fleet/bcrypt")),
+        assertThat(new String(parsedTokenHashes.get("elastic/fleet-server/bcrypt")),
             equalTo("$2a$10$uuCzGHRrEz/QMB/.bmL8qOKXHhPNt57dYBbWCH/Hbb3SjUyZ.Hf1i"));
-        assertThat(new String(parsedTokenHashes.get("elastic/fleet/bcrypt10")),
+        assertThat(new String(parsedTokenHashes.get("elastic/fleet-server/bcrypt10")),
             equalTo("$2a$10$ML0BUUxdzs8ApPNf1ayAwuh61ZhfqlzN/1DgZWZn6vNiUhpu1GKTe"));
 
-        assertThat(new String(parsedTokenHashes.get("elastic/fleet/pbkdf2")),
+        assertThat(new String(parsedTokenHashes.get("elastic/fleet-server/pbkdf2")),
             equalTo("{PBKDF2}10000$0N2h5/AsDS5uO0/A+B6y8AnTCJ3Tqo8nygbzu1gkgpo=$5aTcCtteHf2g2ye7Y3p6jSZBoGhNJ7l6F3tmUhPTwRo="));
-        assertThat(new String(parsedTokenHashes.get("elastic/fleet/pbkdf2_50000")),
+        assertThat(new String(parsedTokenHashes.get("elastic/fleet-server/pbkdf2_50000")),
             equalTo("{PBKDF2}50000$IMzlphNClmrP/du40yxGM3fNjklg8CuACds12+Ry0jM=$KEC1S9a0NOs3OJKM4gEeBboU18EP4+3m/pyIA4MBDGk="));
-        assertThat(new String(parsedTokenHashes.get("elastic/fleet/pbkdf2_stretch")),
+        assertThat(new String(parsedTokenHashes.get("elastic/fleet-server/pbkdf2_stretch")),
             equalTo("{PBKDF2_STRETCH}10000$Pa3oNkj8xTD8j2gTgjWnTvnE6jseKApWMFjcNCLxX1U=$84ECweHFZQ2DblHEjHTRWA+fG6h5bVMyTSJUmFvTo1o="));
 
-        assertThat(parsedTokenHashes.get("elastic/fleet/plain"), nullValue());
+        assertThat(parsedTokenHashes.get("elastic/fleet-server/plain"), nullValue());
     }
 
     public void testParseFileNotExists() throws IllegalAccessException, IOException {
@@ -117,7 +122,7 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
             store.addListener(latch::countDown);
             //Token name shares the hashing algorithm name for convenience
             String tokenName = settings.get("xpack.security.authc.service_token_hashing.algorithm");
-            final String qualifiedTokenName = "elastic/fleet/" + tokenName;
+            final String qualifiedTokenName = "elastic/fleet-server/" + tokenName;
             assertThat(store.getTokenHashes().containsKey(qualifiedTokenName), is(true));
 
             // A blank line should not trigger update
@@ -135,30 +140,30 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
                 hasher.hash(new SecureString("46ToAwIHZWxhc3RpYwVmbGVldAZ0b2tlbjEWWkYtQ3dlWlVTZldJX3p5Vk9ySnlSQQAAAAAAAAA".toCharArray()));
             try (BufferedWriter writer = Files.newBufferedWriter(targetFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
-                writer.append("elastic/fleet/token1:").append(new String(newTokenHash));
+                writer.append("elastic/fleet-server/token1:").append(new String(newTokenHash));
             }
             assertBusy(() -> assertEquals("Waited too long for the updated file to be picked up", 4, latch.getCount()),
                 5, TimeUnit.SECONDS);
-            assertThat(store.getTokenHashes().containsKey("elastic/fleet/token1"), is(true));
+            assertThat(store.getTokenHashes().containsKey("elastic/fleet-server/token1"), is(true));
 
             // Remove the new entry
             Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
             assertBusy(() -> assertEquals("Waited too long for the updated file to be picked up", 3, latch.getCount()),
                 5, TimeUnit.SECONDS);
-            assertThat(store.getTokenHashes().containsKey("elastic/fleet/token1"), is(false));
+            assertThat(store.getTokenHashes().containsKey("elastic/fleet-server/token1"), is(false));
             assertThat(store.getTokenHashes().containsKey(qualifiedTokenName), is(true));
 
             // Write a mal-formatted line
             if (randomBoolean()) {
                 try (BufferedWriter writer = Files.newBufferedWriter(targetFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                     writer.newLine();
-                    writer.append("elastic/fleet/tokenxfoobar");
+                    writer.append("elastic/fleet-server/tokenxfoobar");
                 }
             } else {
                 // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
                 try (BufferedWriter writer = Files.newBufferedWriter(targetFile, StandardCharsets.UTF_16, StandardOpenOption.APPEND)) {
                     writer.newLine();
-                    writer.append("elastic/fleet/tokenx:").append(new String(newTokenHash));
+                    writer.append("elastic/fleet-server/tokenx:").append(new String(newTokenHash));
                 }
             }
             assertBusy(() -> assertEquals("Waited too long for the updated file to be picked up", 2, latch.getCount()),
@@ -180,5 +185,20 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
                 5, TimeUnit.SECONDS);
             assertThat(store.getTokenHashes().get(qualifiedTokenName), equalTo(newTokenHash));
         }
+    }
+
+    public void testFindTokensFor() throws IOException {
+        Path serviceTokensSourceFile = getDataPath("service_tokens");
+        Path configDir = env.configFile();
+        Files.createDirectories(configDir);
+        Path targetFile = configDir.resolve("service_tokens");
+        Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
+        FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, mock(ResourceWatcherService.class), threadPool);
+
+        final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");
+        final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
+        store.findTokensFor(accountId, future1);
+        final Collection<TokenInfo> tokenInfos1 = future1.actionGet();
+        assertThat(tokenInfos1.size(), equalTo(5));
     }
 }

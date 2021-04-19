@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -24,6 +27,19 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
     private final Job job;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+
+    public static AggregatedSearchRequestBuilder requestBuilder(
+        Client client,
+        String[] indices,
+        IndicesOptions indicesOptions
+    ) {
+        return (searchSourceBuilder) ->
+            new SearchRequestBuilder(client, SearchAction.INSTANCE)
+                .setSource(searchSourceBuilder)
+                .setIndicesOptions(indicesOptions)
+                .setAllowPartialSearchResults(false)
+                .setIndices(indices);
+    }
 
     public AggregationDataExtractorFactory(
             Client client,

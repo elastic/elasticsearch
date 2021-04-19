@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 
+    public static final String FORBIDDEN_PATTERNS_TASK_NAME = "forbiddenPatterns";
     private final ProviderFactory providerFactory;
 
     @Inject
@@ -30,7 +31,7 @@ public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        return project.getTasks().register("forbiddenPatterns", ForbiddenPatternsTask.class, forbiddenPatternsTask -> {
+        return project.getTasks().register(FORBIDDEN_PATTERNS_TASK_NAME, ForbiddenPatternsTask.class, forbiddenPatternsTask -> {
             forbiddenPatternsTask.getSourceFolders()
                 .addAll(
                     providerFactory.provider(

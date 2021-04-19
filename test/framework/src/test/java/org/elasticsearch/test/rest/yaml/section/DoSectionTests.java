@@ -48,7 +48,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
             // No warning headers doesn't throw an exception
-            section.checkWarningHeaders(emptyList());
+            section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
 
         final String testHeader = HeaderWarning.formatWarning("test");
@@ -60,11 +60,11 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
             final AssertionError one = expectThrows(AssertionError.class, () ->
-                    section.checkWarningHeaders(singletonList(testHeader)));
+                    section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" + testHeader + "\n]\n", one.getMessage());
 
             final AssertionError multiple = expectThrows(AssertionError.class, () ->
-                    section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader)));
+                    section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT));
             assertEquals(
                     "got unexpected warning headers [\n\t" +
                             testHeader + "\n\t" +
@@ -77,19 +77,19 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(singletonList("test"));
-            section.checkWarningHeaders(singletonList(testHeader));
+            section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
         }
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another \"with quotes and \\ backslashes\"", "some more"));
-            section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader));
+            section.checkWarningHeaders(Arrays.asList(testHeader, anotherHeader, someMoreHeader), Version.CURRENT);
         }
 
         // But if you don't get some that you did expect, that is an error
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(singletonList("test"));
-            final AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+            final AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList(), Version.CURRENT));
             assertEquals("did not get expected warning header [\n\ttest\n]\n", e.getMessage());
         }
         {
@@ -97,11 +97,11 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
 
             final AssertionError multiple = expectThrows(AssertionError.class, () ->
-                    section.checkWarningHeaders(emptyList()));
+                    section.checkWarningHeaders(emptyList(), Version.CURRENT));
             assertEquals("did not get expected warning headers [\n\ttest\n\tanother\n\tsome more\n]\n", multiple.getMessage());
 
             final AssertionError one = expectThrows(AssertionError.class, () ->
-                    section.checkWarningHeaders(Arrays.asList(testHeader, someMoreHeader)));
+                    section.checkWarningHeaders(Arrays.asList(testHeader, someMoreHeader), Version.CURRENT));
             assertEquals("did not get expected warning header [\n\tanother\n]\n", one.getMessage());
         }
 
@@ -110,7 +110,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
             final AssertionError e = expectThrows(AssertionError.class, () ->
-                    section.checkWarningHeaders(Arrays.asList(testHeader, catHeader)));
+                    section.checkWarningHeaders(Arrays.asList(testHeader, catHeader), Version.CURRENT));
             assertEquals("got unexpected warning header [\n\t" +
                             catHeader + "\n]\n" +
                             "did not get expected warning headers [\n\tanother\n\tsome more\n]\n",
@@ -121,9 +121,9 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
             section.setAllowedWarningHeaders(singletonList("test"));
-            section.checkWarningHeaders(singletonList(testHeader));
+            section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
             // and don't throw exceptions if we don't receive them
-            section.checkWarningHeaders(emptyList());
+            section.checkWarningHeaders(emptyList(), Version.CURRENT);
         }
     }
 
@@ -139,7 +139,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         //require header and it matches (basic example)
         DoSection section = new DoSection(new XContentLocation(1, 1));
         section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile(".*")));
-        section.checkWarningHeaders(singletonList(testHeader));
+        section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
 
         //require header and it matches (realistic example)
         section = new DoSection(new XContentLocation(1, 1));
@@ -149,14 +149,14 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             singletonList(Pattern.compile("^index template \\[(.+)\\] has index patterns \\[(.+)\\] matching patterns from existing " +
                 "older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
                 "take precedence during new index creation$")));
-        section.checkWarningHeaders(singletonList(realisticTestHeader));
+        section.checkWarningHeaders(singletonList(realisticTestHeader), Version.CURRENT);
 
         //require header, but no headers returned
         section = new DoSection(new XContentLocation(1, 1));
         section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("junk")));
         DoSection finalSection = section;
         AssertionError error =
-            expectThrows(AssertionError.class, () -> finalSection.checkWarningHeaders(emptyList()));
+            expectThrows(AssertionError.class, () -> finalSection.checkWarningHeaders(emptyList(), Version.CURRENT));
         assertEquals("the following regular expression did not match any warning header [\n\tjunk\n]\n", error.getMessage());
 
         //require multiple header, but none returned (plural error message)
@@ -164,28 +164,28 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         section.setExpectedWarningHeadersRegex(Arrays.asList(Pattern.compile("junk"), Pattern.compile("junk2")));
         DoSection finalSection2 = section;
         error =
-            expectThrows(AssertionError.class, () -> finalSection2.checkWarningHeaders(emptyList()));
+            expectThrows(AssertionError.class, () -> finalSection2.checkWarningHeaders(emptyList(), Version.CURRENT));
         assertEquals("the following regular expressions did not match any warning header [\n\tjunk\n\tjunk2\n]\n", error.getMessage());
 
         //require header, got one back, but not matched
         section = new DoSection(new XContentLocation(1, 1));
         section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("junk")));
         DoSection finalSection3 = section;
-        error = expectThrows(AssertionError.class, () -> finalSection3.checkWarningHeaders(singletonList(testHeader)));
+        error = expectThrows(AssertionError.class, () -> finalSection3.checkWarningHeaders(singletonList(testHeader), Version.CURRENT));
         assertTrue(error.getMessage().contains("got unexpected warning header") && error.getMessage().contains("test"));
         assertTrue(error.getMessage().contains("the following regular expression did not match any warning header [\n\tjunk\n]\n"));
 
         //allow header
         section = new DoSection(new XContentLocation(1, 1));
         section.setAllowedWarningHeadersRegex(singletonList(Pattern.compile("test")));
-        section.checkWarningHeaders(singletonList(testHeader));
+        section.checkWarningHeaders(singletonList(testHeader), Version.CURRENT);
 
         //allow only one header
         section = new DoSection(new XContentLocation(1, 1));
         section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("test")));
         DoSection finalSection4 = section;
         error = expectThrows(AssertionError.class, () ->
-            finalSection4.checkWarningHeaders(org.elasticsearch.common.collect.List.of(testHeader, realisticTestHeader)));
+            finalSection4.checkWarningHeaders(org.elasticsearch.common.collect.List.of(testHeader, realisticTestHeader), Version.CURRENT));
         assertTrue(error.getMessage().contains("got unexpected warning header") && error.getMessage().contains("precedence during"));
 
         //the non-regex version does not need to worry about escaping since it is an exact match, and the code ensures that both
@@ -200,7 +200,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         section = new DoSection(new XContentLocation(1, 1));
         section.setAllowedWarningHeadersRegex(singletonList(
             Pattern.compile("^test \\\\\"with quotes and \\\\\\\\ backslashes\\\\\"$")));
-        section.checkWarningHeaders(singletonList(testHeaderWithQuotesAndBackslashes));
+        section.checkWarningHeaders(singletonList(testHeaderWithQuotesAndBackslashes), Version.CURRENT);
     }
 
     public void testIgnoreTypesWarnings() {
@@ -210,7 +210,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         DoSection section = new DoSection(new XContentLocation(1, 1));
         section.setExpectedWarningHeaders(singletonList("warning"));
-        section.checkWarningHeaders(Arrays.asList(legitimateWarning, typesWarning));
+        section.checkWarningHeaders(Arrays.asList(legitimateWarning, typesWarning), Version.CURRENT);
     }
 
     public void testParseDoSectionNoBody() throws Exception {

@@ -347,7 +347,7 @@ public class DoSection implements ExecutableSection {
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
-            checkWarningHeaders(response.getWarningHeaders(), testPath);
+            checkWarningHeaders(response.getWarningHeaders(), testPath, executionContext.masterVersion());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (Strings.hasLength(catchParam) == false) {
@@ -370,14 +370,14 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    void checkWarningHeaders(final List<String> warningHeaders) {
-        checkWarningHeaders(warningHeaders, null);
+    void checkWarningHeaders(final List<String> warningHeaders, final Version masterVersion) {
+        checkWarningHeaders(warningHeaders, null, masterVersion);
     }
 
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
+    void checkWarningHeaders(final List<String> warningHeaders, String testPath, final Version masterVersion) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();

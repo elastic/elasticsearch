@@ -92,6 +92,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         executeBlobCacheCreationTestCase(storage, 9876L);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/71777")
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
         assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);

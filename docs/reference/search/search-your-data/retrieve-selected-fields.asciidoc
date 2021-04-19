@@ -23,7 +23,7 @@ retrieving data.
 === The `fields` option
 // tag::fields-param-desc[]
 To retrieve specific fields in the search response, use the `fields` parameter.
-Because it accesses the index mappings, the `fields` parameter provides several
+Because it consults the index mappings, the `fields` parameter provides several
 advantages over referencing the `_source` directly. Specifically, the `fields`
 parameter:
 
@@ -39,9 +39,9 @@ Other mapping options are also respected, including
 <<ignore-above,`ignore_above`>>, <<ignore-malformed,`ignore_malformed`>> and
 <<null-value,`null_value`>>.
 
-When retrieving standard fields, the `fields` option returns values in the way
-that {es} sees them. For most field types, this means that the `fields` option
-returns values from `_source` exactly how they are indexed.
+The `fields` option returns values in the way that matches how {es} indexes
+them. For standard fields, this means that the `fields` option looks in
+`_source` to find the values, then parses and formats them using the mappings.
 
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the

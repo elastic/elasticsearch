@@ -1,15 +1,16 @@
 [role="xpack"]
 [[ml-configuring-transform]]
-= Altering data with runtime mappings
+= Altering data in your {dfeed} with runtime fields
 
-If you use {dfeeds}, you can use runtime mappings to alter your data before it 
+If you use {dfeeds}, you can use runtime fields to alter your data before it 
 is analyzed. You can add an optional `runtime_mappings` property to your 
 {dfeeds}, where you can specify field types and scripts that evaluate custom 
-expressions.
+expressions without affecting the indices that you're retrieving the data from.
 
 If your {dfeed} defines runtime fields, you can use those fields in your
 {anomaly-job}. For example, you can use the runtime fields in the analysis
-functions in one or more detectors.
+functions in one or more detectors. Runtime fields can impact search performance 
+based on the computation defined in the runtime script.
 
 * <<ml-configuring-transform1>>
 * <<ml-configuring-transform2>>

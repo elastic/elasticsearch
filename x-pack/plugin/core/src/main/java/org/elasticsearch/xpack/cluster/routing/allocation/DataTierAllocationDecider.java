@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
@@ -66,8 +67,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
         VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
         VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = Setting.simpleString(INDEX_ROUTING_PREFER,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
+        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
@@ -84,17 +85,32 @@ public class DataTierAllocationDecider extends AllocationDecider {
         private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
             SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
 
+        public static String getDefaultTierPreference(Settings settings) {
+            if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+                return DATA_FROZEN;
+            } else {
+                return "";
+            }
+        }
+
         @Override
         public void validate(String value) {
             validateTierSetting(value);
         }
 
         @Override
-        public void validate(String value, Map<Setting<?>, Object> settings) {
-            if (Strings.hasText(value) && SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings) == false) {
-                String[] split = value.split(",");
-                if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
-                    throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
+        public void validate(String value, Map<Setting<?>, Object> settings, boolean exists) {
+            if (exists && value != null) {
+                if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+                    if (value.equals(DATA_FROZEN) == false) {
+                        throw new IllegalArgumentException("only the [" + DATA_FROZEN +
+                            "] tier preference may be used for partial searchable snapshots (got: [" + value + "])");
+                    }
+                } else {
+                    String[] split = value.split(",");
+                    if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
+                        throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
+                    }
                 }
             }
         }

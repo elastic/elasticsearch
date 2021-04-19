@@ -24,11 +24,27 @@ setup:
       indices.refresh: {}
 
 ---
-"Basic":
+"Basic multi_match query":
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "query" : {"multi_match" : { "query" : "quick brown fox", "fields" : [ "text*"] } }, "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
+        body: {
+          "query" : { "multi_match" : { "query" : "quick brown fox", "fields" : [ "text*"] } },
+          "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
+
+  - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+  - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+  - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+
+---
+"Basic combined_fields query":
+  - skip:
+      version: " - 7.12.99"
+      reason: "combined fields query was introduced in 7.13"
+  - do:
+      search:
+        body: {
+          "query" : { "combined_fields" : { "query" : "quick brown fox", "fields" : [ "text*"] } },
+          "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
 
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}

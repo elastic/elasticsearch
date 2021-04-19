@@ -244,6 +244,7 @@ public class User implements ToXContentObject {
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
         ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
+        ParseField TOKEN = new ParseField("token");
     }
 }
 

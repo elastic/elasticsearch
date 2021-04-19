@@ -922,6 +922,54 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.get(0).getName(), equalTo("float_field"));
     }
 
+    public void testDetect_GivenNestedFields() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("nested_field_1", "nested")
+            .addAggregatableField("nested_field_1.a", "float")
+            .addAggregatableField("nested_field_1.b", "float")
+            .addNonAggregatableField("nested_field_1.inner_nested", "nested")
+            .addAggregatableField("nested_field_1.inner_nested.z", "float")
+            .addNonAggregatableField("nested_field_2", "nested")
+            .addAggregatableField("nested_field_2.c", "float")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("float_field"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.included("float_field", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.excluded("nested_field_1.*", Collections.singleton("nested"), "nested fields are not supported"),
+            FieldSelection.excluded("nested_field_2.*", Collections.singleton("nested"), "nested fields are not supported")
+        );
+    }
+
+    public void testDetect_GivenNestedFieldThatAlsoHasIncompatibleType() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("nested_field_1", "nested")
+            .addAggregatableField("nested_field_1.a", "definitely_not_supported")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("float_field"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.included("float_field", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.excluded("nested_field_1.*", Collections.singleton("nested"), "nested fields are not supported")
+        );
+    }
+
     public void testDetect_GivenAnalyzedFieldIncludesObjectField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("float_field", "float")
@@ -933,7 +981,21 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object or nested fields: [object_field]"));
+    }
+
+    public void testDetect_GivenAnalyzedFieldIncludesNestedField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("nested_field", "nested").build();
+
+        analyzedFields = new FetchSourceContext(true, new String[] { "float_field", "nested_field" }, null);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object or nested fields: [nested_field]"));
     }
 
     private static FieldCapabilitiesResponse simpleFieldResponse() {
@@ -959,7 +1021,21 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object or nested fields: [object_field]"));
+    }
+
+    public void testDetect_GivenAnalyzedFieldExcludesNestedField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("nested_field", "nested").build();
+
+        analyzedFields = new FetchSourceContext(true, null, new String[]{"nested_field"});
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object or nested fields: [nested_field]"));
     }
 
     public void testDetect_givenFeatureProcessorsFailures_ResultsField() {
@@ -970,8 +1046,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             fieldCapabilities,
             Collections.emptyMap());
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(ex.getMessage(),
-            containsString("fields contained in results field [ml] cannot be used in a feature_processor"));
+        assertThat(ex.getMessage(), equalTo("fields contained in results field [ml] cannot be used in a feature_processor"));
     }
 
     public void testDetect_givenFeatureProcessorsFailures_Objects() {
@@ -982,8 +1057,36 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             fieldCapabilities,
             Collections.emptyMap());
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(ex.getMessage(),
-            containsString("fields for feature_processors must not be objects"));
+        assertThat(ex.getMessage(), equalTo("fields for feature_processors must not be objects or nested"));
+    }
+
+    public void testDetect_givenFeatureProcessorsFailures_Nested() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("some_float", "float")
+            .addNonAggregatableField("nested_field", "nested")
+            .build();
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildRegressionConfig("some_float", Arrays.asList(buildPreProcessor("nested_field", "foo"))),
+            100,
+            fieldCapabilities,
+            Collections.emptyMap());
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        assertThat(ex.getMessage(), equalTo("fields for feature_processors must not be objects or nested"));
+    }
+
+    public void testDetect_givenFeatureProcessorsFailures_ChildOfNested() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("some_float", "float")
+            .addNonAggregatableField("nested_field", "nested")
+            .addAggregatableField("nested_field.inner_float", "float")
+            .build();
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildRegressionConfig("some_float", Arrays.asList(buildPreProcessor("nested_field.inner_float", "foo"))),
+            100,
+            fieldCapabilities,
+            Collections.emptyMap());
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        assertThat(ex.getMessage(), equalTo("nested fields [nested_field.*] cannot be used in a feature_processor"));
     }
 
     public void testDetect_givenFeatureProcessorsFailures_ReservedFields() {
@@ -1018,8 +1121,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             fieldCapabilities,
             Collections.emptyMap());
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(ex.getMessage(),
-            containsString("required analysis fields [field_31] cannot be used in a feature_processor"));
+        assertThat(ex.getMessage(), equalTo("required analysis fields [field_31] cannot be used in a feature_processor"));
     }
 
     public void testDetect_givenFeatureProcessorsFailures_BadSourceFiltering() {
@@ -1032,8 +1134,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             Collections.emptyMap());
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(ex.getMessage(),
-            containsString("fields [field_11] required by field_processors are not included in source filtering."));
+        assertThat(ex.getMessage(), equalTo("fields [field_11] required by field_processors are not included in source filtering."));
     }
 
     public void testDetect_givenFeatureProcessorsFailures_MissingAnalyzedField() {
@@ -1046,8 +1147,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             Collections.emptyMap());
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(ex.getMessage(),
-            containsString("fields [field_11] required by field_processors are not included in the analyzed_fields"));
+        assertThat(ex.getMessage(), equalTo("fields [field_11] required by field_processors are not included in the analyzed_fields."));
     }
 
     public void testDetect_givenFeatureProcessorsFailures_RequiredMultiFields() {
@@ -1103,8 +1203,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             Collections.emptyMap());
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(ex.getMessage(),
-            containsString("feature_processors must define unique output field names; duplicate fields [foo]"));
+        assertThat(ex.getMessage(), equalTo("feature_processors must define unique output field names; duplicate fields [foo]"));
     }
 
     public void testDetect_withFeatureProcessors() {
@@ -1207,9 +1306,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             Collections.emptyMap());
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-            assertThat(ex.getMessage(),
-                containsString(
-                    "feature_processors output fields must not include non-processed analysis fields; duplicate fields [field_21]"));
+        assertThat(ex.getMessage(),
+            equalTo("feature_processors output fields must not include non-processed analysis fields; duplicate fields [field_21]"));
     }
 
     private static class MockFieldCapsResponseBuilder {

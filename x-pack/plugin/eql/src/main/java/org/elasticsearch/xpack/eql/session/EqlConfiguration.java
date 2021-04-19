@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
@@ -33,14 +34,17 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final QueryBuilder filter;
     @Nullable
     private final List<FieldAndFormat> fetchFields;
+    @Nullable
+    private Map<String, Object> runtimeMappings;
 
     public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
-                            List<FieldAndFormat> fetchFields, TimeValue requestTimeout, IndicesOptions indicesOptions, int fetchSize,
-                            String clientId, TaskId taskId, EqlSearchTask task) {
+                            Map<String, Object> runtimeMappings, List<FieldAndFormat> fetchFields, TimeValue requestTimeout,
+                            IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId, EqlSearchTask task) {
         super(zi, username, clusterName);
 
         this.indices = indices;
         this.filter = filter;
+        this.runtimeMappings = runtimeMappings;
         this.fetchFields = fetchFields;
         this.requestTimeout = requestTimeout;
         this.clientId = clientId;
@@ -68,6 +72,10 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public QueryBuilder filter() {
         return filter;
+    }
+
+    public Map<String, Object> runtimeMappings() {
+        return runtimeMappings;
     }
 
     public List<FieldAndFormat> fetchFields() {

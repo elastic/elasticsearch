@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -54,6 +55,8 @@ import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
 
@@ -90,6 +93,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
+            return new PersistentTasksCustomMetadata.Assignment(null,
+                "Transform task will not be assigned as a feature reset is in progress.");
+        }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
@@ -103,13 +110,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
-            (node) -> nodeCanRunThisTransform(node, params, null)
+            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
         );
 
         if (discoveryNode == null) {
             Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
             for (DiscoveryNode node : clusterState.getNodes()) {
-                nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
+                nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
             }
             String reason = "Not starting transform ["
                 + params.getId()
@@ -122,38 +129,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
-    }
-
-    public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
-        // version of the transform run on a node that has at least the same version
-        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
-            if (explain != null) {
-                explain.put(
-                    node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
-                );
-            }
-            return false;
-        }
-
-        // transform enabled?
-        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "not a transform node");
-            }
-            return false;
-        }
-
-        // does the transform require a remote and remote is enabled?
-        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
-            }
-            return false;
-        }
-
-        // we found no reason that the transform can not run on this node
-        return true;
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {

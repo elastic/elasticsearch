@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
@@ -71,7 +72,7 @@ public class TypeParsersTests extends ESTestCase {
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null,
-            olderVersion, null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            olderVersion, null, null, ScriptCompiler.NONE, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
         });
 
@@ -88,7 +89,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null, version,
-            null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            null, null, ScriptCompiler.NONE, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
         });
 

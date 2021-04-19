@@ -46,7 +46,7 @@ public class ScriptProcessorTests extends ESTestCase {
                             Integer bytesIn = (Integer) ctx.get("bytes_in");
                             Integer bytesOut = (Integer) ctx.get("bytes_out");
                             ctx.put("bytes_total", bytesIn + bytesOut);
-                            ctx.put("_dynamic_templates", Map.of("foo", "bar"));
+                            ctx.put("_dynamic_templates", Collections.singletonMap("foo", "bar"));
                             return null;
                         }
                     ),
@@ -86,7 +86,7 @@ public class ScriptProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_total"));
         int bytesTotal = ingestDocument.getFieldValue("bytes_in", Integer.class) + ingestDocument.getFieldValue("bytes_out", Integer.class);
         assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(bytesTotal));
-        assertThat(ingestDocument.getSourceAndMetadata().get("_dynamic_templates"), equalTo(Map.of("foo", "bar")));
+        assertThat(ingestDocument.getSourceAndMetadata().get("_dynamic_templates"), equalTo(Collections.singletonMap("foo", "bar")));
     }
 
     public void testTypeDeprecation() throws Exception {

@@ -83,7 +83,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(ContentPath contentPath) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(buildFullName(contentPath), dims.getValue(), meta.getValue()),
+                new DenseVectorFieldType(buildFullName(contentPath), indexVersionCreated, dims.getValue(), meta.getValue()),
                 dims.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, contentPath),
@@ -95,10 +95,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final class DenseVectorFieldType extends MappedFieldType {
         private final int dims;
+        private final Version indexVersionCreated;
 
-        public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
+        public DenseVectorFieldType(String name, Version indexVersionCreated, int dims, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.dims = dims;
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         int dims() {
@@ -125,7 +127,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
 
@@ -136,7 +138,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), true, CoreValuesSourceType.KEYWORD);
+            return new VectorIndexFieldData.Builder(name(), true, CoreValuesSourceType.KEYWORD, indexVersionCreated, dims);
         }
 
         @Override

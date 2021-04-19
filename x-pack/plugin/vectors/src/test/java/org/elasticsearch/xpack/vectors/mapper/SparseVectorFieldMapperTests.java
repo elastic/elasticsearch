@@ -111,7 +111,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             decodedValues,
             0.001f
         );
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);

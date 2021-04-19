@@ -129,9 +129,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
-                transformsCountByFeature.set(Collections.emptyMap());
-                var usage =
-                    new TransformFeatureSetUsage(transformsCountByState, transformsCountByFeature.get(), new TransformIndexerStats());
+                var usage = new TransformFeatureSetUsage(transformsCountByState, Collections.emptyMap(), new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }

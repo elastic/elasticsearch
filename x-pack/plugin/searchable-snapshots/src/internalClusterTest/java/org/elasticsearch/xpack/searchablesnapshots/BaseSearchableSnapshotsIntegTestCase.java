@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -84,9 +85,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
                 rarely()
                     ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB)
-                        : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                        ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
+                        : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
+                    : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
+                    : new RatioValue(randomDoubleBetween(0.0d, 1.0d, false)).toString() // only use up to 1% disk to be friendly.
             );
         }
         builder.put(

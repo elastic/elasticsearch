@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -28,6 +30,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -38,6 +42,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -89,23 +95,29 @@ public class FrozenCacheService implements Releasable {
         };
     }
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
-        SHARED_CACHE_SETTINGS_PREFIX + "size",
-        ByteSizeValue.ZERO.getStringRep(),
-        s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size"),
-        new Setting.Validator<ByteSizeValue>() {
+    public static final Setting<RelativeByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
+        new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        (settings) -> {
+            if (isDedicatedFrozen(settings)) {
+                return "90%";
+            } else {
+                return ByteSizeValue.ZERO.getStringRep();
+            }
+        },
+        s -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size"),
+        new Setting.Validator<>() {
 
             @Override
-            public void validate(final ByteSizeValue value) {
+            public void validate(final RelativeByteSizeValue value) {
 
             }
 
             @Override
-            public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings) {
-                if (value.getBytes() == -1) {
+            public void validate(final RelativeByteSizeValue value, final Map<Setting<?>, Object> settings) {
+                if (value.isAbsolute() && value.getAbsolute().getBytes() == -1) {
                     throw new SettingsException("setting [{}] must be non-negative", SHARED_CACHE_SETTINGS_PREFIX + "size");
                 }
-                if (value.getBytes() > 0) {
+                if (value.isNonZeroSize()) {
                     @SuppressWarnings("unchecked")
                     final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
                     if (DataTier.isFrozenNode(Set.of(roles.toArray(DiscoveryNodeRole[]::new))) == false) {
@@ -128,6 +140,55 @@ public class FrozenCacheService implements Releasable {
         },
         Setting.Property.NodeScope
     );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
+        new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
+        (settings) -> {
+            if (SNAPSHOT_CACHE_SIZE_SETTING.exists(settings) == false && isDedicatedFrozen(settings)) {
+                return "100GB";
+            }
+
+            return "-1";
+        },
+        (s) -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
+        new Setting.Validator<>() {
+            private final Collection<Setting<?>> dependencies = List.of(SNAPSHOT_CACHE_SIZE_SETTING);
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return dependencies.iterator();
+            }
+
+            @Override
+            public void validate(ByteSizeValue value) {
+                // ignore
+            }
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && value.getBytes() != -1) {
+                    RelativeByteSizeValue sizeValue = (RelativeByteSizeValue) settings.get(SNAPSHOT_CACHE_SIZE_SETTING);
+                    if (sizeValue.isAbsolute()) {
+                        throw new SettingsException(
+                            "setting [{}] cannot be specified for absolute [{}={}]",
+                            SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(),
+                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                            sizeValue.getStringRep()
+                        );
+                    }
+                }
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
+    private static boolean isDedicatedFrozen(Settings settings) {
+        Set<DiscoveryNodeRole> rolesFromSettings = DiscoveryNode.getRolesFromSettings(settings);
+        return rolesFromSettings.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+            && rolesFromSettings.stream()
+                .filter(DiscoveryNodeRole::canContainData)
+                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+    }
 
     public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
@@ -185,7 +246,27 @@ public class FrozenCacheService implements Releasable {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        RelativeByteSizeValue relativeCacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
+        if (relativeCacheSize.isNonZeroSize() && environment.nodeDataPaths().length != 1) {
+            // todo: throw instead in a follow-up.
+            logger.warn(
+                "cannot specify ["
+                    + SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                    + "="
+                    + relativeCacheSize
+                    + "] "
+                    + "on this node with multiple data paths ["
+                    + Arrays.toString(environment.nodePaths())
+                    + "]"
+            );
+        }
+        FsInfo.Path pathInfo;
+        try {
+            pathInfo = FsProbe.getFSInfo(environment.nodePaths()[0]);
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodePaths()[0] + "]");
+        }
+        final long cacheSize = calculateCacheSize(settings, pathInfo);
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final int numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
@@ -214,6 +295,12 @@ public class FrozenCacheService implements Releasable {
         decayTask.rescheduleIfNecessary();
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+    }
+
+    static long calculateCacheSize(Settings settings, FsInfo.Path pathInfo) {
+        return SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
+            .calculateValue(pathInfo.getTotal(), SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
+            .getBytes();
     }
 
     public int getRangeSize() {

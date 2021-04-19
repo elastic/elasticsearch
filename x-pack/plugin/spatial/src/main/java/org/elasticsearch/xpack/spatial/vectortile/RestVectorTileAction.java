@@ -12,15 +12,21 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 import com.wdtinc.mapbox_vector_tile.encoding.MvtValue;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -35,8 +41,12 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -75,15 +85,43 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
                 extent
             );
             final SearchHit[] hits = s.getHits().getHits();
+            final InternalGeoTileGrid grid = s.getAggregations() != null ? s.getAggregations().get(GRID_FIELD) : null;
+            final InternalGeoBounds bounds = s.getAggregations() != null ? s.getAggregations().get(BOUNDS_FIELD) : null;
+            final Aggregations aggsWithoutGridAndBounds = s.getAggregations() == null
+                ? null
+                : new Aggregations(
+                s.getAggregations()
+                    .asList()
+                    .stream()
+                    .filter(a -> GRID_FIELD.equals(a.getName()) == false && BOUNDS_FIELD.equals(a.getName()) == false)
+                    .collect(Collectors.toList())
+            );
+            SearchResponse meta = new SearchResponse(
+                new SearchResponseSections(
+                    new SearchHits(SearchHits.EMPTY, s.getHits().getTotalHits(), s.getHits().getMaxScore()), // remove actual hits
+                    aggsWithoutGridAndBounds,
+                    s.getSuggest(),
+                    s.isTimedOut(),
+                    s.isTerminatedEarly(),
+                    s.getProfileResults() == null ? null : new SearchProfileShardResults(s.getProfileResults()),
+                    s.getNumReducePhases()
+                ),
+                s.getScrollId(),
+                s.getTotalShards(),
+                s.getSuccessfulShards(),
+                s.getSkippedShards(),
+                s.getTook().millis(),
+                s.getShardFailures(),
+                s.getClusters()
+            );
             if (hits.length > 0) {
                 tileBuilder.addLayers(getHitsLayer(s, request));
             }
-            final InternalGeoTileGrid grid = s.getAggregations() != null ? s.getAggregations().get(GRID_FIELD) : null;
             // TODO: should be expose the total number of buckets on InternalGeoTileGrid?
             if (grid != null && grid.getBuckets().size() > 0) {
-                tileBuilder.addLayers(getAggsLayer(s, request, geomBuilder));
+                tileBuilder.addLayers(getAggsLayer(grid, request, geomBuilder));
             }
-            tileBuilder.addLayers(getMetaLayer(s, request, geomBuilder));
+            tileBuilder.addLayers(getMetaLayer(meta, bounds, request, geomBuilder));
             tileBuilder.build().writeTo(b);
         };
     }
@@ -114,8 +152,8 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             searchRequestBuilder.addAggregation(aBuilder);
         }
         if (request.getExactBounds()) {
-            final GeoBoundsAggregationBuilder boundsBuilder =
-                new GeoBoundsAggregationBuilder(BOUNDS_FIELD).field(request.getField()).wrapLongitude(false);
+            final GeoBoundsAggregationBuilder boundsBuilder = new GeoBoundsAggregationBuilder(BOUNDS_FIELD).field(request.getField())
+                .wrapLongitude(false);
             searchRequestBuilder.addAggregation(boundsBuilder);
         }
         return searchRequestBuilder;
@@ -148,11 +186,10 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         return hitsLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getAggsLayer(SearchResponse response, Request request, VectorTileGeometryBuilder geomBuilder) {
+    private VectorTile.Tile.Layer.Builder getAggsLayer(InternalGeoTileGrid grid, Request request, VectorTileGeometryBuilder geomBuilder) {
         final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        final InternalGeoTileGrid grid = response.getAggregations().get(GRID_FIELD);
         for (InternalGeoGridBucket<?> bucket : grid.getBuckets()) {
             final long count = bucket.getDocCount();
             featureBuilder.clear();
@@ -170,7 +207,7 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             // Add aggregations results as key value pair
             for (Aggregation aggregation : bucket.getAggregations()) {
                 final String type = aggregation.getType();
-                switch (type)  {
+                switch (type) {
                     case MinAggregationBuilder.NAME:
                     case MaxAggregationBuilder.NAME:
                     case AvgAggregationBuilder.NAME:
@@ -190,11 +227,19 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         return aggLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getMetaLayer(SearchResponse response, Request request, VectorTileGeometryBuilder geomBuilder) {
+    private VectorTile.Tile.Layer.Builder getMetaLayer(
+        SearchResponse response,
+        InternalGeoBounds bounds,
+        Request request,
+        VectorTileGeometryBuilder geomBuilder
+    ) throws IOException {
+        Map<String, Object> responseMap = Maps.flatten(
+            XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
+            true
+        );
         final VectorTile.Tile.Layer.Builder metaLayerBuilder = VectorTileUtils.createLayerBuilder(META_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
-        final InternalGeoBounds bounds = response.getAggregations() != null ? response.getAggregations().get(BOUNDS_FIELD) : null;
         if (bounds != null && bounds.topLeft() != null) {
             final GeoPoint topLeft = bounds.topLeft();
             final GeoPoint bottomRight = bounds.bottomRight();
@@ -203,13 +248,11 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             final Rectangle tile = request.getBoundingBox();
             geomBuilder.box(featureBuilder, tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat());
         }
-        addPropertyToFeature(featureBuilder, layerProps, "timed_out", response.isTimedOut());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.total", response.getTotalShards());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.successful", response.getSuccessfulShards());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.skipped", response.getSkippedShards());
-        addPropertyToFeature(featureBuilder, layerProps, "_shards.failed", response.getFailedShards());
-        addPropertyToFeature(featureBuilder, layerProps, "hits.total.value", response.getHits().getTotalHits().value);
-        addPropertyToFeature(featureBuilder, layerProps, "hits.total.relation", response.getHits().getTotalHits().relation.name());
+        for (Map.Entry<String, Object> entry : responseMap.entrySet()) {
+            if (entry.getValue() != null) {
+                addPropertyToFeature(featureBuilder, layerProps, entry.getKey(), entry.getValue());
+            }
+        }
         metaLayerBuilder.addFeatures(featureBuilder);
         addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;

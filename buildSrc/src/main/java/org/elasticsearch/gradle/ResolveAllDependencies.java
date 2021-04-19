@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.DistributionDownloadPlugin.DISTRO_EXTRACTED_CONFIG_PREFIX;
+import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.BWC_MINOR_CONFIG_NAME;
 
 public class ResolveAllDependencies extends DefaultTask {
 
@@ -54,6 +55,7 @@ public class ResolveAllDependencies extends DefaultTask {
                 return false;
             }
         }
-        return configuration.getName().startsWith(DISTRO_EXTRACTED_CONFIG_PREFIX) == false;
+        return configuration.getName().startsWith(DISTRO_EXTRACTED_CONFIG_PREFIX) == false
+            && configuration.getName().equals(BWC_MINOR_CONFIG_NAME) == false;
     }
 }

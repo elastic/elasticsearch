@@ -355,9 +355,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
     protected static boolean assertCurrentThreadMayWriteCacheFile() {
         final String threadName = Thread.currentThread().getName();
-        assert isCacheFetchAsyncThread(threadName) : "expected the current thread ["
-            + threadName
-            + "] to belong to the cache fetch async thread pool";
+        assert isCacheFetchAsyncThread(threadName)
+            : "expected the current thread [" + threadName + "] to belong to the cache fetch async thread pool";
         return true;
     }
 

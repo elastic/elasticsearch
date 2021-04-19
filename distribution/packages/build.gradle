@@ -42,9 +42,17 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-plugins {
-  id "nebula.ospackage-base" version "8.3.0"
+buildscript {
+  repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+  }
+  dependencies {
+    classpath "com.github.breskeby:gradle-ospackage-plugin:ddb72a9922b934033827d48d296f7f3d470ac422"
+  }
 }
+
+apply plugin: "nebula.ospackage-base"
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
   String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"

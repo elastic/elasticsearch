@@ -353,10 +353,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (index != -1) {
                         String matchAttrName = nodeId.substring(0, index);
                         String matchAttrValue = nodeId.substring(index + 1);
-                        if (DiscoveryNodeRole.BUILT_IN_ROLES.stream()
+                        if (DiscoveryNodeRole.roles().stream()
                             .map(DiscoveryNodeRole::roleName)
                             .anyMatch(s -> s.equals(matchAttrName))) {
-                            final DiscoveryNodeRole role = DiscoveryNode.getRoleFromRoleName(matchAttrName);
+                            final DiscoveryNodeRole role = DiscoveryNodeRole.getRoleFromRoleName(matchAttrName);
                             final Predicate<Set<DiscoveryNodeRole>> predicate;
                             if (role.equals(DiscoveryNodeRole.DATA_ROLE)) {
                                 // if the node has *any* role that can contain data, then it matches the data attribute
@@ -387,7 +387,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             }
                         } else {
                             for (DiscoveryNode node : this) {
-                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.BUILT_IN_ROLES)) {
+                                for (DiscoveryNodeRole role : Sets.difference(node.getRoles(), DiscoveryNodeRole.roles())) {
                                     if (role.roleName().equals(matchAttrName)) {
                                         if (Booleans.parseBoolean(matchAttrValue, true)) {
                                             resolvedNodesIds.add(node.getId());

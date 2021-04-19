@@ -12,7 +12,6 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -38,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -182,10 +180,6 @@ public abstract class Plugin implements Closeable {
      * configurations like OS settings or 3rd party resources.
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
-
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Set.of();
-    }
 
     /**
      * Close the resources opened by this plugin.

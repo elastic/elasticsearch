@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -26,11 +27,15 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     private final LeafReader reader;
     private final String field;
     private final boolean isDense;
+    private final Version indexVersion;
+    private final int dims;
 
-    VectorDVLeafFieldData(LeafReader reader, String field, boolean isDense) {
+    VectorDVLeafFieldData(LeafReader reader, String field, boolean isDense, Version indexVersion, int dims) {
         this.reader = reader;
         this.field = field;
         this.isDense = isDense;
+        this.indexVersion = indexVersion;
+        this.dims = dims;
     }
 
     @Override
@@ -53,9 +58,9 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         try {
             final BinaryDocValues values = DocValues.getBinary(reader, field);
             if (isDense) {
-                return new VectorScriptDocValues.DenseVectorScriptDocValues(values);
+                return new VectorScriptDocValues.DenseVectorScriptDocValues(values, indexVersion, dims);
             } else {
-                return new VectorScriptDocValues.SparseVectorScriptDocValues(values);
+                return new VectorScriptDocValues.SparseVectorScriptDocValues(values, indexVersion);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);

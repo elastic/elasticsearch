@@ -9,11 +9,15 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
@@ -27,6 +31,7 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
@@ -47,10 +52,12 @@ public class RpmPreservationTests extends PackagingTestCase {
 
     public void test20Remove() throws Exception {
         setHeap(null); // remove test heap options, so the config directory can be removed
+        enableGeoIpDownloader(installation);
         remove(distribution());
 
-        // config was removed
-        assertThat(installation.config, fileDoesNotExist());
+        try (Stream<Path> files = Files.list(installation.config)) {
+            assertThat(files.collect(Collectors.toSet()), Matchers.contains(installation.config("elasticsearch.yml.rpmsave")));
+        }
 
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());

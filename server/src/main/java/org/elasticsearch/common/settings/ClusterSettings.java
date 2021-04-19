@@ -476,7 +476,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES);
+            IndexingPressure.MAX_INDEXING_BYTES,
+            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

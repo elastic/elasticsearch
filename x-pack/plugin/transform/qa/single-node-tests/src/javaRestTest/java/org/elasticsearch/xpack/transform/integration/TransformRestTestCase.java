@@ -247,8 +247,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{ \"dest\": {\"index\":\"" + transformIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
         // Set frequency high for testing
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
@@ -266,10 +264,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + " } } } }"
             + "}";
 
-        createTransformRequest.setJsonEntity(config);
-
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        createReviewsTransform(transformId, authHeader, config);
     }
 
     protected void createPivotReviewsTransform(
@@ -280,8 +275,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String authHeader,
         String sourceIndex
     ) throws IOException {
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{";
 
         if (pipeline != null) {
@@ -315,6 +308,25 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "\"frequency\":\"1s\""
             + "}";
 
+        createReviewsTransform(transformId, authHeader, config);
+    }
+
+    protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
+        String config = "{"
+            + " \"dest\": {\"index\":\"" + transformIndex + "\"},"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"latest\": {"
+            + "   \"unique_key\": [ \"user_id\" ],"
+            + "   \"sort\": \"@timestamp\""
+            + " },"
+            + "\"frequency\":\"1s\""
+            + "}";
+
+        createReviewsTransform(transformId, null, config);
+    }
+
+    private void createReviewsTransform(String transformId, String authHeader, String config) throws IOException {
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
         createTransformRequest.setJsonEntity(config);
 
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

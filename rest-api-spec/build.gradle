@@ -189,9 +189,9 @@ tasks.named("yamlRestCompatTest").configure {
     // The information about the type is not present in the index. hence it cannot know if the type was already used or not
     'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
     'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
-    // needs discussion about IndexTemplateMetadata#toInnerXContent and reducingMappings when includeTypeName and empty mappings etc
-//    'indices.put_template/11_basic_with_types/Put template with empty mappings',
-    //
+    // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
+    // not fixing this in #70966
+    'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'indices.segments/10_basic/basic segments test',
     'indices.segments/10_basic/closed segments test',
     'indices.shard_stores/10_basic/basic index test',

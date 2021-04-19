@@ -42,7 +42,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = isIncludeTypeName(request);
+        final boolean includeTypeName = includeTypeName(request);
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
         request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
@@ -53,7 +53,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    private boolean isIncludeTypeName(RestRequest request) {
+    private boolean includeTypeName(RestRequest request) {
         boolean includeTypeName = false;
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {

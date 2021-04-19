@@ -69,7 +69,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         builder.startObject();
         for (IndexTemplateMetadata indexTemplateMetadata : getIndexTemplates()) {
             if(builder.getRestApiVersion() == RestApiVersion.V_7 &&
-                params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false)) {
                 IndexTemplateMetadata.Builder.toXContentWithTypes(indexTemplateMetadata, builder, params);
             } else {
                 IndexTemplateMetadata.Builder.toXContent(indexTemplateMetadata, builder, params);

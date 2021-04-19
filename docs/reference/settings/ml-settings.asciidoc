@@ -178,7 +178,7 @@ assumed to have failed. When the {operator-feature} is enabled, this setting can
 be updated only by operator users. Defaults to `10s`. The minimum value for this 
 setting is `5s`. 
 
-xpack.ml.use_auto_machine_memory_percent::
+`xpack.ml.use_auto_machine_memory_percent`::
 (<<cluster-update-settings,Dynamic>>) If this setting is `true`, the
 `xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
 percentage of the machine's memory that can be used for running {ml} analytics

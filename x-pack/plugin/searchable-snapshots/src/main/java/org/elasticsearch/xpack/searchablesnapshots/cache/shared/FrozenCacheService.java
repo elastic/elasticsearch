@@ -619,7 +619,7 @@ public class FrozenCacheService implements Releasable {
         public boolean tryEvict() {
             if (refCount() <= 1 && evicted.compareAndSet(false, true)) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
-                evictCount.increment(); // only count evictions that are not related to shard shutdown
+                evictCount.increment();
                 decRef();
                 return true;
             }
@@ -629,6 +629,7 @@ public class FrozenCacheService implements Releasable {
         public boolean forceEvict() {
             if (evicted.compareAndSet(false, true)) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                evictCount.increment();
                 decRef();
                 return true;
             }

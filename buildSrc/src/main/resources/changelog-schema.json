@@ -110,7 +110,8 @@
       "required": [
         "title",
         "summary"
-      ]
+      ],
+      "additionalProperties": false
     },
     "Breaking": {
       "properties": {
@@ -129,12 +130,8 @@
           "type": "string",
           "minLength": 1
         },
-        "isNotable": {
+        "notable": {
           "type": "boolean"
-        },
-        "anchor": {
-          "type": "string",
-          "minLength": 1
         }
       },
       "required": [
@@ -142,7 +139,8 @@
         "title",
         "details",
         "impact"
-      ]
+      ],
+      "additionalProperties": false
     },
     "Deprecation": {
       "properties": {
@@ -156,17 +154,14 @@
         "body": {
           "type": "string",
           "minLength": 1
-        },
-        "anchor": {
-          "type": "string",
-          "minLength": 1
         }
       },
       "required": [
         "area",
         "title",
         "body"
-      ]
+      ],
+      "additionalProperties": false
     },
     "breakingArea": {
       "type": "string",
@@ -199,6 +194,7 @@
         "Transform",
         "Transport"
       ]
-    }
+    },
+    "additionalProperties": false
   }
 }

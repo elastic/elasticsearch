@@ -8,9 +8,11 @@
 
 package org.elasticsearch.gradle.release;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * This class models the contents of a changelog YAML file. It contains no validation of its own,
@@ -202,8 +204,7 @@ public class ChangelogEntry {
         private String title;
         private String details;
         private String impact;
-        private boolean isNotable;
-        private String anchor;
+        private boolean notable;
 
         public String getArea() {
             return area;
@@ -238,19 +239,15 @@ public class ChangelogEntry {
         }
 
         public boolean isNotable() {
-            return isNotable;
+            return notable;
         }
 
         public void setNotable(boolean notable) {
-            isNotable = notable;
+            this.notable = notable;
         }
 
         public String getAnchor() {
-            return anchor;
-        }
-
-        public void setAnchor(String anchor) {
-            this.anchor = anchor;
+            return generatedAnchor(this.title);
         }
 
         @Override
@@ -262,29 +259,26 @@ public class ChangelogEntry {
                 return false;
             }
             Breaking breaking = (Breaking) o;
-            return isNotable == breaking.isNotable
-                && Objects.equals(area, breaking.area)
-                && Objects.equals(title, breaking.title)
-                && Objects.equals(details, breaking.details)
-                && Objects.equals(impact, breaking.impact)
-                && Objects.equals(anchor, breaking.anchor);
+            return notable == breaking.notable
+                   && Objects.equals(area, breaking.area)
+                   && Objects.equals(title, breaking.title)
+                   && Objects.equals(details, breaking.details)
+                   && Objects.equals(impact, breaking.impact);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, details, impact, isNotable, anchor);
+            return Objects.hash(area, title, details, impact, notable);
         }
 
         @Override
         public String toString() {
             return String.format(
-                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s, anchor='%s'}",
+                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s}",
                 area,
                 title,
                 details,
-                impact,
-                isNotable,
-                anchor
+                impact, notable
             );
         }
     }
@@ -293,7 +287,6 @@ public class ChangelogEntry {
         private String area;
         private String title;
         private String body;
-        private String anchor;
 
         public String getArea() {
             return area;
@@ -320,11 +313,7 @@ public class ChangelogEntry {
         }
 
         public String getAnchor() {
-            return anchor;
-        }
-
-        public void setAnchor(String anchor) {
-            this.anchor = anchor;
+            return generatedAnchor(this.title);
         }
 
         @Override
@@ -338,18 +327,24 @@ public class ChangelogEntry {
             Deprecation that = (Deprecation) o;
             return Objects.equals(area, that.area)
                 && Objects.equals(title, that.title)
-                && Objects.equals(body, that.body)
-                && Objects.equals(anchor, that.anchor);
+                && Objects.equals(body, that.body);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, body, anchor);
+            return Objects.hash(area, title, body);
         }
 
         @Override
         public String toString() {
-            return String.format("Deprecation{area='%s', title='%s', body='%s', anchor='%s'}", area, title, body, anchor);
+            return String.format("Deprecation{area='%s', title='%s', body='%s'}", area, title, body);
         }
+    }
+
+    private static String generatedAnchor(String input) {
+        final List<String> excludes = List.of("the", "is", "a");
+
+        final String[] words = input.replaceAll("[^\\w]+", "_").replaceFirst("^_+", "").replaceFirst("_+$", "").split("_+");
+        return Arrays.stream(words).filter(word -> excludes.contains(word) == false).collect(Collectors.joining("_"));
     }
 }

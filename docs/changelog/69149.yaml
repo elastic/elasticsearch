@@ -9,7 +9,6 @@ versions:
 breaking:
   notable: false
   title: Remove support for `JAVA_HOME`
-  anchor: remove_support_for_java_home
   area: Packaging
   details: |-
     {es} no longer supports the `JAVA_HOME` environment variable. Note

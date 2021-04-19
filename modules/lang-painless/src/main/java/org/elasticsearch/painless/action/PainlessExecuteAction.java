@@ -72,6 +72,7 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
@@ -115,22 +116,18 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ContextSetup::parse, CONTEXT_SETUP_FIELD);
         }
 
-        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
-
-        static {
-            Map<String, ScriptContext<?>> supportedContexts = new HashMap<>();
-            supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
-            supportedContexts.put("filter", FilterScript.CONTEXT);
-            supportedContexts.put("score", ScoreScript.CONTEXT);
-            supportedContexts.put("boolean_field", BooleanFieldScript.CONTEXT);
-            supportedContexts.put("date_field", DateFieldScript.CONTEXT);
-            supportedContexts.put("double_field", DoubleFieldScript.CONTEXT);
-            supportedContexts.put("geo_point_field", GeoPointFieldScript.CONTEXT);
-            supportedContexts.put("ip_field", IpFieldScript.CONTEXT);
-            supportedContexts.put("long_field", LongFieldScript.CONTEXT);
-            supportedContexts.put("string_field", StringFieldScript.CONTEXT);
-            SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
+        private static Map<String, ScriptContext<?>> getSupportedContexts() {
+            Map<String, ScriptContext<?>> contexts = new HashMap<>();
+            contexts.put(PainlessTestScript.CONTEXT.name, PainlessTestScript.CONTEXT);
+            contexts.put(FilterScript.CONTEXT.name, FilterScript.CONTEXT);
+            contexts.put(ScoreScript.CONTEXT.name, ScoreScript.CONTEXT);
+            for (ScriptContext<?> runtimeFieldsContext : ScriptModule.RUNTIME_FIELDS_CONTEXTS) {
+                contexts.put(runtimeFieldsContext.name, runtimeFieldsContext);
+            }
+            return Collections.unmodifiableMap(contexts);
         }
+
+        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS = getSupportedContexts();
 
         static ScriptContext<?> fromScriptContextName(String name) {
             ScriptContext<?> scriptContext = SUPPORTED_CONTEXTS.get(name);
@@ -561,7 +558,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     BooleanFieldScript.Factory factory = scriptService.compile(request.script, BooleanFieldScript.CONTEXT);
                     BooleanFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("boolean_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory(BooleanFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
                     booleanFieldScript.runForDoc(0);
                     return new Response(booleanFieldScript.asDocValues());
@@ -569,7 +566,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == DateFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DateFieldScript.Factory factory = scriptService.compile(request.script, DateFieldScript.CONTEXT);
-                    DateFieldScript.LeafFactory leafFactory = factory.newFactory("date_field",
+                    DateFieldScript.LeafFactory leafFactory = factory.newFactory(DateFieldScript.CONTEXT.name,
                             request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
                     dateFieldScript.runForDoc(0);
@@ -579,7 +576,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DoubleFieldScript.Factory factory = scriptService.compile(request.script, DoubleFieldScript.CONTEXT);
                     DoubleFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("double_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory(DoubleFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
                     doubleFieldScript.runForDoc(0);
                     return new Response(doubleFieldScript.asDocValues());
@@ -588,7 +585,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     GeoPointFieldScript.Factory factory = scriptService.compile(request.script, GeoPointFieldScript.CONTEXT);
                     GeoPointFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("geo_point_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory(GeoPointFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
                     geoPointFieldScript.runForDoc(0);
                     return new Response(geoPointFieldScript.asDocValues());
@@ -597,7 +594,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     IpFieldScript.Factory factory = scriptService.compile(request.script, IpFieldScript.CONTEXT);
                     IpFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("ip_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory(IpFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
                     ipFieldScript.runForDoc(0);
                     return new Response(ipFieldScript.asDocValues());
@@ -606,7 +603,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     LongFieldScript.Factory factory = scriptService.compile(request.script, LongFieldScript.CONTEXT);
                     LongFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("long_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory(LongFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
                     longFieldScript.runForDoc(0);
                     return new Response(longFieldScript.asDocValues());
@@ -615,7 +612,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     StringFieldScript.Factory factory = scriptService.compile(request.script, StringFieldScript.CONTEXT);
                     StringFieldScript.LeafFactory leafFactory =
-                            factory.newFactory("string_field", request.getScript().getParams(), context.lookup());
+                            factory.newFactory(StringFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
                     stringFieldScript.resultsForDoc(0);
                     return new Response(stringFieldScript.asDocValues());

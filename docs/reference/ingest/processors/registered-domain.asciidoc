@@ -49,7 +49,7 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "_source": {
-        "fqdn": "www.amazon.co.uk"
+        "fqdn": "www.example.ac.uk"
       }
     }
   ]
@@ -66,12 +66,12 @@ Which produces the following result:
       "doc": {
         ...
         "_source": {
-          "fqdn": "www.amazon.co.uk",
+          "fqdn": "www.example.ac.uk",
           "url": {
             "subdomain": "www",
-            "registered_domain": "amazon.co.uk",
-            "top_level_domain": "co.uk",
-            "domain": "www.amazon.co.uk"
+            "registered_domain": "example.ac.uk",
+            "top_level_domain": "ac.uk",
+            "domain": "www.example.ac.uk"
           }
         }
       }
@@ -80,4 +80,3 @@ Which produces the following result:
 }
 ----
 // TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
-// NOTCONSOLE

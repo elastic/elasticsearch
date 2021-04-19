@@ -428,6 +428,26 @@ public final class RepositoryData {
                 MISSING_UUID);
     }
 
+    /**
+     * For test purposes, make a copy of this instance with the version field missing for the given snapshot UUID, as if from an
+     * older version. Also removes the UUIDs since these were missing from the older version in question, see {@link #withoutUUIDs}.
+     */
+    public RepositoryData withoutSnapshotVersion(String snapshotUuid) {
+        final Map<String, SnapshotDetails> newSnapshotsDetails = new HashMap<>(snapshotsDetails);
+        final SnapshotState snapshotState = newSnapshotsDetails.get(snapshotUuid).getSnapshotState();
+        newSnapshotsDetails.put(snapshotUuid, new SnapshotDetails(snapshotState, null));
+        return new RepositoryData(
+                MISSING_UUID,
+                genId,
+                snapshotIds,
+                newSnapshotsDetails,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations,
+                MISSING_UUID);
+    }
+
     public RepositoryData withClusterUuid(String clusterUUID) {
         assert clusterUUID.equals(MISSING_UUID) == false;
         return new RepositoryData(

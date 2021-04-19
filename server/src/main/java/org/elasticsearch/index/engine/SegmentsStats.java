@@ -8,7 +8,10 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,9 +37,10 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     private long versionMapMemoryInBytes;
     private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
-    private ImmutableOpenMap<String, Long> fileSizes = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, FileStats> files = ImmutableOpenMap.of();
 
-    public SegmentsStats() {}
+    public SegmentsStats() {
+    }
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
@@ -52,14 +56,13 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         bitsetMemoryInBytes = in.readLong();
         maxUnsafeAutoIdTimestamp = in.readLong();
 
-        int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
+        final int size = in.readVInt();
+        final ImmutableOpenMap.Builder<String, FileStats> files = ImmutableOpenMap.builder(size);
         for (int i = 0; i < size; i++) {
-            String key = in.readString();
-            Long value = in.readLong();
-            map.put(key, value);
+            FileStats file = new FileStats(in);
+            files.put(file.getExt(), file);
         }
-        fileSizes = map.build();
+        this.files = files.build();
     }
 
     public void add(long count, long memoryInBytes) {
@@ -107,19 +110,18 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
 
-    public void addFileSizes(ImmutableOpenMap<String, Long> fileSizes) {
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(this.fileSizes);
-
-        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
-            if (map.containsKey(entry.key)) {
-                Long oldValue = map.get(entry.key);
-                map.put(entry.key, oldValue + entry.value);
+    public void addFiles(ImmutableOpenMap<String, FileStats> files) {
+        final ImmutableOpenMap.Builder<String, FileStats> map = ImmutableOpenMap.builder(this.files);
+        for (ObjectObjectCursor<String, FileStats> entry : files) {
+            final String extension = entry.key;
+            if (map.containsKey(extension)) {
+                FileStats previous = map.get(extension);
+                map.put(extension, FileStats.merge(previous, entry.value));
             } else {
-                map.put(entry.key, entry.value);
+                map.put(extension, entry.value);
             }
         }
-
-        this.fileSizes = map.build();
+        this.files = map.build();
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -137,7 +139,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
         addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
-        addFileSizes(mergeStats.fileSizes);
+        addFiles(mergeStats.files);
     }
 
     /**
@@ -257,8 +259,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(bitsetMemoryInBytes);
     }
 
-    public ImmutableOpenMap<String, Long> getFileSizes() {
-        return fileSizes;
+    public ImmutableOpenMap<String, FileStats> getFiles() {
+        return files;
     }
 
     /**
@@ -285,12 +287,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, getBitsetMemory());
         builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
         builder.startObject(Fields.FILE_SIZES);
-        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
-            builder.startObject(entry.key);
-            builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(entry.value));
-            LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(entry.key);
-            builder.field(Fields.DESCRIPTION, extension != null ? extension.getDescription() : "Others");
-            builder.endObject();
+        for (ObjectObjectCursor<String, FileStats> entry : files) {
+            entry.value.toXContent(builder, params);
         }
         builder.endObject();
         builder.endObject();
@@ -322,9 +320,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         static final String FIXED_BIT_SET = "fixed_bit_set";
         static final String FIXED_BIT_SET_MEMORY_IN_BYTES = "fixed_bit_set_memory_in_bytes";
         static final String FILE_SIZES = "file_sizes";
-        static final String SIZE = "size";
-        static final String SIZE_IN_BYTES = "size_in_bytes";
-        static final String DESCRIPTION = "description";
     }
 
     @Override
@@ -342,14 +337,117 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(bitsetMemoryInBytes);
         out.writeLong(maxUnsafeAutoIdTimestamp);
 
-        out.writeVInt(fileSizes.size());
-        for (ObjectObjectCursor<String, Long> entry : fileSizes) {
-            out.writeString(entry.key);
-            out.writeLong(entry.value);
+        out.writeVInt(files.size());
+        for (ObjectCursor<FileStats> file : files.values()) {
+            file.value.writeTo(out);
         }
     }
 
-    public void clearFileSizes() {
-        fileSizes = ImmutableOpenMap.of();
+    public void clearFiles() {
+        files = ImmutableOpenMap.of();
+    }
+
+    public static class FileStats implements Writeable, ToXContentFragment {
+
+        private final String ext;
+        private final long total;
+        private final long count;
+        private final long min;
+        private final long max;
+
+        FileStats(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+                this.ext = in.readString();
+                this.total = in.readVLong();
+                this.count = in.readVLong();
+                this.min = in.readVLong();
+                this.max = in.readVLong();
+            } else {
+                this.ext = in.readString();
+                this.total = in.readLong();
+                this.count = 0L;
+                this.min = 0L;
+                this.max = 0L;
+            }
+        }
+
+        public FileStats(String ext, long total, long count, long min, long max) {
+            this.ext = ext;
+            this.total = total;
+            this.count = count;
+            this.min = min;
+            this.max = max;
+        }
+
+        public String getExt() {
+            return ext;
+        }
+
+        public long getCount() {
+            return count;
+        }
+
+        public long getTotal() {
+            return total;
+        }
+
+        public long getMin() {
+            return min;
+        }
+
+        public long getMax() {
+            return max;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+                out.writeString(ext);
+                out.writeVLong(total);
+                out.writeVLong(count);
+                out.writeVLong(min);
+                out.writeVLong(max);
+            } else {
+                out.writeString(ext);
+                out.writeLong(total);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            final long roundedAverage = count > 0L ? Math.round((double) total / (double) count) : 0L;
+            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(ext);
+            final String name = extension != null ? extension.getExtension() : "others";
+            final String desc = extension != null ? extension.getDescription() : "Others";
+            builder.startObject(name);
+            {
+                builder.field("description", desc);
+                builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(total));
+                builder.humanReadableField("min_size_in_bytes", "min_size", ByteSizeValue.ofBytes(min));
+                builder.humanReadableField("max_size_in_bytes", "max_size", ByteSizeValue.ofBytes(max));
+                builder.humanReadableField("average_size_in_bytes", "average_size", ByteSizeValue.ofBytes(roundedAverage));
+                builder.field("count", count);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static FileStats merge(FileStats o1, FileStats o2) {
+            assert o1 != null && o1.ext != null : o1;
+            assert o2 != null && o2.ext != null : o2;
+            assert o1.ext.equals(o2.ext) : o1 + " vs " + o2;
+            return new FileStats(
+                o1.ext,
+                Math.addExact(o1.total, o2.total),
+                Math.addExact(o1.count, o2.count),
+                Math.min(o1.min, o2.min),
+                Math.max(o1.max, o2.max)
+            );
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
     }
 }

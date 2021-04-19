@@ -143,7 +143,9 @@ public class MlIndexAndAliasTests extends ESTestCase {
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
             Collections.singletonMap("xpack.ml.version.id", String.valueOf(Version.CURRENT.id)));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, notificationsTemplate, listener);
+        // wrapped to enable using non-static wrap logic in production code that is called
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, notificationsTemplate,
+                ActionListener.wrap(listener::onResponse, listener::onFailure));
         InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).putTemplate(any(), any());
         inOrder.verify(listener).onResponse(true);

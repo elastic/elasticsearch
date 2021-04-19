@@ -36,7 +36,7 @@ class AsyncHttpResourceHelper {
 
     static <T> ActionListener<T> wrapMockListener(ActionListener<T> mock) {
         // wraps the mock listener so that default functions on the ActionListener interface can be used
-        return mock.wrap((l, r) -> l.onResponse(r));
+        return ActionListener.wrap(mock::onResponse, mock::onFailure);
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Response response) {

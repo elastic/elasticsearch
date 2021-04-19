@@ -1077,10 +1077,12 @@ end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::
-(Optional, integer) The maximum number of documents to collect for each shard,
-upon reaching which the query execution will terminate early. Documents are collected
-before sorting. Early termination is done automatically when possible, so this setting
-is not recommended.
+(Optional, integer) Maximum number of documents to collect for each shard. If a
+query reaches this limit, {es} terminates the query early. {es} collects
+documents before sorting.
++
+IMPORTANT: We do not recommend specifying this parameter. When possible, {es}
+performs early termination automatically.
 end::terminate_after[]
 
 tag::time[]

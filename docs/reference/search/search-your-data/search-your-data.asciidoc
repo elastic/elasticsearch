@@ -236,11 +236,11 @@ results from each shard before returning a response.
 
 While <<async-search-intro,async search>> is designed for long-running
 searches, you can also use the `timeout` parameter to specify a duration you'd
-like to wait on each shard to complete. Each shard will collect hits
-within the specified time and bail with the hits accumulated up to that
-point when expired. The overall latency of the search request will depend on
-the number of shards that participate in the query and the number of shard
-requests that executed concurrently.
+like to wait on each shard to complete. Each shard collects hits within the
+specified time period. If collection isn't finished when the period ends, {es}
+uses only the hits accumulated up to that point. The overall latency of a search
+request depends on the number of shards needed for the search and the number of
+concurrent shard requests.
 
 [source,console]
 ----

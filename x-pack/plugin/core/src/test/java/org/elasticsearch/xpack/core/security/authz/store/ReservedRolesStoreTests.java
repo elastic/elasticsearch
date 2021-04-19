@@ -1700,26 +1700,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
         // Check application privileges
-        assertKibanaFeatureReadButNotAll(role, "feature_discover");
-        assertKibanaFeatureReadButNotAll(role, "feature_dashboard");
-        assertKibanaFeatureReadButNotAll(role, "feature_canvas");
-        assertKibanaFeatureReadButNotAll(role, "feature_maps");
-        assertKibanaFeatureReadButNotAll(role, "feature_ml");
-        assertKibanaFeatureReadButNotAll(role, "feature_graph");
-        assertKibanaFeatureReadButNotAll(role, "feature_visualize");
-        assertKibanaFeatureReadButNotAll(role, "feature_logs");
-        assertKibanaFeatureReadButNotAll(role, "feature_infrastructure");
-        assertKibanaFeatureReadButNotAll(role, "feature_apm");
-        assertKibanaFeatureReadButNotAll(role, "feature_uptime");
-        assertKibanaFeatureReadButNotAll(role, "feature_siem");
-        assertKibanaFeatureReadButNotAll(role, "feature_dev_tools");
-        assertKibanaFeatureReadButNotAll(role, "feature_advancedSettings");
-        assertKibanaFeatureReadButNotAll(role, "feature_indexPatterns");
-        assertKibanaFeatureReadButNotAll(role, "feature_savedObjectsManagement");
-        assertKibanaFeatureReadButNotAll(role, "feature_savedObjectsTagging");
-        assertKibanaFeatureReadButNotAll(role, "feature_fleet");
-        assertKibanaFeatureReadButNotAll(role, "feature_actions");
-        assertKibanaFeatureReadButNotAll(role, "feature_stackAlerts");
+        assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-read", "read"), "*"), is(true));
+        assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }
@@ -1773,40 +1755,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
 
         // Check application privileges
-        assertKibanaFeatureAll(role, "feature_discover");
-        assertKibanaFeatureAll(role, "feature_dashboard");
-        assertKibanaFeatureAll(role, "feature_canvas");
-        assertKibanaFeatureAll(role, "feature_maps");
-        assertKibanaFeatureAll(role, "feature_ml");
-        assertKibanaFeatureAll(role, "feature_graph");
-        assertKibanaFeatureAll(role, "feature_visualize");
-        assertKibanaFeatureAll(role, "feature_logs");
-        assertKibanaFeatureAll(role, "feature_infrastructure");
-        assertKibanaFeatureAll(role, "feature_apm");
-        assertKibanaFeatureAll(role, "feature_uptime");
-        assertKibanaFeatureAll(role, "feature_siem");
-        assertKibanaFeatureAll(role, "feature_dev_tools");
-        assertKibanaFeatureAll(role, "feature_advancedSettings");
-        assertKibanaFeatureAll(role, "feature_indexPatterns");
-        assertKibanaFeatureAll(role, "feature_savedObjectsManagement");
-        assertKibanaFeatureAll(role, "feature_savedObjectsTagging");
-        assertKibanaFeatureAll(role, "feature_fleet");
-        assertKibanaFeatureAll(role, "feature_actions");
-        assertKibanaFeatureAll(role, "feature_stackAlerts");
+        assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(true));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
-    }
-
-    private void assertKibanaFeatureReadButNotAll(Role role, String featureName) {
-        assertThat(role.application()
-            .grants(new ApplicationPrivilege("kibana-.kibana", "kibana-" + featureName + ".read", featureName + ".read"), "*"), is(true));
-        assertThat(role.application()
-            .grants(new ApplicationPrivilege("kibana-.kibana", "kibana-" + featureName + ".all", featureName + ".all"), "*"), is(false));
-    }
-
-    private void assertKibanaFeatureAll(Role role, String featureName) {
-        assertThat(role.application()
-            .grants(new ApplicationPrivilege("kibana-.kibana", "kibana-" + featureName + ".all", featureName + ".all"), "*"), is(true));
     }
 
     private void assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(Role role, String index) {

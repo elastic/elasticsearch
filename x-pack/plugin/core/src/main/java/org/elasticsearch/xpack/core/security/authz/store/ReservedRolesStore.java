@@ -342,7 +342,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     private static RoleDescriptor buildViewerRoleDescriptor() {
-        return new RoleDescriptor("viewer",
+        return new RoleDescriptor(
+            "viewer",
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
@@ -352,27 +353,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana-.kibana").resources("*").privileges(
-                    "feature_discover.read",
-                    "feature_dashboard.read",
-                    "feature_canvas.read",
-                    "feature_maps.read",
-                    "feature_ml.read",
-                    "feature_graph.read",
-                    "feature_visualize.read",
-                    "feature_logs.read",
-                    "feature_infrastructure.read",
-                    "feature_apm.read",
-                    "feature_uptime.read",
-                    "feature_siem.read",
-                    "feature_dev_tools.read",
-                    "feature_advancedSettings.read",
-                    "feature_indexPatterns.read",
-                    "feature_savedObjectsManagement.read",
-                    "feature_savedObjectsTagging.read",
-                    "feature_fleet.read",
-                    "feature_actions.read",
-                    "feature_stackAlerts.read").build() },
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("read").build() },
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
@@ -396,27 +380,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices(".siem-signals-*", ".lists-*", ".items-*")
                     .privileges("read", "view_index_metadata", "write", "maintenance").build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana-.kibana").resources("*").privileges(
-                    "feature_discover.all",
-                    "feature_dashboard.all",
-                    "feature_canvas.all",
-                    "feature_maps.all",
-                    "feature_ml.all",
-                    "feature_graph.all",
-                    "feature_visualize.all",
-                    "feature_logs.all",
-                    "feature_infrastructure.all",
-                    "feature_apm.all",
-                    "feature_uptime.all",
-                    "feature_siem.all",
-                    "feature_dev_tools.all",
-                    "feature_advancedSettings.all",
-                    "feature_indexPatterns.all",
-                    "feature_savedObjectsManagement.all",
-                    "feature_savedObjectsTagging.all",
-                    "feature_fleet.all",
-                    "feature_actions.all",
-                    "feature_stackAlerts.all").build() },
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("all").build() },
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,

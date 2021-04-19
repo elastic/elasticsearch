@@ -461,8 +461,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             if (existingTargetFiles != null) {
                 if (existingTargetFiles.isSame(sourceFiles)) {
-                    return new ShardSnapshotResult(existingShardGen,
-                            getTotalSize(existingTargetFiles.indexFiles()),
+                    return new ShardSnapshotResult(
+                            existingShardGen,
+                            ByteSizeValue.ofBytes(existingTargetFiles.totalSize()),
                             getSegmentInfoFileCount(existingTargetFiles.indexFiles()));
                 }
                 throw new RepositoryException(metadata.name(), "Can't create clone of [" + shardId + "] for snapshot ["
@@ -475,12 +476,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     shardContainer, target.getUUID(), compress, bigArrays);
             INDEX_SHARD_SNAPSHOTS_FORMAT.write(existingSnapshots.withClone(source.getName(), target.getName()), shardContainer, newGen,
                     compress, bigArrays);
-            return new ShardSnapshotResult(newGen, getTotalSize(sourceMeta.indexFiles()), getSegmentInfoFileCount(sourceMeta.indexFiles()));
+            return new ShardSnapshotResult(
+                    newGen,
+                    ByteSizeValue.ofBytes(sourceMeta.totalSize()),
+                    getSegmentInfoFileCount(sourceMeta.indexFiles()));
         }));
-    }
-
-    private static ByteSizeValue getTotalSize(List<BlobStoreIndexShardSnapshot.FileInfo> indexFiles) {
-        return ByteSizeValue.ofBytes(indexFiles.stream().mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length).sum());
     }
 
     private static int getSegmentInfoFileCount(List<BlobStoreIndexShardSnapshot.FileInfo> indexFiles) {
@@ -2281,22 +2281,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 // now create and write the commit point
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                final BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = new BlobStoreIndexShardSnapshot(
+                        snapshotId.getName(),
+                        lastSnapshotStatus.getIndexVersion(),
+                        indexCommitPointFiles,
+                        lastSnapshotStatus.getStartTime(),
+                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                        lastSnapshotStatus.getIncrementalFileCount(),
+                        lastSnapshotStatus.getIncrementalSize()
+                );
                 try {
-                    INDEX_SHARD_SNAPSHOT_FORMAT.write(new BlobStoreIndexShardSnapshot(snapshotId.getName(),
-                            lastSnapshotStatus.getIndexVersion(),
-                            indexCommitPointFiles,
-                            lastSnapshotStatus.getStartTime(),
-                            threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                            lastSnapshotStatus.getIncrementalFileCount(),
-                            lastSnapshotStatus.getIncrementalSize()
-                    ), shardContainer, snapshotId.getUUID(), compress, bigArrays);
+                    final String snapshotUUID = snapshotId.getUUID();
+                    INDEX_SHARD_SNAPSHOT_FORMAT.write(blobStoreIndexShardSnapshot, shardContainer, snapshotUUID, compress, bigArrays);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
                 afterWriteSnapBlob.run();
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                         indexGeneration,
-                        getTotalSize(indexCommitPointFiles),
+                        ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
                         snapshotIndexCommit.getSegmentCount());
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 listener.onResponse(shardSnapshotResult);

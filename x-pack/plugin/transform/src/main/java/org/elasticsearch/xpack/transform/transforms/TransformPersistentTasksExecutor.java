@@ -125,7 +125,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             clusterState,
             node -> node.getVersion().onOrAfter(Version.V_7_7_0)
                 ? nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
-                : nodeCanRunThisTransformPre77(node, params.getVersion(), params.requiresRemote(), null)
+                : nodeCanRunThisTransformPre77(node, params.getVersion(), null)
         );
 
         if (discoveryNode == null) {
@@ -134,7 +134,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 if (node.getVersion().onOrAfter(Version.V_7_7_0)) {
                     nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
                 } else {
-                    nodeCanRunThisTransformPre77(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
+                    nodeCanRunThisTransformPre77(node, params.getVersion(), explainWhyAssignmentFailed);
                 }
             }
             String reason = "Not starting transform ["

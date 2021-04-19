@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -191,7 +190,7 @@ public final class TransformNodes {
         Writeable.Reader<Response> reader,
         ActionListener<Response> listener
     ) {
-        final boolean isTransformNode = DiscoveryNode.hasRole(nodeSettings, DiscoveryNodeRole.TRANSFORM_ROLE);
+        final boolean isTransformNode = DiscoveryNode.hasRole(nodeSettings, Transform.TRANSFORM_ROLE);
         final boolean isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(nodeSettings);
         final DiscoveryNodes nodes = clusterState.nodes();
 
@@ -252,7 +251,7 @@ public final class TransformNodes {
         }
 
         // transform enabled?
-        if (node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE) == false) {
+        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a transform node");
             }
@@ -271,16 +270,9 @@ public final class TransformNodes {
         return true;
     }
 
-
-
-
-
-
-
-
-
-
-    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
+    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node,
+                                                       Version minRequiredVersion,
+                                                       Map<String, String> explain) {
         if (node.canContainData() == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a data node");
@@ -289,11 +281,11 @@ public final class TransformNodes {
         }
 
         // version of the transform run on a node that has at least the same version
-        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
+        if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
                     node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
+                    "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion
                 );
             }
             return false;
@@ -301,33 +293,4 @@ public final class TransformNodes {
 
         return true;
     }
-
-    public static boolean nodeCanRunThisTransformXXX(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
-        // version of the transform run on a node that has at least the same version
-        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
-            if (explain != null) {
-                explain.put(
-                    node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
-                );
-            }
-            return false;
-        }
-
-        // transform enabled?
-        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "not a transform node");
-            }
-            return false;
-        }
-
-        // does the transform require a remote and remote is enabled?
-        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
-            }
-            return false;
-        }
-
 }

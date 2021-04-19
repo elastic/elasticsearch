@@ -28,7 +28,7 @@ import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.TRANSFORM_ROLE;
+import static org.elasticsearch.xpack.transform.Transform.TRANSFORM_ROLE;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

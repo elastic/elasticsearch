@@ -10,7 +10,6 @@ import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.List;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -114,48 +113,45 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        Tuple<String, DataType> template = basicTemplate(aggregate);
+        String template = basicTemplate(aggregate);
         ParamsBuilder paramsBuilder = paramsBuilder().agg(aggregate);
-        if (template.v2() != null) {
-            paramsBuilder.variable(template.v2().name());
+        if (template.indexOf("nullSafeCastNumeric") > 0) {
+            // SUM(integral_type) requires returning a LONG value, the other cast aggs keep their type
+            DataType dataType = "SUM".equals(aggregate.functionName()) ? LONG : aggregate.dataType();
+            paramsBuilder.variable(dataType.name());
         }
-        return new ScriptTemplate(processScript(template.v1()), paramsBuilder.build(), dataType());
+        return new ScriptTemplate(processScript(template), paramsBuilder.build(), dataType());
     }
 
     // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        Tuple<String, DataType> template = basicTemplate(grouping);
-        if (template.v2() != null) {
-            throw new QlIllegalArgumentException("Unexpected data type [" + template.v2() + "] for grouping function [" + grouping + "]");
-        }
-        return new ScriptTemplate(processScript(template.v1()),
+        String template = basicTemplate(grouping);
+        return new ScriptTemplate(processScript(template),
             paramsBuilder().grouping(grouping).build(),
             dataType());
     }
 
     // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
-    private Tuple<String, DataType> basicTemplate(Function function) {
+    private String basicTemplate(Function function) {
         if (function.dataType().name().equals("DATE") || function.dataType() == DATETIME ||
             // Aggregations on date_nanos are returned as string
             (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
 
-            return new Tuple<>("{sql}.asDateTime({})", null);
+            return "{sql}.asDateTime({})";
         } else if (function instanceof AggregateFunction) {
             DataType dt = function.dataType();
             if (dt.isInteger()) {
-                // MAX, MIN, SUM need to retain field's data type, so that possible operations on integral types (like division) work
+                // MAX, MIN need to retain field's data type, so that possible operations on integral types (like division) work
                 // correctly -> perform a cast in the aggs filtering script, the bucket selector for HAVING.
                 // SQL function classes not available in QL: filter by name
                 String fn = function.functionName();
-                if ("MAX".equals(fn) || "MIN".equals(fn)) {
-                    return new Tuple<>("{ql}.nullSafeCastNumeric({},{})", dt);
-                } else if ("SUM".equals(fn)) {
-                    return new Tuple<>("{ql}.nullSafeCastNumeric({},{})", LONG);
+                if ("MAX".equals(fn) || "MIN".equals(fn) || "SUM".equals(fn)) {
+                    return "{ql}.nullSafeCastNumeric({},{})";
                 }
             }
         }
-        return new Tuple<>("{}", null);
+        return "{}";
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

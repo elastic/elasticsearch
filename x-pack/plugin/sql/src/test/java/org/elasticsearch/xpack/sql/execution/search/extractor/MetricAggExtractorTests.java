@@ -71,7 +71,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     public void testSingleValueProperty() {
-        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null, null);
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null);
 
         double value = randomDouble();
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()), value);
@@ -90,7 +90,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     public void testSingleValueInnerKey() {
-        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null, null);
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null);
         double innerValue = randomDouble();
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()),
                 singletonMap(extractor.innerKey(), innerValue));
@@ -110,7 +110,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     public void testMultiValueProperty() {
-        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null, null);
+        MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", null);
 
         double value = randomDouble();
         Aggregation agg = new TestMultiValueAggregation(extractor.name(), singletonMap(extractor.property(), value));

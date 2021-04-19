@@ -1,0 +1,178 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[searchable-snapshots-api-cache-stats]]
+=== Cache stats API
+++++
+<titleabbrev>Cache stats</titleabbrev>
+++++
+
+Provide statistics about the searchable snapshots <<shared-cache,shared cache>>.
+
+[[searchable-snapshots-api-cache-stats-request]]
+==== {api-request-title}
+
+`GET /_searchable_snapshots/cache/stats` +
+
+`GET /_searchable_snapshots/<node_id>/cache/stats`
+
+[[searchable-snapshots-api-cache-stats-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the
+`manage` cluster privilege to use this API.
+For more information, see <<security-privileges>>.
+
+[[searchable-snapshots-api-cache-stats-desc]]
+==== {api-description-title}
+
+You can use the Cache Stats API to retrieve statistics about the
+usage of the <<shared-cache,shared cache>> on nodes in a cluster.
+
+[[searchable-snapshots-api-cache-stats-path-params]]
+==== {api-path-parms-title}
+
+`<node_id>`::
+    (Optional, string) The names of particular nodes in the cluster to target.
+    For example, `nodeId1,nodeId2`. For node selection options, see
+    <<cluster-nodes>>.
+
+[[searchable-snapshots-api-cache-stats-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+[role="child_attributes"]
+[[searchable-snapshots-api-cache-stats-response-body]]
+==== {api-response-body-title}
+
+`nodes`::
+(object)
+Contains statistics for the nodes selected by the request.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`<node_id>`::
+(object)
+Contains statistics for the node with the given identifier.
++
+.Properties of `<node_id>`
+[%collapsible%open]
+=====
+`shared_cache`::
+(object)
+Contains statistics about the shared cache file.
++
+.Properties of `shared_cache`
+[%collapsible%open]
+======
+`reads`::
+(long) Number of times the shared cache is used to read data from.
+
+`bytes_read`::
+(long) The total of bytes read from the shared cache.
+
+`writes`::
+(long) Number of times data from the blob store repository is written in the shared cache.
+
+`bytes_written`::
+(long) The total of bytes written in the shared cache.
+
+`evictions`::
+(long) Number of regions evicted from the shared cache file.
+
+`num_regions`::
+(integer) Number of regions in the shared cache file.
+
+`size`::
+(long) The total size in bytes of the shared cache file.
+
+`region_size`::
+(long) The size in bytes of a region in the shared cache file.
+======
+=====
+====
+
+
+[[searchable-snapshots-api-cache-stats-example]]
+==== {api-examples-title}
+////
+[source,console]
+-----------------------------------
+PUT /my_docs
+{
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
+}
+POST /my_docs/_doc
+{
+    "test": "value"
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+{
+  "include_global_state": false,
+  "indices": "my_docs"
+}
+
+POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
+{
+  "index": "my_docs",
+  "renamed_index": "mounted_docs"
+  "index_settings": {
+    "index.number_of_replicas": 0
+  }
+}
+
+GET /mounted_docs/?q=test:value
+
+DELETE /my_docs
+-----------------------------------
+// TEST[setup:setup-repository]
+////
+
+Retrieves the searchable snapshots shared cache file statistics for all data nodes:
+
+[source,console]
+--------------------------------------------------
+GET /_searchable_snapshots/cache/stats
+--------------------------------------------------
+// TEST[continued]
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "nodes" : {
+    "eerrtBMtQEisohZzxBLUSw" : {
+      "shared_cache" : {
+        "reads" : 6051,
+        "bytes_read" : "5.1mb",
+        "bytes_read_in_bytes" : 5448829,
+        "writes" : 37,
+        "bytes_written" : "1.1mb",
+        "bytes_written_in_bytes" : 1208320,
+        "evictions" : 5,
+        "num_regions" : 32,
+        "size" : "1mb",
+        "size_in_bytes" : 1048576,
+        "region_size" : "32kb",
+        "region__size_in_bytes" : 32768
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"reads": \d+/"reads" : $body.nodes.$node_name.shared_cache.reads/]
+// TESTRESPONSE[s/"eerrtBMtQEisohZzxBLUSw"/\$node_name/]
+
+////
+[source,console]
+--------------------------------------------------
+DELETE /mounted_docs
+--------------------------------------------------
+// TEST[continued]
+////

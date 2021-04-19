@@ -740,10 +740,12 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testDynamicTemplates() throws Exception {
-        IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "set", (factories, tag, description, config) ->
-                new FakeProcessor("set", "", "", (ingestDocument) -> ingestDocument.setFieldValue("_dynamic_templates",
-                    Map.of("foo", "bar", "foo.bar", "baz")))));
+        Map<String, String> dynamicTemplates = new HashMap<>();
+        dynamicTemplates.put("foo", "bar");
+        dynamicTemplates.put("foo.bar", "baz");
+            IngestService ingestService = createWithProcessors(Collections.singletonMap(
+            "set", (factories, tag, description, config) -> new FakeProcessor("set", "", "",
+                    (ingestDocument) -> ingestDocument.setFieldValue("_dynamic_templates", dynamicTemplates))));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"set\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -758,7 +760,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler,
             indexReq -> {}, Names.WRITE);
         latch.await();
-        assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
+        assertThat(indexRequest.getDynamicTemplates(), equalTo(dynamicTemplates));
     }
 
     public void testExecuteEmptyPipeline() throws Exception {
@@ -807,7 +809,7 @@ public class IngestServiceTests extends ESTestCase {
                 } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
                 } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
-                    ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
+                    ingestDocument.setFieldValue(metadata.getFieldName(), Collections.singletonMap("foo", "bar"));
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }

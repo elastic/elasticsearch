@@ -1148,7 +1148,7 @@ setup:
 ---
 "Nested then filter then nested then terms":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.12.99"
       reason:  Filter support not backported yet
   - do:
       search:
@@ -1192,7 +1192,7 @@ setup:
 ---
 "Filter without nesting":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.12.99"
       reason:  Filter support not backported yet
   - do:
       search:

@@ -180,9 +180,7 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
     'indices.get_mapping/20_missing_type/Non-existent type returns 404',
     'indices.get_mapping/20_missing_type/Type missing when no types exist',
-//    'indices.get_mapping/40_aliases/Getting mapping for aliases should return the real index as key',
-//    'indices.get_mapping/61_empty_with_types/Check empty mapping when getting all mappings via /_mapping',
-//    'indices.get_mapping/70_mix_typeless_typeful/GET mapping with typeless API on an index that has types',
+    //
     'indices.open/10_basic/?wait_for_active_shards default is deprecated',
     'indices.open/10_basic/?wait_for_active_shards=index-setting',
 

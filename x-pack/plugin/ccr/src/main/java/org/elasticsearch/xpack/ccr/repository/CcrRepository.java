@@ -245,8 +245,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
-            Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
             Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
@@ -254,8 +253,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                 copiedSnapshotIds.put(indexName, snapshotId);
-                snapshotStates.put(indexName, SnapshotState.SUCCESS);
-                snapshotVersions.put(indexName, Version.CURRENT);
+                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT));
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
@@ -263,8 +261,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     MISSING_UUID,
                     1,
                     copiedSnapshotIds,
-                    snapshotStates,
-                    snapshotVersions,
+                    snapshotsDetails,
                     indexSnapshots,
                     ShardGenerations.EMPTY,
                     IndexMetaDataGenerations.EMPTY,

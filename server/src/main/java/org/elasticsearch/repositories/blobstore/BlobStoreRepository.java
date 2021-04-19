@@ -1101,8 +1101,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final ActionListener<Void> allMetaListener = new GroupedActionListener<>(
                 ActionListener.wrap(v -> {
+                    final RepositoryData.SnapshotDetails dtls = new RepositoryData.SnapshotDetails(snapshotInfo.state(), Version.CURRENT);
                     final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
-                        snapshotId, snapshotInfo.state(), Version.CURRENT, shardGenerations, indexMetas, indexMetaIdentifiers);
+                        snapshotId, dtls, shardGenerations, indexMetas, indexMetaIdentifiers);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, repositoryMetaVersion, stateTransformer,
                             ActionListener.wrap(
                                     newRepoData -> {

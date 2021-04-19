@@ -235,7 +235,7 @@ public class Authentication implements ToXContentObject {
         if (isServiceAccount()) {
             final String tokenName = (String) getMetadata().get(TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("name", tokenName));
+            builder.field(User.Fields.TOKEN.getPreferredName(), org.elasticsearch.common.collect.Map.of("name", tokenName));
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());

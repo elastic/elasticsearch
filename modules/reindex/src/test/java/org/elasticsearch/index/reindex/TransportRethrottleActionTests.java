@@ -56,21 +56,22 @@ public class TransportRethrottleActionTests extends ESTestCase {
      * @param simulator simulate a response from the sub-request to rethrottle the child requests
      * @param verifier verify the resulting response
      */
-    @SuppressWarnings({"unchecked", "raw"})
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private void rethrottleTestCase(int runningSlices, Consumer<ActionListener<ListTasksResponse>> simulator,
             Consumer<ActionListener<TaskInfo>> verifier) {
         Client client = mock(Client.class);
         String localNodeId = randomAlphaOfLength(5);
         float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, () -> randomFloat());
         ActionListener<TaskInfo> listener = mock(ActionListener.class);
-        when(listener.wrap(any(CheckedBiConsumer.class))).then(invocationOnMock -> ActionListener.<TaskInfo>wrap(
-                r -> ((CheckedBiConsumer) invocationOnMock.getArguments()[0]).accept(listener, r), listener::onFailure));
+        when(listener.wrap(any(CheckedBiConsumer.class))).then(invocationOnMock -> {
+            final CheckedBiConsumer fn = (CheckedBiConsumer) invocationOnMock.getArguments()[0];
+            return ActionListener.wrap(r -> fn.accept(listener, r), listener::onFailure);
+        });
 
         TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
 
         // Capture the sub request and the listener so we can verify they are sane
         ArgumentCaptor<RethrottleRequest> subRequest = ArgumentCaptor.forClass(RethrottleRequest.class);
-        @SuppressWarnings({ "unchecked", "rawtypes" }) // Magical generics incantation.....
         ArgumentCaptor<ActionListener<ListTasksResponse>> subListener = ArgumentCaptor.forClass((Class) ActionListener.class);
         if (runningSlices > 0) {
             verify(client).execute(eq(RethrottleAction.INSTANCE), subRequest.capture(), subListener.capture());

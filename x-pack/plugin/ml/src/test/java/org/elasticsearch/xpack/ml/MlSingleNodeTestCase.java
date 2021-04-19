@@ -88,10 +88,6 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             IndexLifecycle.class);
     }
 
-    /**
-     * This cleanup is to fix the problem described in
-     * https://github.com/elastic/elasticsearch/issues/38952
-     */
     @Override
     public void tearDown() throws Exception {
         try {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.fleet.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.fleet.Fleet;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -230,16 +233,39 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertThat(exception.getMessage(), equalTo("wait_for_advance only supports indices with one shard. [shard count: 3]"));
     }
 
-    public void testIndexDoesNotExist() throws Exception {
+    public void testIndexDoesNotExistAfterTimeout() throws Exception {
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
             "non-existent",
             false,
             EMPTY_ARRAY,
-            TimeValue.parseTimeValue(randomTimeValue(), "test")
+            TimeValue.timeValueMillis(between(0, 100))
         );
         ElasticsearchException exception = expectThrows(
             IndexNotFoundException.class,
             () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
         );
+    }
+
+    public void testWaitOnIndexReady() throws Exception {
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            "not-yet-existing",
+            false,
+            EMPTY_ARRAY,
+            TEN_SECONDS
+        );
+        ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100));
+        client().admin()
+            .indices()
+            .prepareCreate("not-yet-existing")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            )
+            .get();
+        GetGlobalCheckpointsAction.Response response = future.actionGet();
+        assertFalse(response.timedOut());
     }
 }

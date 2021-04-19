@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -128,7 +130,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         @Override
         public String[] indices() {
-            return new String[] { index };
+            return new String[]{index};
         }
 
         @Override
@@ -161,19 +163,66 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState state = clusterService.state();
 
-            Index index = null;
+            final Index index;
             try {
                 index = resolver.concreteSingleIndex(state, request);
             } catch (IndexNotFoundException e) {
                 handleIndexNotReady(request, listener);
+                return;
             }
+
             final IndexMetadata indexMetadata = state.getMetadata().index(index);
             final IndexRoutingTable routingTable = state.routingTable().index(index);
 
-            boolean allPrimaryShardsActive = routingTable.allPrimaryShardsActive();
+            if (routingTable.allPrimaryShardsActive()) {
+                afterIndexReady(request, listener, indexMetadata, request.timeout());
+            } else {
+                handleIndexNotReady(request, listener);
+            }
+        }
 
+        private void handleIndexNotReady(final Request request, final ActionListener<Response> responseListener) {
+            long startNanos = System.nanoTime();
+            client.admin()
+                .cluster()
+                .prepareHealth(request.index)
+                .setLocal(true)
+                .setTimeout(request.timeout)
+                .setWaitForYellowStatus()
+                .setWaitForNoInitializingShards(true)
+                .execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterHealthResponse healthResponse) {
+                        final long elapsedNanos = System.nanoTime() - startNanos;
+                        final ClusterState state = clusterService.state();
+                        final Index index;
+                        try {
+                            index = resolver.concreteSingleIndex(state, request);
+                        } catch (Exception e) {
+                            responseListener.onFailure(e);
+                            return;
+                        }
+
+                        final IndexMetadata indexMetadata = state.getMetadata().index(index);
+                        final IndexRoutingTable routingTable = state.routingTable().index(index);
+
+                        long remainingNanos = request.timeout().nanos() - elapsedNanos;
+                        if (routingTable.allPrimaryShardsActive() && remainingNanos > 0) {
+                            afterIndexReady(request, responseListener, indexMetadata, TimeValue.timeValueNanos(remainingNanos));
+                        } else {
+                            responseListener.onFailure(new ElasticsearchException("Primary shards were not active within timeout period."));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        responseListener.onFailure(e);
+                    }
+                });
+        }
+
+        private void afterIndexReady(Request request, ActionListener<Response> listener, IndexMetadata indexMetadata, TimeValue timeout) {
             final int numberOfShards = indexMetadata.getNumberOfShards();
-
             if (request.waitForAdvance() && numberOfShards != 1) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -218,7 +267,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     new ShardId(indexMetadata.getIndex(), shardIndex),
                     request.waitForAdvance(),
                     checkpoints[shardIndex],
-                    request.timeout()
+                    timeout
                 );
 
                 client.execute(GetGlobalCheckpointsShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
@@ -246,51 +295,6 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                         }
                     }
                 });
-            }
-        }
-
-        private void handleIndexNotReady(final Request request, final ActionListener<Response> responseListener) {
-            boolean waitOnIndex = true;
-            if (waitOnIndex) {
-                client.admin()
-                    .cluster()
-                    .prepareHealth(request.index)
-                    .setLocal(true)
-                    .setTimeout(request.timeout)
-                    .setWaitForYellowStatus()
-                    .execute(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterHealthResponse healthResponse) {
-                            if (healthResponse.isTimedOut()) {
-
-                            } else {
-                                final ClusterState state = clusterService.state();
-                                final Index index = resolver.concreteSingleIndex(state, request);
-                                final IndexMetadata indexMetadata = state.getMetadata().index(index);
-                                afterIndexFound(request, responseListener, indexMetadata);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            responseListener.onFailure(e);
-                        }
-                    });
-            } else {
-                responseListener.onFailure(new IndexNotFoundException(request.index));
-            }
-        }
-
-        private void afterIndexFound(Request request, ActionListener<Response> listener, IndexMetadata indexMetadata) {
-            final int numberOfShards = indexMetadata.getNumberOfShards();
-            if (request.waitForAdvance() && numberOfShards != 1) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "wait_for_advance only supports indices with one shard. " + "[shard count: " + numberOfShards + "]",
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-                return;
             }
         }
 

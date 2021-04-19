@@ -3,7 +3,7 @@
     "auto_expand_replicas": "0-1"
   },
   "mappings": {
-    "_doc" : {
+    "_doc": {
       "dynamic": false,
       "_meta": {
         "version": "${fleet.version}"
@@ -86,6 +86,9 @@
                           "ignore_above": 16
                         }
                       }
+                    },
+                    "packages": {
+                      "type": "keyword"
                     }
                   }
                 }

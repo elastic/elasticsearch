@@ -341,7 +341,8 @@ public final class RepositoryData {
      *                         {@link IndexMetadata} in them
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
-                                      SnapshotDetails details, final ShardGenerations shardGenerations,
+                                      final SnapshotDetails details,
+                                      final ShardGenerations shardGenerations,
                                       @Nullable final Map<IndexId, String> indexMetaBlobs,
                                       @Nullable final Map<String, String> newIdentifiers) {
         if (snapshotIds.containsKey(snapshotId.getUUID())) {

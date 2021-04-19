@@ -1566,7 +1566,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
             highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync,
-            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE, RestPutIndexTemplateAction.DEPRECATION_WARNING)
             );
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
@@ -1623,7 +1623,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
             highLevelClient().indices()::putTemplate,
             highLevelClient().indices()::putTemplateAsync,
-            expectWarnings("Deprecated field [template] used, replaced by [index_patterns]"));
+            expectWarnings(
+                RestPutIndexTemplateAction.DEPRECATION_WARNING,
+                "Deprecated field [template] used, replaced by [index_patterns]"
+            ));
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
         Map<String, Object> templates = getAsMap("/_template/my-template");
@@ -1683,7 +1686,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
             highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync,
-            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)
+            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE, RestPutIndexTemplateAction.DEPRECATION_WARNING)
             );
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
@@ -1781,8 +1784,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate1 =
             new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-1")
             .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
-        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync
-                , expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+        assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync,
+            expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE, RestPutIndexTemplateAction.DEPRECATION_WARNING))
             .isAcknowledged(), equalTo(true));
         org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplate2 =
             new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest().name("template-2")
@@ -1790,7 +1793,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .mapping("custom_doc_type", "name", "type=text")
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
         assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync,
-                expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+                expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE, RestPutIndexTemplateAction.DEPRECATION_WARNING))
                 .isAcknowledged(), equalTo(true));
 
         org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate1 = execute(
@@ -1847,17 +1850,19 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         assertThat(execute(new GetIndexTemplatesRequest("template-*"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync,
-              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)).getIndexTemplates(), hasSize(1));
+              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+            .getIndexTemplates(), hasSize(1));
         assertThat(execute(new GetIndexTemplatesRequest("template-*"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync,
-              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)).getIndexTemplates()
-                .get(0).name(), equalTo("template-2"));
+              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))
+            .getIndexTemplates().get(0).name(), equalTo("template-2"));
 
         assertTrue(execute(new DeleteIndexTemplateRequest("template-*"),
             client.indices()::deleteTemplate, client.indices()::deleteTemplateAsync).isAcknowledged());
         assertThat(expectThrows(ElasticsearchException.class, () -> execute(new GetIndexTemplatesRequest("template-*"),
             client.indices()::getTemplate, client.indices()::getTemplateAsync,
-              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE))).status(), equalTo(RestStatus.NOT_FOUND));
+              expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE)))
+            .status(), equalTo(RestStatus.NOT_FOUND));
     }
 
 

@@ -89,7 +89,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         @Override
-        public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             if (parsesArrayValue) {

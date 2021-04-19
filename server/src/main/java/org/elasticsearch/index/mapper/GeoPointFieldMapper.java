@@ -17,9 +17,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormat;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Geometry;
@@ -119,7 +122,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return factory == null ? null : (lookup, ctx, doc, consumer) -> factory
                 .newFactory(name, script.get().getParams(), lookup)
                 .newInstance(ctx)
-                .runForDoc(doc, consumer);
+                .runGeoPointForDoc(doc, consumer);
         }
 
         @Override
@@ -134,8 +137,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 (ParsedGeoPoint) nullValue.get(),
                 ignoreZValue.get().value(),
                 ignoreMalformed.get().value());
-            GeoPointFieldType ft
-                = new GeoPointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
+            GeoPointFieldType ft = new GeoPointFieldType(
+                buildFullName(contentPath),
+                indexed.get(),
+                stored.get(),
+                hasDocValues.get(),
+                geoParser,
+                scriptValues(),
+                meta.get());
             if (this.script.get() == null) {
                 return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                     copyTo.build(), geoParser, this);
@@ -209,18 +218,35 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType implements GeoShapeQueryable {
 
+        private static final GeometryParser PARSER = new GeometryParser(true, true, true);
+        private final FieldValues<GeoPoint> scriptValues;
+
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                  Parser<?> parser, Map<String, String> meta) {
+                                  Parser<ParsedGeoPoint> parser, FieldValues<GeoPoint> scriptValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, true, parser, meta);
+            this.scriptValues = scriptValues;
         }
 
         public GeoPointFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (scriptValues == null) {
+                return super.valueFetcher(context, format);
+            }
+            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(geoFormat);
+            return FieldValues.valueFetcher(scriptValues, v -> {
+                GeoPoint p = (GeoPoint) v;
+                return geometryFormat.toXContentAsObject(new Point(p.lon(), p.lat()));
+            }, context);
         }
 
         @Override

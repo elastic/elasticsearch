@@ -42,7 +42,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         super(fieldName, params, searchLookup, ctx);
     }
 
-    public void runForDoc(int doc, Consumer<GeoPoint> consumer) {
+    public void runGeoPointForDoc(int doc, Consumer<GeoPoint> consumer) {
         runForDoc(doc);
         GeoPoint point = new GeoPoint();
         for (int i = 0; i < count(); i++) {

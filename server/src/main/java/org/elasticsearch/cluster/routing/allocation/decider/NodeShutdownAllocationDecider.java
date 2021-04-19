@@ -83,11 +83,11 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
 
     private static SingleNodeShutdownMetadata getNodeShutdownMetadata(Metadata metadata, String nodeId) {
         NodesShutdownMetadata nodesShutdownMetadata = metadata.custom(NodesShutdownMetadata.TYPE);
-        if (nodesShutdownMetadata == null || nodesShutdownMetadata.getPerNodeInfo() == null) {
+        if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetdataMap() == null) {
             // There are no nodes in the process of shutting down, return null.
             return null;
         }
 
-        return nodesShutdownMetadata.getPerNodeInfo().get(nodeId);
+        return nodesShutdownMetadata.getAllNodeMetdataMap().get(nodeId);
     }
 }

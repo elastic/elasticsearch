@@ -17,9 +17,9 @@ https://publicsuffix.org/[Mozilla Public Suffix List].
 |======
 | Name               | Required | Default | Description
 | `field`            | yes      |         | Field containing the source FQDN.
-| `target_field`     | no       | `<empty string>` | Field under which the
-extracted domain components will be written. If the empty string, the domain
-components will be added to the root of the document.
+| `target_field`     | no       | `<empty string>` | Object field containing
+extracted domain components. If an `<empty string>`, the processor adds
+components to the document's root.
 | `ignore_missing`   | no       | `true`  | If `true` and any required fields
 are missing, the processor quietly exits without modifying the document.
 

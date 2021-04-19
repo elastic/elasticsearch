@@ -44,7 +44,6 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71792")
     public void testIndexTemplateMappingClash() throws Exception {
         String transformId = "special_pivot_template_mappings_clash";
         String transformIndex = "special_pivot_template_mappings_clash";

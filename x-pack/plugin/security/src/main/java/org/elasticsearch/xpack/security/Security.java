@@ -485,13 +485,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
-        components.add(privilegeStore);
-        securityIndex.get().addIndexStateListener(privilegeStore::onSecurityIndexStateChange);
-
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         components.add(cacheInvalidatorRegistry);
-        securityIndex.get().addIndexStateListener(cacheInvalidatorRegistry::onSecurityIndexStageChange);
+        securityIndex.get().addIndexStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
+
+        final NativePrivilegeStore privilegeStore =
+            new NativePrivilegeStore(settings, client, securityIndex.get(), cacheInvalidatorRegistry);
+        components.add(privilegeStore);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);

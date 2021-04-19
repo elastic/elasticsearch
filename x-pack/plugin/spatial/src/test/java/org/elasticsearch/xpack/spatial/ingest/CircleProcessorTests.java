@@ -226,8 +226,7 @@ public class CircleProcessorTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
-            Geometry normalized = indexer.prepareForIndexing(geometry);
-            for (IndexableField field : indexer.indexShape(null, normalized)) {
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);
@@ -258,8 +257,7 @@ public class CircleProcessorTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             ShapeIndexer indexer = new ShapeIndexer(fieldName);
-            Geometry normalized = indexer.prepareForIndexing(geometry);
-            for (IndexableField field : indexer.indexShape(null, normalized)) {
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);

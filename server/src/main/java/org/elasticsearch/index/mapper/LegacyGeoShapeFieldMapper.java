@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -18,12 +17,14 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -34,16 +35,18 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -68,7 +71,7 @@ import java.util.Set;
  * @deprecated use {@link GeoShapeFieldMapper}
  */
 @Deprecated
-public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
+public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -300,14 +303,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             GeoShapeFieldType ft = buildFieldType(parser, contentPath);
             return new LegacyGeoShapeFieldMapper(name, ft,
                 multiFieldsBuilder.build(this, contentPath), copyTo.build(),
-                new LegacyGeoShapeIndexer(ft), parser, this);
+                parser, this);
         }
     }
 
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
-        /**
-         * Note that this parser is only used for formatting values.
-         */
+
         private final GeometryParser geometryParser;
 
         private LegacyGeoShapeParser() {
@@ -315,8 +316,16 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public ShapeBuilder<?, ?, ?> parse(XContentParser parser) throws IOException, ParseException {
-            return ShapeParser.parse(parser);
+        public void parse(
+            XContentParser parser,
+            CheckedConsumer<ShapeBuilder<?, ?, ?>, IOException> consumer,
+            Consumer<Exception> onMalformed
+        ) throws IOException {
+            try {
+                consumer.accept(ShapeParser.parse(parser));
+            } catch (ElasticsearchParseException e) {
+                onMalformed.accept(e);
+            }
         }
 
         @Override
@@ -447,11 +456,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public LegacyGeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                      MultiFields multiFields, CopyTo copyTo,
-                                     LegacyGeoShapeIndexer indexer, LegacyGeoShapeParser parser,
+                                     LegacyGeoShapeParser parser,
                                      Builder builder) {
         super(simpleName, mappedFieldType, Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(), builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
-            multiFields, copyTo, indexer, parser);
+            multiFields, copyTo, parser);
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
     }
@@ -466,18 +475,25 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void addStoredFields(ParseContext context, Shape geometry) {
-        // noop: we do not store geo_shapes; and will not store legacy geo_shape types
-    }
-
-    @Override
-    protected void addDocValuesFields(String name, Shape geometry, List<IndexableField> fields, ParseContext context) {
-        // doc values are not supported
-    }
-
-    @Override
-    protected void addMultiFields(ParseContext context, Shape geometry) {
-        // noop (completion suggester currently not compatible with geo_shape)
+    protected void index(ParseContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
+        Shape shape = shapeBuilder.buildS4J();
+        if (fieldType().pointsOnly()) {
+            // index configured for pointsOnly
+            if (shape instanceof XShapeCollection && ((XShapeCollection<?>) shape).pointsOnly()) {
+                // MULTIPOINT data: index each point separately
+                @SuppressWarnings("unchecked") List<Shape> shapes = ((XShapeCollection<Shape>) shape).getShapes();
+                for (Shape s : shapes) {
+                    context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(s)));
+                }
+                return;
+            } else if (shape instanceof Point == false) {
+                throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a "
+                    + ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass())
+                    + " was found");
+            }
+        }
+        context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
+        createFieldNamesField(context);
     }
 
     @Override

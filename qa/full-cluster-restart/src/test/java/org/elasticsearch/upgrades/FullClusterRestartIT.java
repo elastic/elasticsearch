@@ -879,9 +879,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
         createTemplateRequest.setOptions(expectVersionSpecificWarnings(v -> {
             v.current(RestPutIndexTemplateAction.DEPRECATION_WARNING);
-            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get indices " +
-                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type " +
-                "name in mapping definitions.";
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in put template " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', and requests are expected to omit the " +
+                "type name in mapping definitions.";
             v.compatible(typesWarning);
         }));
 

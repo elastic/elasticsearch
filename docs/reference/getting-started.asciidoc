@@ -421,9 +421,9 @@ GET logs-my_app-default/_search
 
 Use aggregations to summarize data as metrics, statistics, or other analytics.
 
-The following search uses the `avg` aggregation to get the mean response size in
-the `http.response.body.bytes` runtime field. The aggregation only runs on
-documents matching the `query`.
+The following search uses an aggregation to calculate the
+`average_response_size` using the `http.response.body.bytes` runtime field. The
+aggregation only runs on documents matching the `query`.
 
 [source,console]
 ----
@@ -439,7 +439,7 @@ GET logs-my_app-default/_search
     }
   },
   "aggs": {
-    "mean_response_size":{
+    "average_response_size":{
       "avg": {
         "field": "http.response.body.bytes"
       }
@@ -473,14 +473,14 @@ GET logs-my_app-default/_search
 ----
 // TEST[continued]
 
-The response's `aggregations` section includes your aggregation results.
+The response’s `aggregations` object contains aggregation results.
 
 [source,console-result]
 ----
 {
   ...
   "aggregations" : {
-    "mean_response_size" : {
+    "average_response_size" : {
       "value" : 12368.0
     }
   }

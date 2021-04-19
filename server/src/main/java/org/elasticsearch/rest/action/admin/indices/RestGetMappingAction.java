@@ -14,7 +14,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -32,6 +34,9 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetMappingAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
+        + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     private final ThreadPool threadPool;
 
@@ -55,6 +60,11 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            request.param(INCLUDE_TYPE_NAME_PARAMETER);
+            deprecationLogger.compatibleApiWarning("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();

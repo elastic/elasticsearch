@@ -195,7 +195,6 @@ setup:
       snapshot.get:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_metadata
-        human: true
 
   - is_true: responses.0.snapshots
   - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_metadata }

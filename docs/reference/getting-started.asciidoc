@@ -416,6 +416,79 @@ GET logs-my_app-default/_search
 // TEST[continued]
 
 [discrete]
+[[aggregate-data]]
+==== Aggregate data
+
+Use aggregations to summarize data as metrics, statistics, or other analytics.
+
+The following search uses the `avg` aggregation to get the mean response size in
+the `http.response.body.bytes` runtime field. The aggregation only runs on
+documents matching the `query`.
+
+[source,console]
+----
+GET logs-my_app-default/_search
+{
+  "runtime_mappings": {
+    "http.response.body.bytes": {
+      "type": "long",
+      "script": """
+        String bytes=grok('%{COMMONAPACHELOG}').extract(doc[ "event.original" ].value)?.bytes;
+        if (bytes != null) emit(Integer.parseInt(bytes));
+      """
+    }
+  },
+  "aggs": {
+    "mean_response_size":{
+      "avg": {
+        "field": "http.response.body.bytes"
+      }
+    }
+  },
+  "query": {
+    "bool": {
+      "filter": [
+        {
+          "range": {
+            "@timestamp": {
+              "gte": "2099-05-05",
+              "lt": "2099-05-08"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "fields": [
+    "@timestamp",
+    "http.response.body.bytes"
+  ],
+  "_source": false,
+  "sort": [
+    {
+      "@timestamp": "desc"
+    }
+  ]
+}
+----
+// TEST[continued]
+
+The response's `aggregations` section includes your aggregation results.
+
+[source,console-result]
+----
+{
+  ...
+  "aggregations" : {
+    "mean_response_size" : {
+      "value" : 12368.0
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits",/]
+
+[discrete]
 [[explore-more-search-options]]
 ==== Explore more search options
 

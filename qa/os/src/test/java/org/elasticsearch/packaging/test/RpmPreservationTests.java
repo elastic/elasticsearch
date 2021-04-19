@@ -9,7 +9,6 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;

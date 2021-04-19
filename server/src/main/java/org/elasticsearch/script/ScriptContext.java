@@ -102,13 +102,6 @@ public final class ScriptContext<FactoryType> {
         this.allowStoredScript = allowStoredScript;
     }
 
-    /** Construct a context with the related instance and compiled classes with caller provided cache defaults and allow
-     * scripts of this context to be stored scripts */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-            Tuple<Integer, TimeValue> maxCompilationRateDefault) {
-        this(name, factoryClazz, cacheSizeDefault, cacheExpireDefault, maxCompilationRateDefault, true);
-    }
-
     /** Construct a context with the related instance and compiled classes with defaults for cacheSizeDefault, cacheExpireDefault and
      *  maxCompilationRateDefault and allow scripts of this context to be stored scripts */
     public ScriptContext(String name, Class<FactoryType> factoryClazz) {

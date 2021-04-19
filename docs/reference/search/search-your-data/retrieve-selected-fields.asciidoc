@@ -32,6 +32,7 @@ parameter:
 * Formats date fields by default according to the
 <<mapping-date-format,date format>> parameter in their mappings
 * Retrieves <<runtime-retrieving-fields,runtime field values>>
+* Returns fields calculated by a script at index time
 // end::fields-param-desc[]
 
 Other mapping options are also respected, including
@@ -39,7 +40,7 @@ Other mapping options are also respected, including
 <<null-value,`null_value`>>.
 
 When retrieving standard fields, the `fields` option returns values in the way
-that {es} sees them. For most field types, this means that the `fields` option \
+that {es} sees them. For most field types, this means that the `fields` option
 returns values from `_source` exactly how they are indexed.
 
 The following search request uses the `fields` parameter to retrieve values
@@ -81,16 +82,15 @@ POST my-index-000001/_search
     Other field types do not support the `format` parameter.
 // end::fields-param-callouts[]
 
-[[search-fields-array]]
-.Response always returns an array
-****
+[discrete]
+[[search-fields-response]]
+==== Response always returns an array
 The `fields` response always returns an array of values for each field,
 even when there is a single value in the `_source`. This is because {es} has
 no dedicated array type, and any field could contain multiple values. The
 `fields` parameter also does not guarantee that array values are returned in
 a specific order. See the mapping documentation on <<array,arrays>> for more
 background.
-****
 
 The response includes values as a flat list in the `fields` section for each
 hit. Because the `fields` parameter doesn't fetch entire objects, only leaf
@@ -231,8 +231,9 @@ returning them as a flat list.
 // TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
-Nested fields will be grouped by their nested paths, no matter the pattern used to retrieve them.
-For example, querying only for the `user.first` field in the example above:
+Nested fields will be grouped by their nested paths, no matter the pattern used
+to retrieve them. For example, if you query only for the `user.first` field from
+the previous example:
 
 [source,console]
 --------------------------------------------------
@@ -244,7 +245,8 @@ POST my-index-000001/_search
 --------------------------------------------------
 // TEST[continued]
 
-will return only the users first name but still maintain the structure of the nested `user` array:
+The response returns only the user's first name, but still maintains the
+structure of the nested `user` array:
 
 [source,console-result]
 ----
@@ -285,19 +287,19 @@ will return only the users first name but still maintain the structure of the ne
 // TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 However, when the `fields` pattern targets the nested `user` field directly, no
-values will be returned since the pattern doesn't match any leaf fields.
+values will be returned because the pattern doesn't match any leaf fields.
 
 [discrete]
 [[retrieve-unmapped-fields]]
 ==== Retrieve unmapped fields
+By default, the `fields` parameter returns only values of mapped fields.
+However, {es} allows storing fields in `_source` that are unmapped, such as
+setting <<dynamic-field-mapping,dynamic field mapping>> to `false` or by using
+an object field with `enabled: false`. These options disable parsing and
+indexing of the object content.
 
-By default, the `fields` parameter returns only values of mapped fields. However,
-Elasticsearch allows storing fields in `_source` that are unmapped, for example by
-setting <<dynamic-field-mapping,Dynamic field mapping>> to `false` or by using an
-object field with `enabled: false`, thereby disabling parsing and indexing of its content.
-
-Fields in such an object can be retrieved from `_source` using the `include_unmapped` option
-in the `fields` section:
+To retrieve unmapped fields in an object from `_source`, use the
+`include_unmapped` option in the `fields` section:
 
 [source,console]
 ----
@@ -334,9 +336,10 @@ POST my-index-000001/_search
 <1> Disable all mappings.
 <2> Include unmapped fields matching this field pattern.
 
-The response will contain fields results under the  `session_data.object.*` path even if the
-fields are unmapped, but will not contain `user_id` since it is unmapped but the `include_unmapped`
-flag hasn't been set to `true` for that field pattern.
+The response will contain field results under the  `session_data.object.*` path,
+even if the fields are unmapped. The `user_id` field is also unmapped, but it
+won't be included in the response because `include_unmapped` isn't set to
+`true` for that field pattern.
 
 [source,console-result]
 ----
@@ -377,7 +380,6 @@ flag hasn't been set to `true` for that field pattern.
 [discrete]
 [[source-filtering]]
 === The `_source` option
-
 You can use the `_source` parameter to select what fields of the source are
 returned. This is called _source filtering_.
 
@@ -468,13 +470,20 @@ means that the whole `_source` object must be loaded and parsed even if you're
 only requesting part of it. To avoid this limitation, you can try other options
 for loading fields:
 
-* Use the <<docvalue-fields, `docvalue_fields`>>
+* Use the <<docvalue-fields,`docvalue_fields`>>
 parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
 * Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
+
+.Using `fields` is typically better
+****
+These options are usually not required. Using the `fields` option is typically
+the better choice, unless you absolutely need to force loading a stored or
+`docvalue_fields`.
+****
 
 {es} always attempts to load values from `_source`. This behavior has the same
 implications of source filtering where {es} needs to load and parse the entire

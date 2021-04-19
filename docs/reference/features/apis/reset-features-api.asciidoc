@@ -7,8 +7,10 @@
 experimental::[]
 
 Clears the state of features in Elasticsearch, including security and machine
-learning indices. This may be useful for testing clusters, but should not be
-used in production clusters.
+learning indices.
+
+WARNING: This may be useful for testing clusters, but should not be used in
+production clusters.
 
 [source,console]
 -----------------------------------
@@ -30,10 +32,12 @@ or may not provide endpoints for resetting the state of those features, so
 this endpoint provides a high-level way of clearing cluster state.
 
 Use the <<get-features-api,get features API>> to see a list of features that
-will be affected by this endpoint. This API clears all features. The list of
-features that will be cleared comes from the node against which you issue
-this command, so if you have any doubts about which nodes have certain plugins
-installed, you will want to issue your command against the master node.
+will be affected by this endpoint. This API clears all features.
+
+WARNING: The list of features that will be cleared comes from the node against
+which you issue this command, so if you have any doubts about which nodes have
+certain plugins installed, you will want to issue your command against the
+master node.
 
 ==== {api-examples-title}
 
@@ -91,5 +95,4 @@ installed, you will want to issue your command against the master node.
     }
   ]
 }
-
 ----

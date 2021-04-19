@@ -969,6 +969,20 @@ public final class RepositoryData {
         public Version getVersion() {
             return version;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SnapshotDetails that = (SnapshotDetails) o;
+            return snapshotState == that.snapshotState && Objects.equals(version, that.version);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(snapshotState, version);
+        }
+
     }
 
 }

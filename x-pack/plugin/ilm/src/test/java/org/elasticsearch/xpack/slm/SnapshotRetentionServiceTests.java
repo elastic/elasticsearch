@@ -46,7 +46,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
     public void testJobsAreScheduled() throws InterruptedException {
         final DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT);
         ClockMock clock = new ClockMock();
 
         ThreadPool threadPool = new TestThreadPool("test");
@@ -79,7 +79,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
     public void testManualTriggering() throws InterruptedException {
         final DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            Collections.emptyMap(), DiscoveryNodeRole.roles(), Version.CURRENT);
         ClockMock clock = new ClockMock();
         AtomicInteger invoked = new AtomicInteger(0);
 

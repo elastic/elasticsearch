@@ -20,13 +20,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
@@ -50,23 +57,22 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        Query expected = new TermQuery(new Term("field", "key\0value"));
+        Query expected = new TermQuery(new Term(ft.name(), "key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
 
-        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "key\0value"));
+        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term(ft.name(), "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
 
-        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key",
-            false, Collections.emptyMap());
+        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key", false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> unsearchable.termQuery("field", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [" + ft.name() + "] since it is not indexed.", e.getMessage());
     }
 
     public void testTermsQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        Query expected = new TermInSetQuery("field",
+        Query expected = new TermInSetQuery(ft.name(),
             new BytesRef("key\0value1"),
             new BytesRef("key\0value2"));
 
@@ -81,17 +87,17 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        Query expected = new PrefixQuery(new Term("field", "key\0"));
+        Query expected = new PrefixQuery(new Term(ft.name(), "key\0"));
         assertEquals(expected, ft.existsQuery(null));
     }
 
     public void testPrefixQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        Query expected = new PrefixQuery(new Term("field", "key\0val"));
+        Query expected = new PrefixQuery(new Term(ft.name(), "key\0val"));
         assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT));
 
-        expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "key\0vAl"));
+        expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term(ft.name(), "key\0vAl"));
         assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
@@ -111,12 +117,12 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        TermRangeQuery expected = new TermRangeQuery("field",
+        TermRangeQuery expected = new TermRangeQuery(ft.name(),
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), false, false);
         assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_CONTEXT));
 
-        expected = new TermRangeQuery("field",
+        expected = new TermRangeQuery(ft.name(),
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), true, true);
         assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, MOCK_CONTEXT));
@@ -159,5 +165,24 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(List.of(), fetchSourceValue(ft, sourceValue));
         assertEquals(List.of(), fetchSourceValue(ft, null));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        KeyedFlattenedFieldType ft = createFieldType();
+        Map<String, Object> sourceValue = Map.of("key", "value");
+
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
+
+        ValueFetcher fetcher = ft.valueFetcher(searchExecutionContext, null);
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(Collections.singletonMap("field", sourceValue));
+
+        assertEquals(List.of("value"), fetcher.fetchValues(lookup));
+        lookup.setSource(Collections.singletonMap("field", null));
+        assertEquals(List.of(), fetcher.fetchValues(lookup));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.valueFetcher(searchExecutionContext, "format"));
+        assertEquals("Field [field.key] of type [flattened] doesn't support formats.", e.getMessage());
     }
 }

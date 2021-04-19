@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -1383,6 +1384,43 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testManySegmentsStillSingleton() throws IOException {
+        NumberFieldType nFt = new NumberFieldType("n", NumberFieldMapper.NumberType.LONG);
+        KeywordFieldType strFt = new KeywordFieldType("str", true, true, Collections.emptyMap());
+        AggregationBuilder builder = new TermsAggregationBuilder("n").field("n")
+            .subAggregation(new TermsAggregationBuilder("str").field("str"));
+        withNonMergingIndex(iw -> {
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("n", 1),
+                    new LongPoint("n", 1),
+                    new SortedSetDocValuesField("str", new BytesRef("sheep")),
+                    new Field("str", new BytesRef("sheep"), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                )
+            );
+            iw.commit();   // Force two segments
+            iw.addDocument(
+                List.of(
+                    new SortedNumericDocValuesField("n", 1),
+                    new LongPoint("n", 1),
+                    new SortedSetDocValuesField("str", new BytesRef("cow")),
+                    new Field("str", new BytesRef("sheep"), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                )
+            );
+        }, searcher -> debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            searcher,
+            (LongTerms result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                Map<String, Object> subDebug = debug.get("n.str");
+                assertThat(subDebug, hasEntry("segments_with_single_valued_ords", 2));
+                assertThat(subDebug, hasEntry("segments_with_multi_valued_ords", 0));
+            },
+            nFt,
+            strFt
+        ));
+    }
+
     public void testNumberToStringValueScript() throws IOException {
         MappedFieldType fieldType
             = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
@@ -1765,14 +1803,15 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("k", value))
                 );
             }
-        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
+        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
                 r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
                 equalTo(List.of("more_stuff", "stuff", "other_stuff"))
             );
             assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(167L, 167L, 166L)));
             assertThat(impl, equalTo(StringTermsAggregatorFromFilters.class));
-            Map<?, ?> delegateDebug = (Map<?, ?>) debug.get("delegate_debug");
+            Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("t");
+            Map<?, ?> delegateDebug = (Map<?, ?>) topLevelDebug.get("delegate_debug");
             // We don't estimate the cost here so these shouldn't show up
             assertThat(delegateDebug, not(hasKey("estimated_cost")));
             assertThat(delegateDebug, not(hasKey("max_cost")));

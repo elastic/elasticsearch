@@ -14,8 +14,13 @@ import org.gradle.api.internal.tasks.testing.TestResultProcessor;
 import org.gradle.api.internal.tasks.testing.TestStartEvent;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.gradle.api.tasks.testing.TestResult.ResultType.SKIPPED;
 
@@ -29,6 +34,8 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     private TestNames previousRoundFailedTests = new TestNames();
 
     private Object rootTestDescriptorId;
+
+    private List<Map<Object,TestDescriptorInternal>> storedActiveDescriptorsWhenFailed = new ArrayList<>();
 
     RerunTestResultProcessor(TestResultProcessor delegate) {
         this.delegate = delegate;
@@ -94,9 +101,21 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     }
 
     public void reset(boolean lastRetry) {
+        storeActiveDescriptors();
         this.previousRoundFailedTests = currentRoundFailedTests;
         this.currentRoundFailedTests = new TestNames();
         this.activeDescriptorsById.clear();
     }
 
+    private void storeActiveDescriptors() {
+        this.storedActiveDescriptorsWhenFailed.add(new HashMap<>(activeDescriptorsById));
+    }
+
+
+    public List<TestDescriptorInternal> getFailPaths() {
+        return storedActiveDescriptorsWhenFailed.stream().flatMap(
+            (Function<Map<Object, TestDescriptorInternal>, Stream<TestDescriptorInternal>>) objectTestDescriptorInternalMap ->
+                objectTestDescriptorInternalMap.values().stream()).collect(Collectors.toList()
+        );
+    }
 }

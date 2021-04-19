@@ -11,16 +11,23 @@ package org.elasticsearch.gradle.internal.test.rerun.executer;
 import org.elasticsearch.gradle.internal.test.rerun.TestRerunTaskExtension;
 import org.gradle.api.GradleException;
 import org.gradle.api.internal.tasks.testing.JvmTestExecutionSpec;
+import org.gradle.api.internal.tasks.testing.TestDescriptorInternal;
 import org.gradle.api.internal.tasks.testing.TestExecuter;
 import org.gradle.api.internal.tasks.testing.TestResultProcessor;
+import org.gradle.internal.id.CompositeIdGenerator;
 import org.gradle.process.internal.ExecException;
 
-public final class RetryTestExecuter implements TestExecuter<JvmTestExecutionSpec> {
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpec> {
 
     private final TestRerunTaskExtension extension;
     private final TestExecuter<JvmTestExecutionSpec> delegate;
+    private TestJvmCrashReporter jvmCrashReporter;
 
-    public RetryTestExecuter(TestRerunTaskExtension extension, TestExecuter<JvmTestExecutionSpec> delegate) {
+    public RerunTestExecuter(TestRerunTaskExtension extension, TestExecuter<JvmTestExecutionSpec> delegate) {
         this.extension = extension;
         this.delegate = delegate;
     }
@@ -50,6 +57,8 @@ public final class RetryTestExecuter implements TestExecuter<JvmTestExecutionSpe
                 }
             }
         }
+        jvmCrashReporter = new TestJvmCrashReporter(retryTestResultProcessor.getFailPaths());
+
     }
 
     @Override
@@ -58,6 +67,28 @@ public final class RetryTestExecuter implements TestExecuter<JvmTestExecutionSpe
     }
 
     public void reportJvmCrashDetails() {
-        // TODO;
+        jvmCrashReporter.report();
+    }
+
+    private class TestJvmCrashReporter {
+        private List<TestDescriptorInternal> failPaths;
+
+        public TestJvmCrashReporter(List<TestDescriptorInternal> failPaths) {
+            this.failPaths = failPaths;
+        }
+
+        public void report() {
+            if(failPaths.size() > 0) {
+                String report = "================\n" +
+                        "Test JDK System exit trace:\n" +
+                        failPaths.stream()
+                                .filter(d -> d.getId() instanceof CompositeIdGenerator.CompositeId)
+                                .sorted(Comparator.comparing(o -> o.getId().toString()))
+                                .map(TestDescriptorInternal::getName)
+                                .collect(Collectors.joining(" > ")) + "\n" +
+                        "================\n";
+                System.out.println(report);
+            }
+        }
     }
 }

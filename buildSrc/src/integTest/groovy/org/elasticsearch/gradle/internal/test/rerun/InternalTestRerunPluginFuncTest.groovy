@@ -12,6 +12,53 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 
 class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
 
+    def "does not rerun on failed tests"() {
+        when:
+        buildFile.text = """
+        plugins {
+          id 'java'
+          id 'elasticsearch.internal-test-rerun'
+        }
+
+        repositories {
+            mavenCentral()
+        }
+        
+        dependencies {
+            testImplementation 'junit:junit:4.13.1'
+        }
+        
+        tasks.named("test").configure {
+            maxParallelForks = 4
+            testLogging {
+                // set options for log level LIFECYCLE
+                events "started", "passed", "standard_out", "failed"
+                exceptionFormat "short"
+            }
+        }
+        
+        """
+        createTest("SimpleTest")
+        createTest("SimpleTest2")
+        createTest("SimpleTest3")
+        createTest("SimpleTest4")
+        createTest("SimpleTest5")
+        createFailedTest("SimpleTest6")
+        createFailedTest("SimpleTest7")
+        createFailedTest("SimpleTest8")
+        createTest("SomeOtherTest")
+        createTest("SomeOtherTest1")
+        createTest("SomeOtherTest2")
+        createTest("SomeOtherTest3")
+        createTest("SomeOtherTest4")
+        createTest("SomeOtherTest5")
+        then:
+        def result = gradleRunner("test").buildAndFail()
+        result.output.contains("total executions: 2") == false
+        and: "no jvm system exit tracing provided"
+        normalized(result.output).contains("Test JDK System exit trace:") == false
+    }
+
     def "all tests are rerun when test jvm has crashed"() {
         when:
         buildFile.text = """
@@ -29,6 +76,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         }
         
         tasks.named("test").configure {
+            maxParallelForks = 4
             testLogging {
                 // set options for log level LIFECYCLE
                 events "started", "passed", "standard_out", "failed"
@@ -37,33 +85,79 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         }
         
         """
-        file("src/test/java/org/acme/JdkKillingTest.java") << """
+        createSystemExitTest("JdkKillingTest")
+        createTest("SimpleTest")
+        createTest("SimpleTest2")
+        createTest("SimpleTest3")
+        createTest("SimpleTest4")
+        createTest("SimpleTest5")
+        createTest("SimpleTest6")
+        createTest("SimpleTest7")
+        createTest("SimpleTest8")
+        createTest("SomeOtherTest")
+        then:
+        def result = gradleRunner("test").build()
+        result.output.contains("JdkKillingTest total executions: 2")
+        // triggered only in the second overall run
+        and: 'Tracing is provided'
+        normalized(result.output).contains("""================
+Test JDK System exit trace:
+Gradle Test Executor 1 > JdkKillingTest > someTest
+================""")
+    }
+
+    private String testMethodContent(boolean withSystemExit, boolean fail) {
+        return """
+            int count = countExecutions();
+            System.out.println(getClass().getSimpleName() + " total executions: " + count);
+
+            ${withSystemExit ? '''
+                    if(count < 2) {
+                        System.exit(1);
+                    }
+                    ''' : ''
+            }
+
+            ${fail ? "Assert.fail();" :''}
+        """
+    }
+
+    private File createSystemExitTest(String clazzName) {
+        createTest(clazzName, testMethodContent(true, false))
+    }
+    private File createFailedTest(String clazzName) {
+        createTest(clazzName, testMethodContent(false, true))
+    }
+    private File createTest(String clazzName, String content = testMethodContent(false, false)) {
+        file("src/test/java/org/acme/${clazzName}.java") << """
             import org.junit.Test;
-            import static org.junit.Assert.*;
+            import org.junit.Before;
+            import org.junit.After;
+            import org.junit.Assert;
             import java.nio.*;
             import java.nio.file.*;
             import java.io.IOException;
             
-            public class JdkKillingTest {
+            public class $clazzName {
                 Path executionLogPath = Paths.get("test-executions" + getClass().getSimpleName() +".log");
+                
+                @Before 
+                public void beforeTest() {
+                    logExecution();
+                }
+                
+                @After 
+                public void afterTest() {
+                }
                 
                 @Test 
                 public void someTest() {
-                    logExecution();
-                    if(countExecutions() < 2) {
-                        thisKillsTheTestJvm();
-                    }
-                }
-          
-                static void thisKillsTheTestJvm() {
-                    System.exit(1);
+                    ${content}
                 }
                 
                 int countExecutions() {
                     try {
-                        int total =  Files.readAllLines(executionLogPath).size();
-                        System.out.println("JdkKillingTest total executions: " + total);
-                        return total;
+                        return Files.readAllLines(executionLogPath).size();
                     }
                     catch(IOException e) {
                         return 0;
@@ -71,18 +165,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 }
                
                 void logExecution() {
-                    String content = "Test executed " + System.currentTimeMillis() + "\\n";
                     try {
-                        Files.write(executionLogPath, content.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                        Files.write(executionLogPath, "Test executed\\n".getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
                     } catch (IOException e) {
                         // exception handling
                     }
-                    System.out.println("test execution logged at " + executionLogPath.toAbsolutePath().toString());
                 }
             }
         """
-        then:
-        def result = gradleRunner("test").build()
-        result.output.contains("JdkKillingTest total executions: 2")
     }
 }

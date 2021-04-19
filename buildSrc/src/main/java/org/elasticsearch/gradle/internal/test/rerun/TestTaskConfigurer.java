@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rerun;
 
-import org.elasticsearch.gradle.internal.test.rerun.executer.RetryTestExecuter;
+import org.elasticsearch.gradle.internal.test.rerun.executer.RerunTestExecuter;
 import org.gradle.api.Action;
 import org.gradle.api.Task;
 import org.gradle.api.internal.tasks.testing.JvmTestExecutionSpec;
@@ -30,25 +30,25 @@ public final class TestTaskConfigurer {
         test.doLast(new FinalizeTaskAction());
     }
 
-    private static RetryTestExecuter createRetryTestExecuter(Task task, TestRerunTaskExtension extension) {
+    private static RerunTestExecuter createRetryTestExecuter(Task task, TestRerunTaskExtension extension) {
         TestExecuter<JvmTestExecutionSpec> delegate = getTestExecuter(task);
-        return new RetryTestExecuter(extension, delegate);
+        return new RerunTestExecuter(extension, delegate);
     }
 
     private static TestExecuter<JvmTestExecutionSpec> getTestExecuter(Task task) {
         return invoke(declaredMethod(Test.class, "createTestExecuter"), task);
     }
 
-    private static void setTestExecuter(Task task, RetryTestExecuter retryTestExecuter) {
-        invoke(declaredMethod(Test.class, "setTestExecuter", TestExecuter.class), task, retryTestExecuter);
+    private static void setTestExecuter(Task task, RerunTestExecuter rerunTestExecuter) {
+        invoke(declaredMethod(Test.class, "setTestExecuter", TestExecuter.class), task, rerunTestExecuter);
     }
 
     private static class FinalizeTaskAction implements Action<Task> {
         @Override
         public void execute(Task task) {
             TestExecuter<JvmTestExecutionSpec> testExecuter = getTestExecuter(task);
-            if (testExecuter instanceof RetryTestExecuter) {
-                ((RetryTestExecuter) testExecuter).reportJvmCrashDetails();
+            if (testExecuter instanceof RerunTestExecuter) {
+                ((RerunTestExecuter) testExecuter).reportJvmCrashDetails();
             } else {
                 throw new IllegalStateException("Unexpected test executer: " + testExecuter);
             }
@@ -65,7 +65,7 @@ public final class TestTaskConfigurer {
 
         @Override
         public void execute(Task task) {
-            RetryTestExecuter retryTestExecuter = createRetryTestExecuter(task, extension);
+            RerunTestExecuter retryTestExecuter = createRetryTestExecuter(task, extension);
             setTestExecuter(task, retryTestExecuter);
         }
     }

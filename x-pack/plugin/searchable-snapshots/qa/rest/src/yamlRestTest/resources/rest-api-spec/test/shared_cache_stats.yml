@@ -104,5 +104,5 @@ teardown:
   - match: { nodes.$node_id.shared_cache.size: "16mb" }
   - match: { nodes.$node_id.shared_cache.size_in_bytes: 16777216 }
   - match: { nodes.$node_id.shared_cache.region_size: "256kb" }
-  - match: { nodes.$node_id.shared_cache.region__size_in_bytes: 262144 }
+  - match: { nodes.$node_id.shared_cache.region_size_in_bytes: 262144 }
 

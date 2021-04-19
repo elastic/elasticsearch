@@ -3,7 +3,7 @@
 [[registered-domain-processor]]
 === Registered domain processor
 ++++
-<titleabbrev>Registered Domain</titleabbrev>
+<titleabbrev>Registered domain</titleabbrev>
 ++++
 
 Extracts the registered domain (also known as effective top-level domain or

@@ -493,7 +493,6 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.name(), equalTo("foo"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70378")
     public void testDisabledRealmsAreNotAdded() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put("path.home", createTempDir());
@@ -504,9 +503,11 @@ public class RealmsTests extends ESTestCase {
         }
         Collections.shuffle(orders, random());
         Map<Integer, Integer> orderToIndex = new HashMap<>();
+        boolean anyEnabled = false;
         for (int i = 0; i < randomRealmTypesCount; i++) {
             builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".order", orders.get(i));
             boolean enabled = randomBoolean();
+            anyEnabled = anyEnabled || enabled;
             builder.put("xpack.security.authc.realms.type_" + i + ".realm_" + i + ".enabled", enabled);
             if (enabled) {
                 orderToIndex.put(orders.get(i), i);
@@ -516,6 +517,11 @@ public class RealmsTests extends ESTestCase {
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        if (false == anyEnabled) {
+            assertWarnings("Found explicitly disabled basic realms: [file,native]. " +
+                "But they will be enabled because no other realms are configured or enabled. " +
+                "In next major release, explicitly disabled basic realms will remain disabled.");
+        }
         Iterator<Realm> iterator = realms.iterator();
         Realm realm = iterator.next();
         assertThat(realm, is(reservedRealm));

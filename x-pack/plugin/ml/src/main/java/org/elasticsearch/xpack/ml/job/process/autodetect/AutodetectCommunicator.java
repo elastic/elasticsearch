@@ -143,18 +143,11 @@ public class AutodetectCommunicator implements Closeable {
         handler);
     }
 
-    @Override
-    public void close() {
-        close(false, null);
-    }
-
     /**
      * Closes job this communicator is encapsulating.
-     *
-     * @param restart   Whether the job should be restarted by persistent tasks
-     * @param reason    The reason for closing the job
      */
-    public void close(boolean restart, String reason) {
+    @Override
+    public void close() {
         Future<?> future = autodetectWorkerExecutor.submit(() -> {
             checkProcessIsAlive();
             try {
@@ -166,7 +159,7 @@ public class AutodetectCommunicator implements Closeable {
                 }
                 autodetectResultProcessor.awaitCompletion();
             } finally {
-                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null, true);
+                onFinishHandler.accept(null, true);
             }
             LOGGER.info("[{}] job closed", job.getId());
             return null;

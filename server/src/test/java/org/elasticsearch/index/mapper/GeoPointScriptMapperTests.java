@@ -70,21 +70,21 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
     @Override
     protected void assertMultipleValues(IndexableField[] fields) {
         assertEquals(4, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:F>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:0>", fields[1].toString());
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[3].toString());
+        assertEquals("LatLonPoint <field:0.0,8.381903171539307E-8>", fields[0].toString());
+        assertEquals("LatLonDocValuesField <field:0.0,8.381903171539307E-8>", fields[1].toString());
+        assertEquals("LatLonPoint <field:0.0,1.6763806343078613E-7>", fields[2].toString());
+        assertEquals("LatLonDocValuesField <field:0.0,1.6763806343078613E-7>", fields[3].toString());
     }
 
     @Override
     protected void assertDocValuesDisabled(IndexableField[] fields) {
         assertEquals(1, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:T>", fields[0].toString());
+        assertEquals("LatLonPoint <field:0.0,8.381903171539307E-8>", fields[0].toString());
     }
 
     @Override
     protected void assertIndexDisabled(IndexableField[] fields) {
         assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_NUMERIC<field:1>", fields[0].toString());
+        assertEquals("LatLonDocValuesField <field:0.0,8.381903171539307E-8>", fields[0].toString());
     }
 }

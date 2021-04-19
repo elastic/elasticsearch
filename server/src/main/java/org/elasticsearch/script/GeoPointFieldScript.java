@@ -9,10 +9,13 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -37,6 +40,17 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
 
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
+    }
+
+    public void runForDoc(int doc, Consumer<GeoPoint> consumer) {
+        runForDoc(doc);
+        GeoPoint point = new GeoPoint();
+        for (int i = 0; i < count(); i++) {
+            final int lat = (int) (values()[i] >>> 32);
+            final int lon = (int) (values()[i] & 0xFFFFFFFF);
+            point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
+            consumer.accept(point);
+        }
     }
 
     protected void emit(double lat, double lon) {

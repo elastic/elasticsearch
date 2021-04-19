@@ -84,7 +84,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
         return new Entry(snapshot, includeGlobalState, partial, randomState(shards), indices, dataStreams, featureStates,
-            startTime, repositoryStateId, shards, null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
+            startTime, repositoryStateId, shards, null, SnapshotInfoTestUtils.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 
     @Override

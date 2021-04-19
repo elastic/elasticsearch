@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform;
 import org.elasticsearch.common.ParseField;
 
 /*
- * Utility class to hold common fields and strings for data frame.
+ * Utility class to hold common fields and strings for transform.
  */
 public final class TransformField {
 

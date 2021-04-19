@@ -3,7 +3,7 @@
 [[network-direction-processor]]
 === Network direction processor
 ++++
-<titleabbrev>Network Direction</titleabbrev>
+<titleabbrev>Network direction</titleabbrev>
 ++++
 
 Calculates the network direction given a source IP address, destination IP

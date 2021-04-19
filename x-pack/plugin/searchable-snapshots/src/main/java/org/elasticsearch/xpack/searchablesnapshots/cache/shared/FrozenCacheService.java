@@ -170,6 +170,7 @@ public class FrozenCacheService implements Releasable {
     private final KeyedLock<CacheKey> keyedLock = new KeyedLock<>();
 
     private final SharedBytes sharedBytes;
+    private final long cacheSize;
     private final long regionSize;
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
@@ -195,7 +196,7 @@ public class FrozenCacheService implements Releasable {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         this.numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
@@ -356,7 +357,16 @@ public class FrozenCacheService implements Releasable {
     }
 
     public Stats getStats() {
-        return new Stats(numRegions, regionSize, evictCount.sum(), writeCount.sum(), writeBytes.sum(), readCount.sum(), readBytes.sum());
+        return new Stats(
+            numRegions,
+            cacheSize,
+            regionSize,
+            evictCount.sum(),
+            writeCount.sum(),
+            writeBytes.sum(),
+            readCount.sum(),
+            readBytes.sum()
+        );
     }
 
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
@@ -843,9 +853,10 @@ public class FrozenCacheService implements Releasable {
 
     public static class Stats {
 
-        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L);
+        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
 
         private final int numberOfRegions;
+        private final long size;
         private final long regionSize;
         private final long evictCount;
         private final long writeCount;
@@ -855,6 +866,7 @@ public class FrozenCacheService implements Releasable {
 
         private Stats(
             int numberOfRegions,
+            long size,
             long regionSize,
             long evictCount,
             long writeCount,
@@ -863,6 +875,7 @@ public class FrozenCacheService implements Releasable {
             long readBytes
         ) {
             this.numberOfRegions = numberOfRegions;
+            this.size = size;
             this.regionSize = regionSize;
             this.evictCount = evictCount;
             this.writeCount = writeCount;
@@ -873,6 +886,10 @@ public class FrozenCacheService implements Releasable {
 
         public int getNumberOfRegions() {
             return numberOfRegions;
+        }
+
+        public long getSize() {
+            return size;
         }
 
         public long getRegionSize() {

@@ -123,6 +123,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         return new NodeCachesStatsResponse(
             clusterService.localNode(),
             frozenCacheStats.getNumberOfRegions(),
+            frozenCacheStats.getSize(),
             frozenCacheStats.getRegionSize(),
             frozenCacheStats.getWriteCount(),
             frozenCacheStats.getWriteBytes(),
@@ -165,6 +166,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     public static class NodeCachesStatsResponse extends BaseNodeResponse implements ToXContentFragment {
 
         private final int numRegions;
+        private final long size;
         private final long regionSize;
         private final long writes;
         private final long bytesWritten;
@@ -175,6 +177,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         public NodeCachesStatsResponse(
             DiscoveryNode node,
             int numRegions,
+            long size,
             long regionSize,
             long writes,
             long bytesWritten,
@@ -184,6 +187,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         ) {
             super(node);
             this.numRegions = numRegions;
+            this.size = size;
             this.regionSize = regionSize;
             this.writes = writes;
             this.bytesWritten = bytesWritten;
@@ -195,6 +199,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         public NodeCachesStatsResponse(StreamInput in) throws IOException {
             super(in);
             this.numRegions = in.readVInt();
+            this.size = in.readVLong();
             this.regionSize = in.readVLong();
             this.writes = in.readVLong();
             this.bytesWritten = in.readVLong();
@@ -207,6 +212,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(numRegions);
+            out.writeVLong(size);
             out.writeVLong(regionSize);
             out.writeVLong(writes);
             out.writeVLong(bytesWritten);
@@ -227,7 +233,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
                     builder.humanReadableField("bytes_written_in_bytes", "bytes_written", ByteSizeValue.ofBytes(bytesWritten));
                     builder.field("evictions", evictions);
                     builder.field("num_regions", numRegions);
-                    builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(numRegions * regionSize));
+                    builder.humanReadableField("size_in_bytes", "size", ByteSizeValue.ofBytes(size));
                     builder.humanReadableField("region__size_in_bytes", "region_size", ByteSizeValue.ofBytes(regionSize));
                 }
                 builder.endObject();

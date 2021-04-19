@@ -61,6 +61,7 @@ import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -247,6 +248,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createTemplate = new Request("PUT", "/_template/template_1");
             createTemplate.setJsonEntity(Strings.toString(mappingsAndSettings));
+            createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             client().performRequest(createTemplate);
             client().performRequest(new Request("PUT", "/" + index));
         }
@@ -875,7 +877,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
-        createTemplateRequest.setOptions(allowTypesRemovalWarnings());
+        createTemplateRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(RestPutIndexTemplateAction.DEPRECATION_WARNING);
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in put template " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', and requests are expected to omit the " +
+                "type name in mapping definitions.";
+            v.compatible(typesWarning);
+        }));
 
         client().performRequest(createTemplateRequest);
 

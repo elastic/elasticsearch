@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -461,6 +462,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "}", ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/test");
         templateRequest.setEntity(template);
+        templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
 
         policy = randomAlphaOfLengthBetween(5,20);
@@ -636,6 +638,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.write.wait_for_active_shards\": \"all\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         // index document to trigger rollover
@@ -662,6 +665,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias, Settings.builder(), true);
@@ -765,6 +769,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "    \"index.lifecycle.rollover_alias\": \"" + alias + "\"\n" +
             "  }\n" +
             "}");
+        createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
         createIndexWithSettings(client(), index + "-1", alias,

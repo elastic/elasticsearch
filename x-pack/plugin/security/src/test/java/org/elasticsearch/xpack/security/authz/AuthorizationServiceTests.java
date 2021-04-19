@@ -679,8 +679,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString(
             "[" + action + "] is unauthorized" +
                 " for user [test user]" +
-                " with roles [non-existent-role]" +
-                " on indices [")));
+                " with roles [non-existent-role],")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
@@ -721,8 +720,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString(
             "[" + action + "] is unauthorized" +
                 " for user [test user]" +
-                " with roles [no_indices]" +
-                " on indices [")));
+                " with roles [no_indices],")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request),

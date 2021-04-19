@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -1915,8 +1918,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         Mockito.reset(serviceAccountService);
         final Authentication authentication = new Authentication(
             new User("elastic/fleet-server"),
-            new RealmRef("service_account", "service_account", "foo"), null);
+            new RealmRef("service_account", "service_account", "foo"), null,
+            Version.CURRENT, AuthenticationType.TOKEN, Map.of("_token_name", ValidationTests.randomTokenName()));
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+            boolean requestIdAlreadyPresent = randomBoolean();
+            SetOnce<String> reqId = new SetOnce<>();
+            if (requestIdAlreadyPresent) {
+                reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
+            }
             threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
@@ -1924,27 +1933,46 @@ public class AuthenticationServiceTests extends ESTestCase {
                 listener.onResponse(authentication);
                 return null;
             }).when(serviceAccountService).authenticateToken(any(), any(), any());
-            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-            service.authenticate("_action", transportRequest, false, future);
-            assertThat(future.get(), is(authentication));
+            final Tuple<Authentication, String> result = authenticateBlocking("_action", transportRequest, null);
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            }
+            assertThat(expectAuditRequestId(threadContext), is(result.v2()));
+            assertThat(result.v1(), is(authentication));
+            verify(auditTrail).authenticationSuccess(eq(result.v2()), same(authentication), eq("_action"), same(transportRequest));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
+            verifyNoMoreInteractions(auditTrail);
         }
     }
 
-    public void testServiceAccountFailureWillNotFallthrough() {
+    public void testServiceAccountFailureWillNotFallthrough() throws IOException {
         Mockito.reset(serviceAccountService);
-        final RuntimeException bailOut = new RuntimeException("bail out");
+        final ElasticsearchSecurityException bailOut = new ElasticsearchSecurityException("bail out", RestStatus.UNAUTHORIZED);
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
-            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
+            boolean requestIdAlreadyPresent = randomBoolean();
+            SetOnce<String> reqId = new SetOnce<>();
+            if (requestIdAlreadyPresent) {
+                reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
+            }
+            final String bearerString = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3";
+            threadContext.putHeader("Authorization", "Bearer " + bearerString);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
                 listener.onFailure(bailOut);
                 return null;
             }).when(serviceAccountService).authenticateToken(any(), any(), any());
-            final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-            service.authenticate("_action", transportRequest, false, future);
-            final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
-            assertThat(e.getCause().getCause(), is(bailOut));
+            final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> authenticateBlocking("_action", transportRequest, null));
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            } else {
+                reqId.set(expectAuditRequestId(threadContext));
+            }
+            assertThat(e, sameInstance(bailOut));
+            verifyZeroInteractions(operatorPrivilegesService);
+            final ServiceAccountToken serviceToken = ServiceAccountToken.fromBearerString(new SecureString(bearerString.toCharArray()));
+            verify(auditTrail).authenticationFailed(eq(reqId.get()), eq(serviceToken), eq("_action"), eq(transportRequest));
         }
     }
 

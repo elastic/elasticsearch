@@ -190,7 +190,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
     }
 
     /**
-     * Verify that the list of roles includes all data roles to ensure we consider adding future data roles.
+     * Verify that the list of roles includes all data roles except frozen to ensure we consider adding future data roles.
      */
     public void testRoles() {
         // this has to be an integration test to ensure roles are available.
@@ -203,7 +203,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),
             Matchers.equalTo(
-                DiscoveryNodeRole.roles().stream().filter(DiscoveryNodeRole::canContainData).sorted().collect(Collectors.toList())
+                DiscoveryNodeRole.roles()
+                    .stream()
+                    .filter(DiscoveryNodeRole::canContainData)
+                    .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                    .sorted()
+                    .collect(Collectors.toList())
             )
         );
     }

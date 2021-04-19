@@ -78,7 +78,10 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
         final String message = "An action should be declared to be either operator-only in ["
-            + OperatorOnlyRegistry.class.getName() + "] or non-operator in [" + Constants.class.getName() + "]";
+            + OperatorOnlyRegistry.class.getName()
+            + "] or non-operator in ["
+            + Constants.class.getName()
+            + "]";
 
         Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, OperatorOnlyRegistry.SIMPLE_ACTIONS);
         assertTrue("Actions are both operator-only and non-operator: [" + doubleLabelled + "]. " + message, doubleLabelled.isEmpty());
@@ -93,10 +96,17 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertTrue("Actions are neither operator-only nor non-operator: [" + unlabelled + "]. " + message, unlabelled.isEmpty());
 
         final Set<String> redundant = Sets.difference(labelledActions, allActions);
-        assertTrue("Actions may no longer be valid: [" + redundant + "]. They should be removed from either "
-                + "the operator-only action registry in [" + OperatorOnlyRegistry.class.getName()
-                + "] or the non-operator action list in [" + Constants.class.getName() + "]",
-            redundant.isEmpty());
+        assertTrue(
+            "Actions may no longer be valid: ["
+                + redundant
+                + "]. They should be removed from either "
+                + "the operator-only action registry in ["
+                + OperatorOnlyRegistry.class.getName()
+                + "] or the non-operator action list in ["
+                + Constants.class.getName()
+                + "]",
+            redundant.isEmpty()
+        );
     }
 
     @SuppressWarnings("unchecked")

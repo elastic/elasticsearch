@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.painless.action;
 
@@ -61,22 +50,30 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -85,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -115,7 +113,15 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS = Map.of(
                 "painless_test", PainlessTestScript.CONTEXT,
                 "filter", FilterScript.CONTEXT,
-                "score", ScoreScript.CONTEXT);
+                "score", ScoreScript.CONTEXT,
+                "boolean_field", BooleanFieldScript.CONTEXT,
+                "date_field", DateFieldScript.CONTEXT,
+                "double_field", DoubleFieldScript.CONTEXT,
+                "geo_point_field", GeoPointFieldScript.CONTEXT,
+                "ip_field", IpFieldScript.CONTEXT,
+                "long_field", LongFieldScript.CONTEXT,
+                "string_field", StringFieldScript.CONTEXT)
+        ;
 
         static ScriptContext<?> fromScriptContextName(String name) {
             ScriptContext<?> scriptContext = SUPPORTED_CONTEXTS.get(name);
@@ -502,7 +508,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
                     FilterScript.LeafFactory leafFactory =
-                        factory.newFactory(request.getScript().getParams(), context.lookup());
+                            factory.newFactory(request.getScript().getParams(), context.lookup());
                     FilterScript filterScript = leafFactory.newInstance(leafReaderContext);
                     filterScript.setDocument(0);
                     boolean result = filterScript.execute();
@@ -512,7 +518,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
                     ScoreScript.LeafFactory leafFactory =
-                        factory.newFactory(request.getScript().getParams(), context.lookup());
+                            factory.newFactory(request.getScript().getParams(), context.lookup());
                     ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
                     scoreScript.setDocument(0);
 
@@ -531,13 +537,76 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
+            } else if (scriptContext == BooleanFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    BooleanFieldScript.Factory factory = scriptService.compile(request.script, BooleanFieldScript.CONTEXT);
+                    BooleanFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("boolean_field", request.getScript().getParams(), context.lookup());
+                    BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
+                    booleanFieldScript.runForDoc(0);
+                    return new Response(booleanFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == DateFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    DateFieldScript.Factory factory = scriptService.compile(request.script, DateFieldScript.CONTEXT);
+                    DateFieldScript.LeafFactory leafFactory = factory.newFactory("date_field",
+                            request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+                    DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
+                    dateFieldScript.runForDoc(0);
+                    return new Response(dateFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == DoubleFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    DoubleFieldScript.Factory factory = scriptService.compile(request.script, DoubleFieldScript.CONTEXT);
+                    DoubleFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("double_field", request.getScript().getParams(), context.lookup());
+                    DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
+                    doubleFieldScript.runForDoc(0);
+                    return new Response(doubleFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    GeoPointFieldScript.Factory factory = scriptService.compile(request.script, GeoPointFieldScript.CONTEXT);
+                    GeoPointFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("geo_point_field", request.getScript().getParams(), context.lookup());
+                    GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
+                    geoPointFieldScript.runForDoc(0);
+                    return new Response(geoPointFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == IpFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    IpFieldScript.Factory factory = scriptService.compile(request.script, IpFieldScript.CONTEXT);
+                    IpFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("ip_field", request.getScript().getParams(), context.lookup());
+                    IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
+                    ipFieldScript.runForDoc(0);
+                    return new Response(ipFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == LongFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    LongFieldScript.Factory factory = scriptService.compile(request.script, LongFieldScript.CONTEXT);
+                    LongFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("long_field", request.getScript().getParams(), context.lookup());
+                    LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
+                    longFieldScript.runForDoc(0);
+                    return new Response(longFieldScript.asDocValues());
+                }, indexService);
+            } else if (scriptContext == StringFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    StringFieldScript.Factory factory = scriptService.compile(request.script, StringFieldScript.CONTEXT);
+                    StringFieldScript.LeafFactory leafFactory =
+                            factory.newFactory("string_field", request.getScript().getParams(), context.lookup());
+                    StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
+                    stringFieldScript.resultsForDoc(0);
+                    return new Response(stringFieldScript.asDocValues());
+                }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
             }
         }
 
         private static Response prepareRamIndex(Request request,
-                                                CheckedBiFunction<QueryShardContext, LeafReaderContext, Response, IOException> handler,
+                                                CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
                                                 IndexService indexService) throws IOException {
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
@@ -554,8 +623,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
-                        QueryShardContext context =
-                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
+                        SearchExecutionContext context =
+                            indexService.newSearchExecutionContext(0, 0, searcher, () -> absoluteStartMillis, null, emptyMap());
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }

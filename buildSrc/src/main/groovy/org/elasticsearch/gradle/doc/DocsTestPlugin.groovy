@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.doc
 
@@ -23,7 +12,9 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.file.Directory
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
 
 /**
@@ -39,10 +30,10 @@ class DocsTestPlugin implements Plugin<Project> {
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
-        project.testClusters.integTest.testDistribution = distribution.toUpperCase()
-        project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
+        project.testClusters.matching { it.name.equals("integTest") }.configureEach { testDistribution = distribution.toUpperCase() }
+        project.testClusters.matching { it.name.equals("integTest") }.configureEach { nameCustomization = { it.replace("integTest", "node") } }
         // Docs are published separately so no need to assemble
-        project.tasks.assemble.enabled = false
+        project.tasks.named("assemble").configure {enabled = false }
         Map<String, String> commonDefaultSubstitutions = [
                 /* These match up with the asciidoc syntax for substitutions but
                  * the values may differ. In particular {version} needs to resolve
@@ -72,8 +63,13 @@ class DocsTestPlugin implements Plugin<Project> {
             }
         }
 
-        project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
+        Provider<Directory> restRootDir = project.getLayout().buildDirectory.dir("rest")
+        TaskProvider<RestTestsFromSnippetsTask> buildRestTests = project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
             defaultSubstitutions = commonDefaultSubstitutions
+            testRoot.convention(restRootDir)
         }
+
+        // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm
+        project.sourceSets.test.output.dir(restRootDir, builtBy: buildRestTests)
     }
 }

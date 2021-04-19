@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,8 +20,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Base64;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -90,7 +81,10 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
 
         assertThat(mapper, instanceOf(BinaryFieldMapper.class));
-        assertThat(mapper.fieldType.stored(), equalTo(false));
+
+        byte[] value = new byte[100];
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
+        assertEquals(0, doc.rootDoc().getFields("field").length);
     }
 
     public void testStoredValue() throws IOException {
@@ -116,10 +110,30 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
             BytesRef indexedValue = doc.rootDoc().getBinaryValue("field");
             assertEquals(new BytesRef(value), indexedValue);
+            IndexableField field = doc.rootDoc().getField("field");
+            assertTrue(field.fieldType().stored());
+            assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
 
             MappedFieldType fieldType = mapperService.fieldType("field");
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        if (rarely()) return null;
+        byte[] value = randomByteArrayOfLength(randomIntBetween(1, 50));
+        return Base64.getEncoder().encodeToString(value);
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "binary").field("doc_values", true); // enable doc_values so the test is happy
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

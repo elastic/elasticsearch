@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -57,6 +46,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "41.12,-71.34"));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -203,6 +193,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(ignoreZValue, equalTo(false));
     }
 
+    public void testIndexParameter() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+        boolean searchable = ((GeoPointFieldMapper)fieldMapper).fieldType().isSearchable();
+        assertThat(searchable, equalTo(false));
+    }
+
     public void testMultiField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "geo_point").field("doc_values", false);
@@ -223,14 +221,36 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2")));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point"))
+        );
         Mapper fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(doc.rootDoc().getField("field"), nullValue());
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2"))
+        );
+        fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
         AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
-        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        doc = mapper.parse(source(b -> b.nullField("field")));
         assertThat(doc.rootDoc().getField("field"), notNullValue());
         BytesRef defaultValue = doc.rootDoc().getBinaryValue("field");
 
@@ -319,5 +339,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

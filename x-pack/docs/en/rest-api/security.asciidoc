@@ -103,6 +103,7 @@ realm when using a custom web application other than Kibana
 * <<security-api-saml-authenticate, Submit an authentication response>>
 * <<security-api-saml-logout, Logout an authenticated user>>
 * <<security-api-saml-invalidate, Submit a logout request from the IdP>>
+* <<security-api-saml-sp-metadata,Generate SAML metadata>>
 
 
 include::security/authenticate.asciidoc[]
@@ -141,4 +142,5 @@ include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]
 include::security/saml-invalidate-api.asciidoc[]
+include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]

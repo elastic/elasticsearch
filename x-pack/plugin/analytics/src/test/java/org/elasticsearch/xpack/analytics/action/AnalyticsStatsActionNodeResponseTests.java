@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.action;
@@ -46,6 +47,7 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
         assertThat(AnalyticsStatsAction.Item.MOVING_PERCENTILES.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.NORMALIZE.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.RATE.ordinal(), equalTo(i++));
+        assertThat(AnalyticsStatsAction.Item.MULTI_TERMS.ordinal(), equalTo(i++));
         // Please add tests for newly added items here
         assertThat(AnalyticsStatsAction.Item.values().length, equalTo(i));
     }

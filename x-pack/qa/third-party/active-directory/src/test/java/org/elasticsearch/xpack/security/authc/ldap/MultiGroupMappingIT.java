@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 /**
  * This tests the mapping of multiple groups to a role in a file based role-mapping
@@ -26,8 +27,7 @@ public class MultiGroupMappingIT extends AbstractAdLdapRealmTestCase {
                 "  - \"cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
                 "  - \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n" +
                 "  - \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n";
-        roleMappings = new ArrayList<>(roleMappings);
-        roleMappings.add(new RoleMappingEntry(extraContent, null));
+        roleMappings = CollectionUtils.appendToCopy(roleMappings, new RoleMappingEntry(extraContent, null));
     }
 
     @Override

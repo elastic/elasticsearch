@@ -48,7 +48,3 @@ PUT my-index-000001/_doc/2
 --------------------------------------------------
 
 <1> dims—the number of dimensions in the vector, required parameter.
-
-Internally, each document's dense vector is encoded as a binary
-doc value. Its size in bytes is equal to
-`4 * dims + 4`, where `dims`—the number of the vector's dimensions.

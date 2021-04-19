@@ -1,10 +1,10 @@
 [[jvm-options]]
 === Setting JVM options
 
-You should rarely need to change Java Virtual Machine (JVM) options. If you do,
-the most likely change is setting the <<heap-size,heap size>>. The remainder of
-this document explains in detail how to set JVM options. You can set options
-either with `jvm.options` files or with the `ES_JAVA_OPTS` environment variable.
+You should rarely need to change Java Virtual Machine (JVM) options. {es}
+includes default JVM options that work well for most production environments. If
+needed, you can override these default options using `jvm.options` files or the
+`ES_JAVA_OPTS` environment variable.
 
 The preferred method of setting or overriding JVM options is via JVM options
 files. When installing from the tar or zip distributions, the root `jvm.options`

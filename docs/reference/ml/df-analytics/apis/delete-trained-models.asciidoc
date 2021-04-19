@@ -10,8 +10,6 @@
 Deletes an existing trained {infer} model that is currently not referenced by an
 ingest pipeline.
 
-experimental[]
-
 
 [[ml-delete-trained-models-request]]
 == {api-request-title}
@@ -67,4 +65,3 @@ The API returns the following result:
   "acknowledged" : true
 }
 ----
-

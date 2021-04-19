@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -218,6 +219,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, waitForRolloverStep);
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
         newState.setFailedStep(stepKey.getName());
@@ -886,6 +888,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey, null);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         void setException(Exception exception) {
             this.exception = exception;
         }
@@ -935,6 +942,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey, null);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         void setException(Exception exception) {
             this.exception = exception;
         }
@@ -972,6 +984,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         public void setException(RuntimeException exception) {
             this.exception = exception;
         }
@@ -1006,6 +1023,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         MockClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
+        }
+
+        @Override
+        public boolean isRetryable() {
+            return false;
         }
 
         public void setException(RuntimeException exception) {

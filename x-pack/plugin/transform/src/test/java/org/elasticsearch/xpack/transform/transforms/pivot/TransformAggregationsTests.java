@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -31,6 +32,10 @@ public class TransformAggregationsTests extends ESTestCase {
         // avg
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "double"));
+
+        // median_absolute_deviation
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "double"));
 
         // cardinality
         assertEquals("long", TransformAggregations.resolveTargetMapping("cardinality", "int"));
@@ -65,6 +70,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", "geo_shape"));
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", null));
 
+        // geo_line
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", "geo_shape"));
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", null));
+
         // scripted_metric
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", null));
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", "int"));
@@ -78,8 +87,9 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("bucket_selector", "int"));
 
         // weighted_avg
-        assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("weighted_avg", null));
-        assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("weighted_avg", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", null));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", "int"));
 
         // percentile
         assertEquals("double", TransformAggregations.resolveTargetMapping("percentiles", null));

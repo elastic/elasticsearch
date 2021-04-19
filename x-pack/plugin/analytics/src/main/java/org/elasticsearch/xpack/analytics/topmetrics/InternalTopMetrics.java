@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
@@ -171,6 +172,11 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
         // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
         return topMetrics.get(0).metricValues.get(index).numberValue().doubleValue();
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return metricNames;
     }
 
     SortOrder getSortOrder() {

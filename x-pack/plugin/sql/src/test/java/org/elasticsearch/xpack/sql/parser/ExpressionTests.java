@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -221,11 +222,26 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("- ( ( (1.25) )    )", expr.sourceText());
         assertEquals(-1.25, expr.fold());
 
-        int numberOfParentheses = randomIntBetween(3, 10);
+        expr = parser.createExpression("- ( -( (-1.25) )    )");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- ( -( (-1.25) )    )", expr.sourceText());
+        assertEquals(-1.25, expr.fold());
+
+        expr = parser.createExpression("- ( -( -(-10) )    )");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- ( -( -(-10) )    )", expr.sourceText());
+        assertEquals(10, expr.fold());
+
+        int numberOfParentheses = randomIntBetween(3, 20);
+        int numberOfMinuses = 1;
         double value = randomDouble();
         StringBuilder sb = new StringBuilder("-");
         for (int i = 0; i < numberOfParentheses; i++) {
             sb.append("(").append(SqlTestUtils.randomWhitespaces());
+            if (randomBoolean()) {
+                sb.append("-");
+                numberOfMinuses++;
+            }
         }
         sb.append(value);
         for (int i = 0; i < numberOfParentheses; i++) {
@@ -237,7 +253,7 @@ public class ExpressionTests extends ESTestCase {
         expr = parser.createExpression(sb.toString());
         assertEquals(Literal.class, expr.getClass());
         assertEquals(sb.toString(), expr.sourceText());
-        assertEquals(- value, expr.fold());
+        assertEquals(numberOfMinuses % 2  == 0 ? value : - value, expr.fold());
     }
 
     public void testComplexArithmetic() {

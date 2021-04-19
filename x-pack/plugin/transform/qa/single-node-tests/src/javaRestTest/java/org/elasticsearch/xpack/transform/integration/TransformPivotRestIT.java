@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -30,6 +31,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -510,7 +512,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
-        assertOnePivotValue(transformIndex + "/_search?q=every_2:0.0", 1.0);
+        assertOnePivotValue(transformIndex + "/_search?q=every_2:0", 1.0);
     }
 
     public void testContinuousPivotHistogram() throws Exception {
@@ -556,15 +558,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
@@ -608,18 +610,20 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:0.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:0");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(19));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:2");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(30));
 
-        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4.0");
+        searchResult = getAsMap(transformIndex + "/_search?q=every_2:4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.user_dc", searchResult)).get(0), equalTo(27));
 
+        deleteTransform(transformId);
+        deleteIndex(indexName);
     }
 
     public void testBiggerPivot() throws Exception {
@@ -650,6 +654,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"variability_rating\": {"
+            + "       \"median_absolute_deviation\": {"
             + "         \"field\": \"stars\""
             + " } },"
             + "     \"sum_rating\": {"
@@ -692,6 +700,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.variability_rating", searchResult)).get(0);
+        assertEquals(0.0, actual.doubleValue(), 0.000001);
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.sum_rating", searchResult)).get(0);
         assertEquals(159, actual.longValue());
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.cardinality_business", searchResult)).get(0);
@@ -1230,6 +1240,65 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String[] latlon = actualString.split(",");
         assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
         assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPivotWithGeoLineAgg() throws Exception {
+        String transformId = "geo_line_pivot";
+        String transformIndex = "geo_line_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"location\": {"
+            + "       \"geo_line\": {\"point\": {\"field\":\"location\"}, \"sort\": {\"field\": \"timestamp\"}}"
+            + " } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        Map<String, Object> actualString = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.location",
+            searchResult
+        )).get(0);
+        assertThat(actualString, hasEntry("type", "LineString"));
     }
 
     @SuppressWarnings("unchecked")

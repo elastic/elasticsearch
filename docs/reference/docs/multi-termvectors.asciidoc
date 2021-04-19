@@ -35,12 +35,18 @@ POST /_mtermvectors
 
 `POST /<index>/_mtermvectors`
 
+[[docs-multi-termvectors-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-multi-termvectors-api-desc]]
 ==== {api-description-title}
 
 You can specify existing documents by index and ID or 
 provide artificial documents in the body of the request.  
-The index can be specified the body of the request or in the request URI.
+You can specify the index in the request body or request URI.
 
 The response contains a `docs` array with all the fetched termvectors. 
 Each element has the structure provided by the <<docs-termvectors,termvectors>>

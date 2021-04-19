@@ -25,6 +25,20 @@ setup:
             location: "my-snaps"
 
   - do:
+      catch: /invalid schedule \[0 \* \* \* \* \?\][:] schedule would be too frequent, executing more than every \[15m\]/
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "0 * * * * ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
       slm.put_lifecycle:
         policy_id: "daily-snapshots"
         body: |

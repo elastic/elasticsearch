@@ -32,11 +32,10 @@ The parent-level breaker can be configured with the following settings:
 [[fielddata-circuit-breaker]]
 [discrete]
 ==== Field data circuit breaker
-The field data circuit breaker allows Elasticsearch to estimate the amount of
-memory a field will require to be loaded into memory. It can then prevent the
-field data loading by raising an exception. By default the limit is configured
-to 40% of the maximum JVM heap. It can be configured with the following
-parameters:
+The field data circuit breaker estimates the heap memory required to load a
+field into the <<modules-fielddata,field data cache>>. If loading the field would
+cause the cache to exceed a predefined memory limit, the circuit breaker stops the
+operation and returns an error.
 
 [[fielddata-circuit-breaker-limit]]
 // tag::fielddata-circuit-breaker-limit-tag[]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
@@ -15,11 +16,11 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
@@ -52,7 +53,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         return ((PointFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
@@ -92,12 +93,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
 
         @Override
-        public ParametrizedFieldMapper build(BuilderContext context) {
+        public FieldMapper build(ContentPath contentPath) {
             CartesianPointParser parser
                 = new CartesianPointParser(name, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft
-                = new PointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
-            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+                = new PointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
+            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), new PointIndexer(ft), parser, this);
         }
 
@@ -146,7 +147,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
@@ -166,7 +167,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
 
         @Override
-        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
     }

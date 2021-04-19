@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -38,6 +40,7 @@ import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -60,11 +63,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -94,6 +95,7 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
+import static org.elasticsearch.xpack.core.security.user.User.isInternal;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class AuthorizationService {
@@ -117,6 +119,7 @@ public class AuthorizationService {
     private final AuthorizationEngine authorizationEngine;
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
+    private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -124,7 +127,7 @@ public class AuthorizationService {
                                 AuditTrailService auditTrailService, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine,
                                 Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState,
-                                IndexNameExpressionResolver resolver) {
+                                IndexNameExpressionResolver resolver, OperatorPrivilegesService operatorPrivilegesService) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
@@ -138,6 +141,7 @@ public class AuthorizationService {
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
+        this.operatorPrivilegesService = operatorPrivilegesService;
     }
 
     public void checkPrivileges(Authentication authentication, HasPrivilegesRequest request,
@@ -187,7 +191,7 @@ public class AuthorizationService {
             if (auditId == null) {
                 // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
                 // true because the request-id is generated during authentication
-                if (isInternalUser(authentication.getUser()) != false) {
+                if (isInternal(authentication.getUser())) {
                     auditId = AuditUtil.getOrGenerateRequestId(threadContext);
                 } else {
                     auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);
@@ -195,12 +199,24 @@ public class AuthorizationService {
                             + "] without an existing request-id";
                     assert false : message;
                     listener.onFailure(new ElasticsearchSecurityException(message));
+                    return;
                 }
             }
 
             // sometimes a request might be wrapped within another, which is the case for proxied
             // requests and concrete shard requests
             final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+
+            // Check operator privileges
+            // TODO: audit?
+            final ElasticsearchSecurityException operatorException =
+                operatorPrivilegesService.check(action, originalRequest, threadContext);
+            if (operatorException != null) {
+                listener.onFailure(denialException(authentication, action, originalRequest, operatorException));
+                return;
+            }
+            operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
+
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
@@ -237,12 +253,12 @@ public class AuthorizationService {
                         auditTrail.runAsDenied(requestId, authentication, action, request,
                             authzInfo.getAuthenticatedUserAuthorizationInfo());
                     }
-                    listener.onFailure(denialException(authentication, action, null));
+                    listener.onFailure(denialException(authentication, action, request, null));
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request,
                     authzInfo.getAuthenticatedUserAuthorizationInfo());
-                listener.onFailure(denialException(authentication, action, null));
+                listener.onFailure(denialException(authentication, action, request, null));
             }), threadContext);
             authorizeRunAs(requestInfo, authzInfo, runAsListener);
         } else {
@@ -277,7 +293,7 @@ public class AuthorizationService {
                     if (e instanceof IndexNotFoundException) {
                         listener.onFailure(e);
                     } else {
-                        listener.onFailure(denialException(authentication, action, e));
+                        listener.onFailure(denialException(authentication, action, request, e));
                     }
                 }));
             });
@@ -289,7 +305,7 @@ public class AuthorizationService {
         } else {
             logger.warn("denying access as action [{}] is not an index or cluster action", action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-            listener.onFailure(denialException(authentication, action, null));
+            listener.onFailure(denialException(authentication, action, request, null));
         }
     }
 
@@ -308,8 +324,10 @@ public class AuthorizationService {
         }
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
-            assert (request instanceof CreateIndexRequest) || (request instanceof CreateDataStreamAction.Request);
-            if (request instanceof CreateDataStreamAction.Request || ((CreateIndexRequest) request).aliases().isEmpty()) {
+            assert (request instanceof CreateIndexRequest) || (request instanceof MigrateToDataStreamAction.Request) ||
+                (request instanceof CreateDataStreamAction.Request);
+            if (request instanceof CreateDataStreamAction.Request || (request instanceof MigrateToDataStreamAction.Request) ||
+                ((CreateIndexRequest) request).aliases().isEmpty()) {
                 runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             } else {
                 Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
@@ -363,7 +381,7 @@ public class AuthorizationService {
                 prevListener = current;
             }
 
-            prevListener.whenComplete(v -> listener.onResponse(null), listener::onFailure);
+            prevListener.addListener(listener);
             first.intercept(requestInfo, authorizationEngine, authorizationInfo, firstStepListener);
         }
     }
@@ -382,7 +400,7 @@ public class AuthorizationService {
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
         if (rbacEngine != authorizationEngine && licenseState.isSecurityEnabled() &&
             licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_ENGINE)) {
-            if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternalUser(user)) {
+            if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternal(user)) {
                 return rbacEngine;
             } else {
                 return authorizationEngine;
@@ -402,7 +420,7 @@ public class AuthorizationService {
             listener.onResponse(null);
         } else {
             auditTrail.accessDenied(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
-            listener.onFailure(denialException(authentication, action, null));
+            listener.onFailure(denialException(authentication, action, request, null));
         }
     }
 
@@ -421,20 +439,16 @@ public class AuthorizationService {
                 IllegalStateException cause = new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest +
                     "] but action: [" + action + "] is a proxy action");
                 auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
-                throw denialException(authentication, action, cause);
+                throw denialException(authentication, action, request, cause);
             }
             if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
                 IllegalStateException cause = new IllegalStateException("originalRequest is a proxy request for: [" + request +
                     "] but action: [" + action + "] isn't");
                 auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
-                throw denialException(authentication, action, cause);
+                throw denialException(authentication, action, request, cause);
             }
         }
         return request;
-    }
-
-    private boolean isInternalUser(User user) {
-        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
     }
 
     private void authorizeRunAs(final RequestInfo requestInfo, final AuthorizationInfo authzInfo,
@@ -457,7 +471,7 @@ public class AuthorizationService {
      * and then checks whether that action is allowed on the targeted index. Items
      * that fail this checks are {@link BulkItemRequest#abort(String, Exception)
      * aborted}, with an
-     * {@link #denialException(Authentication, String, Exception) access
+     * {@link #denialException(Authentication, String, TransportRequest, Exception) access
      * denied} exception. Because a shard level request is for exactly 1 index, and
      * there are a small number of possible item {@link DocWriteRequest.OpType
      * types}, the number of distinct authorization checks that need to be performed
@@ -531,7 +545,7 @@ public class AuthorizationService {
                             if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
                                 auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_DENIED, authentication, itemAction,
                                         resolvedIndex, item.getClass().getSimpleName(), request.remoteAddress(), authzInfo);
-                                item.abort(resolvedIndex, denialException(authentication, itemAction,
+                                item.abort(resolvedIndex, denialException(authentication, itemAction, request,
                                     AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex)), null));
                             } else if (audit.get()) {
                                 auditTrail.explicitIndexAccessEvent(requestId, AuditLevel.ACCESS_GRANTED, authentication, itemAction,
@@ -592,12 +606,13 @@ public class AuthorizationService {
         }
     }
 
-    private ElasticsearchSecurityException denialException(Authentication authentication, String action, Exception cause) {
-        return denialException(authentication, action, null, cause);
+    private ElasticsearchSecurityException denialException(Authentication authentication, String action, TransportRequest request,
+                                                           Exception cause) {
+        return denialException(authentication, action, request, null, cause);
     }
 
-    private ElasticsearchSecurityException denialException(Authentication authentication, String action, @Nullable String context,
-                                                           Exception cause) {
+    private ElasticsearchSecurityException denialException(Authentication authentication, String action, TransportRequest request,
+                                                           @Nullable String context, Exception cause) {
         final User authUser = authentication.getUser().authenticatedUser();
         // Special case for anonymous user
         if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
@@ -616,6 +631,9 @@ public class AuthorizationService {
             final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
+        } else {
+            // Don't print roles for API keys because they're not meaningful
+            userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 
         String message = "action [" + action + "] is unauthorized for " + userText;
@@ -623,10 +641,17 @@ public class AuthorizationService {
             message = message + " " + context;
         }
 
-        if(isIndexAction(action)) {
+        if (ClusterPrivilegeResolver.isClusterAction(action)) {
+            final Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, request, authentication);
+            if (privileges != null && privileges.size() > 0) {
+                message = message + ", this action is granted by the cluster privileges ["
+                    + collectionToCommaDelimitedString(privileges) + "]";
+            }
+        } else if (isIndexAction(action)) {
             final Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
             if (privileges != null && privileges.size() > 0) {
-                message = message + ", this action is granted by the privileges [" + collectionToCommaDelimitedString(privileges) + "]";
+                message = message + ", this action is granted by the index privileges ["
+                    + collectionToCommaDelimitedString(privileges) + "]";
             }
         }
 
@@ -678,7 +703,8 @@ public class AuthorizationService {
                 auditTrailService.get().accessDenied(requestId, requestInfo.getAuthentication(), requestInfo.getAction(),
                     requestInfo.getRequest(), authzInfo);
             }
-            failureConsumer.accept(denialException(requestInfo.getAuthentication(), requestInfo.getAction(), context, e));
+            failureConsumer.accept(
+                denialException(requestInfo.getAuthentication(), requestInfo.getAction(), requestInfo.getRequest(), context, e));
         }
     }
 

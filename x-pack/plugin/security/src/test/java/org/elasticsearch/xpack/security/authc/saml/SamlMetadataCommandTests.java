@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -34,7 +35,8 @@ import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 
-import javax.crypto.AEADBadTagException;
+
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,7 +77,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         when(passwordProtectedKeystore.isLoaded()).thenReturn(true);
         when(passwordProtectedKeystore.hasPassword()).thenReturn(true);
         doNothing().when(passwordProtectedKeystore).decrypt("keystore-password".toCharArray());
-        doThrow(new SecurityException("Provided keystore password was incorrect", new AEADBadTagException()))
+        doThrow(new SecurityException("Provided keystore password was incorrect", new IOException()))
             .when(passwordProtectedKeystore).decrypt("wrong-password".toCharArray());
     }
 
@@ -568,6 +570,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testDefaultOptionsWithSigningAndMultipleEncryptionKeys() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         final Path dir = createTempDir();
 
@@ -718,7 +721,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         UserException e = expectThrows(UserException.class, () -> {
             command.buildEntityDescriptor(terminal, options, env);
         });
-        assertThat(e.getMessage(), CoreMatchers.containsString("Wrong password for elasticsearch.keystore"));
+        assertThat(e.getMessage(), CoreMatchers.containsString("Provided keystore password was incorrect"));
     }
 
     private String getAliasName(final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPair) {

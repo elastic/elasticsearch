@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-saml-authenticate]]
 === SAML authenticate API
+++++
+<titleabbrev>SAML authenticate</titleabbrev>
+++++
 
 Submits a SAML `Response` message to {es} for consumption.
 

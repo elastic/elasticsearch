@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
@@ -24,6 +13,7 @@ import nebula.plugin.info.InfoBrokerPlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
@@ -39,6 +29,8 @@ import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.AbstractCompile;
@@ -52,7 +44,9 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.util.Util.toStringable;
 
@@ -127,11 +121,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 }
             });
         };
-        disableTransitiveDeps.accept(JavaPlugin.API_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
+
+        // disable transitive dependency management
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
     /**
@@ -174,14 +167,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
             });
             // also apply release flag to groovy, which is used in build-tools
-            project.getTasks()
-                .withType(GroovyCompile.class)
-                .configureEach(
-                    compileTask -> {
-                        // TODO: this probably shouldn't apply to groovy at all?
-                        compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-                    }
-                );
+            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
+                // TODO: this probably shouldn't apply to groovy at all?
+                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            });
         });
     }
 
@@ -203,50 +192,37 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
      * Adds additional manifest info to jars
      */
     static void configureJars(Project project) {
-        project.getTasks()
-            .withType(Jar.class)
-            .configureEach(
-                jarTask -> {
-                    // we put all our distributable files under distributions
-                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-                    // fixup the jar manifest
-                    // Explicitly using an Action interface as java lambdas
-                    // are not supported by Gradle up-to-date checks
-                    jarTask.doFirst(new Action<Task>() {
-                        @Override
-                        public void execute(Task task) {
-                            // this doFirst is added before the info plugin, therefore it will run
-                            // after the doFirst added by the info plugin, and we can override attributes
-                            jarTask.getManifest()
-                                .attributes(
-                                    Map.of(
-                                        "Build-Date",
-                                        BuildParams.getBuildDate(),
-                                        "Build-Java-Version",
-                                        BuildParams.getGradleJavaVersion()
-                                    )
-                                );
-                        }
-                    });
+        project.getTasks().withType(Jar.class).configureEach(jarTask -> {
+            // we put all our distributable files under distributions
+            jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+            // fixup the jar manifest
+            // Explicitly using an Action interface as java lambdas
+            // are not supported by Gradle up-to-date checks
+            jarTask.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    // this doFirst is added before the info plugin, therefore it will run
+                    // after the doFirst added by the info plugin, and we can override attributes
+                    jarTask.getManifest()
+                        .attributes(
+                            Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion())
+                        );
                 }
-            );
+            });
+        });
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-            project.getTasks()
-                .withType(ShadowJar.class)
-                .configureEach(
-                    shadowJar -> {
-                        /*
-                         * Replace the default "-all" classifier with null
-                         * which will leave the classifier off of the file name.
-                         */
-                        shadowJar.getArchiveClassifier().set((String) null);
-                        /*
-                         * Not all cases need service files merged but it is
-                         * better to be safe
-                         */
-                        shadowJar.mergeServiceFiles();
-                    }
-                );
+            project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
+                /*
+                 * Replace the default "-all" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                shadowJar.getArchiveClassifier().set((String) null);
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                shadowJar.mergeServiceFiles();
+            });
             // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
             project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
             // Make sure we assemble the shadow jar
@@ -283,12 +259,24 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
 
         TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
-        javadoc.configure(doc ->
+
         // remove compiled classes from the Javadoc classpath:
         // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-        doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+        javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
+    }
+
+    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
+        Stream.of(
+            sourceSet.getApiConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getCompileOnlyConfigurationName(),
+            sourceSet.getRuntimeOnlyConfigurationName()
+        )
+            .map(name -> project.getConfigurations().findByName(name))
+            .filter(Objects::nonNull)
+            .forEach(GradleUtils::disableTransitiveDependencies);
     }
 }

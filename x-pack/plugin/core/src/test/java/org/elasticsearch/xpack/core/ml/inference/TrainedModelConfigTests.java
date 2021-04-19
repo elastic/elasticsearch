@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
@@ -90,7 +91,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override
@@ -167,7 +168,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         assertThat(reference.utf8ToString(), containsString("\"definition\""));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
-
+    
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());

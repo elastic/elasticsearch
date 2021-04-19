@@ -10,7 +10,7 @@ HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
 For further details, see
-<<encrypting-communications>> and
+<<configuring-stack-security>> and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [discrete]
@@ -72,7 +72,8 @@ services:
     command: >
       bash -c '
         if [[ ! -f /certs/bundle.zip ]]; then
-          bin/elasticsearch-certutil cert --silent --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
+          bin/elasticsearch-certutil ca --silent --out /certs/ca.p12 --pass ""; <1>
+          bin/elasticsearch-certutil cert --silent --pem --ca /certs/ca.p12 --in config/certificates/instances.yml -out /certs/bundle.zip;
           unzip /certs/bundle.zip -d /certs; <1>
         fi;
         chown -R 1000:0 /certs

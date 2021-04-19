@@ -1,7 +1,7 @@
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'tests.ssl.enabled', 'false'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }

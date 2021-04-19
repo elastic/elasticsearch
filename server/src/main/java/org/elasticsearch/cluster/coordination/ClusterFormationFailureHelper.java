@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -24,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -143,16 +131,21 @@ public class ClusterFormationFailureHelper {
             if (statusInfo.getStatus() == UNHEALTHY) {
                 return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
-            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
-                .map(n -> n.value.toString()).collect(Collectors.toList());
+
+            final StringBuilder clusterStateNodes = new StringBuilder();
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(
+                    clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
 
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
-                "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
+                "discovery will continue using %s from hosts providers and [%s] from last-known cluster state; " +
                     "node term %d, last-accepted version %d in term %d",
                 resolvedAddresses, clusterStateNodes, currentTerm, clusterState.version(), clusterState.term());
 
-            final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
-                foundPeers, discoveryWillContinueDescription);
+            final StringBuilder foundPeersDescription = new StringBuilder();
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(foundPeers.iterator(), foundPeersDescription);
+
+            final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered [%s]; %s",
+                    foundPeersDescription, discoveryWillContinueDescription);
 
             if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
                 return String.format(Locale.ROOT, "master not discovered yet: %s", discoveryStateIgnoringQuorum);
@@ -179,8 +172,8 @@ public class ClusterFormationFailureHelper {
 
             if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(Locale.ROOT,
-                        "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
-                        foundPeers, discoveryWillContinueDescription);
+                        "master not discovered yet and this node was detached from its previous cluster, have discovered [%s]; %s",
+                        foundPeersDescription, discoveryWillContinueDescription);
             }
 
             final String quorumDescription;
@@ -200,8 +193,8 @@ public class ClusterFormationFailureHelper {
                     voteCollection) ? "is a quorum" : "is not a quorum";
 
             return String.format(Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",
-                quorumDescription, foundPeers, isQuorumOrNot, discoveryWillContinueDescription);
+                "master not discovered or elected yet, an election requires %s, have discovered [%s] which %s; %s",
+                quorumDescription, foundPeersDescription, isQuorumOrNot, discoveryWillContinueDescription);
         }
 
         private String describeQuorum(VotingConfiguration votingConfiguration) {

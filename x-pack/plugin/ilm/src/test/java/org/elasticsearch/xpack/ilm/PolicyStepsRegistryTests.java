@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -323,7 +324,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLength(5);
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("shrink", new ShrinkAction(1));
+        actions.put("shrink", new ShrinkAction(1, null));
         Map<String, Phase> phases = new HashMap<>();
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policyName, warmPhase, 1, randomNonNegativeLong());
@@ -332,7 +333,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy(policyName, phases);
         // Modify the policy
         actions = new HashMap<>();
-        actions.put("shrink", new ShrinkAction(2));
+        actions.put("shrink", new ShrinkAction(2, null));
         phases = new HashMap<>();
         phases.put("warm", new Phase("warm", TimeValue.ZERO, actions));
         LifecyclePolicy updatedPolicy = new LifecyclePolicy(policyName, phases);

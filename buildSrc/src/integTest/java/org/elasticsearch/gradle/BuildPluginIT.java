@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle;
 
@@ -32,7 +21,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -56,36 +44,6 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         assertTaskSuccessful(result, ":check");
     }
 
-    public void testInsecureMavenRepository() throws IOException {
-        final String name = "elastic-maven";
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
-        // add an insecure maven repository to the build.gradle
-        final List<String> lines = Arrays.asList(
-            "repositories {",
-            "  maven {",
-            "    name \"elastic-maven\"",
-            "    url \"" + url + "\"\n",
-            "  }",
-            "}"
-        );
-        runInsecureArtifactRepositoryTest(name, url, lines);
-    }
-
-    public void testInsecureIvyRepository() throws IOException {
-        final String name = "elastic-ivy";
-        final String url = "http://s3.amazonaws.com/artifacts.elastic.co/ivy";
-        // add an insecure ivy repository to the build.gradle
-        final List<String> lines = Arrays.asList(
-            "repositories {",
-            "  ivy {",
-            "    name \"elastic-ivy\"",
-            "    url \"" + url + "\"\n",
-            "  }",
-            "}"
-        );
-        runInsecureArtifactRepositoryTest(name, url, lines);
-    }
-
     private void runInsecureArtifactRepositoryTest(final String name, final String url, final List<String> lines) throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
         final Path projectDirPath = projectDir.toPath();
@@ -105,7 +63,9 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             .withProjectDir(tmpDir.getRoot())
             .withArguments("clean", "hello", "-s", "-i", "--warning-mode=all", "--scan")
             .withPluginClasspath()
+            .forwardOutput()
             .buildAndFail();
+
         assertOutputContains(
             result.getOutput(),
             "repository [" + name + "] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]"

@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-daterange-aggregation]]
-=== Date Range Aggregation
+=== Date range aggregation
+++++
+<titleabbrev>Date range</titleabbrev>
+++++
 
 A range aggregation that is dedicated for date values. The main difference
 between this aggregation and the normal

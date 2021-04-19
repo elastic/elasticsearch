@@ -22,6 +22,8 @@ whereFieldAndComparison
 // tag::whereFieldAndComparison
 SELECT last_name l FROM "test_emp" WHERE emp_no > 10000 AND emp_no < 10005 ORDER BY emp_no LIMIT 5;
 // end::whereFieldAndComparison
+whereGreaterThanAndNotEqualityOnDifferentFields
+SELECT last_name l FROM "test_emp" WHERE salary >= 50000 AND emp_no != 10002 ORDER BY emp_no LIMIT 5;
 whereFieldOrComparison
 // tag::whereFieldOrComparison
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 OR emp_no = 10005 ORDER BY emp_no LIMIT 5;

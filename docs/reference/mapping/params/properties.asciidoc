@@ -3,11 +3,11 @@
 
 Type mappings, <<object,`object` fields>> and <<nested,`nested` fields>>
 contain sub-fields, called `properties`. These properties may be of any
-<<mapping-types,data type>>, including `object` and `nested`.  Properties can
+<<mapping-types,data type>>, including `object` and `nested`. Properties can
 be added:
 
 * explicitly by defining them when <<indices-create-index,creating an index>>.
-* explicitly by defining them when adding or updating a mapping type with the <<indices-put-mapping,PUT mapping>> API.
+* explicitly by defining them when adding or updating a mapping type with the <<indices-put-mapping,update mapping>> API.
 * <<dynamic-mapping,dynamically>> just by indexing documents containing new fields.
 
 Below is an example of adding `properties` to a mapping type, an `object`
@@ -62,8 +62,8 @@ PUT my-index-000001/_doc/1 <4>
 <4> An example document which corresponds to the above mapping.
 
 TIP: The `properties` setting is allowed to have different settings for fields
-of the same name in the same index.  New properties can be added to existing
-fields using the <<indices-put-mapping,PUT mapping API>>.
+of the same name in the same index. New properties can be added to existing
+fields using the <<indices-put-mapping,update mapping API>>.
 
 ==== Dot notation
 

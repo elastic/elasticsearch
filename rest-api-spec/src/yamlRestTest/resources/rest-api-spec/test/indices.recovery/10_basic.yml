@@ -1,0 +1,160 @@
+---
+"Indices recovery test":
+
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [test_1]
+        human: true
+
+  - match: { test_1.shards.0.type:                                 "EMPTY_STORE"           }
+  - match: { test_1.shards.0.stage:                                "DONE"                  }
+  - match: { test_1.shards.0.primary:                              true                    }
+  - match: { test_1.shards.0.start_time:                           /^2\d\d\d-.+/           }
+  - match: { test_1.shards.0.target.ip:                            /^\d+\.\d+\.\d+\.\d+$/  }
+  - gte:   { test_1.shards.0.index.files.total:                    0                       }
+  - gte:   { test_1.shards.0.index.files.reused:                   0                       }
+  - gte:   { test_1.shards.0.index.files.recovered:                0                       }
+  - match: { test_1.shards.0.index.files.percent:                  /^\d+\.\d\%$/           }
+  - gte:   { test_1.shards.0.index.size.total_in_bytes:            0                       }
+  - gte:   { test_1.shards.0.index.size.reused_in_bytes:           0                       }
+  - gte:   { test_1.shards.0.index.size.recovered_in_bytes:        0                       }
+  - match: { test_1.shards.0.index.size.percent:                   /^\d+\.\d\%$/           }
+  - gte:   { test_1.shards.0.index.source_throttle_time_in_millis: 0                       }
+  - gte:   { test_1.shards.0.index.target_throttle_time_in_millis: 0                       }
+  - gte:   { test_1.shards.0.translog.recovered:                   0                       }
+  - gte:   { test_1.shards.0.translog.total:                       -1                      }
+  - gte:   { test_1.shards.0.translog.total_on_start:              0                       }
+  - gte:   { test_1.shards.0.translog.total_time_in_millis:        0                       }
+  - gte:   { test_1.shards.0.verify_index.check_index_time_in_millis:     0                       }
+  - gte:   { test_1.shards.0.verify_index.total_time_in_millis:           0                       }
+---
+"Indices recovery test for closed index":
+  - skip:
+      version: " - 7.1.99"
+      reason: closed indices are replicated starting version 7.2.0
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index:  test_2
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_2
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        index: test_2
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [test_2]
+        human: true
+
+  - match: { test_2.shards.0.type:                                 "EXISTING_STORE"        }
+  - match: { test_2.shards.0.stage:                                "DONE"                  }
+  - match: { test_2.shards.0.primary:                              true                    }
+  - match: { test_2.shards.0.start_time:                           /^2\d\d\d-.+/           }
+  - match: { test_2.shards.0.target.ip:                            /^\d+\.\d+\.\d+\.\d+$/  }
+  - gte:   { test_2.shards.0.index.files.total:                    0                       }
+  - gte:   { test_2.shards.0.index.files.reused:                   0                       }
+  - gte:   { test_2.shards.0.index.files.recovered:                0                       }
+  - match: { test_2.shards.0.index.files.percent:                  /^\d+\.\d\%$/           }
+  - gte:   { test_2.shards.0.index.size.total_in_bytes:            0                       }
+  - gte:   { test_2.shards.0.index.size.reused_in_bytes:           0                       }
+  - gte:   { test_2.shards.0.index.size.recovered_in_bytes:        0                       }
+  - match: { test_2.shards.0.index.size.percent:                   /^\d+\.\d\%$/           }
+  - gte:   { test_2.shards.0.index.source_throttle_time_in_millis: 0                       }
+  - gte:   { test_2.shards.0.index.target_throttle_time_in_millis: 0                       }
+  - gte:   { test_2.shards.0.translog.recovered:                   0                       }
+  - gte:   { test_2.shards.0.translog.total:                       0                       }
+  - gte:   { test_2.shards.0.translog.total_on_start:              0                       }
+  - gte:   { test_2.shards.0.translog.total_time_in_millis:        0                       }
+  - gte:   { test_2.shards.0.verify_index.check_index_time_in_millis:     0                }
+  - gte:   { test_2.shards.0.verify_index.total_time_in_millis:           0                }
+---
+"Indices recovery test index name not matching":
+
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+
+      catch: missing
+      indices.recovery:
+        index: [foobar]
+
+---
+"Indices recovery test, wildcard not matching any index":
+
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [v*]
+
+  - match: { $body: {} }
+---
+"Indices recovery test with detailed parameter":
+  - skip:
+      version: " - 7.2.99"
+      reason: bug with detailed parameter fixed in 7.3
+
+  - do:
+      indices.create:
+        index:  test_3
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [test_3]
+        human: true
+        detailed: true
+
+  - match: { test_3.shards.0.index.files.details: [] }

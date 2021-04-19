@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-diversified-sampler-aggregation]]
-=== Diversified Sampler Aggregation
+=== Diversified sampler aggregation
+++++
+<titleabbrev>Diversified sampler</titleabbrev>
+++++
 
 Like the `sampler` aggregation this is a filtering aggregation used to limit any sub aggregations' processing to a sample of the top-scoring documents.
 The `diversified_sampler` aggregation adds the ability to limit the number of matches that share a common value such as an "author".
@@ -15,10 +18,10 @@ a large spike in a timeline or an over-active forum spammer).
 * Removing bias from analytics by ensuring fair representation of content from different sources
 * Reducing the running cost of aggregations that can produce useful results using only samples e.g. `significant_terms`
 
-A choice of `field` or `script` setting is used to provide values used for de-duplication and the `max_docs_per_value` setting controls the maximum
+The `field` setting is used to provide values used for de-duplication and the `max_docs_per_value` setting controls the maximum
 number of documents collected on any one shard which share a common value. The default setting for `max_docs_per_value` is 1.
 
-The aggregation will throw an error if the choice of `field` or `script` produces multiple values for a single document (de-duplication using multi-valued fields is not supported due to efficiency concerns).
+The aggregation will throw an error if the `field` produces multiple values for a single document (de-duplication using multi-valued fields is not supported due to efficiency concerns).
 
 
 Example:
@@ -86,13 +89,14 @@ Response:
 <1> 151 documents were sampled in total.
 <2> The results of the significant_terms aggregation are not skewed by any single author's quirks because we asked for a maximum of one post from any one author in our sample.
 
-==== Scripted example:
+==== Scripted example
 
-In this scenario we might want to diversify on a combination of field values. We can use a `script` to produce a hash of the
-multiple values in a tags field to ensure we don't have a sample that consists of the same repeated combinations of tags.
+In this scenario we might want to diversify on a combination of field values. We can use a <<runtime,runtime field>> to
+produce a hash of the multiple values in a tags field to ensure we don't have a sample that consists of the same
+repeated combinations of tags.
 
-[source,console,id=diversified-sampler-aggregation-scripted-example]
---------------------------------------------------
+[source,console,id=diversified-sampler-aggregation-runtime-field-example]
+----
 POST /stackoverflow/_search?size=0
 {
   "query": {
@@ -100,15 +104,18 @@ POST /stackoverflow/_search?size=0
       "query": "tags:kibana"
     }
   },
+  "runtime_mappings": {
+    "tags.hash": {
+      "type": "long",
+      "script": "emit(doc['tags'].hashCode())"
+    }
+  },
   "aggs": {
     "my_unbiased_sample": {
       "diversified_sampler": {
         "shard_size": 200,
         "max_docs_per_value": 3,
-        "script": {
-          "lang": "painless",
-          "source": "doc['tags'].hashCode()"
-        }
+        "field": "tags.hash"
       },
       "aggs": {
         "keywords": {
@@ -121,13 +128,13 @@ POST /stackoverflow/_search?size=0
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:stackoverflow]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
@@ -154,7 +161,7 @@ Response:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 // TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
 // TESTRESPONSE[s/1.34/$body.aggregations.my_unbiased_sample.keywords.buckets.1.score/]
@@ -178,7 +185,7 @@ Each option will hold up to `shard_size` values in memory while performing de-du
  - hold ordinals of the field as determined by the Lucene index (`global_ordinals`)
  - hold hashes of the field values - with potential for hash collisions (`bytes_hash`)
 
-The default setting is to use `global_ordinals` if this information is available from the Lucene index and reverting to `map` if not.
+The default setting is to use <<eager-global-ordinals,`global_ordinals`>> if this information is available from the Lucene index and reverting to `map` if not.
 The `bytes_hash` setting may prove faster in some cases but introduces the possibility of false positives in de-duplication logic due to the possibility of hash collisions.
 Please note that Elasticsearch will ignore the choice of execution hint if it is not applicable and that there is no backward compatibility guarantee on these hints.
 

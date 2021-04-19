@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.doc
@@ -41,12 +30,13 @@ class SnippetsTask extends DefaultTask {
     private static final String SCHAR = /(?:\\\/|[^\/])/
     private static final String SUBSTITUTION = /s\/($SCHAR+)\/($SCHAR*)\//
     private static final String CATCH = /catch:\s*((?:\/[^\/]+\/)|[^ \]]+)/
-    private static final String SKIP = /skip:([^\]]+)/
+    private static final String SKIP_REGEX = /skip:([^\]]+)/
     private static final String SETUP = /setup:([^ \]]+)/
+    private static final String TEARDOWN = /teardown:([^ \]]+)/
     private static final String WARNING = /warning:(.+)/
     private static final String NON_JSON = /(non_json)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING|(skip_shard_failures)) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP_REGEX|(continued)|$SETUP|$TEARDOWN|$WARNING|(skip_shard_failures)) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
@@ -61,14 +51,7 @@ class SnippetsTask extends DefaultTask {
      * directory.
      */
     @InputFiles
-    ConfigurableFileTree docs = project.fileTree(project.projectDir) {
-        // No snippets in the build file
-        exclude 'build.gradle'
-        // That is where the snippets go, not where they come from!
-        exclude 'build'
-        exclude 'build-idea'
-        exclude 'build-eclipse'
-    }
+    ConfigurableFileTree docs
 
     /**
      * Substitutions done on every snippet's contents.
@@ -237,10 +220,14 @@ class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(7) != null) {
-                                snippet.warnings.add(it.group(7))
+                                snippet.teardown = it.group(7)
                                 return
                             }
                             if (it.group(8) != null) {
+                                snippet.warnings.add(it.group(8))
+                                return
+                            }
+                            if (it.group(9) != null) {
                                 snippet.skipShardsFailures = true
                                 return
                             }
@@ -262,7 +249,7 @@ class SnippetsTask extends DefaultTask {
                             substitutions = []
                         }
                         String loc = "$file:$lineNumber"
-                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$NON_JSON|$SKIP) ?/) {
+                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$NON_JSON|$SKIP_REGEX) ?/) {
                             if (it.group(1) != null) {
                                 // TESTRESPONSE[s/adsf/jkl/]
                                 substitutions.add([it.group(1), it.group(2)])
@@ -352,6 +339,7 @@ class SnippetsTask extends DefaultTask {
         String language = null
         String catchPart = null
         String setup = null
+        String teardown = null
         boolean curl
         List warnings = new ArrayList()
         boolean skipShardsFailures = false
@@ -382,6 +370,9 @@ class SnippetsTask extends DefaultTask {
                 }
                 if (setup) {
                     result += "[setup:$setup]"
+                }
+                if (teardown) {
+                    result += "[teardown:$teardown]"
                 }
                 for (String warning in warnings) {
                     result += "[warning:$warning]"

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack;
 
@@ -47,7 +48,7 @@ public class XPackInfoRequest extends ActionRequest {
     }
 
     public XPackInfoRequest(StreamInput in) throws IOException {
-        // NOTE: this does *not* call super, THIS IS A BUG
+        super(in);
         this.verbose = in.readBoolean();
         EnumSet<Category> categories = EnumSet.noneOf(Category.class);
         int size = in.readVInt();
@@ -83,6 +84,7 @@ public class XPackInfoRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(verbose);
         out.writeVInt(categories.size());
         for (Category category : categories) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
@@ -54,7 +43,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -492,7 +481,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         GeoPoint[] localPoints = localPoints();
         boolean reverse = order == SortOrder.DESC;
         MultiValueMode localSortMode = localSortMode();
@@ -516,7 +505,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
         GeoPoint[] localPoints = localPoints();
         MultiValueMode localSortMode = localSortMode();
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
@@ -525,7 +515,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         // TODO implement the single point optimization above
 
         return comparatorSource(localPoints, localSortMode, geoIndexFieldData, nested)
-                .newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
+                .newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
     }
 
     private GeoPoint[] localPoints() {
@@ -566,7 +556,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         return order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
     }
 
-    private IndexGeoPointFieldData fieldData(QueryShardContext context) {
+    private IndexGeoPointFieldData fieldData(SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
@@ -578,7 +568,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         return context.getForField(fieldType);
     }
 
-    private Nested nested(QueryShardContext context) throws IOException {
+    private Nested nested(SearchExecutionContext context) throws IOException {
         // TODO this is pretty similar to FieldSortBuilder. Share?
         if (nestedSort == null) {
             validateMissingNestedPath(context, fieldName);
@@ -656,14 +646,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {
-        while (!parser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
+        while (parser.nextToken().equals(XContentParser.Token.END_ARRAY) == false) {
             if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 // we might get here if the geo point is " number, number] " and the parser already moved over the
                 // opening bracket in this case we cannot use GeoUtils.parseGeoPoint(..) because this expects an opening
                 // bracket
                 double lon = parser.doubleValue();
                 parser.nextToken();
-                if (!parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)) {
+                if (parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER) == false) {
                     throw new ElasticsearchParseException(
                             "geo point parsing: expected second number but got [{}] instead",
                             parser.currentToken());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -22,21 +11,17 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -52,8 +37,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -87,7 +70,7 @@ public class MetadataUpdateSettingsService {
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
-                               final ActionListener<ClusterStateUpdateResponse> listener) {
+                               final ActionListener<AcknowledgedResponse> listener) {
         final Settings normalizedSettings =
             Settings.builder().put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
@@ -96,7 +79,7 @@ public class MetadataUpdateSettingsService {
 
         indexScopedSettings.validate(
                 normalizedSettings.filter(s -> Regex.isSimpleMatchPattern(s) == false), // don't validate wildcards
-                false, // don't validate dependencies here we check it below never allow to change the number of shards
+                false, // don't validate values here we check it below never allow to change the number of shards
                 true); // validate internal or private index settings
         for (String key : normalizedSettings.keySet()) {
             Setting setting = indexScopedSettings.get(key);
@@ -116,13 +99,8 @@ public class MetadataUpdateSettingsService {
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()),
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                new AckedClusterStateUpdateTask(Priority.URGENT, request,
                     wrapPreservingContext(listener, threadPool.getThreadContext())) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -146,7 +124,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
+                if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
@@ -155,15 +133,7 @@ public class MetadataUpdateSettingsService {
                     final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                     if (preserveExisting == false) {
                         // Verify that this won't take us over the cluster shard limit.
-                        int totalNewShards = Arrays.stream(request.indices())
-                            .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                            .sum();
-                        Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                        if (error.isPresent()) {
-                            ValidationException ex = new ValidationException();
-                            ex.addValidationError(error.get());
-                            throw ex;
-                        }
+                        shardLimitValidator.validateShardLimitOnReplicaUpdate(currentState, request.indices(), updatedNumberOfReplicas);
 
                         /*
                          * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
@@ -177,7 +147,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!openIndices.isEmpty()) {
+                if (openIndices.isEmpty() == false) {
                     for (Index index : openIndices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
@@ -206,7 +176,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!closeIndices.isEmpty()) {
+                if (closeIndices.isEmpty() == false) {
                     for (Index index : closeIndices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
@@ -289,14 +259,6 @@ public class MetadataUpdateSettingsService {
         });
     }
 
-    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
-        int shardsInIndex = indexMetadata.getNumberOfShards();
-        int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
-        int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
-        return replicaIncrease * shardsInIndex;
-    }
-
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
@@ -320,43 +282,5 @@ public class MetadataUpdateSettingsService {
             }
         }
         return changed;
-    }
-
-
-    public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request,
-                                     final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("update-index-compatibility-versions",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
-                wrapPreservingContext(listener, threadPool.getThreadContext())) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-                for (Map.Entry<String, Tuple<Version, String>> entry : request.versions().entrySet()) {
-                    String index = entry.getKey();
-                    IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    if (indexMetadata != null) {
-                        if (Version.CURRENT.equals(indexMetadata.getCreationVersion()) == false) {
-                            // no reason to pollute the settings, we didn't really upgrade anything
-                            metadataBuilder.put(
-                                    IndexMetadata
-                                            .builder(indexMetadata)
-                                            .settings(
-                                                    Settings
-                                                            .builder()
-                                                            .put(indexMetadata.getSettings())
-                                                            .put(IndexMetadata.SETTING_VERSION_UPGRADED, entry.getValue().v1()))
-                                            .settingsVersion(1 + indexMetadata.getSettingsVersion()));
-                        }
-                    }
-                }
-                return ClusterState.builder(currentState).metadata(metadataBuilder).build();
-            }
-        });
     }
 }

@@ -200,6 +200,13 @@ public class ClientYamlTestSuite {
                 + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
                 "line [" + section.getLocation().lineNumber + "]"));
 
+        errors = Stream.concat(errors, sections.stream()
+            .filter(section -> section instanceof CloseToAssertion)
+            .filter(section -> false == hasSkipFeature("close_to", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [close_to] assertion " +
+                "without a corresponding [\"skip\": \"features\": \"close_to\"] so runners that do not support the " +
+                "[close_to] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
         return errors;
     }
 

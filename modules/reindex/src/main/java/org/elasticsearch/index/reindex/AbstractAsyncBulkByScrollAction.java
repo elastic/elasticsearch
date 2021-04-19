@@ -877,7 +877,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     static class ScrollConsumableHitsResponse {
         private final ScrollableHitSource.AsyncResponse asyncResponse;
         private final List<? extends ScrollableHitSource.Hit> hits;
-        private final AtomicInteger consumedOffset = new AtomicInteger(0);
+        private int consumedOffset = 0;
 
         ScrollConsumableHitsResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
@@ -903,9 +903,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 );
             }
 
-            int start = consumedOffset.get();
-            int end = consumedOffset.addAndGet(numberOfHits);
-            return hits.subList(start, end);
+            int start = consumedOffset;
+            consumedOffset += numberOfHits;
+            return hits.subList(start, consumedOffset);
         }
 
         boolean hasRemainingHits() {
@@ -913,7 +913,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
 
         int remainingHits() {
-            return hits.size() - consumedOffset.get();
+            return hits.size() - consumedOffset;
         }
 
         void done(TimeValue extraKeepAlive) {

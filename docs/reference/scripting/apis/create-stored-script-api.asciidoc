@@ -81,7 +81,7 @@ Contains the script or search template, its parameters, and its language.
 `mustache`.
 
 `source`::
-(Required, string)
+(Required, string or object)
 Script or search template.
 
 `params`::

@@ -37,7 +37,7 @@ the stability of the cluster. Those queries can be categorised as follows:
 ** <<query-dsl-regexp-query,`regexp queries`>> (except on <<wildcard-field-type, `wildcard`>> fields)
 ** <<query-dsl-prefix-query,`prefix queries`>>  (except on <<wildcard-field-type, `wildcard`>> fields or those without <<index-prefixes, `index_prefixes`>>)
 ** <<query-dsl-wildcard-query, `wildcard queries`>> (except on <<wildcard-field-type, `wildcard`>> fields)
-** <<query-dsl-range-query, `range queries>> on <<text, `text`>> and <<keyword, `keyword`>> fields
+** <<query-dsl-range-query, `range queries`>> on <<text, `text`>> and <<keyword, `keyword`>> fields
 * <<joining-queries, `Joining queries`>>
 * Queries on <<prefix-trees, deprecated geo shapes>>
 * Queries that may have a high per-document cost:

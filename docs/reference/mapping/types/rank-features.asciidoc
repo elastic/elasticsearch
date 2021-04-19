@@ -93,10 +93,3 @@ Rank features that correlate negatively with the score should set
 the <<query-dsl-rank-feature-query,`rank_feature`>> query to modify the scoring formula
 in such a way that the score decreases with the value of the feature instead of
 increasing.
-
-With `positive_score_impact` set to `false` for a `rank_features` field,
-we recommend that every document that participates in a query
-has a value for this field. Otherwise, a document that has the negative feature
-would contribute to a higher score than a document that doesn't have the feature,
-which is counter-intuitive as we want documents with negative features
-to be ranked lower.

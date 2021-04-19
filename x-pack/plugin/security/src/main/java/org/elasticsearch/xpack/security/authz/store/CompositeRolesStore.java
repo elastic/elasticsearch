@@ -229,7 +229,7 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (ServiceAccountService.isServiceAccount(authentication)) {
+        if (authentication.isServiceAccount()) {
             getRolesForServiceAccount(authentication, roleActionListener);
         } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
             getRolesForApiKey(authentication, roleActionListener);

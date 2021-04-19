@@ -27,6 +27,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -48,9 +49,13 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"roles\": [],\n"
         + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
+        + "  \"token\": {\n"
+        + "    \"name\": \"%s\"\n"
+        + "  },\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
-        + "  },\n" + "  \"enabled\": true,\n"
+        + "  },\n"
+        + "  \"enabled\": true,\n"
         + "  \"authentication_realm\": {\n"
         + "    \"name\": \"service_account\",\n"
         + "    \"type\": \"service_account\"\n"
@@ -161,7 +166,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
@@ -237,7 +244,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testFileTokenAndApiTokenCanShareTheSameNameAndBothWorks() throws IOException {

@@ -1,3 +1,109 @@
+[[release-notes-7.12.1]]
+== {es} version 7.12.1
+
+coming[7.12.1]
+
+Also see <<breaking-changes-7.12,Breaking changes in 7.12>>.
+
+[[enhancement-7.12.1]]
+[float]
+=== Enhancements
+
+CCR::
+* Prevent snapshot backed indices to be followed using CCR {es-pull}70580[#70580]
+
+Features/Data streams::
+* Allow closing a write index of a data stream {es-pull}70908[#70908] (issues: {es-issue}70861[#70861], {es-issue}70903[#70903])
+* Improve data stream rollover and simplify cluster metadata validation for data streams {es-pull}70934[#70934] (issue: {es-issue}70905[#70905])
+
+Machine Learning::
+* Make ML native processes work with glibc 2.33 on x86_64 {ml-pull}1828[#1828]
+
+Snapshot/Restore::
+* Adapt frozen write buffer and thread pool {es-pull}71172[#71172]
+* Add CFS index caching support for `full_copy` searchable snapshots {es-pull}70646[#70646]
+* Adjust the length of blob cache docs for Lucene metadata files {es-pull}69431[#69431] (issue: {es-issue}69283[#69283])
+* Always use `CacheService` for caching metadata blobs {es-pull}70668[#70668] (issues: {es-issue}70728[#70728], {es-issue}70763[#70763])
+* Lazily load soft-deletes for searchable snapshot shards {es-pull}69203[#69203]
+
+
+
+[[bug-7.12.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix percentiles agg in slow log after transport {es-pull}70318[#70318]
+
+Analysis::
+* Fix position increment gap on phrase/prefix analyzers {es-pull}70096[#70096] (issue: {es-issue}70049[#70049])
+
+CRUD::
+* Fork listener#onFailure in `PrimaryReplicaSyncer` {es-pull}70506[#70506] (issues: {es-issue}69949[#69949], {es-issue}70407[#70407])
+
+Cluster Coordination::
+* Fully initialize cluster state on ephemeral nodes {es-pull}71466[#71466]
+
+Features/Features::
+* Map data tiers roles onto DATA legacy role for <7.3 {es-pull}71628[#71628] (issue: {es-issue}71464[#71464])
+
+Features/ILM+SLM::
+* Delete data stream in ILM delete action if last index in data stream {es-pull}69637[#69637]
+
+Features/Ingest::
+* Fix handling of non-integer port values in `community_id` processor {es-pull}70148[#70148] (issue: {es-issue}70131[#70131])
+* Fix typo in validation for destination port of community ID processor {es-pull}70883[#70883]
+* Templates match indices with date math expressions {es-pull}71433[#71433] (issue: {es-issue}69727[#69727])
+* URI parts processor handles URLs containing spaces {es-pull}71559[#71559] (issue: {es-issue}70947[#70947])
+
+Features/Stats::
+* Avoid return negative value in `CounterMetric` {es-pull}71446[#71446] (issues: {es-issue}52411[#52411], {es-issue}70968[#70968])
+
+Features/Watcher::
+* Enable setting master node timeout in Watcher start/stop requests {es-pull}70425[#70425]
+
+Geo::
+* Do not over-allocate when resizing in `GeoGridTiler` {es-pull}70159[#70159]
+* Fix `geo_line` agg behavior with missing values {es-pull}69395[#69395] (issue: {es-issue}69346[#69346])
+* Fix infinite loop when polygonizing a circle with centre on the pole {es-pull}70875[#70875]
+* Fix overflow bug in `SortingNumericDocValues` {es-pull}70154[#70154]
+
+Infra/Core::
+* Always wrap date parsing exception into `IllegalArgumentException` {es-pull}71038[#71038]
+
+Infra/Scripting::
+* Remove loop counter for foreach loops {es-pull}71602[#71602] (issue: {es-issue}71584[#71584])
+
+Machine Learning::
+* Make ML memory tracker more robust to flipping on/off master nodes {es-pull}71067[#71067] (issue: {es-issue}68685[#68685])
+
+Mapping::
+* Legacy geo-shape mapper not detecting [points_only] parameter {es-pull}70765[#70765] (issue: {es-issue}70751[#70751])
+
+SQL::
+* Enforce and document dedicated client version compatibility {es-pull}70451[#70451] (issue: {es-issue}70400[#70400])
+* Fix manifest version tag in Tableau connector {es-pull}71524[#71524]
+* Resolve attributes recursively for improved subquery support {es-pull}69765[#69765] (issue:  {es-issue}67237[#67237])
+* Verify binary fields found in non-project to have the `doc_values` {es-pull}69128[#69128] (issue: {es-issue}68229[#68229])
+
+Search::
+* Fix exception when merging completion suggestions {es-pull}70414[#70414] (issue: {es-issue}70328[#70328])
+* Fix query cache reporting negative used memory {es-pull}70273[#70273] (issue: {es-issue}55434[#55434])
+* Fix search states of CCS requests in mixed cluster {es-pull}70948[#70948] (issue: {es-issue}52741[#52741])
+
+Snapshot/Restore::
+* Avoid atomic overwrite tests on FS repositories {es-pull}70483[#70483] (issue: {es-issue}70303[#70303])
+* Drop alloc filters on mount of searchable snapshot {es-pull}70007[#70007] (issue: {es-issue}69759[#69759])
+* Fix source only snapshot permanently broken on broken `_snapshot` directory {es-pull}71459[#71459]
+* Fix `isDedicatedVotingOnlyNode` {es-pull}71358[#71358] (issue: {es-issue}71352[#71352])
+* Fix human readable xcontent for snapshots in progress and deletion {es-pull}70256[#70256]
+* Fix wrongly computed offset in checksum {es-pull}69441[#69441] (issues: {es-issue}69415[#69415], {es-issue}69437[#69437])
+* Only allocate partial shards to nodes with cache {es-pull}69904[#69904]
+* Optimized read footer checksum from `FileInfo` {es-pull}69415[#69415]
+* Reduce memory use of parallel Azure blob deletes {es-pull}71330[#71330] (issue: {es-issue}71267[#71267])
+* Stop blocking snapshot deletes due to concurrency limits {es-pull}71050[#71050]
+
+
 [[release-notes-7.12.0]]
 == {es} version 7.12.0
 

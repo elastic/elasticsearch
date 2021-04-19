@@ -843,6 +843,8 @@ public class FrozenCacheService implements Releasable {
 
     public static class Stats {
 
+        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L);
+
         private final int numberOfRegions;
         private final long regionSize;
         private final long evictCount;

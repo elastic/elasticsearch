@@ -114,16 +114,21 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected NodeCachesStatsResponse nodeOperation(NodeRequest request, Task task) {
-        final FrozenCacheService.Stats frozenCacheStats = frozenCacheService.get() != null ? frozenCacheService.get().getStats() : null;
+        final FrozenCacheService.Stats frozenCacheStats;
+        if (frozenCacheService.get() != null) {
+            frozenCacheStats = frozenCacheService.get().getStats();
+        } else {
+            frozenCacheStats = FrozenCacheService.Stats.EMPTY;
+        }
         return new NodeCachesStatsResponse(
             clusterService.localNode(),
-            frozenCacheStats != null ? frozenCacheStats.getNumberOfRegions() : 0,
-            frozenCacheStats != null ? frozenCacheStats.getRegionSize() : 0L,
-            frozenCacheStats != null ? frozenCacheStats.getWriteCount() : 0L,
-            frozenCacheStats != null ? frozenCacheStats.getWriteBytes() : 0L,
-            frozenCacheStats != null ? frozenCacheStats.getReadCount() : 0L,
-            frozenCacheStats != null ? frozenCacheStats.getReadBytes() : 0L,
-            frozenCacheStats != null ? frozenCacheStats.getEvictCount() : 0L
+            frozenCacheStats.getNumberOfRegions(),
+            frozenCacheStats.getRegionSize(),
+            frozenCacheStats.getWriteCount(),
+            frozenCacheStats.getWriteBytes(),
+            frozenCacheStats.getReadCount(),
+            frozenCacheStats.getReadBytes(),
+            frozenCacheStats.getEvictCount()
         );
     }
 

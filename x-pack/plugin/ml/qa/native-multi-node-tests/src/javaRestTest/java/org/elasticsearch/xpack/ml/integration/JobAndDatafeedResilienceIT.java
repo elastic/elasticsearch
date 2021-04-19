@@ -75,11 +75,11 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
 
-        registerDatafeed(datafeedConfig);
+
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
 
@@ -117,7 +117,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
 
         putJob(job1);
         openJob(job1.getId());
-        registerJob(job2);
+        ;
         putJob(job2);
         openJob(job2.getId());
 
@@ -155,10 +155,10 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         Job.Builder job1 = createJob(jobId1, TimeValue.timeValueMinutes(5), "count", null);
         Job.Builder job2 = createJob(jobId2, TimeValue.timeValueMinutes(5), "count", null);
 
-        registerJob(job1);
+        ;
         putJob(job1);
         openJob(job1.getId());
-        registerJob(job2);
+        ;
         putJob(job2);
         openJob(job2.getId());
 

@@ -56,8 +56,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
-        putJob(job);
+                putJob(job);
         openJob(job.getId());
 
         long now = Instant.now().getEpochSecond();
@@ -157,8 +156,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
-        putJob(job);
+                putJob(job);
         openJob(job.getId());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,() -> forecast(job.getId(),
                 TimeValue.timeValueMinutes(10), null));
@@ -178,8 +176,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
-        putJob(job);
+                putJob(job);
         openJob(job.getId());
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
@@ -204,7 +201,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
         createDataWithLotsOfClientIps(bucketSpan, job);
@@ -230,7 +227,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
         createDataWithLotsOfClientIps(bucketSpan, job);
@@ -297,7 +294,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
 
@@ -365,7 +362,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
 
@@ -429,7 +426,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             otherJob.setAnalysisConfig(analysisConfig);
             otherJob.setDataDescription(dataDescription);
 
-            registerJob(otherJob);
+            ;
             putJob(otherJob);
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
@@ -441,7 +438,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             otherJob.setAnalysisConfig(analysisConfig);
             otherJob.setDataDescription(dataDescription);
 
-            registerJob(otherJob);
+            ;
             putJob(otherJob);
 
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
@@ -466,7 +463,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setDataDescription(dataDescription);
         String jobId = job.getId();
 
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
 
@@ -510,7 +507,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
+
         putJob(job);
         openJob(job.getId());
 

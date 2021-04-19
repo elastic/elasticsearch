@@ -67,8 +67,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
-        putJob(job);
+                putJob(job);
         openJob(job.getId());
 
         long timestamp = 1491004800000L;
@@ -140,8 +139,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
-        putJob(job);
+                putJob(job);
         openJob(job.getId());
 
         long timestamp = 1509062400000L;
@@ -255,8 +253,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
-        putJob(job);
+                putJob(job);
         openJob(job.getId());
 
         long timestamp = 1509062400000L;

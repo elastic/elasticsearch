@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -86,28 +87,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore,
             new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
-    }
-
-    public void testIsServiceAccount() {
-        final User user =
-            new User(randomAlphaOfLengthBetween(3, 8), randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
-        final Authentication.RealmRef authRealm;
-        final boolean authRealmIsForServiceAccount = randomBoolean();
-        if (authRealmIsForServiceAccount) {
-            authRealm = new Authentication.RealmRef(ServiceAccountService.REALM_NAME,
-                ServiceAccountService.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8));
-        } else {
-            authRealm = randomRealmRef();
-        }
-        final Authentication.RealmRef lookupRealm = randomFrom(randomRealmRef(), null);
-        final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
-
-        if (authRealmIsForServiceAccount && lookupRealm == null) {
-            assertThat(ServiceAccountService.isServiceAccount(authentication), is(true));
-        } else {
-            assertThat(ServiceAccountService.isServiceAccount(authentication), is(false));
-        }
     }
 
     public void testGetServiceAccountPrincipals() {
@@ -266,12 +245,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
         }
     }
 
-    private Authentication.RealmRef randomRealmRef() {
-        return new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8));
-    }
-
     public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
         // Valid token
         final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
@@ -290,7 +263,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
                     Map.of("_elastic_service_account", true), true),
-                new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
+                new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
                 Map.of("_token_name", "token1")
             )
@@ -366,9 +339,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final Authentication authentication = future3.get();
             assertThat(authentication, equalTo(new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY,
-                    "Service account - elastic/fleet-server", null, Map.of("_elastic_service_account", true),
+                    "Service account - elastic/fleet-server", null,
+                    Map.of("_elastic_service_account", true),
                     true),
-                new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, nodeName),
+                new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
                 Map.of("_token_name", token3.getTokenName())
             )));
@@ -401,7 +375,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 Map.of("_elastic_service_account", true),
                 true),
             new Authentication.RealmRef(
-                ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
+                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
@@ -419,7 +393,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             new User(username, Strings.EMPTY_ARRAY, "Service account - " + username, null,
                 Map.of("_elastic_service_account", true), true),
             new Authentication.RealmRef(
-                ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
+                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
@@ -449,7 +423,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         final Authentication authentication = new Authentication(mock(User.class),
-            new Authentication.RealmRef(ServiceAccountService.REALM_NAME, ServiceAccountService.REALM_TYPE,
+            new Authentication.RealmRef(
+                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE,
                 randomAlphaOfLengthBetween(3, 8)),
             null);
         service.getRoleDescriptor(authentication, future2);

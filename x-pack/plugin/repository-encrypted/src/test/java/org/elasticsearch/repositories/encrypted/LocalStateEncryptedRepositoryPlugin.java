@@ -21,6 +21,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -104,7 +105,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
             IndexShardSnapshotStatus snapshotStatus,
             Version repositoryMetaVersion,
             Map<String, Object> userMetadata,
-            ActionListener<String> listener
+            ActionListener<ShardSnapshotResult> listener
         ) {
             snapshotShardLock.lock();
             try {

@@ -28,12 +28,12 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -48,6 +48,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -169,10 +170,12 @@ public class FrozenCacheService implements Releasable {
     private final KeyedLock<CacheKey> keyedLock = new KeyedLock<>();
 
     private final SharedBytes sharedBytes;
+    private final long cacheSize;
     private final long regionSize;
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
 
+    private final int numRegions;
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
     private final Entry<CacheFileRegion>[] freqs;
     private final int maxFreq;
@@ -182,12 +185,20 @@ public class FrozenCacheService implements Releasable {
 
     private final CacheDecayTask decayTask;
 
+    private final LongAdder writeCount = new LongAdder();
+    private final LongAdder writeBytes = new LongAdder();
+
+    private final LongAdder readCount = new LongAdder();
+    private final LongAdder readBytes = new LongAdder();
+
+    private final LongAdder evictCount = new LongAdder();
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        final int numRegions = Math.toIntExact(cacheSize / regionSize);
+        this.numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
         if (Assertions.ENABLED) {
             regionOwners = new AtomicReference[numRegions];
@@ -206,7 +217,7 @@ public class FrozenCacheService implements Releasable {
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
         try {
-            sharedBytes = new SharedBytes(numRegions, regionSize, environment);
+            sharedBytes = new SharedBytes(numRegions, regionSize, environment, writeBytes::add, readBytes::add);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -343,6 +354,19 @@ public class FrozenCacheService implements Releasable {
     // used by tests
     int freeRegionCount() {
         return freeRegions.size();
+    }
+
+    public Stats getStats() {
+        return new Stats(
+            numRegions,
+            cacheSize,
+            regionSize,
+            evictCount.sum(),
+            writeCount.sum(),
+            writeBytes.sum(),
+            readCount.sum(),
+            readBytes.sum()
+        );
     }
 
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
@@ -595,6 +619,7 @@ public class FrozenCacheService implements Releasable {
         public boolean tryEvict() {
             if (refCount() <= 1 && evicted.compareAndSet(false, true)) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                evictCount.increment();
                 decRef();
                 return true;
             }
@@ -604,6 +629,7 @@ public class FrozenCacheService implements Releasable {
         public boolean forceEvict() {
             if (evicted.compareAndSet(false, true)) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                evictCount.increment();
                 decRef();
                 return true;
             }
@@ -612,10 +638,6 @@ public class FrozenCacheService implements Releasable {
 
         public boolean isEvicted() {
             return evicted.get();
-        }
-
-        public boolean isReleased() {
-            return isEvicted() && refCount() == 0;
         }
 
         @Override
@@ -676,6 +698,7 @@ public class FrozenCacheService implements Releasable {
                                     gap.end() - gap.start(),
                                     progress -> gap.onProgress(start + progress)
                                 );
+                                writeCount.increment();
                             } finally {
                                 decRef();
                             }
@@ -717,6 +740,7 @@ public class FrozenCacheService implements Releasable {
                         + '-'
                         + rangeToRead.start()
                         + ']';
+                readCount.increment();
                 listener.onResponse(read);
             }, listener::onFailure);
         }
@@ -826,5 +850,71 @@ public class FrozenCacheService implements Releasable {
     public interface RangeMissingHandler {
         void fillCacheRange(SharedBytes.IO channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
             throws IOException;
+    }
+
+    public static class Stats {
+
+        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+
+        private final int numberOfRegions;
+        private final long size;
+        private final long regionSize;
+        private final long evictCount;
+        private final long writeCount;
+        private final long writeBytes;
+        private final long readCount;
+        private final long readBytes;
+
+        private Stats(
+            int numberOfRegions,
+            long size,
+            long regionSize,
+            long evictCount,
+            long writeCount,
+            long writeBytes,
+            long readCount,
+            long readBytes
+        ) {
+            this.numberOfRegions = numberOfRegions;
+            this.size = size;
+            this.regionSize = regionSize;
+            this.evictCount = evictCount;
+            this.writeCount = writeCount;
+            this.writeBytes = writeBytes;
+            this.readCount = readCount;
+            this.readBytes = readBytes;
+        }
+
+        public int getNumberOfRegions() {
+            return numberOfRegions;
+        }
+
+        public long getSize() {
+            return size;
+        }
+
+        public long getRegionSize() {
+            return regionSize;
+        }
+
+        public long getEvictCount() {
+            return evictCount;
+        }
+
+        public long getWriteCount() {
+            return writeCount;
+        }
+
+        public long getWriteBytes() {
+            return writeBytes;
+        }
+
+        public long getReadCount() {
+            return readCount;
+        }
+
+        public long getReadBytes() {
+            return readBytes;
+        }
     }
 }

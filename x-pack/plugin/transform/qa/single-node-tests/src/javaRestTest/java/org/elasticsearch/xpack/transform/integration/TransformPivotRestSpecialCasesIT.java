@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,7 +44,6 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         indicesCreated = true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71792")
     public void testIndexTemplateMappingClash() throws Exception {
         String transformId = "special_pivot_template_mappings_clash";
         String transformIndex = "special_pivot_template_mappings_clash";
@@ -64,6 +64,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             + "}";
 
         createIndexTemplateRequest.setJsonEntity(template);
+        createIndexTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         Map<String, Object> createIndexTemplateResponse = entityAsMap(client().performRequest(createIndexTemplateRequest));
         assertThat(createIndexTemplateResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 

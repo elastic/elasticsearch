@@ -441,15 +441,22 @@ GET /my-data-stream/_eql/search?filter_path=-hits.events._source
     "event.type",
     "process.*",                <1>
     {
-      "field": "@timestamp",    <2>
-      "format": "epoch_millis"
+      "field": "@timestamp",
+      "format": "epoch_millis"  <2>
     }
   ]
 }
 ----
 // TEST[setup:sec_logs]
 
-include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
+<1> Both full field names and wildcard patterns are accepted.
+<2> Use the `format` parameter to apply a custom format for the field's values.
+    <<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
+    <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
+    accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
+    or `wkt` for
+    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
+    Other field types do not support the `format` parameter.
 
 The values are returned as a flat list in the `fields` section of each hit:
 

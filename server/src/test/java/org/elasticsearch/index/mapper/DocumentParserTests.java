@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -36,11 +38,13 @@ import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DocumentParserTests extends MapperServiceTestCase {
 
@@ -1035,6 +1039,161 @@ public class DocumentParserTests extends MapperServiceTestCase {
         Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
         assertNotNull(bazMapper);
         assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testWithDynamicTemplates() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("points");
+                    {
+                        b.field("match", "none"); // do not map anything
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "geo_point");
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        String field = randomFrom("loc", "foo.loc", "foo.bar.loc");
+
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "41.12,-71.34"), null, Map.of(field, "points")));
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+
+        doc = mapper.parse(source("1", b -> b.field(field, new double[]{-71.34, 41.12}), null, Map.of(field, "points")));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+
+        doc = mapper.parse(source("1", b -> {
+            b.startObject(field);
+            b.field("lat", "-71.34");
+            b.field("lon", 41.12);
+            b.endObject();
+        }, null, Map.of(field, "points")));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+
+        doc = mapper.parse(source("1", b -> b.field(field, new String[]{"41.12,-71.34", "43,-72.34"}), null, Map.of(field, "points")));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(4));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[2].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[3].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+
+        doc = mapper.parse(source("1", b -> {
+            b.startArray(field);
+            b.startObject();
+            b.field("lat", -71.34);
+            b.field("lon", 41.12);
+            b.endObject();
+
+            b.startObject();
+            b.field("lat", -71.34);
+            b.field("lon", 41.12);
+            b.endObject();
+            b.endArray();
+        }, null, Map.of(field, "points")));
+        fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(4));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields[2].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[3].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+
+        doc = mapper.parse(source("1", b -> {
+            b.startObject("address");
+            b.field("home", "43,-72.34");
+            b.endObject();
+        }, null, Map.of("address.home", "points")));
+        fields = doc.rootDoc().getFields("address.home");
+        assertThat(fields, arrayWithSize(2));
+        assertThat(fields[0].fieldType(), sameInstance(LatLonPoint.TYPE));
+        assertThat(fields[1].fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+    }
+
+    public void testDynamicTemplatesNotFound() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("booleans");
+                    {
+                        b.field("match", "none");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "boolean");
+                            b.field("store", false);
+                            b.field("doc_values", false);
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        String field = randomFrom("foo", "foo.bar", "foo.bar.baz");
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(1));
+        assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
+        MapperParsingException error = expectThrows(MapperParsingException.class, () ->
+            mapper.parse(source("1", b -> b.field(field, "hello"), null, Map.of(field, "foo_bar"))));
+        assertThat(error.getMessage(),
+            containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [" + field + "]"));
+    }
+
+    public void testWrongTypeDynamicTemplate() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("booleans");
+                    {
+                        b.field("match", "none");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "boolean");
+                            b.field("store", false);
+                            b.field("doc_values", false);
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        String field = randomFrom("foo.bar", "foo.bar.baz");
+        MapperParsingException error = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of("foo", "booleans"))));
+        assertThat(error.getMessage(),
+            containsString("Field [foo] must be an object; but it's configured as [boolean] in dynamic template [booleans]"));
+
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
+        IndexableField[] fields = doc.rootDoc().getFields(field);
+        assertThat(fields, arrayWithSize(1));
+        assertThat(fields[0].fieldType(), sameInstance(BooleanFieldMapper.Defaults.FIELD_TYPE));
     }
 
     public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {

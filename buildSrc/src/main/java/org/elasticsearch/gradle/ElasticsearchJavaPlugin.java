@@ -167,14 +167,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
             });
             // also apply release flag to groovy, which is used in build-tools
-            project.getTasks()
-                .withType(GroovyCompile.class)
-                .configureEach(
-                    compileTask -> {
-                        // TODO: this probably shouldn't apply to groovy at all?
-                        compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-                    }
-                );
+            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
+                // TODO: this probably shouldn't apply to groovy at all?
+                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
+            });
         });
     }
 
@@ -196,50 +192,37 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
      * Adds additional manifest info to jars
      */
     static void configureJars(Project project) {
-        project.getTasks()
-            .withType(Jar.class)
-            .configureEach(
-                jarTask -> {
-                    // we put all our distributable files under distributions
-                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-                    // fixup the jar manifest
-                    // Explicitly using an Action interface as java lambdas
-                    // are not supported by Gradle up-to-date checks
-                    jarTask.doFirst(new Action<Task>() {
-                        @Override
-                        public void execute(Task task) {
-                            // this doFirst is added before the info plugin, therefore it will run
-                            // after the doFirst added by the info plugin, and we can override attributes
-                            jarTask.getManifest()
-                                .attributes(
-                                    Map.of(
-                                        "Build-Date",
-                                        BuildParams.getBuildDate(),
-                                        "Build-Java-Version",
-                                        BuildParams.getGradleJavaVersion()
-                                    )
-                                );
-                        }
-                    });
+        project.getTasks().withType(Jar.class).configureEach(jarTask -> {
+            // we put all our distributable files under distributions
+            jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+            // fixup the jar manifest
+            // Explicitly using an Action interface as java lambdas
+            // are not supported by Gradle up-to-date checks
+            jarTask.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    // this doFirst is added before the info plugin, therefore it will run
+                    // after the doFirst added by the info plugin, and we can override attributes
+                    jarTask.getManifest()
+                        .attributes(
+                            Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion())
+                        );
                 }
-            );
+            });
+        });
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-            project.getTasks()
-                .withType(ShadowJar.class)
-                .configureEach(
-                    shadowJar -> {
-                        /*
-                         * Replace the default "-all" classifier with null
-                         * which will leave the classifier off of the file name.
-                         */
-                        shadowJar.getArchiveClassifier().set((String) null);
-                        /*
-                         * Not all cases need service files merged but it is
-                         * better to be safe
-                         */
-                        shadowJar.mergeServiceFiles();
-                    }
-                );
+            project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
+                /*
+                 * Replace the default "-all" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                shadowJar.getArchiveClassifier().set((String) null);
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                shadowJar.mergeServiceFiles();
+            });
             // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
             project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
             // Make sure we assemble the shadow jar

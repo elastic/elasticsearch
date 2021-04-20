@@ -28,6 +28,7 @@ import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -58,7 +59,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
-import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -676,23 +676,44 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
-                                         NamedAnalyzer analyzer, boolean prefix) throws IOException {
+        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            if (analyzer == null) {
-                analyzer = getTextSearchInfo().getSearchAnalyzer();
+            return Intervals.term(term);
+        }
+
+        @Override
+        public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
+            if (getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            if (prefix) {
-                BytesRef normalizedTerm = analyzer.normalize(name(), text);
-                if (prefixFieldType != null) {
-                    return prefixFieldType.intervals(normalizedTerm);
-                }
-                return Intervals.prefix(normalizedTerm);
+            if (prefixFieldType != null) {
+                return prefixFieldType.intervals(term);
             }
-            IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? getTextSearchInfo().getSearchAnalyzer() : analyzer);
-            return builder.analyzeText(text, maxGaps, ordered);
+            return Intervals.prefix(term);
+        }
+
+        @Override
+        public IntervalsSource fuzzyIntervals(String term, int maxDistance, int prefixLength,
+                boolean transpositions, SearchExecutionContext context) {
+            if (getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            FuzzyQuery fq = new FuzzyQuery(new Term(name(), term),
+                maxDistance, prefixLength, 128, transpositions);
+            return Intervals.multiterm(fq.getAutomata(), term);
+        }
+
+        @Override
+        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+            if (getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            if (prefixFieldType != null) {
+                return prefixFieldType.intervals(pattern);
+            }
+            return Intervals.wildcard(pattern);
         }
 
         @Override
@@ -792,7 +813,7 @@ public class TextFieldMapper extends FieldMapper {
                               SubFieldInfo prefixFieldInfo,
                               SubFieldInfo phraseFieldInfo,
                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {

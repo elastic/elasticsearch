@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
@@ -125,7 +127,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         String repoName,
         SnapshotId snapshotId,
         IndexId indexId,
-        MountSearchableSnapshotRequest.Storage storage
+        MountSearchableSnapshotRequest.Storage storage,
+        Version minNodeVersion
     ) {
         final Settings.Builder settings = Settings.builder();
 
@@ -144,8 +147,16 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY);
 
         if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
+            if (minNodeVersion.before(Version.V_7_12_0)) {
+                throw new IllegalArgumentException("shared cache searchable snapshots require minimum node version " + Version.V_7_12_0);
+            }
             settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
+
+            // we cannot apply this setting during rolling upgrade.
+            if (minNodeVersion.onOrAfter(Version.V_7_13_0)) {
+                settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP);
+            }
         }
 
         return settings.build();
@@ -226,7 +237,16 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                 .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getDataTiersPreference(request.storage()))
                 .put(request.indexSettings())
-                .put(buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage()))
+                .put(
+                    buildIndexSettings(
+                        repoData.getUuid(),
+                        request.repositoryName(),
+                        snapshotId,
+                        indexId,
+                        request.storage(),
+                        state.nodes().getMinNodeVersion()
+                    )
+                )
                 .build();
 
             // todo: restore archives bad settings, for now we verify just the data tiers, since we know their dependencies are available

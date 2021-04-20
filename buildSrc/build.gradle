@@ -111,9 +111,25 @@ dependencies {
   testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
-  integTestImplementation('org.spockframework:spock-core:1.3-groovy-2.5') {
+  testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"
+
+  integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+  integTestImplementation("org.junit.jupiter:junit-jupiter") {
+    because 'allows to write and run Jupiter tests'
+  }
+  integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+    because 'allows JUnit 3 and JUnit 4 tests to run'
+  }
+
+  integTestRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+    because 'allows tests to run from IDEs that bundle older version of launcher'
+  }
+
+  integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  integTestImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }
+  integTestImplementation "org.spockframework:spock-junit4"  // you can remove this if your code does not rely on old JUnit 4 rules
   integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
 }
 
@@ -229,6 +245,7 @@ if (project != rootProject) {
     systemProperty 'test.version_under_test', version
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
+    useJUnitPlatform()
   }
   tasks.named("check").configure { dependsOn("integTest") }
 

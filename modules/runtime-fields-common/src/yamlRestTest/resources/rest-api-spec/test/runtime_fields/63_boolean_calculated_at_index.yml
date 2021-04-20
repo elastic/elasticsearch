@@ -1,0 +1,134 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+              over_v:
+                type: boolean
+                script:
+                  source: |
+                    for (def v : doc['voltage']) {
+                      emit(v >= params.min_v);
+                    }
+                  params:
+                    min_v: 5.0
+              # Test fetching from _source
+              over_v_from_source:
+                type: boolean
+                script:
+                  source: |
+                    emit(params._source.voltage >= 5.0);
+              # Test many booleans
+              big_vals:
+                type: boolean
+                script:
+                  source: |
+                    for (def v : doc['temperature']) {
+                      emit(v >= 200);
+                    }
+                    for (def v : doc['voltage']) {
+                      emit(v >= 5.0);
+                    }
+
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: {sensor.mappings.properties.over_v.type: boolean }
+  - match:
+      sensor.mappings.properties.over_v.script.source: |
+        for (def v : doc['voltage']) {
+          emit(v >= params.min_v);
+        }
+  - match: {sensor.mappings.properties.over_v.script.params: {min_v: 5.0} }
+  - match: {sensor.mappings.properties.over_v.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields: [over_v, over_v_from_source, big_vals]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.over_v: [false] }
+  - match: {hits.hits.0.fields.over_v_from_source: [false] }
+  - match: {hits.hits.0.fields.big_vals: [false, true] } # doc values are sorted with falses before trues
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [over_v, over_v_from_source, big_vals]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.over_v: [false] }
+  - match: {hits.hits.0.fields.over_v_from_source: [false] }
+  - match: {hits.hits.0.fields.big_vals: [false, true] } # doc values are sorted with falses before trues
+
+---
+"terms agg":
+  - do:
+      search:
+        index: sensor
+        body:
+          aggs:
+            over_v:
+              terms:
+                field: over_v
+  - match: {hits.total.value: 6}
+  - match: {aggregations.over_v.buckets.0.key_as_string: "true"}
+  - match: {aggregations.over_v.buckets.0.doc_count: 4}
+  - match: {aggregations.over_v.buckets.1.key_as_string: "false"}
+  - match: {aggregations.over_v.buckets.1.doc_count: 2}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              over_v: true
+          sort:
+            timestamp: asc
+  - match: {hits.total.value: 4}
+  - match: {hits.hits.0._source.voltage: 5.6}

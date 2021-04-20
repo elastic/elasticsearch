@@ -322,7 +322,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
 
     private Set<DiscoveryNodeRole> randomIrrelevantRoles(Set<Set<String>> relevantRoleSets) {
         return randomValueOtherThanMany(relevantRoleSets::contains, AutoscalingTestCase::randomRoles).stream()
-            .map(DiscoveryNode::getRoleFromRoleName)
+            .map(DiscoveryNodeRole::getRoleFromRoleName)
             .collect(Collectors.toSet());
     }
 
@@ -427,7 +427,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             randomFrom(autoscalingMetadata.policies().values()).policy()
                 .roles()
                 .stream()
-                .map(DiscoveryNode::getRoleFromRoleName)
+                .map(DiscoveryNodeRole::getRoleFromRoleName)
                 .collect(Collectors.toSet())
         );
     }

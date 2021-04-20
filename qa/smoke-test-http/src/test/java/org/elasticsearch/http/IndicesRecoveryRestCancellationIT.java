@@ -82,11 +82,7 @@ public class IndicesRecoveryRestCancellationIT extends HttpSmokeTestCase {
                 }
             });
 
-            logger.info("--> waiting for task to start");
-            assertBusy(() -> {
-                final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-                assertTrue(tasks.toString(), tasks.stream().anyMatch(t -> t.getAction().startsWith(RecoveryAction.NAME)));
-            });
+            awaitTaskWithPrefix(RecoveryAction.NAME);
 
             logger.info("--> waiting for at least one task to hit a block");
             assertBusy(() -> assertTrue(operationBlocks.stream().anyMatch(Semaphore::hasQueuedThreads)));

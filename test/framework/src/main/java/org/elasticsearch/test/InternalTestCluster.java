@@ -272,7 +272,8 @@ public final class InternalTestCluster extends TestCluster {
                 nodePrefix,
                 mockPlugins,
                 clientWrapper,
-                true);
+                true,
+                false);
     }
 
     public InternalTestCluster(
@@ -288,7 +289,8 @@ public final class InternalTestCluster extends TestCluster {
             final String nodePrefix,
             final Collection<Class<? extends Plugin>> mockPlugins,
             final Function<Client, Client> clientWrapper,
-            final boolean forbidPrivateIndexSettings) {
+            final boolean forbidPrivateIndexSettings,
+            final boolean forceSingleDataPath) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
         this.clientWrapper = clientWrapper;
@@ -350,7 +352,8 @@ public final class InternalTestCluster extends TestCluster {
             numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes,
             autoManageMasterNodes ? "auto-managed" : "manual");
         this.nodeConfigurationSource = nodeConfigurationSource;
-        numDataPaths = random.nextInt(5) == 0 ? 2 + random.nextInt(3) : 1;
+        // use 1 data path if we are forced to, or 80% of the time that we are not, otherwise use between 2 and 4 data paths
+        numDataPaths = forceSingleDataPath || random.nextDouble() < 0.8 ? 1 : RandomNumbers.randomIntBetween(random, 2, 4);
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
@@ -2315,6 +2318,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void assertAfterTest() throws Exception {
         super.assertAfterTest();
         assertRequestsFinished();
+        assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();
@@ -2353,6 +2357,20 @@ public final class InternalTestCluster extends TestCluster {
                     logger.error("Could not assert finished requests within timeout", e);
                     fail("Could not assert finished requests within timeout on node [" + nodeAndClient.name + "]");
                 }
+            }
+        }
+    }
+
+    private void assertSearchContextsReleased() {
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            SearchService searchService = getInstance(SearchService.class, nodeAndClient.name);
+            try {
+                assertBusy(() -> {
+                    assertThat(searchService.getActiveContexts(), equalTo(0));
+                    assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                });
+            } catch (Exception e) {
+                throw new AssertionError("Failed to verify search contexts", e);
             }
         }
     }

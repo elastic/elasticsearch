@@ -63,7 +63,7 @@ the processors as follows:
 | <<geoip-processor,**GeoIP**>>
 | `source.ip`
 | **Target field**: `source.geo`
-| `Add 'source.geo' geoIP data for 'source.ip'`
+| `Add 'source.geo' GeoIP data for 'source.ip'`
 
 | <<user-agent-processor,**User agent**>>
 | `user_agent`
@@ -114,7 +114,7 @@ PUT _ingest/pipeline/my-pipeline
     },
     {
       "geoip": {
-        "description": "Add 'source.geo' geoIP data for 'source.ip'",
+        "description": "Add 'source.geo' GeoIP data for 'source.ip'",
         "field": "source.ip",
         "target_field": "source.geo"
       }
@@ -247,8 +247,7 @@ The API returns:
             },
             "name": "Chrome",
             "device": {
-              "name": "Mac",
-              "type": "Desktop"
+              "name": "Mac"
             },
             "version": "52.0.2743.116"
           }

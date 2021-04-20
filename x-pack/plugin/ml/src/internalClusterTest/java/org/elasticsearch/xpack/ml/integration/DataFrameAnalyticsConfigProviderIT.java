@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -12,8 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -39,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +54,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     @Before
     public void createComponents() throws Exception {
         configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), node().getNodeEnvironment().nodeId()));
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)));
         waitForMlTemplates();
     }
 
@@ -204,7 +204,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfigUpdate configUpdate =
                 new DataFrameAnalyticsConfigUpdate.Builder(configId)
-                    .setModelMemoryLimit(new ByteSizeValue(1024))
+                    .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
                     .build();
 
             blockingCall(
@@ -219,7 +219,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-1")
-                        .setModelMemoryLimit(new ByteSizeValue(1024))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
                         .build())));
         }
         {   // Noop update
@@ -240,7 +240,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-1")
-                        .setModelMemoryLimit(new ByteSizeValue(1024))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
                         .build())));
         }
         {   // Update that changes both description and model memory limit
@@ -250,7 +250,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             DataFrameAnalyticsConfigUpdate configUpdate =
                 new DataFrameAnalyticsConfigUpdate.Builder(configId)
                     .setDescription("description-2")
-                    .setModelMemoryLimit(new ByteSizeValue(2048))
+                    .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                     .build();
 
             blockingCall(
@@ -265,7 +265,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-2")
-                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                         .build())));
         }
         {  // Update that applies security headers
@@ -288,7 +288,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-2")
-                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                         .setHeaders(securityHeaders)
                         .build())));
         }
@@ -331,7 +331,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfigUpdate configUpdate =
                 new DataFrameAnalyticsConfigUpdate.Builder(configId)
-                    .setModelMemoryLimit(new ByteSizeValue(2048, ByteSizeUnit.MB))
+                    .setModelMemoryLimit(ByteSizeValue.ofMb(2048))
                     .build();
 
             ClusterState clusterState = clusterStateWithRunningAnalyticsTask(configId, DataFrameAnalyticsState.ANALYZING);
@@ -354,7 +354,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, emptyList(), false),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment("node", "test assignment"));
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),

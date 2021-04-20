@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
@@ -11,10 +12,11 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AucRoc;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.common.AbstractAucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.ConfusionMatrix;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.ScoreByThresholdResult;
@@ -179,8 +181,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME),
                 ConfusionMatrix.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(Classification.NAME, AucRoc.NAME),
-                AucRoc.Result::new),
+                AbstractAucRoc.Result.NAME,
+                AbstractAucRoc.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME),
                 MulticlassConfusionMatrix.Result::new),

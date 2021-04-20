@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -52,8 +53,8 @@ public class CIDRMatchFunctionPipeTests extends AbstractNodeTestCase<CIDRMatchFu
             b1.input(),
             b1.addresses());
 
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         CIDRMatchFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new CIDRMatchFunctionPipe(
@@ -62,7 +63,7 @@ public class CIDRMatchFunctionPipeTests extends AbstractNodeTestCase<CIDRMatchFu
             b2.input(),
             b2.addresses());
 
-        assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+        assertEquals(newB, b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -70,21 +71,21 @@ public class CIDRMatchFunctionPipeTests extends AbstractNodeTestCase<CIDRMatchFu
         CIDRMatchFunctionPipe b = randomInstance();
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
         List<Pipe> newAddresses = mutateOneAddress(b.addresses());
-        
+
         CIDRMatchFunctionPipe newB = new CIDRMatchFunctionPipe(b.source(), b.expression(), b.input(), b.addresses());
         CIDRMatchFunctionPipe transformed = newB.replaceChildren(newInput, b.addresses());
-        
+
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.addresses(), b.addresses());
-        
+
         transformed = newB.replaceChildren(b.input(), newAddresses);
         assertEquals(transformed.input(), b.input());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.addresses(), newAddresses);
-        
+
         transformed = newB.replaceChildren(newInput, newAddresses);
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
@@ -107,7 +108,7 @@ public class CIDRMatchFunctionPipeTests extends AbstractNodeTestCase<CIDRMatchFu
                 f.expression(),
                 randomValueOtherThan(f.input(), () -> pipe(randomStringLiteral())),
                 mutateOneAddress(f.addresses())));
-        
+
         return randomFrom(randoms).apply(instance);
     }
 
@@ -115,11 +116,11 @@ public class CIDRMatchFunctionPipeTests extends AbstractNodeTestCase<CIDRMatchFu
     protected CIDRMatchFunctionPipe copy(CIDRMatchFunctionPipe instance) {
         return new CIDRMatchFunctionPipe(instance.source(), instance.expression(), instance.input(), instance.addresses());
     }
-    
+
     private List<Pipe> mutateOneAddress(List<Pipe> oldAddresses) {
         int size = oldAddresses.size();
         ArrayList<Pipe> newAddresses = new ArrayList<>(size);
-        
+
         int index = randomIntBetween(0, size - 1);
         for (int i = 0; i < size; i++) {
             Pipe p = oldAddresses.get(i);

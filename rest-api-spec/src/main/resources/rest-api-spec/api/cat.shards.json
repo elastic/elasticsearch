@@ -5,6 +5,10 @@
       "description":"Provides a detailed view of shard allocation on nodes."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -51,7 +55,11 @@
       },
       "local":{
         "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+        "description":"Return local information, do not retrieve the state from master node (default: false)",
+        "deprecated":{
+          "version":"7.11.0",
+          "description":"This parameter does not affect the request. It will be removed in a future release."
+        }
       },
       "master_timeout":{
         "type":"time",

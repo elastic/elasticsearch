@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -18,7 +18,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -72,25 +72,24 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
 
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                         AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
         final FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(name, QueryBuilders.matchAllQuery());
         filterAgg.subAggregations(subfactoriesBuilder);
-        final AggregatorFactory factory = filterAgg.build(queryShardContext, parent);
-        return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata) {
+        final AggregatorFactory factory = filterAgg.build(context, parent);
+        return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
             @Override
-            protected Aggregator createInternal(SearchContext searchContext,
-                                                Aggregator parent,
+            protected Aggregator createInternal(Aggregator parent,
                                                 CardinalityUpperBound cardinality,
                                                 Map<String, Object> metadata) throws IOException {
-                while (searchContext.isCancelled() == false) {
+                while (context.isCancelled() == false) {
                     try {
                         Thread.sleep(SLEEP_TIME);
                     } catch (InterruptedException e) {
                         throw new IOException(e);
                     }
                 }
-                return factory.create(searchContext, parent, cardinality);
+                return factory.create(parent, cardinality);
             }
         };
     }

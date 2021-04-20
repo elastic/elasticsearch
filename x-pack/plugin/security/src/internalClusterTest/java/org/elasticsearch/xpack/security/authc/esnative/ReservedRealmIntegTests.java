@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
@@ -44,9 +45,9 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings settings = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
             .build();
         return settings;
@@ -103,7 +104,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
-        ChangePasswordResponse response = securityClient()
+        ActionResponse.Empty response = securityClient()
             .prepareChangePassword(username, Arrays.copyOf(newPassword, newPassword.length), hasher)
                 .get();
         assertThat(response, notNullValue());

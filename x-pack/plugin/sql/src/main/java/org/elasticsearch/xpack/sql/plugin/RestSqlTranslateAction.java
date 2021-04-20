@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -18,7 +20,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -30,18 +31,11 @@ public class RestSqlTranslateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(
-                GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT,
-                GET, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT),
-            new ReplacedRoute(
-                POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT,
-                POST, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT)));
+            Route.builder(GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT)
+                .replaces(GET, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7).build(),
+            Route.builder(POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT)
+                .replaces(POST, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7).build()));
     }
 
     @Override

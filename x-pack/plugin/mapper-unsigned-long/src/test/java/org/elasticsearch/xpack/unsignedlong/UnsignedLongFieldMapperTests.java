@@ -1,24 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -33,7 +30,6 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 import static org.hamcrest.Matchers.containsString;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
@@ -49,8 +45,13 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(123);
+    protected Object getSampleValueForDocument() {
+        return 123;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
     }
 
     @Override
@@ -188,7 +189,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         assertEquals(9223372036854775807L, dvField.numericValue().longValue());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
-        assertEquals(9223372036854775807L, storedField.numericValue().longValue());
+        assertEquals("18446744073709551615", storedField.stringValue());
     }
 
     public void testCoerceMappingParameterIsIllegal() {
@@ -323,21 +324,6 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        UnsignedLongFieldMapper mapper = new UnsignedLongFieldMapper.Builder("field", settings).build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of(0L), fetchSourceValue(mapper, 0L));
-        assertEquals(org.elasticsearch.common.collect.List.of(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
-        assertEquals(org.elasticsearch.common.collect.List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
-        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(mapper, ""));
-
-        UnsignedLongFieldMapper nullValueMapper = new UnsignedLongFieldMapper.Builder("field", settings).nullValue("18446744073709551615")
-            .build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
-    }
-
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -347,4 +333,26 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumericValue();
+        return randomBoolean() ? n : n.toString();
+    }
+
+    private Number randomNumericValue() {
+        switch (randomInt(8)) {
+            case 0:
+                return randomNonNegativeByte();
+            case 1:
+                return (short) between(0, Short.MAX_VALUE);
+            case 2:
+                return randomInt(Integer.MAX_VALUE);
+            case 3:
+            case 4:
+                return randomNonNegativeLong();
+            default:
+                BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
+                return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
+        }
+    }
 }

@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "transform",
+              "password": "transform-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:

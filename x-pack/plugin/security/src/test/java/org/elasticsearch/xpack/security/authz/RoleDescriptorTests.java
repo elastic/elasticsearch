@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
@@ -58,6 +59,20 @@ public class RoleDescriptorTests extends ESTestCase {
         XContentBuilder b = jsonBuilder();
         privs.toXContent(b, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
+    }
+
+    public void testEqualsOnEmptyRoles() {
+        Map<String, Object> transientMetadata = new HashMap<>();
+        transientMetadata.put("transient", "meta");
+        transientMetadata.put("is", "ignored");
+        RoleDescriptor nullRoleDescriptor = new RoleDescriptor("null_role", randomFrom((String[]) null, new String[0]),
+                randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
+                randomFrom((RoleDescriptor.ApplicationResourcePrivileges[])null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+                randomFrom((ConfigurableClusterPrivilege[])null, new ConfigurableClusterPrivilege[0]),
+                randomFrom((String[])null, new String[0]),
+                randomFrom((Map<String, Object>)null, new HashMap<>()),
+                transientMetadata);
+        assertTrue(nullRoleDescriptor.equals(new RoleDescriptor("null_role", null, null, null, null, null, null, null)));
     }
 
     public void testToString() {

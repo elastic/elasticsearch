@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
@@ -23,10 +24,12 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 
 import java.time.Clock;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toMap;
 
 public final class TransformIndex {
     private static final Logger logger = LogManager.getLogger(TransformIndex.class);
@@ -99,7 +102,7 @@ public final class TransformIndex {
 
         Map<String, Object> transformMetadata = new HashMap<>();
         transformMetadata.put(TransformField.CREATION_DATE_MILLIS, clock.millis());
-        transformMetadata.put(TransformField.VERSION.getPreferredName(), Collections.singletonMap(TransformField.CREATED, Version.CURRENT));
+        transformMetadata.put(TransformField.VERSION.getPreferredName(), singletonMap(TransformField.CREATED, Version.CURRENT));
         transformMetadata.put(TransformField.TRANSFORM, id);
 
         metadata.put(TransformField.META_FIELDNAME, transformMetadata);
@@ -137,10 +140,8 @@ public final class TransformIndex {
      * }
      * @param mappings A Map of the form {"fieldName": "fieldType"}
      */
-    private static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
-        Map<String, Object> fieldMappings = new HashMap<>();
-        mappings.forEach((k, v) -> fieldMappings.put(k, Collections.singletonMap("type", v)));
-
-        return fieldMappings;
+    static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
+        return mappings.entrySet().stream()
+            .collect(toMap(e -> e.getKey(), e -> singletonMap("type", e.getValue())));
     }
 }

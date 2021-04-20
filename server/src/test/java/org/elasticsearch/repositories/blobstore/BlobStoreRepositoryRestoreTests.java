@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -32,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -181,9 +171,21 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                     shardGenerations,
                     RepositoryData.EMPTY_REPO_GEN,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
-                    new SnapshotInfo(snapshot.getSnapshotId(), shardGenerations.indices().stream()
-                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L, 6,
-                        Collections.emptyList(), true, Collections.emptyMap()),
+                    new SnapshotInfo(
+                        snapshot.getSnapshotId(),
+                        shardGenerations.indices().stream()
+                            .map(IndexId::getName)
+                            .collect(Collectors.toList()),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        null,
+                        1L,
+                        6,
+                        Collections.emptyList(),
+                        true,
+                        Collections.emptyMap(),
+                        0L
+                    ),
                     Version.CURRENT, Function.identity(), f));
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
                 () -> snapshotShard(shard, snapshotWithSameName, repository));
@@ -205,6 +207,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final FsRepository repository = new FsRepository(repositoryMetadata, createEnvironment(), xContentRegistry(), clusterService,
+            MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             @Override
             protected void assertSnapshotOrGenericThread() {

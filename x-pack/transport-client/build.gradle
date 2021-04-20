@@ -1,6 +1,4 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-
 group = 'org.elasticsearch.client'
 archivesBaseName = 'x-pack-transport'
 

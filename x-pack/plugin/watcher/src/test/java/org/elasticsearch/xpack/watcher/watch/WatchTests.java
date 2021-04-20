@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.watch;
 
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
+import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
@@ -572,7 +574,8 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
-        Map<String, TransformFactory> factories = new HashMap<>();
+        Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>>
+            factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry(), scriptService));
         return new TransformRegistry(unmodifiableMap(factories));
@@ -585,14 +588,14 @@ public class WatchTests extends ESTestCase {
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
             list.add(new ActionWrapper("_email_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
-                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, 
+                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer,
                             Collections.emptyMap()), null, null));
         }
         if (randomBoolean()) {
             ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             WriteRequest.RefreshPolicy refreshPolicy = randomBoolean() ? null : randomFrom(WriteRequest.RefreshPolicy.values());
-            IndexAction action = new IndexAction("_index", null, randomBoolean() ? "123" : null, null, timeout, timeZone,
+            IndexAction action = new IndexAction("_index", null, randomBoolean() ? "123" : null, null, null, timeout, timeZone,
                     refreshPolicy);
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),

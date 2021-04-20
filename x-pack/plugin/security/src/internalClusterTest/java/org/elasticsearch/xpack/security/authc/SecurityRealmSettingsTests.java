@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -40,7 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings settings;
         try {
             final String samlIdpEntityId = "urn:idp:entity";
@@ -53,7 +54,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
             final Path jwkSet = createTempFile("jwkset", "json");
             OpenIdConnectTestCase.writeJwkSetToFile(jwkSet);
 
-            final Settings existingSettings = super.nodeSettings(nodeOrdinal);
+            final Settings existingSettings = super.nodeSettings(nodeOrdinal, otherSettings);
             MockSecureSettings mockSecureSettings =
                 (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
             mockSecureSettings.setString("xpack.security.authc.realms.oidc.oidc1.rp.client_secret", randomAlphaOfLength(12));
@@ -66,6 +67,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.ldap.ldap1.url", "ldap://127.0.0.1:389")
                 .put("xpack.security.authc.realms.ldap.ldap1.user_dn_templates", "cn={0},dc=example,dc=com")
                 .put("xpack.security.authc.realms.active_directory.ad1.order", 4)
+                .put("xpack.security.authc.realms.active_directory.ad1.domain_name", "domain_name")
                 .put("xpack.security.authc.realms.active_directory.ad1.url", "ldap://127.0.0.1:389")
                 .put("xpack.security.authc.realms.pki.pki1.order", 5)
                 .put("xpack.security.authc.realms.saml.saml1.order", 6)

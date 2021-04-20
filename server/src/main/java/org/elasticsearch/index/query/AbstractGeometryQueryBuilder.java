@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -25,7 +14,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -367,7 +355,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** builds the appropriate lucene shape query */
-    protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType);
+    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
@@ -378,11 +366,11 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
 
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+        final MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -404,54 +392,44 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      */
     private void fetch(Client client, GetRequest getRequest, String path, ActionListener<Geometry> listener) {
         getRequest.preference("_local");
-        client.get(getRequest, new ActionListener<GetResponse>(){
-
-            @Override
-            public void onResponse(GetResponse response) {
-                try {
-                    if (!response.isExists()) {
-                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
+        client.get(getRequest, listener.delegateFailure((l, response) -> {
+            try {
+                if (response.isExists() == false) {
+                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
                             + "] not found");
-                    }
-                    if (response.isSourceEmpty()) {
-                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
+                }
+                if (response.isSourceEmpty()) {
+                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
                             "] source disabled");
-                    }
+                }
+                String[] pathElements = path.split("\\.");
+                int currentPathSlot = 0;
 
-                    String[] pathElements = path.split("\\.");
-                    int currentPathSlot = 0;
-
-                    // It is safe to use EMPTY here because this never uses namedObject
-                    try (XContentParser parser = XContentHelper
+                // It is safe to use EMPTY here because this never uses namedObject
+                try (XContentParser parser = XContentHelper
                         .createParser(NamedXContentRegistry.EMPTY,
-                            LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
-                        XContentParser.Token currentToken;
-                        while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (currentToken == XContentParser.Token.FIELD_NAME) {
-                                if (pathElements[currentPathSlot].equals(parser.currentName())) {
-                                    parser.nextToken();
-                                    if (++currentPathSlot == pathElements.length) {
-                                        listener.onResponse(new GeometryParser(true, true, true).parse(parser));
-                                        return;
-                                    }
-                                } else {
-                                    parser.nextToken();
-                                    parser.skipChildren();
+                                LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
+                    XContentParser.Token currentToken;
+                    while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (currentToken == XContentParser.Token.FIELD_NAME) {
+                            if (pathElements[currentPathSlot].equals(parser.currentName())) {
+                                parser.nextToken();
+                                if (++currentPathSlot == pathElements.length) {
+                                    l.onResponse(new GeometryParser(true, true, true).parse(parser));
+                                    return;
                                 }
+                            } else {
+                                parser.nextToken();
+                                parser.skipChildren();
                             }
                         }
-                        throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
                     }
-                } catch (Exception e) {
-                    onFailure(e);
+                    throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
                 }
+            } catch (Exception e) {
+                l.onFailure(e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }));
     }
 
     @Override

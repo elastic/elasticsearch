@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -29,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.MembershipAction;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -39,13 +29,16 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
@@ -146,16 +139,14 @@ public class JoinHelperTests extends ESTestCase {
     }
 
     public void testZen1JoinValidationRejectsMismatchedClusterUUID() {
-        assertJoinValidationRejectsMismatchedClusterUUID(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            "mixed-version cluster join validation on cluster state with a different cluster uuid");
+        assertJoinValidationRejectsMismatchedClusterUUID(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME);
     }
 
     public void testJoinValidationRejectsMismatchedClusterUUID() {
-        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.VALIDATE_JOIN_ACTION_NAME,
-            "join validation on cluster state with a different cluster uuid");
+        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.VALIDATE_JOIN_ACTION_NAME);
     }
 
-    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName, String expectedMessage) {
+    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName) {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
         MockTransport mockTransport = new MockTransport();
@@ -167,7 +158,9 @@ public class JoinHelperTests extends ESTestCase {
         TransportService transportService = mockTransport.createTransportService(Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode, null, Collections.emptySet());
-        new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState,
+        final String dataPath = "/my/data/path";
+        new JoinHelper(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build(),
+                null, null, transportService, () -> 0L, () -> localClusterState,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(), (s, p, r) -> {}, null); // registers request handler
         transportService.start();
@@ -184,9 +177,36 @@ public class JoinHelperTests extends ESTestCase {
 
         final CoordinationStateRejectedException coordinationStateRejectedException
             = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(expectedMessage));
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metadata().clusterUUID()));
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metadata().clusterUUID()));
+        assertThat(coordinationStateRejectedException.getMessage(), allOf(
+                containsString("This node previously joined a cluster with UUID"),
+                containsString("and is now trying to join a different cluster"),
+                containsString(localClusterState.metadata().clusterUUID()),
+                containsString(otherClusterState.metadata().clusterUUID()),
+                containsString(JoinHelper.getClusterUuidMismatchExplanation(Collections.singletonList(dataPath), 1))));
+    }
+
+    public void testGetClusterUuidMismatchExplanation() {
+        final List<String> paths = new ArrayList<>();
+        paths.add("/foo/bar");
+
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, 1), equalTo("This is forbidden and usually indicates an incorrect " +
+                "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and can only be " +
+                "changed by deleting the contents of the node's data path [/foo/bar] which will also remove any data held by this node."));
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, between(2, 10)), equalTo("This is forbidden and usually indicates " +
+                "an incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                "can only be changed by deleting the contents of the node's data path [/foo/bar] which will also remove any data held by " +
+                "all nodes that use this data path."));
+
+        paths.add("/baz/quux");
+
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, 1), equalTo("This is forbidden and usually indicates an " +
+                "incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and can " +
+                "only be changed by deleting the contents of the node's data paths [/foo/bar, /baz/quux] which will also remove any data " +
+                "held by this node."));
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, between(2, 10)), equalTo("This is forbidden and usually indicates " +
+                "an incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                "can only be changed by deleting the contents of the node's data paths [/foo/bar, /baz/quux] which will also remove any " +
+                "data held by all nodes that use these data paths."));
     }
 
     public void testJoinFailureOnUnhealthyNodes() {

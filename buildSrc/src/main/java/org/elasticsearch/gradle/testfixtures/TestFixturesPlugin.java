@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.testfixtures;
 
@@ -28,13 +17,14 @@ import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
+import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.BasePlugin;
@@ -44,6 +34,7 @@ import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -56,6 +47,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
+
+    @Inject
+    protected FileSystemOperations getFileSystemOperations() {
+        throw new UnsupportedOperationException();
+    }
 
     @Override
     public void apply(Project project) {
@@ -122,7 +118,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 t.mustRunAfter(preProcessFixture);
             });
             tasks.named("composePull").configure(t -> t.mustRunAfter(preProcessFixture));
-            tasks.named("composeDown").configure(t -> t.doLast(t2 -> project.delete(testfixturesDir)));
+            tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testfixturesDir))));
         } else {
             project.afterEvaluate(spec -> {
                 if (extension.fixtures.isEmpty()) {

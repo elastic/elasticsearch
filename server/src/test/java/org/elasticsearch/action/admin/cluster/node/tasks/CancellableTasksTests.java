@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -41,7 +31,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -130,12 +123,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
 
@@ -360,7 +348,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
         final Task parentTask = taskManager.register("test", "test", parentRequest);
         final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
-        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test");
+        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test",
+            TestTransportChannels.newFakeTcpTransportChannel(
+                testNodes[0].getNodeId(), new FakeTcpChannel(), threadPool,
+                "test", randomNonNegativeLong(), Version.CURRENT));
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
         childRequest.setParentTask(parentTaskId);
         CancellableTestNodesAction testAction = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[1]
@@ -369,12 +360,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             () -> testAction.execute(childRequest, ActionListener.wrap(() -> fail("must not execute"))));
         assertThat(cancelledException.getMessage(), startsWith("Task cancelled before it started:"));
         CountDownLatch latch = new CountDownLatch(1);
-        taskManager.startBanOnChildrenNodes(parentTaskId.getId(), latch::countDown);
+        taskManager.startBanOnChildTasks(parentTaskId.getId(), latch::countDown);
         assertTrue("onChildTasksCompleted() is not invoked", latch.await(1, TimeUnit.SECONDS));
     }
 
     public void testTaskCancellationOnCoordinatingNodeLeavingTheCluster() throws Exception {
-        setupTestNodes(Settings.EMPTY);
+        setupTestNodes(Settings.EMPTY, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_11_0));
         connectNodes(testNodes);
         CountDownLatch responseLatch = new CountDownLatch(1);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();

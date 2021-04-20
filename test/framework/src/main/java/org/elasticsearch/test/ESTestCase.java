@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
@@ -41,6 +30,7 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
@@ -55,7 +45,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -95,11 +84,14 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -109,6 +101,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -130,6 +123,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -184,7 +178,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
-    private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    private static final Collection<String> loggedLeaks = new ArrayList<>();
+    public static final int MIN_PRIVATE_PORT = 13301;
+
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -206,29 +202,29 @@ public abstract class ESTestCase extends LuceneTestCase {
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        String leakLoggerName = "io.netty.util.ResourceLeakDetector";
-        Logger leakLogger = LogManager.getLogger(leakLoggerName);
-        Appender leakAppender = new AbstractAppender(leakLoggerName, null,
-            PatternLayout.newBuilder().withPattern("%m").build()) {
-            @Override
-            public void append(LogEvent event) {
-                String message = event.getMessage().getFormattedMessage();
-                if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
-                    synchronized (nettyLoggedLeaks) {
-                        nettyLoggedLeaks.add(message);
+        for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
+            Logger leakLogger = LogManager.getLogger(leakLoggerName);
+            Appender leakAppender = new AbstractAppender(leakLoggerName, null,
+                    PatternLayout.newBuilder().withPattern("%m").build()) {
+                @Override
+                public void append(LogEvent event) {
+                    String message = event.getMessage().getFormattedMessage();
+                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+                        synchronized (loggedLeaks) {
+                            loggedLeaks.add(message);
+                        }
                     }
                 }
-            }
-        };
-        leakAppender.start();
-        Loggers.addAppender(leakLogger, leakAppender);
-
-        // shutdown hook so that when the test JVM exits, logging is shutdown too
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            leakAppender.stop();
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }));
+            };
+            leakAppender.start();
+            Loggers.addAppender(leakLogger, leakAppender);
+            // shutdown hook so that when the test JVM exits, logging is shutdown too
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                leakAppender.stop();
+                LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                Configurator.shutdown(context);
+            }));
+        }
 
         BootstrapForTesting.ensureInitialized();
 
@@ -414,16 +410,30 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            if (warnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = filterJodaDeprecationWarnings(warnings);
-                assertThat( filteredWarnings, empty());
-
+            if (warnings != null) {
+                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
+                final List<String> filteredWarnings = warnings
+                    .stream()
+                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
+                assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
                 assertNull("unexpected warning headers", warnings);
             }
         } finally {
             resetDeprecationLogger();
         }
+    }
+
+    protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        if (enableJodaDeprecationWarningsCheck()) {
+            filtered.add(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+        }
+        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+        }
+        return filtered;
     }
 
     /**
@@ -483,22 +493,23 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
-                assertWarnings(stripXContentPosition, filteredWarnings, expectedWarnings);
+            final List<String> rawWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarnings;
+            if (rawWarnings == null) {
+                actualWarnings = Collections.emptyList();
+            } else {
+                actualWarnings = rawWarnings.stream()
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
+            }
+            if ((expectedWarnings == null || expectedWarnings.length == 0)) {
+                assertThat("expected 0 warnings, actual: " + actualWarnings, actualWarnings, empty());
             } else {
                 assertWarnings(stripXContentPosition, actualWarnings, expectedWarnings);
             }
         } finally {
             resetDeprecationLogger();
         }
-    }
-
-    private List<String> filterJodaDeprecationWarnings(List<String> actualWarnings) {
-        return actualWarnings.stream()
-                             .filter(m -> m.contains(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS) == false)
-                             .collect(Collectors.toList());
     }
 
     private void assertWarnings(boolean stripXContentPosition, List<String> actualWarnings, String[] expectedWarnings) {
@@ -542,6 +553,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState(boolean afterClass) throws Exception {
+        LeakTracker.INSTANCE.reportLeak();
         if (afterClass) {
             MockPageCacheRecycler.ensureAllPagesAreReleased();
         }
@@ -561,11 +573,11 @@ public abstract class ESTestCase extends LuceneTestCase {
                 statusData.clear();
             }
         }
-        synchronized (nettyLoggedLeaks) {
+        synchronized (loggedLeaks) {
             try {
-                assertThat(nettyLoggedLeaks, empty());
+                assertThat(loggedLeaks, empty());
             } finally {
-                nettyLoggedLeaks.clear();
+                loggedLeaks.clear();
             }
         }
     }
@@ -650,7 +662,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * The exact opposite of {@link #rarely()}.
      */
     public static boolean frequently() {
-        return !rarely();
+        return rarely() == false;
     }
 
     public static boolean randomBoolean() {
@@ -659,6 +671,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static byte randomByte() {
         return (byte) random().nextInt();
+    }
+
+    public static byte randomNonNegativeByte() {
+        byte randomByte =  randomByte();
+        return (byte) (randomByte == Byte.MIN_VALUE ? 0 : Math.abs(randomByte));
     }
 
     /**
@@ -747,11 +764,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(T... array) {
         return randomFrom(random(), array);
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> T randomFrom(Random random, T... array) {
         return RandomPicks.randomFrom(random, array);
     }
@@ -924,7 +945,17 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Generate a random valid date formatter pattern.
      */
     public static String randomDateFormatterPattern() {
-        return randomFrom(FormatNames.values()).getSnakeCaseName();
+        //WEEKYEAR should be used instead of WEEK_YEAR
+        EnumSet<FormatNames> formatNamesSet = EnumSet.complementOf(EnumSet.of(FormatNames.WEEK_YEAR));
+        FormatNames formatName = randomFrom(formatNamesSet);
+        if (FormatNames.WEEK_BASED_FORMATS.contains(formatName)) {
+            boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
+            assumeFalse("week based formats won't work in jdk8 " +
+                    "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs." +
+                    "Random format was =" + formatName,
+                runtimeJdk8);
+        }
+        return formatName.getSnakeCaseName();
     }
 
     /**
@@ -1095,6 +1126,16 @@ public abstract class ESTestCase extends LuceneTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = buildEnvSettings(settings);
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+    }
+
+    public Environment newEnvironment() {
+        Settings build = buildEnvSettings(Settings.EMPTY);
+        return TestEnvironment.newEnvironment(build);
+    }
+
+    public Environment newEnvironment(Settings settings) {
+        Settings build = buildEnvSettings(settings);
+        return TestEnvironment.newEnvironment(build);
     }
 
     /** Return consistent index settings for the provided index version. */
@@ -1348,10 +1389,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent,
                                                 BytesReference data) throws IOException {
-        if (data instanceof BytesArray) {
-            final BytesArray array = (BytesArray) data;
+        if (data.hasArray()) {
             return xContent.createParser(
-                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, array.array(), array.offset(), array.length());
+                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.array(), data.arrayOffset(), data.length());
         }
         return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }
@@ -1422,6 +1462,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             // busy spin
         }
         return elapsed;
+    }
+
+    /**
+     * Creates an IndexAnalyzers with a single default analyzer
+     */
+    protected IndexAnalyzers createDefaultIndexAnalyzers() {
+        return new IndexAnalyzers(
+            Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
     }
 
     /**
@@ -1522,7 +1573,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             startAt = (int) Math.floorMod(workerId - 1, 223L) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return 10300 + (startAt * 100);
+        return MIN_PRIVATE_PORT + (startAt * 100);
     }
 
     protected static InetAddress randomIp(boolean v4) {

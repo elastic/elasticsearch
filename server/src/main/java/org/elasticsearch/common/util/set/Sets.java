@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.set;
@@ -71,6 +60,12 @@ public final class Sets {
         return left.stream().noneMatch(right::contains);
     }
 
+    public static <T> boolean haveNonEmptyIntersection(Set<T> left, Set<T> right) {
+        Objects.requireNonNull(left);
+        Objects.requireNonNull(right);
+        return left.stream().anyMatch(right::contains);
+    }
+
     /**
      * The relative complement, or difference, of the specified left and right set. Namely, the resulting set contains all the elements that
      * are in the left set but not in the right set. Neither input is mutated by this operation, an entirely new set is returned.
@@ -83,7 +78,7 @@ public final class Sets {
     public static <T> Set<T> difference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> !right.contains(k)).collect(Collectors.toSet());
+        return left.stream().filter(k -> right.contains(k) == false).collect(Collectors.toSet());
     }
 
     /**
@@ -99,10 +94,31 @@ public final class Sets {
     public static <T> SortedSet<T> sortedDifference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> !right.contains(k)).collect(new SortedSetCollector<>());
+        return left.stream().filter(k -> right.contains(k) == false).collect(new SortedSetCollector<>());
     }
 
-    private static class SortedSetCollector<T> implements Collector<T, SortedSet<T>, SortedSet<T>> {
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a sorted set.
+     *
+     * @param <T> the type of the input elements
+     * @return a sorted set
+     */
+    public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toSortedSet() {
+        return new SortedSetCollector<>();
+    }
+
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a sorted set and finishes the resulting set into an
+     * unmodifiable set. The resulting read-only view through the unmodifiable set is a sorted set.
+     *
+     * @param <T> the type of the input elements
+     * @return an unmodifiable set where the underlying set is sorted
+     */
+    public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toUnmodifiableSortedSet() {
+        return new UnmodifiableSortedSetCollector<>();
+    }
+
+    abstract static class AbstractSortedSetCollector<T> implements Collector<T, SortedSet<T>, SortedSet<T>> {
 
         @Override
         public Supplier<SortedSet<T>> supplier() {
@@ -111,7 +127,7 @@ public final class Sets {
 
         @Override
         public BiConsumer<SortedSet<T>, T> accumulator() {
-            return (s, e) -> s.add(e);
+            return SortedSet::add;
         }
 
         @Override
@@ -122,17 +138,39 @@ public final class Sets {
             };
         }
 
+        public abstract Function<SortedSet<T>, SortedSet<T>> finisher();
+
+        public abstract Set<Characteristics> characteristics();
+
+    }
+
+    private static class SortedSetCollector<T> extends AbstractSortedSetCollector<T> {
+
         @Override
         public Function<SortedSet<T>, SortedSet<T>> finisher() {
             return Function.identity();
         }
 
         static final Set<Characteristics> CHARACTERISTICS =
-                Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+            Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
 
         @Override
         public Set<Characteristics> characteristics() {
             return CHARACTERISTICS;
+        }
+
+    }
+
+    private static class UnmodifiableSortedSetCollector<T> extends AbstractSortedSetCollector<T> {
+
+        @Override
+        public Function<SortedSet<T>, SortedSet<T>> finisher() {
+            return Collections::unmodifiableSortedSet;
+        }
+
+        @Override
+        public Set<Characteristics> characteristics() {
+            return Collections.emptySet();
         }
 
     }

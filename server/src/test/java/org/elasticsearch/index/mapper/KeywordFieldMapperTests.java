@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -31,10 +20,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -89,8 +75,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("value");
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     public final void testExistsQueryDocValuesDisabled() throws IOException {
@@ -126,7 +112,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             org.elasticsearch.common.collect.Map.of(
                 "lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
-                "other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+                "other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
+                "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new LowercaseNormalizer())
             ),
             singletonMap(
                 "lowercase",
@@ -160,8 +147,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    protected String[] getParseMaximalWarnings() {
+        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -176,7 +163,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
             m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
+            m -> assertEquals(256, ((KeywordFieldMapper)m).fieldType().ignoreAbove()));
         checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
 
@@ -321,7 +308,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))
         );
-        MappedFieldType ft = mapperService.documentMapper().fieldTypes().get("field");
+        MappedFieldType ft = mapperService.documentMapper().mappers().fieldTypesLookup().get("field");
         assertEquals("boolean", ft.getTextSearchInfo().getSimilarity().name());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -352,6 +339,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+    }
+
+    public void testNormalizerNamedDefault() throws IOException {
+        // you can call a normalizer 'default' but it won't be applied unless you specifically ask for it
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("field2").field("type", "keyword").field("normalizer", "default").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("field", "FOO");
+            b.field("field2", "FOO");
+        }));
+        assertEquals(new BytesRef("FOO"), doc.rootDoc().getField("field").binaryValue());
+        assertEquals(new BytesRef("foo"), doc.rootDoc().getField("field2").binaryValue());
     }
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
@@ -438,6 +439,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello", "world" }
         );
+        Analyzer q = ft.getTextSearchInfo().getSearchQuoteAnalyzer();
+        assertTokenStreamContents(q.tokenStream("", "Hello World"), new String[] { "hello world" });
 
         mapperService = createMapperService(mapping(b -> {
             b.startObject("field").field("type", "keyword").field("split_queries_on_whitespace", true).endObject();
@@ -468,34 +471,36 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
+    }
 
-        KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(mapper, true));
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomAlphaOfLengthBetween(1, 100);
+            case 1:
+                return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
+            case 2:
+                return randomLong();
+            case 3:
+                return randomDouble();
+            case 4:
+                return randomBoolean();
+            default:
+                throw new IllegalStateException();
+        }
+    }
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
-        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
-
-        KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
-
-        KeywordFieldMapper normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(null)).normalizer("lowercase")
-            .build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(normalizerMapper, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(normalizerMapper, "value"));
-
-        KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of("NULL"), fetchSourceValue(nullValueMapper, null));
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
@@ -22,7 +23,7 @@ import java.util.Objects;
  *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern implements StringPattern {
+public class LikePattern extends AbstractStringPattern {
 
     private final String pattern;
     private final char escape;
@@ -49,14 +50,14 @@ public class LikePattern implements StringPattern {
     }
 
     @Override
-    public String asJavaRegex() {
-        return regex;
+    Automaton createAutomaton() {
+        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
+        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
     }
 
     @Override
-    public boolean matchesAll() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return Operations.isTotal(MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+    public String asJavaRegex() {
+        return regex;
     }
 
     /**

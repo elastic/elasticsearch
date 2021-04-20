@@ -1,0 +1,88 @@
+type query:
+  - do:
+      index:
+          index:   test1
+          id:      1
+          type:    cat
+          refresh: true
+          body:
+            foo: bar
+
+  - do:
+      index:
+          index:   test2
+          id:      1
+          type:    _doc
+          refresh: true
+          body:
+            foo: bar
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          query:
+            type:
+              value: cat
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          query:
+            type:
+              value: dog
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          query:
+            type:
+              value: _doc
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          query:
+            type:
+              value: _default_
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test2
+        body:
+          query:
+            type:
+              value: _doc
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test2
+        body:
+          query:
+            type:
+              value: dog
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test2
+        body:
+          query:
+            type:
+              value: _default_
+  - match: { hits.total: 0 }

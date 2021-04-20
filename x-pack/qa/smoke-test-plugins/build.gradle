@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -16,6 +17,14 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    if (pluginName == 'quota-aware-fs') {
+      // This plugin has to be configured to work via system properties
+      return
+    }
+    if (pluginName == 'ingest-attachment' && BuildParams.inFipsJvm) {
+      // This plugin is not supported in FIPS mode (due to jar hell from bouncy castle)
+      return
+    }
     plugin pluginProject.path
     pluginsCount += 1
   }
@@ -25,7 +34,7 @@ ext.expansions = [
   'expected.plugins.count': pluginsCount
 ]
 
-processTestResources {
-  inputs.properties(expansions)
+tasks.named("processTestResources").configure {
+  inputs.properties(project.expansions)
   MavenFilteringHack.filter(it, expansions)
 }

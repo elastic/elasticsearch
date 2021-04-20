@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -35,12 +24,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -49,6 +40,7 @@ import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -58,6 +50,7 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -80,6 +73,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
 
+        disableGeoIpDownloader(installation);
+
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
@@ -94,6 +89,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        disableGeoIpDownloader(installation);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -107,7 +103,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(
+            distribution(),
+            builder().envVars(Collections.singletonMap("ingest.geoip.downloader.enabled", "false"))
+        );
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -302,17 +301,17 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = new HashMap<>();
-        volumes.put(localKeystoreFile, dockerKeystore);
+        Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = new HashMap<>();
         envVars.put("KEYSTORE_PASSWORD", password);
-        runContainer(distribution(), volumes, envVars);
+        envVars.put("ingest.geoip.downloader.enabled", "false");
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
     }
@@ -328,7 +327,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         try {
             tempDir = createTempDir(DockerTests.class.getSimpleName());
 
-            String password = "password";
+            String password = "keystore-password";
             String passwordFilename = "password.txt";
             Files.write(tempDir.resolve(passwordFilename), singletonList(password));
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
@@ -344,8 +343,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             Map<String, String> envVars = new HashMap<>();
             envVars.put("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            envVars.put("ingest.geoip.downloader.enabled", "false");
 
-            runContainer(distribution(), volumes, envVars);
+            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation);
             ServerUtils.runElasticsearchTests();
@@ -362,17 +362,15 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = new HashMap<>();
-        volumes.put(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
+        Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = singletonMap("KEYSTORE_PASSWORD", "wrong");
+        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
@@ -400,7 +398,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), volumes, null);
+        runContainer(distribution(), builder().volumes(volumes));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);
@@ -492,6 +490,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

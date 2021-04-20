@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -72,7 +73,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
     @Override
     public String getColumnLabel(int column) throws SQLException {
         JdbcColumnInfo info = column(column);
-        return true == EMPTY.equals(info.label) ? info.name : info.label;
+        return EMPTY.equals(info.label) ? info.name : info.label;
     }
 
     @Override

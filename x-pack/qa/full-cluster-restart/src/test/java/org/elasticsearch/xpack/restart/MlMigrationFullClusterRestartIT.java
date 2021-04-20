@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.restart;
 
@@ -58,12 +59,16 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
 
-        // If upgrading from a version prior to v6.6.0 the set of templates
-        // to wait for is different
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
+        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
+
+        // In the old cluster templates to wait for vary between versions
+        if (isRunningAgainstOldCluster()) {
+            if (getOldClusterVersion().before(Version.V_6_6_0)) {
                 templatesToWaitFor = XPackRestTestConstants.ML_PRE_V660_TEMPLATES;
+            } else if (getOldClusterVersion().before(Version.V_7_12_0)) {
+                templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+            }
         }
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }

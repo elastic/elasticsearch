@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.restart;
 
@@ -35,7 +36,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -44,7 +45,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -124,7 +124,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRole(true);
         } else {
             waitForYellow(".security");
-            Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
+            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();
+            systemIndexWarningOptions.setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).contains("this request accesses system indices:") == false;
+                }
+            });
+            getSettingsRequest.setOptions(systemIndexWarningOptions);
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteSecurityIndex;
@@ -195,22 +207,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("checking that the Watches index is the correct version");
 
-            Response settingsResponse = client().performRequest(new Request("GET", "/.watches/_settings/index.format"));
-            Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
-            logger.info("settings response map {}", settingsResponseMap);
-            final String concreteWatchesIndex;
-            if (settingsResponseMap.isEmpty()) {
-                fail("The security index does not have the expected setting [index.format]");
-            } else {
-                concreteWatchesIndex = settingsResponseMap.keySet().iterator().next();
-                Map<?, ?> indexSettingsMap = (Map<?, ?>) settingsResponseMap.get(concreteWatchesIndex);
-                Map<?, ?> settingsMap = (Map<?, ?>) indexSettingsMap.get("settings");
-                logger.info("settings map {}", settingsMap);
-                if (settingsMap.containsKey("index")) {
-                    int format = Integer.parseInt(String.valueOf(((Map<?, ?>)settingsMap.get("index")).get("format")));
-                    assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, format);
-                }
-            }
+            // Verify .watches index format:
+            Map<?, ?> getClusterStateResponse =
+                entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata/.watches")));
+            Map<?, ?> indices = ObjectPath.eval("metadata.indices", getClusterStateResponse);
+            Map<?, ?> dotWatchesIndex = (Map<?, ?>) indices.get(".watches"); // ObjectPath.eval(...) doesn't handle keys containing .
+            int indexFormat = Integer.parseInt(ObjectPath.eval("settings.index.format", dotWatchesIndex));
+            assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, indexFormat);
 
             // Wait for watcher to actually start....
             startWatcher();
@@ -228,6 +231,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));
@@ -735,7 +739,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request request = new Request("PUT", getSecurityEndpoint() + "/user/" + id);
         request.setJsonEntity(
             "{\n" +
-            "   \"password\" : \"j@rV1s\",\n" +
+            "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n" +
             "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
             "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
             "   \"email\" : \"" + id + "@example.com\",\n" +
@@ -953,11 +957,24 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
             XContentBuilder builder = JsonXContent.contentBuilder().startObject()
                 .field("f", "v")
-                .field("@timestamp", new Date())
+                .field("@timestamp", System.currentTimeMillis())
                 .endObject();
             indexRequest.setJsonEntity(Strings.toString(builder));
             assertOK(client().performRequest(indexRequest));
         }
+
+        // It's quite possible that this test will run where the data stream backing index is
+        // created on one day, and then checked on a subsequent day. To avoid this failing the
+        // test, we store the timestamp used when the document is indexed, then when we go to
+        // check the backing index name, we retrieve the time and use it for the backing index
+        // name resolution.
+        Request getDoc = new Request("GET", "/ds/_search");
+        Map<String, Object> doc = entityAsMap(client().performRequest(getDoc));
+        logger.info("--> doc: {}", doc);
+        Map<String, Object> hits = (Map<String, Object>) doc.get("hits");
+        Map<String, Object> docBody = (Map<String, Object>) ((List<Object>) hits.get("hits")).get(0);
+        Long timestamp = (Long) ((Map<String, Object>) docBody.get("_source")).get("@timestamp");
+        logger.info("--> parsed out timestamp of {}", timestamp);
 
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
@@ -968,7 +985,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
+        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1, timestamp, getOldClusterVersion()), indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }
 

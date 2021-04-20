@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
@@ -78,6 +79,10 @@ public class Huber implements EvaluationMetric {
 
     public Huber(StreamInput in) throws IOException {
         this.delta = in.readDouble();
+    }
+
+    public Huber() {
+        this(DEFAULT_DELTA);
     }
 
     public Huber(@Nullable Double delta) {

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
 
@@ -13,9 +15,8 @@ artifacts {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
-                'index', 'put_script', 'ingest', 'count'
-    includeXpack 'watcher', 'xpack'
+    include '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
+                'index', 'put_script', 'ingest', 'count', 'watcher', 'xpack'
   }
 }
 
@@ -25,4 +26,10 @@ testClusters.all {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
 }

@@ -5,12 +5,10 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Explain {dfanalytics} API</titleabbrev>
+<titleabbrev>Explain {dfanalytics}</titleabbrev>
 ++++
 
 Explains a {dataframe-analytics-config}.
-
-experimental[]
 
 
 [[ml-explain-dfanalytics-request]]
@@ -31,8 +29,10 @@ experimental[]
 If the {es} {security-features} are enabled, you must have the following privileges:
 
 * cluster: `monitor_ml`
+* source indices: `read`, `view_index_metadata`
   
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+For more information, see <<security-privileges>> and 
+{ml-docs-setup-privileges}.
 
 
 [[ml-explain-dfanalytics-desc]]
@@ -78,10 +78,10 @@ the field names.
 [%collapsible%open]
 ====
 `is_included`:::
-(boolean) Whether the field is selected to be included in the analysis.
+(Boolean) Whether the field is selected to be included in the analysis.
 
 `is_required`:::
-(boolean) Whether the field is required.
+(Boolean) Whether the field is required.
 
 `feature_type`:::
 (string) The feature type of this field for the analysis. May be `categorical` 

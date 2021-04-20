@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.example.role;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.example.realm.CustomRealmIT;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 
@@ -34,7 +36,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class CustomRolesProviderIT extends ESIntegTestCase {
     private static final String TEST_USER = "test_user";
-    private static final String TEST_PWD = "change_me";
+    private static final String TEST_PWD = "test-user-password";
 
     private static final RequestOptions AUTH_OPTIONS;
     static {
@@ -47,10 +49,10 @@ public class CustomRolesProviderIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                    .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                    .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
-                    .build();
+            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealmIT.USERNAME)
+            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealmIT.PASSWORD)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "security4")
+            .build();
     }
 
     @Override

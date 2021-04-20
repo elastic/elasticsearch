@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -31,6 +20,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,21 +29,25 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    protected final Transport.Connection localConnection;
+
     /**
      * @deprecated declare your own logger.
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+    protected TransportAction(String actionName, ActionFilters actionFilters,
+                              Transport.Connection localConnection, TaskManager taskManager) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
+        this.localConnection = localConnection;
         this.taskManager = taskManager;
     }
 
     private Releasable registerChildNode(TaskId parentTask) {
         if (parentTask.isSet()) {
-            return taskManager.registerChildNode(parentTask.getId(), taskManager.localNode());
+            return taskManager.registerChildConnection(parentTask.getId(), localConnection);
         } else {
             return () -> {};
         }

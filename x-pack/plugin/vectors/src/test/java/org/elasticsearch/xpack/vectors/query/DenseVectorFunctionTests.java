@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.vectors.query;
@@ -10,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
@@ -43,20 +45,23 @@ public class DenseVectorFunctionTests extends ESTestCase {
     public void testDenseVectorFunctions() {
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BytesRef encodedDocVector = mockEncodeDenseVector(docVector, indexVersion);
+            float magnitude = VectorEncoderDecoder.getMagnitude(indexVersion, encodedDocVector);
+
             DenseVectorScriptDocValues docValues = mock(DenseVectorScriptDocValues.class);
             when(docValues.getEncodedValue()).thenReturn(encodedDocVector);
+            when(docValues.getMagnitude()).thenReturn(magnitude);
+            when(docValues.dims()).thenReturn(docVector.length);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript._getIndexVersion()).thenReturn(indexVersion);
             when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, docValues));
-            
+
             testDotProduct(docValues, scoreScript);
             testCosineSimilarity(docValues, scoreScript);
             testL1Norm(docValues, scoreScript);
             testL2Norm(docValues, scoreScript);
         }
     }
-    
+
     private void testDotProduct(DenseVectorScriptDocValues docValues, ScoreScript scoreScript) {
         DotProduct function = new DotProduct(scoreScript, queryVector, field);
         double result = function.dotProduct();
@@ -67,11 +72,11 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        DotProduct invalidFunction = new DotProduct(scoreScript, invalidQueryVector, field);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::dotProduct);
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
-    
+
     private void testCosineSimilarity(DenseVectorScriptDocValues docValues, ScoreScript scoreScript) {
         CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, field);
         double result = function.cosineSimilarity();
@@ -82,8 +87,8 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        CosineSimilarity invalidFunction = new CosineSimilarity(scoreScript, invalidQueryVector, field);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::cosineSimilarity);
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 
@@ -97,8 +102,8 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("l1norm result is not equal to the expected value!", 485.184, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        L1Norm invalidFunction = new L1Norm(scoreScript, invalidQueryVector, field);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::l1norm);
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class,  () -> new L1Norm(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 
@@ -112,8 +117,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("l2norm result is not equal to the expected value!", 301.361, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        L2Norm invalidFunction = new L2Norm(scoreScript, invalidQueryVector, field);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, invalidFunction::l2norm);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new L2Norm(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 }

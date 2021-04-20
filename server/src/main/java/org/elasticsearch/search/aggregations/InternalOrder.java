@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -22,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContent;
@@ -36,7 +26,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -158,6 +147,9 @@ public abstract class InternalOrder extends BucketOrder {
                 // if all user provided comparators return 0.
                 this.orderElements.add(KEY_ASC);
             }
+            if (this.orderElements.isEmpty()) {
+                throw new IllegalArgumentException("empty compound order not supported");
+            }
         }
 
         @Override
@@ -187,12 +179,13 @@ public abstract class InternalOrder extends BucketOrder {
                     .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
                     .collect(toList());
             return (lhs, rhs) -> {
-                Iterator<Comparator<T>> itr = comparators.iterator();
-                int result;
-                do {
-                    result = itr.next().compare(lhs, rhs);
-                } while (result == 0 && itr.hasNext());
-                return result;
+                for (Comparator<T> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
             };
         }
 
@@ -200,12 +193,13 @@ public abstract class InternalOrder extends BucketOrder {
         public Comparator<Bucket> comparator() {
             List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).collect(toList());
             return (lhs, rhs) -> {
-                Iterator<Comparator<Bucket>> itr = comparators.iterator();
-                int result;
-                do {
-                    result = itr.next().compare(lhs, rhs);
-                } while (result == 0 && itr.hasNext());
-                return result;
+                for (Comparator<Bucket> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
             };
         }
 
@@ -573,7 +567,7 @@ public abstract class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecate("aggregation_order_key",
+                deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "aggregation_order_key",
                     "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
             }
             switch (orderKey) {

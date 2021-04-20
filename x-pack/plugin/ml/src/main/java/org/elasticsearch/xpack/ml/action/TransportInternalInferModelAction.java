@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
@@ -67,7 +69,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces -> {
                         model.release();
-                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).build());
+                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces)
+                            .setModelId(model.getModelId())
+                            .build());
                     },
                     e -> {
                         model.release();
@@ -82,7 +86,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             responseBuilder.setLicensed(true);
             this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
         } else {
-            trainedModelProvider.getTrainedModel(request.getModelId(), false, false, ActionListener.wrap(
+            trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
                 trainedModelConfig -> {
                     responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
                     if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {

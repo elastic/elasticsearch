@@ -1,23 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.collect.Tuple;
@@ -324,6 +314,8 @@ public class VersionUtilsTests extends ESTestCase {
      * agree with the list of wire and index compatible versions we build in gradle.
      */
     public void testGradleVersionsMatchVersionUtils() {
+        assumeFalse("We have limited backward compatibility testing for ARM", Constants.OS_ARCH.equals("aarch64"));
+
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");
         List<Version> released = VersionUtils.allReleasedVersions().stream()
@@ -338,7 +330,7 @@ public class VersionUtilsTests extends ESTestCase {
                 .collect(toList());
 
         List<String> releasedIndexCompatible = released.stream()
-                .filter(v -> !Version.CURRENT.equals(v))
+                .filter(v -> Version.CURRENT.equals(v) == false)
                 .map(Object::toString)
                 .collect(toList());
         assertEquals(releasedIndexCompatible, indexCompatible.released);
@@ -365,7 +357,7 @@ public class VersionUtilsTests extends ESTestCase {
 
         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
-                .filter(v -> !Version.CURRENT.equals(v))
+                .filter(v -> Version.CURRENT.equals(v) == false)
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());

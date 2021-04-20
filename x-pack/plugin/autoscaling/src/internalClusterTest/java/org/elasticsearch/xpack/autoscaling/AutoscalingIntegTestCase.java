@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling;
@@ -22,9 +23,8 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(final int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
+    protected Settings nodeSettings(final int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }
@@ -37,7 +37,6 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         final Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
-        builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }

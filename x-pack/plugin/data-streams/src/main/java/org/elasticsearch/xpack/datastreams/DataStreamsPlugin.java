@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.datastreams;
 
@@ -9,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
@@ -24,7 +26,10 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.action.DataStreamsStatsTransportAction;
+import org.elasticsearch.xpack.datastreams.action.PromoteDataStreamTransportAction;
+import org.elasticsearch.xpack.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDeleteDataStreamAction;
@@ -34,6 +39,8 @@ import org.elasticsearch.xpack.datastreams.action.CreateDataStreamTransportActio
 import org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.xpack.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.xpack.datastreams.rest.RestMigrateToDataStreamAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +69,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
             new ActionHandler<>(CreateDataStreamAction.INSTANCE, CreateDataStreamTransportAction.class),
             new ActionHandler<>(DeleteDataStreamAction.INSTANCE, DeleteDataStreamTransportAction.class),
             new ActionHandler<>(GetDataStreamAction.INSTANCE, GetDataStreamsTransportAction.class),
-            new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class)
+            new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class),
+            new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class),
+            new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class)
         );
     }
 
@@ -80,7 +89,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         RestHandler deleteDsAction = new RestDeleteDataStreamAction();
         RestHandler getDsAction = new RestGetDataStreamsAction();
         RestHandler dsStatsAction = new RestDataStreamsStatsAction();
-        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction);
+        RestHandler migrateAction = new RestMigrateToDataStreamAction();
+        RestHandler promoteAction = new RestPromoteDataStreamAction();
+        return Arrays.asList(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction, promoteAction);
     }
 
     public Collection<Module> createGuiceModules() {

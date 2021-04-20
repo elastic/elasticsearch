@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
@@ -12,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -38,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -239,7 +242,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                     // A cache loader is not allowed to return null, return a marker object instead.
                     return NULL_MARKER;
                 } else {
-                    final BitSet bs = BitSet.of(s.iterator(), context.reader().maxDoc());
+                    final BitSet bs = bitSetFromDocIterator(s.iterator(), context.reader().maxDoc());
                     final long bitSetBytes = bs.ramBytesUsed();
                     if (bitSetBytes > this.maxWeightBytes) {
                         logger.warn("built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;" +
@@ -280,8 +283,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     public Map<String, Object> usageStats() {
         final ByteSizeValue ram = new ByteSizeValue(ramBytesUsed(), ByteSizeUnit.BYTES);
-        return new MapBuilder()
-            .put("count", entryCount())
+        return new MapBuilder<String, Object>().put("count", entryCount())
             .put("memory", ram.toString())
             .put("memory_in_bytes", ram.getBytes())
             .immutableMap();
@@ -342,4 +344,14 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             }
         });
     }
+
+    static BitSet bitSetFromDocIterator(DocIdSetIterator iter, int maxDoc) throws IOException {
+        final BitSet set = BitSet.of(iter, maxDoc);
+        if (set.cardinality() == maxDoc) {
+            return new MatchAllRoleBitSet(maxDoc);
+        } else {
+            return set;
+        }
+    }
+
 }

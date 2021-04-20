@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.dataframe.evaluation;
 
@@ -24,6 +13,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classific
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
@@ -122,10 +112,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             // Evaluation metrics results
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
-                new ParseField(
-                    registeredMetricName(
-                        OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
-                org.elasticsearch.client.ml.dataframe.evaluation.classification.AucRocMetric.Result::fromXContent),
+                new ParseField(registeredMetricName(
+                    OutlierDetection.NAME, org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric.NAME)),
+                AucRocResult::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(
@@ -145,7 +134,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, AucRocMetric.NAME)),
-                AucRocMetric.Result::fromXContent),
+                AucRocResult::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class,
                 new ParseField(registeredMetricName(Classification.NAME, AccuracyMetric.NAME)),

@@ -33,8 +33,9 @@ with the `LIKE` operator:
 * The percent sign (%)
 * The underscore (_)
 
-The percent sign represents zero, one or multiple characters. The underscore represents a single number or character. These symbols can be
-used in combinations.
+The percent sign represents zero, one or multiple characters. The underscore represents a single number or character. These symbols can be used in combinations.
+
+NOTE: No other characters have special meaning or act as wildcard. Characters often used as wildcards in other languages (`*` or `?`) are treated as normal characters.
 
 [source, sql]
 ----

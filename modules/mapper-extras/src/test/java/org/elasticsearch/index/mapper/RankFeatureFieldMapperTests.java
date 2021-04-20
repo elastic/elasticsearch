@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -25,11 +14,8 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 
@@ -42,8 +28,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankFeatureFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(10);
+    protected Object getSampleValueForDocument() {
+        return 10;
     }
 
     @Override
@@ -61,8 +47,19 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        //always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new MapperExtrasPlugin());
+    }
+
+    @Override
+    protected boolean allowsStore() {
+        return false;
     }
 
     static int getFrequency(TokenStream tk) throws IOException {
@@ -145,12 +142,9 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
                 e.getCause().getMessage());
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);
-
-        assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
-        assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

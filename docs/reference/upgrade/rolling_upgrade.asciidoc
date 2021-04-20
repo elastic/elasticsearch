@@ -142,7 +142,7 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
 [source,console]
 --------------------------------------------------
-GET _cat/health?v
+GET _cat/health?v=true
 --------------------------------------------------
 
 Wait for the `status` column to switch to `green`. Once the node is `green`, all
@@ -167,7 +167,7 @@ status will change to `green`.
 ====================================================
 
 Shards that were not <<indices-synced-flush-api,sync-flushed>> might take longer to
-recover.  You can monitor the recovery status of individual shards by
+recover. You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
 [source,console]
@@ -183,20 +183,20 @@ recovery completes.
 +
 --
 
-When  the node has recovered and the cluster is stable, repeat these steps
+When the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be updated. You can monitor the health of the cluster
 with a <<cat-health,`_cat/health`>> request:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
 
 And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?h=ip,name,version&v
+GET /_cat/nodes?h=ip,name,version&v=true
 --------------------------------------------------
 
 --

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ml;
@@ -23,7 +12,6 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 
 import java.util.Arrays;
 import java.util.List;
@@ -32,11 +20,13 @@ import java.util.Optional;
 
 public class GetDataFrameAnalyticsRequest implements Validatable {
 
-    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
+    public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     private final List<String> ids;
     private Boolean allowNoMatch;
     private PageParams pageParams;
+    private Boolean excludeGenerated;
 
     /**
      * Helper method to create a request that will get ALL Data Frame Analytics
@@ -56,6 +46,22 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
 
     public Boolean getAllowNoMatch() {
         return allowNoMatch;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the configuration on retrieval.
+     *
+     * This is useful when getting the configuration and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param excludeGenerated Boolean value indicating if certain fields should be removed
+     */
+    public void setExcludeGenerated(boolean excludeGenerated) {
+        this.excludeGenerated = excludeGenerated;
+    }
+
+    public Boolean getExcludeGenerated() {
+        return excludeGenerated;
     }
 
     /**
@@ -94,11 +100,12 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         GetDataFrameAnalyticsRequest other = (GetDataFrameAnalyticsRequest) o;
         return Objects.equals(ids, other.ids)
             && Objects.equals(allowNoMatch, other.allowNoMatch)
+            && Objects.equals(excludeGenerated, other.excludeGenerated)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, pageParams);
+        return Objects.hash(ids, allowNoMatch, excludeGenerated, pageParams);
     }
 }

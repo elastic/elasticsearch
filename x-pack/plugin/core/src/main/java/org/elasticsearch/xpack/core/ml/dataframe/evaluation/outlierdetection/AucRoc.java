@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
@@ -23,7 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.AbstractAucRoc;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.common.AbstractAucRoc;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -174,11 +175,7 @@ public class AucRoc extends AbstractAucRoc {
 
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
-        result.set(
-            new Result(
-                aucRocScore,
-                classAgg.getDocCount() + restAgg.getDocCount(),
-                includeCurve ? aucRocCurve : Collections.emptyList()));
+        result.set(new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList()));
     }
 
     @Override

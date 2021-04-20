@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
@@ -21,6 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -28,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,6 +45,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -59,9 +66,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> classes = new ArrayList<>(super.nodePlugins());
-        classes.add(MyPlugin.class);
-        return classes;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MyPlugin.class);
     }
 
     @Override
@@ -72,7 +77,8 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
         @Override
@@ -144,6 +150,41 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
             .get();
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, true);
+    }
+
+    public void testSnapshotWithDanglingLocalSegment() throws IOException {
+        logger.info("-->  starting a master node and a data node");
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repo = "test-repo";
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository(repo).setType("source")
+                .setSettings(Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs")
+                        .put("compress", randomBoolean())));
+
+        final String indexName = "test-idx";
+        createIndex(indexName);
+        client().prepareIndex(indexName, "_doc").setSource("foo", "bar").get();
+        client().admin().cluster().prepareCreateSnapshot(repo, "snapshot-1").setWaitForCompletion(true).get();
+
+        client().prepareIndex(indexName, "_doc").setSource("foo", "baz").get();
+        client().admin().cluster().prepareCreateSnapshot(repo, "snapshot-2").setWaitForCompletion(true).get();
+
+        logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
+        Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode).indexService(
+                clusterService().state().metadata().index(indexName).getIndex()).getShard(0).shardPath().getDataPath()
+                .resolve("_snapshot");
+        try (DirectoryStream<Path> localFiles = Files.newDirectoryStream(snapshotShardPath)) {
+            for (Path localFile : localFiles) {
+                if (randomBoolean()) {
+                    Files.delete(localFile);
+                }
+            }
+        }
+
+        assertEquals(SnapshotState.SUCCESS, client().admin().cluster().prepareCreateSnapshot(repo, "snapshot-3")
+                .setWaitForCompletion(true).get().getSnapshotInfo().state());
     }
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {

@@ -6,8 +6,6 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-experimental::[]
-
 {es} supports the following <<eql-functions,EQL functions>>.
 
 [discrete]
@@ -62,14 +60,18 @@ If using a field as the argument, this parameter supports only
 === `between`
 
 Extracts a substring that's between a provided `left` and `right` text in a
-source string.
+source string. Matching is case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 // file.path = "C:\\Windows\\System32\\cmd.exe"
-between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "System32\\\\", ".exe")                // returns "cmd"
+between(file.path, "system32\\\\", ".exe")                // returns ""
 between(file.path, "workspace\\\\", ".exe")               // returns ""
+
+// Make matching case-insensitive
+between~(file.path, "system32\\\\", ".exe")               // returns "cmd"
 
 // Greedy matching defaults to false.
 between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
@@ -77,24 +79,18 @@ between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
 // Sets greedy matching to true
 between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
 
-// Case sensitivity defaults to false.
-between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
-// Sets case sensitivity to true
-between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
-between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
-
 // empty source string
-between("", "system32\\\\", ".exe")                       // returns ""
+between("", "System32\\\\", ".exe")                       // returns ""
 between("", "", "")                                       // returns ""
 
 // null handling
-between(null, "system32\\\\", ".exe")                     // returns null
+between(null, "System32\\\\", ".exe")                     // returns null
 ----
 
 *Syntax*
 [source,txt]
 ----
-between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
+between(<source>, <left>, <right>[, <greedy_matching>])
 ----
 
 *Parameters*
@@ -142,14 +138,10 @@ field data types:
 --
 
 `<greedy_matching>`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, match the longest possible substring, similar to `.*` in regular
 expressions. If `false`, match the shortest possible substring, similar to `.*?`
 in regular expressions. Defaults to `false`.
-
-`<case_sensitive>`::
-(Optional, boolean)
-If `true`, matching is case-sensitive. Defaults to `false`.
 
 *Returns:* string or `null`
 
@@ -256,10 +248,8 @@ Returns the quotient of a provided dividend and divisor.
 [WARNING]
 ====
 If both the dividend and divisor are integers, the `divide` function _rounds
-down_ any returned floating point numbers to the nearest integer.
-
-EQL queries in {es} should account for this rounding. To avoid rounding, convert
-either the dividend or divisor to a float.
+down_ any returned floating point numbers to the nearest integer. To avoid
+rounding, convert either the dividend or divisor to a float.
 
 [%collapsible]
 .**Example**
@@ -352,14 +342,19 @@ If using a field as the argument, this parameter supports only
 [[eql-fn-endswith]]
 === `endsWith`
 
-Returns `true` if a source string ends with a provided substring.
+Returns `true` if a source string ends with a provided substring. Matching is
+case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 endsWith("regsvr32.exe", ".exe")          // returns true
+endsWith("regsvr32.exe", ".EXE")          // returns false
 endsWith("regsvr32.exe", ".dll")          // returns false
 endsWith("", "")                          // returns true
+
+// Make matching case-insensitive
+endsWith~("regsvr32.exe", ".EXE")         // returns true
 
 // file.name = "regsvr32.exe"
 endsWith(file.name, ".exe")               // returns true
@@ -416,7 +411,8 @@ field data types:
 [[eql-fn-indexof]]
 === `indexOf`
 
-Returns the first position of a provided substring in a source string.
+Returns the first position of a provided substring in a source string. Matching
+is case-sensitive by default.
 
 If an optional start position is provided, this function returns the first
 occurrence of the substring at or after the start position.
@@ -425,10 +421,15 @@ occurrence of the substring at or after the start position.
 [source,eql]
 ----
 // url.domain = "subdomain.example.com"
+indexOf(url.domain, "d")        // returns 3
+indexOf(url.domain, "D")        // returns null
 indexOf(url.domain, ".")        // returns 9
 indexOf(url.domain, ".", 9)     // returns 9
 indexOf(url.domain, ".", 10)    // returns 17
 indexOf(url.domain, ".", -6)    // returns 9
+
+// Make matching case-insensitive
+indexOf~(url.domain, "D")        // returns 4
 
 // empty strings
 indexOf("", "")                 // returns 0
@@ -557,66 +558,6 @@ field data types:
 *Returns:* integer or `null`
 
 [discrete]
-[[eql-fn-match]]
-=== `match`
-
-Returns `true` if a source string matches one or more provided regular
-expressions.
-
-*Example*
-[source,eql]
-----
-match("explorer.exe", "[a-z]*?.exe")           // returns true
-match("explorer.exe", "[a-z]*?.exe", "[1-9]")  // returns true
-match("explorer.exe", "[1-9]")                 // returns false
-match("explorer.exe", "")                      // returns false
-
-// process.name = "explorer.exe"
-match(process.name, "[a-z]*?.exe")             // returns true
-match(process.name, "[a-z]*?.exe", "[1-9]")    // returns true
-match(process.name, "[1-9]")                   // returns false
-match(process.name, "")                        // returns false
-
-// null handling
-match(null, "[a-z]*?.exe")                     // returns null
-----
-
-*Syntax*
-[source,txt]
-----
-match(<source>, <reg_exp>[, ...])
-----
-
-*Parameters*
-
-`<source>`::
-+
---
-(Required, string or `null`)
-Source string. If `null`, the function returns `null`.
-
-If using a field as the argument, this parameter supports only the following
-field data types:
-
-* A type in the <<keyword,`keyword`>> family
-* <<text,`text`>> field with a <<keyword,`keyword`>> sub-field
---
-
-`<reg_exp>`::
-+
---
-(Required{multi-arg-ref}, string)
-Regular expression used to match the source string. For supported syntax, see
-<<regexp-syntax>>.
-https://docs.oracle.com/javase/tutorial/essential/regex/pre_char_classes.html[Predefined
-character classes] are not supported.
-
-Fields are not supported as arguments.
---
-
-*Returns:* boolean or `null`
-
-[discrete]
 [[eql-fn-modulo]]
 === `modulo`
 Returns the remainder of the division of a provided dividend and divisor.
@@ -713,7 +654,7 @@ multiply(<factor, <factor>)
 +
 --
 (Required, integer or float or `null`)
-Factor to multiply.  If `null`, the function returns `null`.
+Factor to multiply. If `null`, the function returns `null`.
 
 Two factors are required. No more than two factors can be provided.
 
@@ -818,14 +759,19 @@ Fields are not supported as arguments.
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a source string begins with a provided substring.
+Returns `true` if a source string begins with a provided substring. Matching is
+case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 startsWith("regsvr32.exe", "regsvr32")  // returns true
+startsWith("regsvr32.exe", "Regsvr32")  // returns false
 startsWith("regsvr32.exe", "explorer")  // returns false
 startsWith("", "")                      // returns true
+
+// Make matching case-insensitive
+startsWith~("regsvr32.exe", "Regsvr32")  // returns true
 
 // process.name = "regsvr32.exe"
 startsWith(process.name, "regsvr32")    // returns true
@@ -917,15 +863,20 @@ If using a field as the argument, this parameter does not support the
 [[eql-fn-stringcontains]]
 === `stringContains`
 
-Returns `true` if a source string contains a provided substring.
+Returns `true` if a source string contains a provided substring. Matching is
+case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
 // process.command_line = "start regsvr32.exe"
 stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "Regsvr32")  // returns false
 stringContains(process.command_line, "start ")    // returns true
 stringContains(process.command_line, "explorer")  // returns false
+
+// Make matching case-insensitive
+stringContains~(process.command_line, "Regsvr32")  // returns false
 
 // process.name = "regsvr32.exe"
 stringContains(command_line, process.name)        // returns true
@@ -1077,24 +1028,34 @@ If using a field as the argument, this parameter supports only
 === `wildcard`
 
 Returns `true` if a source string matches one or more provided wildcard
-expressions.
+expressions. Matching is case-sensitive by default.
 
 *Example*
 [source,eql]
 ----
-// The two following expressions are equivalent.
-process.name == "*regsvr32*" or process.name == "*explorer*"
-wildcard(process.name, "*regsvr32*", "*explorer*")
-
+// The * wildcard matches zero or more characters.
 // process.name = "regsvr32.exe"
 wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*Regsvr32*")                // returns false
 wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
 wildcard(process.name, "*explorer*")                // returns false
 wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
 
+// Make matching case-insensitive
+wildcard~(process.name, "*Regsvr32*")                // returns true
+
+// The ? wildcard matches exactly one character.
+// process.name = "regsvr32.exe"
+wildcard(process.name, "regsvr32.e?e")                  // returns true
+wildcard(process.name, "regsvr32.e?e", "e?plorer.exe")  // returns true
+wildcard(process.name, "regsvr32.exe?")                 // returns false
+wildcard(process.name, "e?plorer.exe")                  // returns false
+wildcard(process.name, "e?plorer.exe", "scrob?.dll")    // returns false
+
 // empty strings
 wildcard("", "*start*")                             // returns false
 wildcard("", "*")                                   // returns true
+wildcard("", "?")                                   // returns false
 wildcard("", "")                                    // returns true
 
 // null handling
@@ -1127,8 +1088,10 @@ field data types:
 +
 --
 (Required{multi-arg-ref}, string)
-Wildcard expression used to match the source string. If `null`, the function
-returns `null`. Fields are not supported as arguments.
+Wildcard expression used to match the source string. The `*` wildcard matches
+zero or more characters. The `?` wildcard matches exactly one character.
+
+If `null`, the function returns `null`. Fields are not supported as arguments.
 --
 
 *Returns:* boolean

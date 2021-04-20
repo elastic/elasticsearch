@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.vectors.mapper;
@@ -43,7 +44,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, encodedSparseVector);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, encodedSparseVector);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
         assertArrayEquals(
             "Decoded sparse vector dims are not equal to their original!",

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -33,8 +34,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +67,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testCacheSettings() {
-        String cachingHashAlgo = randomFrom(Hasher.getAvailableAlgoCacheHash());
+        List<String> availableCacheAlgos = Hasher.getAvailableAlgoCacheHash();
+        if (inFipsJvm()) {
+            availableCacheAlgos = availableCacheAlgos.stream().filter(name -> (name.startsWith("pbkdf2"))).collect(Collectors.toList());
+        }
+        String cachingHashAlgo = randomFrom(availableCacheAlgos);
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
@@ -410,7 +417,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -476,7 +483,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
             TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -484,7 +491,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
-        final SecureString credsToUse = new SecureString(randomAlphaOfLength(12).toCharArray());
+        final SecureString credsToUse = new SecureString(randomAlphaOfLength(14).toCharArray());
 
         // we use a bunch of different latches here, the first `latch` is used to ensure all threads have been started
         // before they start to execute. The `authWaitLatch` is there to ensure we have all threads waiting on the
@@ -559,7 +566,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
-        final Hasher localHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher localHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(localHasher.hash(password));
         RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("caching", "test_realm"), globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
@@ -94,9 +95,6 @@ public abstract class AbstractRepository {
                     LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
                 return incompatibleSnapshotsFromXContent(parser);
             }
-        } catch (IOException e) {
-            terminal.println("Failed to read [incompatible-snapshots] blob");
-            throw e;
         } catch (Exception e) {
             if (isBlobNotFoundException(e)) {
                 return Collections.emptyList();

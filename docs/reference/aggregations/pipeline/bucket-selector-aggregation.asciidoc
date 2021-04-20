@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-bucket-selector-aggregation]]
-=== Bucket Selector Aggregation
+=== Bucket selector aggregation
+++++
+<titleabbrev>Bucket selector</titleabbrev>
+++++
 
 A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a boolean value.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.termvectors;
@@ -109,16 +98,16 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
-        assertEquals(1, response.getFields().size());            
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+        assertEquals(1, response.getFields().size());
 
         Terms terms = response.getFields().terms("text");
         TermsEnum iterator = terms.iterator();
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-    }  
-    
+    }
+
     public void testWithIndexedPhrases() throws IOException {
         XContentBuilder mapping = jsonBuilder()
             .startObject()
@@ -126,7 +115,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
                     .startObject("properties")
                         .startObject("text")
                             .field("type", "text")
-                            .field("index_phrases", true)                            
+                            .field("index_phrases", true)
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
                     .endObject()
@@ -152,7 +141,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertThat(shard, notNullValue());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);        
+        TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
         assertEquals(2, response.getFields().size());
 
         Terms terms = response.getFields().terms("text");
@@ -160,11 +149,11 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         while (iterator.next() != null) {
             assertEquals(max, iterator.docFreq());
         }
-                
+
         Terms phrases = response.getFields().terms("text._index_phrase");
         TermsEnum phraseIterator = phrases.iterator();
         while (phraseIterator.next() != null) {
             assertEquals(max, phraseIterator.docFreq());
         }
-    }  
+    }
 }

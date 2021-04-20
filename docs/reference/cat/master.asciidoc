@@ -13,6 +13,11 @@ and name.
 
 `GET /_cat/master`
 
+[[cat-master-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-master-api-query-params]]
 ==== {api-query-parms-title}
@@ -37,7 +42,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/master?v
+GET /_cat/master?v=true
 --------------------------------------------------
 
 The API returns the following response:

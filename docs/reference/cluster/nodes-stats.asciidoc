@@ -21,6 +21,11 @@ Returns cluster nodes statistics.
 
 `GET /_nodes/<node_id>/stats/<metric>/<index_metric>`
 
+[[cluster-nodes-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-nodes-stats-api-desc]]
 ==== {api-description-title}
@@ -136,6 +141,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -163,7 +170,7 @@ is not `0`, a reason for the rejection or failure is included in the response.
 
 `cluster_name`::
 (string)
-Name of the cluster. Based on the <<cluster.name>> setting.
+Name of the cluster. Based on the <<cluster-name>> setting.
 
 `nodes`::
 (object)
@@ -186,11 +193,11 @@ since the {wikipedia}/Unix_time[Unix Epoch].
 
 `name`::
 (string)
-Human-readable identifier for the node. Based on the <<node.name>> setting.
+Human-readable identifier for the node. Based on the <<node-name>> setting.
 
 `transport_address`::
 (string)
-Host and port for the <<modules-transport,transport layer>>, used for internal
+Host and port for the <<transport-settings,transport layer>>, used for internal
 communication between nodes in a cluster.
 
 `host`::
@@ -248,6 +255,16 @@ Total size of all shards assigned to the node.
 `size_in_bytes`::
 (integer)
 Total size, in bytes, of all shards assigned to the node.
+
+`total_data_set_size`::
+(<<byte-units,byte value>>)
+Total data set size of all shards assigned to the node.
+This includes the size of shards not stored fully on the node (shared cache searchable snapshots).
+
+`total_data_set_size_in_bytes`::
+(integer)
+Total data set size, in bytes, of all shards assigned to the node.
+This includes the size of shards not stored fully on the node (shared cache searchable snapshots).
 
 `reserved`::
 (<<byte-units,byte value>>)
@@ -312,7 +329,7 @@ Number of deletion operations currently running.
 Total number of noop operations.
 
 `is_throttled`::
-(boolean)
+(Boolean)
 Number of times
 operations were throttled.
 
@@ -1182,7 +1199,7 @@ since the {wikipedia}/Unix_time[Unix Epoch].
 
 `open_file_descriptors`::
 (integer)
-Number of opened file descriptors associated with the current  or
+Number of opened file descriptors associated with the current or
 `-1` if not supported.
 
 `max_file_descriptors`::

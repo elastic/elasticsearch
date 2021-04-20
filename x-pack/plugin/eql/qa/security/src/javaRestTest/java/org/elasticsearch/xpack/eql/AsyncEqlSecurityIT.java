@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql;
@@ -89,8 +90,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
         }
         ResponseException exc = expectThrows(ResponseException.class,
             () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));
-        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(exc.getMessage(), containsString("unauthorized"));
+        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     static String extractResponseId(Response response) throws IOException {

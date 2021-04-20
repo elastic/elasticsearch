@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -30,7 +19,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -82,10 +70,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     }
 
     protected SearchContext createSearchContext(IndexService indexService, String... groupStats) {
-        BigArrays bigArrays = indexService.getBigArrays();
         final ShardSearchRequest request =
             new ShardSearchRequest(new ShardId(indexService.index(), 0), new String[0], 0L, null);
-        return new TestSearchContext(bigArrays, indexService) {
+        return new TestSearchContext(indexService) {
             @Override
             public List<String> groupStats() {
                 return Arrays.asList(groupStats);
@@ -246,16 +233,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogWithTypes() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
-        searchContext.getQueryShardContext().setTypes("type1", "type2");
+        searchContext.getSearchExecutionContext().setTypes("type1", "type2");
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
 
-        searchContext.getQueryShardContext().setTypes("type1");
+        searchContext.getSearchExecutionContext().setTypes("type1");
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
 
-        searchContext.getQueryShardContext().setTypes();
+        searchContext.getSearchExecutionContext().setTypes();
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[]"));
     }

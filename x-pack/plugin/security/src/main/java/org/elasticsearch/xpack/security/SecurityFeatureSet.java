@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import java.util.Arrays;
@@ -71,7 +73,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.SECURITY);
+        return true;
     }
 
     @Override
@@ -93,6 +95,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         Map<String, Object> fips140Usage = fips140Usage(settings);
+        Map<String, Object> operatorPrivilegesUsage = org.elasticsearch.common.collect.Map.of(
+            "available", licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES),
+            "enabled", OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
+        );
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
@@ -102,9 +108,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
+                listener.onResponse(new SecurityFeatureSetUsage(enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
                         roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
-                        apiKeyServiceUsage, fips140Usage)); }
+                        apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage));
+            }
         };
 
         final ActionListener<Map<String, Object>> rolesStoreUsageListener =

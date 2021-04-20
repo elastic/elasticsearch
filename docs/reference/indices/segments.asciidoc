@@ -22,6 +22,12 @@ GET /my-index-000001/_segments
 
 `GET /_segments`
 
+[[index-segments-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or index alias.
 
 [[index-segments-api-path-params]]
 ==== {api-path-parms-title}
@@ -50,7 +56,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 `verbose`::
 experimental:[]
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the response includes detailed information
 about Lucene's memory usage.
 Defaults to `false`.
@@ -60,7 +66,7 @@ Defaults to `false`.
 ==== {api-response-body-title}
 
 `<segment>`::
-(String)       
+(String)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
@@ -83,7 +89,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 (Integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
-`committed`:: 
+`committed`::
 (Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
 

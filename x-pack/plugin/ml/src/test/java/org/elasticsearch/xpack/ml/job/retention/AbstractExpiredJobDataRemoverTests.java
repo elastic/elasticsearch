@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -48,7 +50,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         private int getRetentionDaysCallCount = 0;
 
         ConcreteExpiredJobDataRemover(OriginSettingClient client, Iterator<Job> jobIterator) {
-            super(client, jobIterator);
+            super(client, jobIterator, new TaskId("test", 0L));
         }
 
         @Override

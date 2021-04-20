@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -68,9 +69,9 @@ import static org.hamcrest.Matchers.hasItem;
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // crank up the deletion interval and set timeout for delete requests
             .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
             .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
@@ -114,6 +115,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<UserToken> userTokenFuture = new PlainActionFuture<>();
         tokenService.decodeToken(response.getTokenString(), userTokenFuture);
         assertNotNull(userTokenFuture.actionGet());
+        assertNotNull(response.getAuthentication());
     }
 
 
@@ -135,7 +137,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
         client().admin().cluster().prepareHealth().execute().get();
-        PlainActionFuture<ClusterStateUpdateResponse> rotateActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<AcknowledgedResponse> rotateActionFuture = new PlainActionFuture<>();
         logger.info("rotate on master: {}", masterName);
         masterTokenService.rotateKeysOnMaster(rotateActionFuture);
         assertTrue(rotateActionFuture.actionGet().isAcknowledged());
@@ -147,6 +149,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             assertNotNull(userTokenFuture.actionGet());
             assertNotEquals(activeKeyHash, tokenService.getActiveKeyHash());
         }
+        assertNotNull(response.getAuthentication());
+        assertEquals(SecuritySettingsSource.TEST_USER_NAME, response.getAuthentication().getUser().principal());
     }
 
     public void testExpiredTokensDeletedAfterExpiration() throws Exception {
@@ -468,6 +472,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
             .admin().cluster().prepareHealth().get());
+        assertNotNull(refreshResponse.getAuthentication());
     }
 
     public void testRefreshingInvalidatedToken() {

@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.deprecation;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -21,10 +23,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -80,10 +81,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private List<DeprecationIssue> clusterSettingsIssues;
-        private List<DeprecationIssue> nodeSettingsIssues;
-        private Map<String, List<DeprecationIssue>> indexSettingsIssues;
-        private List<DeprecationIssue> mlSettingsIssues;
+        static final Set<String> RESERVED_NAMES = Sets.newHashSet("cluster_settings", "node_settings", "index_settings");
+        private final List<DeprecationIssue> clusterSettingsIssues;
+        private final List<DeprecationIssue> nodeSettingsIssues;
+        private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
+        private final Map<String, List<DeprecationIssue>> pluginSettingsIssues;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -91,20 +93,34 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             nodeSettingsIssues = in.readList(DeprecationIssue::new);
             indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
             if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                mlSettingsIssues = in.readList(DeprecationIssue::new);
+                if (in.getVersion().before(Version.V_7_11_0)) {
+                    List<DeprecationIssue> mlIssues = in.readList(DeprecationIssue::new);
+                    pluginSettingsIssues = new HashMap<>();
+                    pluginSettingsIssues.put("ml_settings", mlIssues);
+                } else {
+                    pluginSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+                }
             } else {
-                mlSettingsIssues = Collections.emptyList();
+                pluginSettingsIssues = Collections.singletonMap("ml_settings", Collections.emptyList());
             }
         }
 
         public Response(List<DeprecationIssue> clusterSettingsIssues,
                         List<DeprecationIssue> nodeSettingsIssues,
                         Map<String, List<DeprecationIssue>> indexSettingsIssues,
-                        List<DeprecationIssue> mlSettingsIssues) {
+                        Map<String, List<DeprecationIssue>> pluginSettingsIssues) {
             this.clusterSettingsIssues = clusterSettingsIssues;
             this.nodeSettingsIssues = nodeSettingsIssues;
             this.indexSettingsIssues = indexSettingsIssues;
-            this.mlSettingsIssues = mlSettingsIssues;
+            Set<String> intersection = Sets.intersection(RESERVED_NAMES, pluginSettingsIssues.keySet());
+            if (intersection.isEmpty() == false) {
+                throw new ElasticsearchStatusException(
+                    "Unable to discover deprecations as plugin deprecation names overlap with reserved names {}",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    intersection
+                );
+            }
+            this.pluginSettingsIssues = pluginSettingsIssues;
         }
 
         public List<DeprecationIssue> getClusterSettingsIssues() {
@@ -119,8 +135,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return indexSettingsIssues;
         }
 
-        public List<DeprecationIssue> getMlSettingsIssues() {
-            return mlSettingsIssues;
+        public Map<String, List<DeprecationIssue>> getPluginSettingsIssues() {
+            return pluginSettingsIssues;
         }
 
         @Override
@@ -129,7 +145,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeList(mlSettingsIssues);
+                if (out.getVersion().before(Version.V_7_11_0)) {
+                    out.writeList(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
+                } else {
+                    out.writeMapOfLists(pluginSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+                }
             }
         }
 
@@ -140,7 +160,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
                 .map(indexSettingsIssues)
-                .array("ml_settings", mlSettingsIssues.toArray())
+                .mapContents(pluginSettingsIssues)
                 .endObject();
         }
 
@@ -152,12 +172,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return Objects.equals(clusterSettingsIssues, response.clusterSettingsIssues) &&
                 Objects.equals(nodeSettingsIssues, response.nodeSettingsIssues) &&
                 Objects.equals(indexSettingsIssues, response.indexSettingsIssues) &&
-                Objects.equals(mlSettingsIssues, response.mlSettingsIssues);
+                Objects.equals(pluginSettingsIssues, response.pluginSettingsIssues);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, mlSettingsIssues);
+            return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, pluginSettingsIssues);
         }
 
         /**
@@ -169,30 +189,22 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param state The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param request The originating request containing the index expressions to evaluate
-         * @param datafeeds The ml datafeed configurations
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @param indexSettingsChecks The list of index-level checks that will be run across all specified
          *                            concrete indices
          * @param clusterSettingsChecks The list of cluster-level checks
-         * @param mlSettingsCheck The list of ml checks
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(ClusterState state,
-                                                          NamedXContentRegistry xContentRegistry,
                                                           IndexNameExpressionResolver indexNameExpressionResolver,
-                                                          Request request, List<DatafeedConfig> datafeeds,
+                                                          Request request,
                                                           NodesDeprecationCheckResponse nodeDeprecationResponse,
                                                           List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
-                                                          List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
-                                                              mlSettingsCheck) {
+                                                          Map<String, List<DeprecationIssue>> pluginSettingIssues) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
                 (c) -> c.apply(state));
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
-            List<DeprecationIssue> mlSettingsIssues = new ArrayList<>();
-            for (DatafeedConfig config : datafeeds) {
-                mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
-            }
 
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
 
@@ -206,7 +218,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 }
             }
 
-            return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, mlSettingsIssues);
+            return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, pluginSettingIssues);
         }
     }
 

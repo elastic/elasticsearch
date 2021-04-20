@@ -1,0 +1,116 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            "properties":
+              "id":
+                "type": "integer"
+              "title":
+                "type": "text"
+                "term_vector": "with_positions_offsets"
+              "description":
+                "type": "text"
+                "term_vector": "with_positions_offsets"
+              "nested":
+                "type": "nested"
+                "properties":
+                  "title":
+                    "type": "text"
+                    "term_vector": "with_positions_offsets"
+  - do:
+      index:
+        index: test
+        refresh: true
+        body:
+          id : 1
+          title : "The quick brown fox is brown"
+          description : "The quick pink panther is pink"
+
+  - do:
+      index:
+        index: test
+        refresh: true
+        body:
+          id : 2
+          title : "The quick blue fox is blue"
+          nested:
+            - title: "purple octopus"
+            - title: "purple fish"
+
+---
+"Highlight query":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            term:
+              id: 1
+          highlight:
+            type: fvh
+            fields:
+              description:
+                type: fvh
+                highlight_query:
+                  prefix:
+                    description: br
+              title:
+                type: fvh
+                highlight_query:
+                  prefix:
+                    title: br
+
+  - match: {hits.hits.0.highlight.title.0: "The quick <em>brown</em> fox is <em>brown</em>"}
+  - is_false: hits.hits.0.highlight.description
+
+---
+"Highlight multiple documents":
+  - skip:
+      version: " - 7.10.1"
+      reason: Bug fixed in 7.10.2
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              title: fox
+          highlight:
+            type: fvh
+            fields:
+              title:
+                type: fvh
+          sort: [id]
+
+  - match: {hits.hits.0.highlight.title.0: "The quick brown <em>fox</em> is brown"}
+  - is_false: hits.hits.0.highlight.description
+  - match: {hits.hits.1.highlight.title.0: "The quick blue <em>fox</em> is blue"}
+  - is_false: hits.hits.1.highlight.description
+
+---
+"Highlight multiple nested documents":
+  - skip:
+      version: " - 7.10.1"
+      reason: Bug fixed in 7.10.2
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            nested:
+              path: nested
+              query:
+                match:
+                  nested.title: purple
+              inner_hits:
+                name: nested_hits
+                highlight:
+                  type: fvh
+                  fields:
+                    nested.title:
+                      type: fvh
+
+  - match: {hits.hits.0.inner_hits.nested_hits.hits.hits.0.highlight.nested\.title.0: "<em>purple</em> octopus"}
+  - match: {hits.hits.0.inner_hits.nested_hits.hits.hits.1.highlight.nested\.title.0: "<em>purple</em> fish"}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search;
 
@@ -29,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -48,6 +37,7 @@ import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -115,7 +105,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<ScoreFunctionSpec<?>> getScoreFunctions() {
                 return singletonList(new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new,
-                        GaussDecayFunctionBuilder.PARSER));
+                    GaussDecayFunctionBuilder.PARSER));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeScoreFunction));
@@ -156,7 +146,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
-                        TermsAggregationBuilder.PARSER));
+                    TermsAggregationBuilder.PARSER));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeAggregation));
@@ -165,11 +155,11 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec(
-                        DerivativePipelineAggregationBuilder.NAME,
-                        DerivativePipelineAggregationBuilder::new,
-                        DerivativePipelineAggregator::new,
-                        DerivativePipelineAggregationBuilder::parse)
-                            .addResultReader(InternalDerivative::new));
+                    DerivativePipelineAggregationBuilder.NAME,
+                    DerivativePipelineAggregationBuilder::new,
+                    DerivativePipelineAggregator::new,
+                    DerivativePipelineAggregationBuilder::parse)
+                    .addResultReader(InternalDerivative::new));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupePipelineAggregation));
@@ -178,7 +168,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
                 return singletonList(
-                        new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+                    new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
@@ -202,26 +192,26 @@ public class SearchModuleTests extends ESTestCase {
         }));
 
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                    e.name.match("term", LoggingDeprecationHandler.INSTANCE)).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                e.name.match("term", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                    e.name.match("phrase", LoggingDeprecationHandler.INSTANCE)).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                e.name.match("phrase", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                    e.name.match("completion", LoggingDeprecationHandler.INSTANCE)).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                e.name.match("completion", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                    e.name.match("test", LoggingDeprecationHandler.INSTANCE)).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                e.name.match("test", LoggingDeprecationHandler.INSTANCE)).count());
 
         assertEquals(1, module.getNamedWriteables().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term")).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term")).count());
         assertEquals(1, module.getNamedWriteables().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("phrase")).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("phrase")).count());
         assertEquals(1, module.getNamedWriteables().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("completion")).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("completion")).count());
         assertEquals(1, module.getNamedWriteables().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("test")).count());
+            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("test")).count());
 
         assertEquals(1, module.getNamedWriteables().stream()
             .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("term")).count());
@@ -256,14 +246,14 @@ public class SearchModuleTests extends ESTestCase {
         SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(QueryBuilder.class))
-                .filter(e -> e.name.getDeprecatedNames().length == 0)
-                .map(e -> e.name.getPreferredName())
-                .collect(toSet());
+            .filter(e -> e.categoryClass.equals(QueryBuilder.class))
+            .filter(e -> e.name.getDeprecatedNames().length == 0)
+            .map(e -> e.name.getPreferredName())
+            .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(QueryBuilder.class))
-                .flatMap(e -> Arrays.stream(e.name.getAllNamesIncludedDeprecated()))
-                .collect(toSet());
+            .filter(e -> e.categoryClass.equals(QueryBuilder.class))
+            .flatMap(e -> Arrays.stream(e.name.getAllNamesIncludedDeprecated()))
+            .collect(toSet());
 
         assertThat(registeredNonDeprecated, containsInAnyOrder(NON_DEPRECATED_QUERIES));
         assertThat(registeredAll, containsInAnyOrder(allSupportedQueries.toArray(new String[0])));
@@ -278,11 +268,11 @@ public class SearchModuleTests extends ESTestCase {
         }));
 
         assertThat(
-                module.getNamedXContents().stream()
-                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
-                        entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
-                    .collect(toList()),
-                hasSize(1));
+            module.getNamedXContents().stream()
+                .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
+                    entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
+                .collect(toList()),
+            hasSize(1));
     }
 
     public void testRegisterPipelineAggregation() {
@@ -290,16 +280,16 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
-                        TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
+                    TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
             }
         }));
 
         assertThat(
-                module.getNamedXContents().stream()
-                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
-                        entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
-                    .collect(toList()),
-                hasSize(1));
+            module.getNamedXContents().stream()
+                .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
+                    entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
+                .collect(toList()),
+            hasSize(1));
     }
 
     public void testRegisterRescorer() {
@@ -310,64 +300,64 @@ public class SearchModuleTests extends ESTestCase {
             }
         }));
         assertThat(
-                module.getNamedXContents().stream()
-                    .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) &&
-                        entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
-                    .collect(toList()),
-                hasSize(1));
+            module.getNamedXContents().stream()
+                .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) &&
+                    entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
+                .collect(toList()),
+            hasSize(1));
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
-            "bool",
-            "boosting",
-            "constant_score",
-            "dis_max",
-            "exists",
-            "field_masking_span",
-            "function_score",
-            "fuzzy",
-            "geo_bounding_box",
-            "geo_distance",
-            "geo_polygon",
-            "geo_shape",
-            "ids",
-            "intervals",
-            "match",
-            "match_all",
-            "match_bool_prefix",
-            "match_none",
-            "match_phrase",
-            "match_phrase_prefix",
-            "more_like_this",
-            "multi_match",
-            "nested",
-            "prefix",
-            "query_string",
-            "range",
-            "regexp",
-            "script",
-            "script_score",
-            "simple_query_string",
-            "span_containing",
-            "span_first",
-            "span_gap",
-            "span_multi",
-            "span_near",
-            "span_not",
-            "span_or",
-            "span_term",
-            "span_within",
-            "term",
-            "terms",
-            "terms_set",
-            "type",
-            "wildcard",
-            "wrapper",
-            "distance_feature"
+        "bool",
+        "boosting",
+        "combined_fields",
+        "constant_score",
+        "dis_max",
+        "exists",
+        "field_masking_span",
+        "function_score",
+        "fuzzy",
+        "geo_bounding_box",
+        "geo_distance",
+        "geo_shape",
+        "ids",
+        "intervals",
+        "match",
+        "match_all",
+        "match_bool_prefix",
+        "match_none",
+        "match_phrase",
+        "match_phrase_prefix",
+        "more_like_this",
+        "multi_match",
+        "nested",
+        "prefix",
+        "query_string",
+        "range",
+        "regexp",
+        "script",
+        "script_score",
+        "simple_query_string",
+        "span_containing",
+        "span_first",
+        "span_gap",
+        "span_multi",
+        "span_near",
+        "span_not",
+        "span_or",
+        "span_term",
+        "span_within",
+        "term",
+        "terms",
+        "terms_set",
+        "type",
+        "wildcard",
+        "wrapper",
+        "distance_feature"
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {"common"};
+    private static final String[] DEPRECATED_QUERIES = new String[] {"common", "geo_polygon"};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
@@ -380,7 +370,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected ValuesSourceType defaultValueSourceType() {
-            return CoreValuesSourceType.BYTES;
+            return CoreValuesSourceType.KEYWORD;
         }
 
         @Override
@@ -414,7 +404,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+        protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                            ValuesSourceConfig config,
                                                            AggregatorFactory parent,
                                                            Builder subFactoriesBuilder) throws IOException {
@@ -522,7 +512,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
             return null;
         }
     }
@@ -531,16 +521,16 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> innerExecute(
-                String name,
-                SuggestionSearchContext.SuggestionContext suggestion,
-                IndexSearcher searcher,
-                CharsRefBuilder spare) throws IOException {
+            String name,
+            SuggestionSearchContext.SuggestionContext suggestion,
+            IndexSearcher searcher,
+            CharsRefBuilder spare) throws IOException {
             return null;
         }
 
         @Override
         protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, SuggestionContext suggestion,
-                CharsRefBuilder spare) throws IOException {
+                                                                                CharsRefBuilder spare) throws IOException {
             return null;
         }
     }
@@ -566,7 +556,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected SuggestionSearchContext.SuggestionContext build(QueryShardContext context) throws IOException {
+        protected SuggestionSearchContext.SuggestionContext build(SearchExecutionContext context) throws IOException {
             return null;
         }
 

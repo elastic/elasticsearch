@@ -10,14 +10,9 @@ dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
   // Currently needed for MlConfigIndexMappingsFullClusterRestartIT and SLM classes used in
   // FullClusterRestartIT
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-
-  testImplementation project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":qa:full-cluster-restart")))
   testImplementation project(':x-pack:qa')
-}
-
-tasks.named("licenseHeaders").configure {
-  approvedLicenses << 'Apache'
 }
 
 tasks.named("forbiddenPatterns") {
@@ -71,11 +66,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     useCluster testClusters."${baseName}"
     dependsOn copyTestNodeKeyMaterial
     doFirst {
-      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
     }
     systemProperty 'tests.is_old_cluster', 'true'
     exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
@@ -85,7 +80,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
 
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     useCluster testClusters."${baseName}"
     dependsOn "${baseName}#oldClusterTest"
     doFirst {

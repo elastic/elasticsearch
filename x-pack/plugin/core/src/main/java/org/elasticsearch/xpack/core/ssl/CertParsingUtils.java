@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ssl;
@@ -95,7 +96,7 @@ public class CertParsingUtils {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll((Collection<Certificate>) certFactory.generateCertificates(input));
+                certificates.addAll(certFactory.generateCertificates(input));
                 if (certificates.isEmpty()) {
                     throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
                 }
@@ -104,6 +105,7 @@ public class CertParsingUtils {
         return certificates.toArray(new Certificate[0]);
     }
 
+    @SuppressWarnings("unchecked")
     public static X509Certificate[] readX509Certificates(List<Path> certPaths) throws CertificateException, IOException {
         Collection<X509Certificate> certificates = new ArrayList<>();
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
@@ -117,7 +119,7 @@ public class CertParsingUtils {
 
     public static List<Certificate> readCertificates(InputStream input) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        Collection<Certificate> certificates = (Collection<Certificate>) certFactory.generateCertificates(input);
+        Collection<? extends Certificate> certificates = certFactory.generateCertificates(input);
         return new ArrayList<>(certificates);
     }
 
@@ -257,7 +259,7 @@ public class CertParsingUtils {
         return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    static KeyStore trustStore(Certificate[] certificates)
+    public static KeyStore trustStore(Certificate[] certificates)
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         assert certificates != null : "Cannot create trust store with null certificates";
         KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());

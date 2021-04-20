@@ -6,7 +6,6 @@ In production, you should send monitoring data to a separate _monitoring cluster
 so that historical data is available even when the nodes you are monitoring are
 not. For example, you can use {metricbeat} to ship monitoring data about {kib},
 {es}, {ls}, and Beats to the monitoring cluster.
-If you are sending your data to the {esms-init}, see <<esms>>.
 
 [IMPORTANT]
 =========================
@@ -32,8 +31,11 @@ For example, you might set up a two host cluster with the nodes `es-mon-1` and
 --
 [IMPORTANT]
 ===============================
-* To monitor an {es} {major-version} cluster, you must run {es} {major-version}
-on the monitoring cluster.
+* Ideally the monitoring cluster and the production cluster run on the same
+{stack} version. However, a monitoring cluster on the latest release of
+{major-version} also works with production clusters that use the same major
+version. Monitoring clusters that use {major-version} also work with production
+clusters that use the latest release of {prev-major-version}.
 * There must be at least one <<ingest,ingest node>> in the monitoring
 cluster; it does not need to be a dedicated ingest node.
 ===============================

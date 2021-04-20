@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.zen;
@@ -116,7 +105,7 @@ public class NodesFaultDetection extends FaultDetection {
     public void updateNodesAndPing(ClusterState clusterState) {
         // remove any nodes we don't need, this will cause their FD to stop
         for (DiscoveryNode monitoredNode : nodesFD.keySet()) {
-            if (!clusterState.nodes().nodeExists(monitoredNode)) {
+            if (clusterState.nodes().nodeExists(monitoredNode) == false) {
                 nodesFD.remove(monitoredNode);
             }
         }
@@ -127,7 +116,7 @@ public class NodesFaultDetection extends FaultDetection {
                 // no need to monitor the local node
                 continue;
             }
-            if (!nodesFD.containsKey(node)) {
+            if (nodesFD.containsKey(node) == false) {
                 NodeFD fd = new NodeFD(node);
                 // it's OK to overwrite an existing nodeFD - it will just stop and the new one will pick things up.
                 nodesFD.put(node, fd);
@@ -223,11 +212,10 @@ public class NodesFaultDetection extends FaultDetection {
 
         @Override
         public void run() {
-            if (!running()) {
+            if (running() == false) {
                 return;
             }
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
-                .withTimeout(pingRetryTimeout).build();
+            final TransportRequestOptions options = TransportRequestOptions.of(pingRetryTimeout, TransportRequestOptions.Type.PING);
             transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse read(StreamInput in) throws IOException {
@@ -236,7 +224,7 @@ public class NodesFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleResponse(PingResponse response) {
-                            if (!running()) {
+                            if (running() == false) {
                                 return;
                             }
                             retryCount = 0;
@@ -245,7 +233,7 @@ public class NodesFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            if (!running()) {
+                            if (running() == false) {
                                 return;
                             }
                             if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
@@ -284,12 +272,12 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel, Task task) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.equals(request.targetNode())) {
+            if (localNode.equals(request.targetNode()) == false) {
                 throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode );
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
-            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+            if (request.clusterName != null && request.clusterName.equals(clusterName) == false) {
                 // Don't introduce new exception for bwc reasons
                 throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster ["
                     + clusterName + "]");

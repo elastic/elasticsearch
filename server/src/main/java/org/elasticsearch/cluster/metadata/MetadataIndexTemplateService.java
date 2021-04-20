@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -25,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -64,10 +54,12 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -75,11 +67,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -120,12 +114,8 @@ public class MetadataIndexTemplateService {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+        clusterService.submitStateUpdateTask(
+                "remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
             @Override
             public void onFailure(String source, Exception e) {
@@ -159,7 +149,7 @@ public class MetadataIndexTemplateService {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new RemoveResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         });
     }
@@ -171,12 +161,7 @@ public class MetadataIndexTemplateService {
     public void putComponentTemplate(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
                                      final ComponentTemplate template, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("create-component-template [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -190,7 +175,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             });
     }
@@ -319,16 +304,11 @@ public class MetadataIndexTemplateService {
      * Remove the given component template from the cluster state. The component template name
      * supports simple regex wildcards for removing multiple component templates at a time.
      */
-    public void removeComponentTemplate(final String name, final TimeValue masterTimeout,
-                                        final ActionListener<AcknowledgedResponse> listener) {
-        validateNotInUse(clusterService.state().metadata(), name);
-        clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+    public void removeComponentTemplate(final String[] names, final TimeValue masterTimeout,
+                                        ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+        validateNotInUse(state.metadata(), names);
+        clusterService.submitStateUpdateTask("remove-component-template [" + String.join(",", names) + "]",
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -337,43 +317,74 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    Set<String> templateNames = new HashSet<>();
-                    for (String templateName : currentState.metadata().componentTemplates().keySet()) {
-                        if (Regex.simpleMatch(name, templateName)) {
-                            templateNames.add(templateName);
-                        }
-                    }
-                    if (templateNames.isEmpty()) {
-                        // if its a match all pattern, and no templates are found (we have none), don't
-                        // fail with index missing...
-                        if (Regex.isMatchAllPattern(name)) {
-                            return currentState;
-                        }
-                        // TODO: perhaps introduce a ComponentTemplateMissingException?
-                        throw new IndexTemplateMissingException(name);
-                    }
-                    Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-                    for (String templateName : templateNames) {
-                        logger.info("removing component template [{}]", templateName);
-                        metadata.removeComponentTemplate(templateName);
-                    }
-                    return ClusterState.builder(currentState).metadata(metadata).build();
+                    return innerRemoveComponentTemplate(currentState, names);
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             });
+    }
+
+    static ClusterState innerRemoveComponentTemplate(ClusterState currentState, String... names) {
+        validateNotInUse(currentState.metadata(), names);
+
+        final Set<String> templateNames = new HashSet<>();
+        if (names.length > 1) {
+            Set<String> missingNames = null;
+            for (String name : names) {
+                if (currentState.metadata().componentTemplates().containsKey(name)) {
+                    templateNames.add(name);
+                } else {
+                    // wildcards are not supported, so if a name with a wildcard is specified then
+                    // the else clause gets executed, because template names can't contain a wildcard.
+                    if (missingNames == null) {
+                        missingNames = new LinkedHashSet<>();
+                    }
+                    missingNames.add(name);
+                }
+            }
+
+            if (missingNames != null) {
+                throw new ResourceNotFoundException(String.join(",", missingNames));
+            }
+        } else {
+            for (String templateName : currentState.metadata().componentTemplates().keySet()) {
+                if (Regex.simpleMatch(names[0], templateName)) {
+                    templateNames.add(templateName);
+                }
+            }
+            if (templateNames.isEmpty()) {
+                // if its a match all pattern, and no templates are found (we have none), don't
+                // fail with index missing...
+                if (Regex.isMatchAllPattern(names[0])) {
+                    return currentState;
+                }
+                throw new ResourceNotFoundException(names[0]);
+            }
+        }
+        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        for (String templateName : templateNames) {
+            logger.info("removing component template [{}]", templateName);
+            metadata.removeComponentTemplate(templateName);
+        }
+        return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
     /**
      * Validates that the given component template is not used by any index
      * templates, throwing an error if it is still in use
      */
-    static void validateNotInUse(Metadata metadata, String templateNameOrWildcard) {
+    static void validateNotInUse(Metadata metadata, String... templateNameOrWildcard) {
+        final Predicate<String> predicate;
+        if (templateNameOrWildcard.length > 1) {
+            predicate = name -> Arrays.stream(templateNameOrWildcard).anyMatch(s -> Objects.equals(s, name));
+        } else {
+            predicate = name -> Regex.simpleMatch(templateNameOrWildcard[0], name);
+        }
         final Set<String> matchingComponentTemplates = metadata.componentTemplates().keySet().stream()
-            .filter(name -> Regex.simpleMatch(templateNameOrWildcard, name))
+            .filter(predicate)
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream()
@@ -402,12 +413,7 @@ public class MetadataIndexTemplateService {
                                    final ComposableIndexTemplate template, final ActionListener<AcknowledgedResponse> listener) {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
         clusterService.submitStateUpdateTask("create-index-template-v2 [" + name + "], cause [" + cause + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -421,7 +427,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             });
     }
@@ -503,7 +509,8 @@ public class MetadataIndexTemplateService {
             final Template finalTemplate = new Template(finalSettings,
                 stringMappings == null ? null : new CompressedXContent(stringMappings), innerTemplate.aliases());
             finalIndexTemplate = new ComposableIndexTemplate(template.indexPatterns(), finalTemplate, template.composedOf(),
-                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate());
+                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate(),
+                template.getAllowAutoCreate());
         }
 
         if (finalIndexTemplate.equals(existing)) {
@@ -621,7 +628,7 @@ public class MetadataIndexTemplateService {
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                 final List<String> indexPatterns, boolean checkPriority, long priority) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
-        Map<String, List<String>> overlappingTemplates = new HashMap<>();
+        Map<String, List<String>> overlappingTemplates = new TreeMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
@@ -644,15 +651,10 @@ public class MetadataIndexTemplateService {
      * Remove the given index template from the cluster state. The index template name
      * supports simple regex wildcards for removing multiple index templates at a time.
      */
-    public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
+    public void removeIndexTemplateV2(final String[] names, final TimeValue masterTimeout,
                                       final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
-            new ClusterStateUpdateTask(Priority.URGENT) {
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
-                }
+        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + String.join(",", names) + "]",
+            new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -661,31 +663,58 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return innerRemoveIndexTemplateV2(currentState, name);
+                    return innerRemoveIndexTemplateV2(currentState, names);
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             });
     }
 
     // Package visible for testing
-    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
+    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
         Set<String> templateNames = new HashSet<>();
-        for (String templateName : currentState.metadata().templatesV2().keySet()) {
-            if (Regex.simpleMatch(name, templateName)) {
-                templateNames.add(templateName);
+
+        if (names.length > 1) {
+            Set<String> missingNames = null;
+            for (String name : names) {
+                if (currentState.metadata().templatesV2().containsKey(name)) {
+                    templateNames.add(name);
+                } else {
+                    // wildcards are not supported, so if a name with a wildcard is specified then
+                    // the else clause gets executed, because template names can't contain a wildcard.
+                    if (missingNames == null) {
+                        missingNames = new LinkedHashSet<>();
+                    }
+                    missingNames.add(name);
+                }
             }
-        }
-        if (templateNames.isEmpty()) {
-            // if its a match all pattern, and no templates are found (we have none), don't
-            // fail with index missing...
-            if (Regex.isMatchAllPattern(name)) {
-                return currentState;
+
+            if (missingNames != null) {
+                throw new IndexTemplateMissingException(String.join(",", missingNames));
             }
-            throw new IndexTemplateMissingException(name);
+        } else {
+            final String name = names[0];
+            for (String templateName : currentState.metadata().templatesV2().keySet()) {
+                if (Regex.simpleMatch(name, templateName)) {
+                    templateNames.add(templateName);
+                }
+            }
+            if (templateNames.isEmpty()) {
+                // if its a match all pattern, and no templates are found (we have none), don't
+                // fail with index missing...
+                boolean isMatchAll = false;
+                if (Regex.isMatchAllPattern(name)) {
+                    isMatchAll = true;
+                }
+                if (isMatchAll) {
+                    return currentState;
+                } else {
+                    throw new IndexTemplateMissingException(name);
+                }
+            }
         }
 
         Optional<Set<String>> dataStreamsUsingTemplates = templateNames.stream()
@@ -742,12 +771,7 @@ public class MetadataIndexTemplateService {
         final IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(request.name);
 
         clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]",
-                new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+                new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
             @Override
             public void onFailure(String source, Exception e) {
@@ -807,11 +831,21 @@ public class MetadataIndexTemplateService {
         }
 
         for (Alias alias : request.aliases) {
-            AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name()).filter(alias.filter())
-                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+            AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
+                .filter(alias.filter())
+                .indexRouting(alias.indexRouting())
+                .searchRouting(alias.searchRouting())
+                .writeIndex(alias.writeIndex())
+                .isHidden(alias.isHidden())
+                .build();
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();
+        IndexTemplateMetadata existingTemplate = currentState.metadata().templates().get(request.name);
+        if (template.equals(existingTemplate)) {
+            // The template is unchanged, therefore there is no need for a cluster state update
+            return currentState;
+        }
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template);
 
@@ -1042,8 +1076,20 @@ public class MetadataIndexTemplateService {
 
     /**
      * Resolve the given v2 template into an ordered list of aliases
+     *
+     * @param failIfTemplateHasDataStream Whether to skip validating if a template has a data stream definition and an alias definition.
+     *                                    This validation is needed so that no template gets created that creates datastream and also
+     *                                    a an alias pointing to the backing indices of a data stream. Unfortunately this validation
+     *                                    was missing in versions prior to 7.11, which mean that there are cluster states out there,
+     *                                    that have this malformed templates. This method is used when rolling over a data stream
+     *                                    or creating new data streams. In order for these clusters to avoid failing these operations
+     *                                    immediately after an upgrade the failure should be optional. So that there is time to change
+     *                                    these templates. The logic that adds/updates index and component templates shouldn't skip this
+     *                                    validation.
      */
-    public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final String templateName) {
+    public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata,
+                                                                  final String templateName,
+                                                                  final boolean failIfTemplateHasDataStream) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
@@ -1063,6 +1109,19 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::aliases)
             .ifPresent(aliases::add);
+
+        // A template that creates data streams can't also create aliases.
+        // (otherwise we end up with aliases pointing to backing indices of data streams)
+        if (aliases.size() > 0 && template.getDataStreamTemplate() != null) {
+            if (failIfTemplateHasDataStream) {
+                throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
+            } else {
+                String warning = "template [" + templateName + "] has alias and data stream definitions";
+                logger.warn(warning);
+                HeaderWarning.addWarning(warning);
+            }
+        }
+
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
         // of precedence (with the index template first)
@@ -1114,11 +1173,13 @@ public class MetadataIndexTemplateService {
             tempIndexService -> {
                 // Validate aliases
                 MetadataCreateIndexService.resolveAndValidateAliases(temporaryIndexName, Collections.emptySet(),
-                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName), stateWithIndex.metadata(),
+                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName, true), stateWithIndex.metadata(),
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp
-                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+                    xContentRegistry, tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                    tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()));
+
 
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
@@ -1425,21 +1486,9 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    public static class RemoveResponse {
-        private final boolean acknowledged;
-
-        public RemoveResponse(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
-    }
-
     public interface RemoveListener {
 
-        void onResponse(RemoveResponse response);
+        void onResponse(AcknowledgedResponse response);
 
         void onFailure(Exception e);
     }

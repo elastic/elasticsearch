@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.upgrades;
 
@@ -308,7 +297,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            performSyncedFlush(index, randomBoolean());
+            ensureGlobalCheckpointSynced(index);
         }
     }
 
@@ -587,22 +577,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void syncedFlush(String index) throws Exception {
-        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-        assertBusy(() -> {
-            try {
-                Response resp = performSyncedFlush(index);
-                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                assertThat(result.get("failed"), equalTo(0));
-            } catch (ResponseException ex) {
-                throw new AssertionError(ex); // cause assert busy to retry
-            }
-        });
-        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
-        ensureGlobalCheckpointSynced(index);
-    }
-
     @SuppressWarnings("unchecked")
     private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
         Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
@@ -668,7 +642,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            performSyncedFlush(index, randomBoolean());
+            ensureGlobalCheckpointSynced(index);
         }
     }
 

@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.MavenFilteringHack
-
 import org.elasticsearch.gradle.http.WaitForHttpResource
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -37,12 +37,23 @@ def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
 }
 // Add keystores to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
 
-integTest.dependsOn(copyKeyCerts)
+['processTestResources', 'integTest', 'filepermissions', 'forbiddenPatterns'].each {
+  tasks.named(it).configure {
+    dependsOn(copyKeyCerts)
+  }
+}
 
-def pluginsCount = 0
-testClusters.integTest {
+ext.pluginPaths = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
+  pluginPaths << pluginProject.path
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
 
@@ -66,14 +77,17 @@ testClusters.integTest {
   user username: "test_user", password: "x-pack-test-password"
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
-  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    plugin pluginProject.path
-    pluginsCount += 1
+  pluginPaths.each { pluginPath ->
+    plugin pluginPath
   }
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+  'expected.plugins.count': pluginPaths.size()
+]
+
+ext.expansions = [
+  'expected.plugins.count': pluginPaths.size()
 ]
 
 tasks.named("processTestResources").configure {

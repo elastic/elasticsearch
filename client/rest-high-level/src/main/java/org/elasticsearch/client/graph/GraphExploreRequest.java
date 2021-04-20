@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.graph;
 
@@ -154,7 +143,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * operations involved in each hop are limited to the remaining time
      * available but can still overrun due to the nature of their "best efforts"
      * timeout support. When a timeout occurs partial results are returned.
-     * 
+     *
      * @param timeout
      *            a {@link TimeValue} object which determines the maximum length
      *            of time to spend exploring
@@ -190,7 +179,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * better with smaller samples as there are less look-ups required for
      * background frequencies of terms found in the documents
      * </p>
-     * 
+     *
      * @param maxNumberOfDocsPerHop
      *            shard-level sample size in documents
      */
@@ -231,7 +220,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * default value is true which means terms are selected based on
      * significance (see the {@link SignificantTerms} aggregation) rather than
      * popularity (using the {@link TermsAggregator}).
-     * 
+     *
      * @param value
      *            true if the significant_terms algorithm should be used.
      */
@@ -246,7 +235,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
     /**
      * Return detailed information about vertex frequencies as part of JSON
      * results - defaults to false
-     * 
+     *
      * @param value
      *            true if detailed information is required in JSON responses
      */
@@ -262,7 +251,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * Add a stage in the graph exploration. Each hop represents a stage of
      * querying elasticsearch to identify terms which can then be connnected to
      * other terms in a subsequent hop.
-     * 
+     *
      * @param guidingQuery
      *            optional choice of query which influences which documents are
      *            considered in this stage
@@ -316,7 +305,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        
+
         builder.startObject("controls");
         {
             if (sampleSize != SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE) {

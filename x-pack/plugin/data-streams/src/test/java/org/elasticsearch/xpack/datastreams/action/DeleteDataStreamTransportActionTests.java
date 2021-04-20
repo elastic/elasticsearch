@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.action;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -28,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.getClusterStateWithDataStreams;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -38,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
-    private final IndexNameExpressionResolver iner = new IndexNameExpressionResolver();
+    private final IndexNameExpressionResolver iner = TestIndexNameExpressionResolver.newInstance();
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
@@ -111,9 +113,10 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             new Snapshot(repo, new SnapshotId("", "")),
             false,
             partial,
-            SnapshotsInProgress.State.STARTED,
+            SnapshotsInProgress.State.SUCCESS,
             Collections.emptyList(),
             Collections.singletonList(dataStreamName),
+            Collections.emptyList(),
             0,
             1,
             ImmutableOpenMap.of(),

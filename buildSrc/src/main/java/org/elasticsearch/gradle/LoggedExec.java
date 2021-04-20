@@ -1,36 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle;
 
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Exec;
+import org.gradle.api.tasks.WorkResult;
 import org.gradle.process.BaseExecSpec;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
+import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -47,13 +38,15 @@ import java.util.regex.Pattern;
  * A wrapper around gradle's Exec task to capture output and log on error.
  */
 @SuppressWarnings("unchecked")
-public class LoggedExec extends Exec {
+public class LoggedExec extends Exec implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     private Consumer<Logger> outputLogger;
+    private FileSystemOperations fileSystemOperations;
 
-    public LoggedExec() {
-
+    @Inject
+    public LoggedExec(FileSystemOperations fileSystemOperations) {
+        this.fileSystemOperations = fileSystemOperations;
         if (getLogger().isInfoEnabled() == false) {
             setIgnoreExitValue(true);
             setSpoolOutput(false);
@@ -112,15 +105,11 @@ public class LoggedExec extends Exec {
         setErrorOutput(out);
     }
 
-    public static ExecResult exec(Project project, Action<ExecSpec> action) {
-        return genericExec(project::exec, action);
-    }
-
     public static ExecResult exec(ExecOperations execOperations, Action<ExecSpec> action) {
         return genericExec(execOperations::exec, action);
     }
 
-    public static ExecResult javaexec(Project project, Action<JavaExecSpec> action) {
+    public static ExecResult javaexec(ExecOperations project, Action<JavaExecSpec> action) {
         return genericExec(project::javaexec, action);
     }
 
@@ -153,5 +142,10 @@ public class LoggedExec extends Exec {
             }
             throw e;
         }
+    }
+
+    @Override
+    public WorkResult delete(Object... objects) {
+        return fileSystemOperations.delete(d -> d.delete(objects));
     }
 }

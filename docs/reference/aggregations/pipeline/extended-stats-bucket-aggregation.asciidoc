@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-extended-stats-bucket-aggregation]]
-=== Extended Stats Bucket Aggregation
+=== Extended stats bucket aggregation
+++++
+<titleabbrev>Extended stats bucket</titleabbrev>
+++++
 
 A sibling pipeline aggregation which calculates a variety of stats across all bucket of a specified metric in a sibling aggregation.
 The specified metric must be numeric and the sibling aggregation must be a multi-bucket aggregation.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.flattened;
@@ -16,6 +17,11 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * @deprecated This class exists for backwards compatibility with 7.12 only
+ * and should not be used for other purposes.
+ */
+@Deprecated
 public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
     private final int fieldCount;
 
@@ -24,8 +30,8 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
         this.fieldCount = input.getVersion().onOrAfter(Version.V_7_6_0) ? input.readInt() : 0;
     }
 
-    public FlattenedFeatureSetUsage(boolean available, int fieldCount) {
-        super(XPackField.FLATTENED, available, true);
+    public FlattenedFeatureSetUsage(int fieldCount) {
+        super(XPackField.FLATTENED, true, true);
         this.fieldCount = fieldCount;
     }
 

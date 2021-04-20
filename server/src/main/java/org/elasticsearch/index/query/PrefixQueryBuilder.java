@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -32,8 +21,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -51,11 +40,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     private final String fieldName;
 
     private final String value;
-    
+
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
-    
+
 
     private String rewrite;
 
@@ -86,7 +75,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         rewrite = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
-        }        
+        }
     }
 
     @Override
@@ -96,7 +85,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeOptionalString(rewrite);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
-        }    
+        }
     }
 
     @Override
@@ -107,18 +96,15 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public String value() {
         return this.value;
     }
-    
+
     public PrefixQueryBuilder caseInsensitive(boolean caseInsensitive) {
-        if (caseInsensitive == false) {
-            throw new IllegalArgumentException("The case insensitive setting cannot be set to false.");
-        }
         this.caseInsensitive = caseInsensitive;
         return this;
-    }    
+    }
 
     public boolean caseInsensitive() {
         return this.caseInsensitive;
-    }    
+    }
 
     public PrefixQueryBuilder rewrite(String rewrite) {
         this.rewrite = rewrite;
@@ -152,7 +138,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;        
+        boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -175,10 +161,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                             rewrite = parser.textOrNull();
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
-                            if (caseInsensitive == false) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "[prefix] query does not support [" + currentFieldName + "] = false");
-                            }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[prefix] query does not support [" + currentFieldName + "]");
@@ -196,9 +178,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
-        if (caseInsensitive) {
-            result.caseInsensitive(caseInsensitive);            
-        }
+        result.caseInsensitive(caseInsensitive);
         return result;
     }
 
@@ -206,12 +186,12 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public String getWriteableName() {
         return NAME;
     }
-    
+
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
-            MappedFieldType fieldType = context.fieldMapper(this.fieldName);
+            MappedFieldType fieldType = context.getFieldType(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
             } else if (fieldType instanceof ConstantFieldType) {
@@ -230,13 +210,13 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         }
 
         return super.doRewrite(queryRewriteContext);
-    }    
+    }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }

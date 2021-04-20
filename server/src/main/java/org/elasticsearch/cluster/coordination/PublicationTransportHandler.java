@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -88,8 +77,8 @@ public class PublicationTransportHandler {
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
     // -> no need to put a timeout on the options here, because we want the response to eventually be received
     //  and not log an error if it arrives after the timeout
-    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
-        .withType(TransportRequestOptions.Type.STATE).build();
+    private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
     public PublicationTransportHandler(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
@@ -358,7 +347,7 @@ public class PublicationTransportHandler {
                     actionName = COMMIT_STATE_ACTION_NAME;
                     transportRequest = applyCommitRequest;
                 }
-                transportService.sendRequest(destination, actionName, transportRequest, stateRequestOptions,
+                transportService.sendRequest(destination, actionName, transportRequest, STATE_REQUEST_OPTIONS,
                 new TransportResponseHandler<TransportResponse.Empty>() {
 
                     @Override
@@ -454,7 +443,7 @@ public class PublicationTransportHandler {
                     actionName = PUBLISH_STATE_ACTION_NAME;
                     transportResponseHandler = responseHandler;
                 }
-                transportService.sendRequest(destination, actionName, request, stateRequestOptions, transportResponseHandler);
+                transportService.sendRequest(destination, actionName, request, STATE_REQUEST_OPTIONS, transportResponseHandler);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", destination), e);
                 listener.onFailure(e);

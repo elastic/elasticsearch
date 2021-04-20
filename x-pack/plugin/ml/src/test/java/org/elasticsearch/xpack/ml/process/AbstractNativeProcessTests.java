@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -48,12 +49,13 @@ public class AbstractNativeProcessTests extends ESTestCase {
     // 1) After close() for jobs that stop gracefully
     // 2) After kill() for jobs that are forcefully terminated
     // 3) After a simulated crash when we test simulated crash
-    private CountDownLatch mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
+    private CountDownLatch mockNativeProcessLoggingStreamEnds;
 
     @Before
     @SuppressWarnings("unchecked")
     public void initialize() throws IOException {
         cppLogHandler = mock(CppLogMessageHandler.class);
+        mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
         // This answer blocks the thread on the executor service.
         // In order to unblock it, the test needs to call mockNativeProcessLoggingStreamEnds.countDown().
         doAnswer(
@@ -105,7 +107,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
         AbstractNativeProcess process = new TestNativeProcess();
         try {
             process.start(executorService);
-            process.kill();
+            process.kill(randomBoolean());
         } finally {
             // It is critical that this comes after kill() but before close(), otherwise we
             // would not be accurately simulating a kill().  This is why try-with-resources
@@ -122,7 +124,19 @@ public class AbstractNativeProcessTests extends ESTestCase {
             mockNativeProcessLoggingStreamEnds.countDown();
             ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
 
-            verify(onProcessCrash).accept("[foo] test process stopped unexpectedly: ");
+            verify(onProcessCrash).accept("[foo] test process stopped unexpectedly before logging started: ");
+        }
+    }
+
+    public void testCrashReporting() throws Exception {
+        when(cppLogHandler.tryGetPid()).thenReturn(42L);
+        when(cppLogHandler.getErrors()).thenReturn("Failed to find the answer");
+        try (AbstractNativeProcess process = new TestNativeProcess()) {
+            process.start(executorService);
+            mockNativeProcessLoggingStreamEnds.countDown();
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
+
+            verify(onProcessCrash).accept("[foo] test/42 process stopped unexpectedly: Failed to find the answer");
         }
     }
 
@@ -197,6 +211,10 @@ public class AbstractNativeProcessTests extends ESTestCase {
 
         @Override
         public void persistState() {
+        }
+
+        @Override
+        public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
         }
     }
 }

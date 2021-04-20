@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -62,7 +63,7 @@ public class ProcessPipesTests extends ESTestCase {
 
         int timeoutSeconds = randomIntBetween(5, 100);
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(timeoutSeconds), AutodetectBuilder.AUTODETECT,
-            "my_job", false, true, true, true, true);
+            "my_job", null, false, true, true, true, true);
 
         List<String> command = new ArrayList<>();
         processPipes.addArgs(command);
@@ -110,7 +111,7 @@ public class ProcessPipesTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
 
-        new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(2), AutodetectBuilder.AUTODETECT, "my_job",
+        new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(2), AutodetectBuilder.AUTODETECT, "my_job", null,
                 true, true, true, true, true);
     }
 
@@ -138,7 +139,7 @@ public class ProcessPipesTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, Duration.ofSeconds(2), AutodetectBuilder.AUTODETECT, "my_job",
-                true, true, true, true, true);
+            null, true, true, true, true, true);
 
         processPipes.connectLogStream();
         expectThrows(IOException.class, processPipes::connectOtherStreams);

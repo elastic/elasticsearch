@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-nested-aggregation]]
-=== Nested Aggregation
+=== Nested aggregation
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
 A special single bucket aggregation that enables aggregating nested documents.
 

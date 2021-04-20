@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
@@ -40,6 +41,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -108,6 +110,14 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Classification("foo", "bar", "results", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[classification] must have one or more metrics"));
+    }
+
+    public void testConstructor_GivenDefaultMetrics() {
+        Classification classification = new Classification("actual", "predicted", null, null);
+
+        List<EvaluationMetric> metrics = classification.getMetrics();
+
+        assertThat(metrics, containsInAnyOrder(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall()));
     }
 
     public void testGetFields() {

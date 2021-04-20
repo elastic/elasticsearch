@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -35,7 +36,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private Collection<RestClient> twoClients = null;
 
     @Before
-    private void collectClientsByVersion() throws IOException {
+    public void collectClientsByVersion() throws IOException {
         Map<Version, RestClient> clientsByVersion = getRestClientByVersion();
         if (clientsByVersion.size() == 2) {
             // usual case, clients have different versions
@@ -51,7 +52,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @After
-    private void closeClientsByVersion() throws IOException {
+    public void closeClientsByVersion() throws IOException {
         for (RestClient client : twoClients) {
             client.close();
         }
@@ -393,6 +394,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "    \"password\": \"" + password + "\",\n" +
                 "    \"grant_type\": \"password\"\n" +
                 "}");
+        createTokenRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> warnings.isEmpty() == false
+                        && (warnings.size() > 1
+                            || warnings.get(0).contains("system indices can only use mappings from their descriptors") == false)
+                )
+        );
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
@@ -425,6 +434,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "    \"refresh_token\": \"" + refreshToken + "\",\n" +
                 "    \"grant_type\": \"refresh_token\"\n" +
                 "}");
+        refreshTokenRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> warnings.isEmpty() == false
+                        && (warnings.size() > 1
+                            || warnings.get(0).contains("system indices can only use mappings from their descriptors") == false)
+                )
+        );
         Response refreshResponse = client.performRequest(refreshTokenRequest);
         assertOK(refreshResponse);
         return entityAsMap(refreshResponse);

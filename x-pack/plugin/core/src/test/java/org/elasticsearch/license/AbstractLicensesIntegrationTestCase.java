@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -25,8 +26,18 @@ import java.util.concurrent.CountDownLatch;
 public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return customSettings(super.nodeSettings(nodeOrdinal, otherSettings));
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        // Plugin should be loaded on the transport client as well
+        return customSettings(super.transportClientSettings());
+    }
+
+    private Settings customSettings(Settings base) {
+        return Settings.builder().put(base).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     @Override
@@ -37,12 +48,6 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(XPackClientPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
     }
 
     protected void putLicense(final License license) throws InterruptedException {

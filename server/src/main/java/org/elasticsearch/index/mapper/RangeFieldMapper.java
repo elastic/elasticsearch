@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANYDa
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,21 +12,20 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -64,7 +52,7 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
-public class RangeFieldMapper extends ParametrizedFieldMapper {
+public class RangeFieldMapper extends FieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
@@ -81,7 +69,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         return (RangeFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -95,19 +83,17 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final RangeType type;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, RangeType type, Settings settings) {
-            this(name, type, COERCE_SETTING.get(settings));
-        }
-
-        public Builder(String name, RangeType type, boolean coerceByDefault) {
+        public Builder(String name, RangeType type, boolean coerceByDefault, Version indexCreatedVersion) {
             super(name);
             this.type = type;
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             if (this.type != RangeType.DATE) {
-                format.setShouldSerialize(() -> false);
-                locale.setShouldSerialize(() -> false);
+                format.neverSerialize();
+                locale.neverSerialize();
             }
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public void docValues(boolean hasDocValues) {
@@ -124,34 +110,34 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             return Arrays.asList(index, hasDocValues, store, coerce, format, locale, boost, meta);
         }
 
-        protected RangeFieldType setupFieldType(BuilderContext context) {
+        protected RangeFieldType setupFieldType(ContentPath contentPath) {
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException("field [" + name() + "] of type [range]"
                         + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
                 DateFormatter dateTimeFormatter;
-                if (Joda.isJodaPattern(context.indexCreatedVersion(), format.getValue())) {
+                if (Joda.isJodaPattern(indexCreatedVersion, format.getValue())) {
                     dateTimeFormatter = Joda.forPattern(format.getValue()).withLocale(locale.getValue());
                 } else {
                     dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
                 }
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
-                    dateTimeFormatter, meta.getValue());
-           }
-            if (type == RangeType.DATE) {
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
-                    Defaults.DATE_FORMATTER, meta.getValue());
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                    dateTimeFormatter, coerce.getValue().value(), meta.getValue());
             }
-            return new RangeFieldType(buildFullName(context), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
-                meta.getValue());
+            if (type == RangeType.DATE) {
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                    Defaults.DATE_FORMATTER, coerce.getValue().value(), meta.getValue());
+            }
+            return new RangeFieldType(buildFullName(contentPath), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+                coerce.getValue().value(), meta.getValue());
         }
 
         @Override
-        public RangeFieldMapper build(BuilderContext context) {
-            RangeFieldType ft = setupFieldType(context);
+        public RangeFieldMapper build(ContentPath contentPath) {
+            RangeFieldType ft = setupFieldType(contentPath);
             ft.setBoost(boost.getValue());
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), type, this);
         }
     }
 
@@ -159,32 +145,33 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         protected final RangeType rangeType;
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
+        protected final boolean coerce;
 
         public RangeFieldType(String name, RangeType type, boolean indexed, boolean stored,
-                              boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+                              boolean hasDocValues, boolean coerce, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.coerce = coerce;
         }
 
         public RangeFieldType(String name, RangeType type) {
-            this(name, type, true, false, true, Collections.emptyMap());
+            this(name, type, true, false, true, false, Collections.emptyMap());
         }
 
         public RangeFieldType(String name, boolean indexed, boolean stored,  boolean hasDocValues, DateFormatter formatter,
-                              Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+                              boolean coerce, Map<String, String> meta) {
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.coerce = coerce;
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {
-            this(name, true, false, true, formatter, Collections.emptyMap());
+            this(name, true, false, true, formatter, false, Collections.emptyMap());
         }
 
         public RangeType rangeType() { return rangeType; }
@@ -193,6 +180,37 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            DateFormatter defaultFormatter = dateTimeFormatter();
+            DateFormatter formatter = format != null
+                ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
+                : defaultFormatter;
+
+            return new SourceValueFetcher(name(), context) {
+
+                @Override
+                @SuppressWarnings("unchecked")
+                protected Object parseSourceValue(Object value) {
+                    RangeType rangeType = rangeType();
+                    if ((value instanceof Map) == false) {
+                        assert rangeType == RangeType.IP;
+                        Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+                        return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
+                    }
+
+                    Map<String, Object> range = (Map<String, Object>) value;
+                    Map<String, Object> parsedRange = new HashMap<>();
+                    for (Map.Entry<String, Object> entry : range.entrySet()) {
+                        Object parsedValue = rangeType.parseValue(entry.getValue(), coerce, dateMathParser);
+                        Object formattedValue = rangeType.formatValue(parsedValue, formatter);
+                        parsedRange.put(entry.getKey(), formattedValue);
+                    }
+                    return parsedRange;
+                }
+            };
         }
 
         @Override
@@ -226,7 +244,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -236,7 +254,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (parser == null) {
                 parser = dateMathParser();
@@ -255,6 +273,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     private final Locale locale;
 
     private final boolean coerceByDefault;
+    private final Version indexCreatedVersion;
 
     private RangeFieldMapper(
         String simpleName,
@@ -272,6 +291,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         this.format = builder.format.getValue();
         this.locale = builder.locale.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     boolean coerce() {
@@ -279,8 +299,8 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, coerceByDefault).init(this);
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), type, coerceByDefault, indexCreatedVersion).init(this);
     }
 
     @Override
@@ -291,11 +311,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return fieldType().typeName();
-    }
-
-    @Override
-    protected RangeFieldMapper clone() {
-        return (RangeFieldMapper) super.clone();
     }
 
     @Override
@@ -360,37 +375,6 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         if (hasDocValues == false && (index || store)) {
             createFieldNamesField(context);
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        DateFormatter defaultFormatter = fieldType().dateTimeFormatter();
-        DateFormatter formatter = format != null
-            ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
-            : defaultFormatter;
-
-        return new SourceValueFetcher(name(), mapperService, parsesArrayValue()) {
-
-            @Override
-            @SuppressWarnings("unchecked")
-            protected Object parseSourceValue(Object value) {
-                RangeType rangeType = fieldType().rangeType();
-                if (!(value instanceof Map)) {
-                    assert rangeType == RangeType.IP;
-                    Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
-                    return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
-                }
-
-                Map<String, Object> range = (Map<String, Object>) value;
-                Map<String, Object> parsedRange = new HashMap<>();
-                for (Map.Entry<String, Object> entry : range.entrySet()) {
-                    Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
-                    Object formattedValue = rangeType.formatValue(parsedValue, formatter);
-                    parsedRange.put(entry.getKey(), formattedValue);
-                }
-                return parsedRange;
-            }
-        };
     }
 
     private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {

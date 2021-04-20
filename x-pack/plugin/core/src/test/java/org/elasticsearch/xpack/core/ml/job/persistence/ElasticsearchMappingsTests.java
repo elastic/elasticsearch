@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
@@ -23,14 +24,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -67,7 +65,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     // These are not reserved because they're Elasticsearch keywords, not
     // field names
-    private static List<String> KEYWORDS = Arrays.asList(
+    private static final List<String> KEYWORDS = Arrays.asList(
             ElasticsearchMappings.ANALYZER,
             ElasticsearchMappings.COPY_TO,
             ElasticsearchMappings.DYNAMIC,
@@ -75,10 +73,11 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.NESTED,
             ElasticsearchMappings.PROPERTIES,
             ElasticsearchMappings.TYPE,
-            ElasticsearchMappings.WHITESPACE
+            ElasticsearchMappings.WHITESPACE,
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
     );
 
-    private static List<String> INTERNAL_FIELDS = Arrays.asList(
+    private static final List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
             GetResult._INDEX,
             GetResult._TYPE
@@ -96,28 +95,15 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(Quantiles.TYPE.getPreferredName());
         overridden.add(TimingStats.TYPE.getPreferredName());
         overridden.add(DatafeedTimingStats.TYPE.getPreferredName());
+        // This is a special case so that categorical job results can be paired easily with anomaly results
+        // This is acceptable as both mappings are keyword for the results documents and for category definitions
+        overridden.add(CategoryDefinition.MLCATEGORY.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
         expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
-    }
-
-    public void testConfigMappingReservedFields() throws Exception {
-        Set<String> overridden = new HashSet<>(KEYWORDS);
-
-        // These are not reserved because they're data types, not field names
-        overridden.add(Job.TYPE);
-        overridden.add(DatafeedConfig.TYPE);
-        // ModelPlotConfig has an 'enabled' the same as one of the keywords
-        overridden.remove(ModelPlotConfig.ENABLED_FIELD.getPreferredName());
-
-        Set<String> expected = collectConfigDocFieldNames();
-        expected.removeAll(overridden);
-        expected.addAll(INTERNAL_FIELDS);
-
-        compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
     }
 
     private void compareFields(Set<String> expected, Set<String> reserved) {
@@ -192,6 +178,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testAddDocMappingIfMissing() throws IOException {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -199,8 +186,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(
             invocationOnMock -> {
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-                listener.onResponse(new AcknowledgedResponse(true));
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
+                listener.onResponse(AcknowledgedResponse.TRUE);
                 return null;
             })
             .when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));
@@ -267,11 +254,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
         return collectFieldNames(AnomalyDetectorsIndex.resultsMapping());
-    }
-
-    private Set<String> collectConfigDocFieldNames() throws IOException {
-        // Only the mappings for the config index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(MlConfigIndex.mapping());
     }
 
     private Set<String> collectFieldNames(String mapping) throws IOException {

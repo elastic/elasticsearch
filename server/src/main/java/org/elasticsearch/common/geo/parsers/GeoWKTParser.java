@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -78,9 +66,8 @@ public class GeoWKTParser {
                                                  final AbstractShapeGeometryFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
         try (StringReader reader = new StringReader(parser.text())) {
-            Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? AbstractShapeGeometryFieldMapper.Defaults.IGNORE_Z_VALUE :
-                shapeMapper.ignoreZValue();
-            Explicit<Boolean> coerce = (shapeMapper == null) ? AbstractShapeGeometryFieldMapper.Defaults.COERCE : shapeMapper.coerce();
+            boolean coerce = shapeMapper != null && shapeMapper.coerce();
+            boolean ignoreZValue = shapeMapper == null || shapeMapper.ignoreZValue();
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
             tokenizer.resetSyntax();
@@ -93,7 +80,7 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue.value(), coerce.value());
+            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue, coerce);
             checkEOF(tokenizer);
             return builder;
         }
@@ -223,7 +210,7 @@ public class GeoWKTParser {
         List<Coordinate> coordinates = parseCoordinateList(stream, ignoreZValue, coerce);
         int coordinatesNeeded = coerce ? 3 : 4;
         if (coordinates.size() >= coordinatesNeeded) {
-            if (!coordinates.get(0).equals(coordinates.get(coordinates.size() - 1))) {
+            if (coordinates.get(0).equals(coordinates.get(coordinates.size() - 1)) == false) {
                 if (coerce) {
                     coordinates.add(coordinates.get(0));
                 } else {
@@ -258,7 +245,7 @@ public class GeoWKTParser {
             return null;
         }
         PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce),
-            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value());
+            ShapeBuilder.Orientation.RIGHT);
         while (nextCloserOrComma(stream).equals(COMMA)) {
             builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
         }

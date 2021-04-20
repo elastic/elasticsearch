@@ -29,6 +29,10 @@ set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 set ES_BUNDLED_JDK=${es.bundled_jdk}
 
+if "%ES_BUNDLED_JDK%" == "false" (
+  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
+)
+
 cd /d "%ES_HOME%"
 
 rem now set the path to java, pass "nojava" arg to skip setting JAVA_HOME and JAVA
@@ -36,16 +40,23 @@ if "%1" == "nojava" (
    exit /b
 )
 
-rem compariing to empty string makes this equivalent to bash -v check on env var
+rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
 rem by setting JAVA_HOME=
-if "%JAVA_HOME%" == "" (
-  set JAVA="%ES_HOME%\jdk\bin\java.exe"
-  set JAVA_HOME="%ES_HOME%\jdk"
-  set JAVA_TYPE=bundled jdk
-) else (
+if defined ES_JAVA_HOME (
+  set JAVA="%ES_JAVA_HOME%\bin\java.exe"
+  set JAVA_TYPE=ES_JAVA_HOME
+) else if defined JAVA_HOME (
+  rem fallback to JAVA_HOME
+  echo "warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME" >&2
   set JAVA="%JAVA_HOME%\bin\java.exe"
+  set "ES_JAVA_HOME=%JAVA_HOME%"
   set JAVA_TYPE=JAVA_HOME
+) else (
+  rem use the bundled JDK (default)
+  set JAVA="%ES_HOME%\jdk\bin\java.exe"
+  set "ES_JAVA_HOME=%ES_HOME%\jdk"
+  set JAVA_TYPE=bundled JDK
 )
 
 if not exist !JAVA! (

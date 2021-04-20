@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.delete;
@@ -157,7 +146,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String type() {
         if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
+            return MapperService.SINGLE_MAPPING_NAME;
         }
         return type;
     }
@@ -173,12 +162,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         this.type = type;
         return this;
     }
-    
+
     /**
      * Set the default type supplied to a bulk
      * request if this individual request's type is null
      * or empty
-     * 
+     *
      * @deprecated Types are in the process of being removed.
      */
     @Deprecated
@@ -188,7 +177,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             type = defaultType;
         }
         return this;
-    }    
+    }
 
     /**
      * The id of the document to delete.

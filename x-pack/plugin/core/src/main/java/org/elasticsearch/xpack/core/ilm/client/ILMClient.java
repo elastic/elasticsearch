@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm.client;
@@ -38,14 +39,14 @@ public class ILMClient {
     /**
      * Create or modify a lifecycle policy definition
      */
-    public void putLifecyclePolicy(PutLifecycleAction.Request request, ActionListener<PutLifecycleAction.Response> listener) {
+    public void putLifecyclePolicy(PutLifecycleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(PutLifecycleAction.INSTANCE, request, listener);
     }
 
     /**
      * Create or modify a lifecycle policy definition
      */
-    public ActionFuture<PutLifecycleAction.Response> putLifecyclePolicy(PutLifecycleAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> putLifecyclePolicy(PutLifecycleAction.Request request) {
         return client.execute(PutLifecycleAction.INSTANCE, request);
     }
 
@@ -66,14 +67,14 @@ public class ILMClient {
     /**
      * Delete a lifecycle policy definition
      */
-    public void deleteLifecyclePolicy(DeleteLifecycleAction.Request request, ActionListener<DeleteLifecycleAction.Response> listener) {
+    public void deleteLifecyclePolicy(DeleteLifecycleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteLifecycleAction.INSTANCE, request, listener);
     }
 
     /**
      * Delete a lifecycle policy definition
      */
-    public ActionFuture<DeleteLifecycleAction.Response> deleteLifecyclePolicy(DeleteLifecycleAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> deleteLifecyclePolicy(DeleteLifecycleAction.Request request) {
         return client.execute(DeleteLifecycleAction.INSTANCE, request);
     }
 
@@ -124,14 +125,14 @@ public class ILMClient {
     /**
      * Retries the policy for an index which is currently in ERROR
      */
-    public void retryPolicy(RetryAction.Request request, ActionListener<RetryAction.Response> listener) {
+    public void retryPolicy(RetryAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(RetryAction.INSTANCE, request, listener);
     }
 
     /**
      * Removes index lifecycle management from an index
      */
-    public ActionFuture<RetryAction.Response> retryPolicy(RetryAction.Request request) {
+    public ActionFuture<AcknowledgedResponse> retryPolicy(RetryAction.Request request) {
         return client.execute(RetryAction.INSTANCE, request);
     }
 

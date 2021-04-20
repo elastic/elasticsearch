@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
@@ -22,6 +11,8 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,7 +29,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * user object contains all user metadata which Elasticsearch uses to map roles,
  * etc.
  */
-public final class AuthenticateResponse {
+public final class AuthenticateResponse implements ToXContentObject {
 
     static final ParseField USERNAME = new ParseField("username");
     static final ParseField ROLES = new ParseField("roles");
@@ -121,6 +112,27 @@ public final class AuthenticateResponse {
 
     public String getAuthenticationType() {
         return authenticationType;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+            .field("username", user.getUsername())
+            .field("roles", user.getRoles())
+            .field("metadata", user.getMetadata())
+            .field("full_name", user.getFullName())
+            .field("email", user.getEmail())
+            .field("enabled", enabled);
+        builder.startObject("authentication_realm")
+            .field("name", authenticationRealm.name)
+            .field("type", authenticationRealm.type);
+        builder.endObject();
+        builder.startObject("lookup_realm")
+            .field("name", lookupRealm == null? authenticationRealm.name: lookupRealm.name)
+            .field("type", lookupRealm == null? authenticationRealm.type: lookupRealm.type);
+        builder.endObject();
+            builder.field("authentication_type", authenticationType);
+        return builder.endObject();
     }
 
     @Override

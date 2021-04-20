@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.cli;
@@ -27,10 +28,8 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
@@ -186,10 +185,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // Verify the key
         assertMatchingPair(getPublicKey(csr), privateKey);
 
-        final String crtName = keyPath.getFileName().toString().replace(".csr", ".crt");
+        final String csrName = csrPath.getFileName().toString();
+        final String crtName = csrName.substring(0, csrName.length() - 4) + ".crt";
 
         // Verify the README
-        assertThat(esReadme, containsString(csrPath.getFileName().toString()));
+        assertThat(esReadme, containsString(csrName));
         assertThat(esReadme, containsString(crtName));
         assertThat(esReadme, containsString(keyPath.getFileName().toString()));
         assertThat(esReadme, containsString(ymlPath.getFileName().toString()));
@@ -198,7 +198,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         }
 
         // Verify the yml
-        assertThat(yml, not(containsString(csrPath.getFileName().toString())));
+        assertThat(yml, not(containsString(csrName)));
         assertThat(yml, containsString(crtName));
         assertThat(yml, containsString(keyPath.getFileName().toString()));
         if ("".equals(password) == false) {
@@ -209,9 +209,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
 
         // No CA in CSR mode
-        verifyKibanaDirectory(zipRoot, false, 
+        verifyKibanaDirectory(zipRoot, false,
             Collections.singletonList("Certificate Signing Request"),
-            Stream.of(password, csrPath.getFileName().toString())
+            Stream.of(password, csrName)
             .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
     }
 
@@ -796,10 +796,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         try (OutputStream out = Files.newOutputStream(path)) {
             ks.store(out, randomAlphaOfLength(8).toCharArray());
         }
-    }
-
-    private Environment newEnvironment() {
-        return TestEnvironment.newEnvironment(super.buildEnvSettings(Settings.EMPTY));
     }
 
     /**

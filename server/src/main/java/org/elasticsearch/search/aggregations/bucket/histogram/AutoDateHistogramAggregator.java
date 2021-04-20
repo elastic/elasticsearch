@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
@@ -23,7 +12,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
@@ -36,14 +24,14 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,6 +39,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongToIntFunction;
+import java.util.function.LongUnaryOperator;
 
 /**
  * An aggregator for date values that attempts to return a specific number of
@@ -70,9 +59,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         AggregatorFactories factories,
         int targetBuckets,
         RoundingInfo[] roundingInfos,
-        Function<Rounding, Rounding.Prepared> roundingPreparer,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -83,9 +71,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 factories,
                 targetBuckets,
                 roundingInfos,
-                roundingPreparer,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             )
@@ -94,9 +81,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 factories,
                 targetBuckets,
                 roundingInfos,
-                roundingPreparer,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             );
@@ -107,9 +93,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private final Function<Rounding, Rounding.Prepared> roundingPreparer;
     /**
      * A reference to the collector so we can
-     * {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}.
+     * {@link BestBucketsDeferringCollector#rewriteBuckets}.
      */
-    private MergingBucketsDeferringCollector deferringCollector;
+    private BestBucketsDeferringCollector deferringCollector;
 
     protected final RoundingInfo[] roundingInfos;
     protected final int targetBuckets;
@@ -119,20 +105,19 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         AggregatorFactories factories,
         int targetBuckets,
         RoundingInfo[] roundingInfos,
-        Function<Rounding, Rounding.Prepared> roundingPreparer,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, context, parent, metadata);
         this.targetBuckets = targetBuckets;
         // TODO: Remove null usage here, by using a different aggregator for create
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
-        this.roundingPreparer = roundingPreparer;
+        this.roundingPreparer = valuesSourceConfig.roundingPreparer();
     }
 
     @Override
@@ -149,8 +134,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public final DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
+    public final DeferringBucketCollector buildDeferringCollector() {
+        deferringCollector = new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 
@@ -210,9 +195,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     }
 
     protected final void merge(long[] mergeMap, long newNumBuckets) {
-        mergeBuckets(mergeMap, newNumBuckets);
+        LongUnaryOperator howToRewrite = b -> mergeMap[(int) b];
+        rewriteBuckets(newNumBuckets, howToRewrite);
         if (deferringCollector != null) {
-            deferringCollector.mergeBuckets(mergeMap);
+            deferringCollector.rewriteBuckets(howToRewrite);
         }
     }
 
@@ -251,9 +237,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             AggregatorFactories factories,
             int targetBuckets,
             RoundingInfo[] roundingInfos,
-            Function<Rounding, Prepared> roundingPreparer,
             ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
@@ -262,15 +247,14 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 factories,
                 targetBuckets,
                 roundingInfos,
-                roundingPreparer,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             );
 
             preparedRounding = prepareRounding(0);
-            bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
+            bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
         }
 
         @Override
@@ -322,7 +306,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         try (LongKeyedBucketOrds oldOrds = bucketOrds) {
                             preparedRounding = prepareRounding(++roundingIdx);
                             long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
-                            bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
+                            bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
                             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
                             while (ordsEnum.next()) {
                                 long oldKey = ordsEnum.value();
@@ -377,7 +361,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * heuristic.
      * <p>
      * When promoting a rounding we keep the old buckets around because it is
-     * expensive to call {@link MergingBucketsDeferringCollector#mergeBuckets}.
+     * expensive to call {@link BestBucketsDeferringCollector#rewriteBuckets}.
      * In particular it is {@code O(number_of_hits_collected_so_far)}. So if we
      * called it frequently we'd end up in {@code O(n^2)} territory. Bad news for
      * aggregations! Instead, we keep a "budget" of buckets that we're ok
@@ -419,7 +403,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * up in {@link InternalAutoDateHistogram#reduceBucket}. In particular,
          * on final reduce we bump the rounding until it we appropriately
          * cover the date range across all of the results returned by all of
-         * the {@link AutoDateHistogramAggregator}s. 
+         * the {@link AutoDateHistogramAggregator}s.
          */
         private ByteArray roundingIndices;
         /**
@@ -433,7 +417,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         /**
          * An underestimate of the number of buckets that are "live" in the
-         * current rounding for each {@code owningBucketOrdinal}. 
+         * current rounding for each {@code owningBucketOrdinal}.
          */
         private IntArray liveBucketCountUnderestimate;
         /**
@@ -457,35 +441,32 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             AggregatorFactories factories,
             int targetBuckets,
             RoundingInfo[] roundingInfos,
-            Function<Rounding, Rounding.Prepared> roundingPreparer,
             ValuesSourceConfig valuesSourceConfig,
-            SearchContext aggregationContext,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
-
             super(
                 name,
                 factories,
                 targetBuckets,
                 roundingInfos,
-                roundingPreparer,
                 valuesSourceConfig,
-                aggregationContext,
+                context,
                 parent,
                 metadata
             );
             assert roundingInfos.length < 127 : "Rounding must fit in a signed byte";
-            roundingIndices = context.bigArrays().newByteArray(1, true);
-            mins = context.bigArrays().newLongArray(1, false);
+            roundingIndices = bigArrays().newByteArray(1, true);
+            mins = bigArrays().newLongArray(1, false);
             mins.set(0, Long.MAX_VALUE);
-            maxes = context.bigArrays().newLongArray(1, false);
+            maxes = bigArrays().newLongArray(1, false);
             maxes.set(0, Long.MIN_VALUE);
             preparedRoundings = new Rounding.Prepared[roundingInfos.length];
             // Prepare the first rounding because we know we'll need it.
-            preparedRoundings[0] = roundingPreparer.apply(roundingInfos[0].rounding);
-            bucketOrds = new LongKeyedBucketOrds.FromMany(context.bigArrays());
-            liveBucketCountUnderestimate = context.bigArrays().newIntArray(1, true);
+            preparedRoundings[0] = prepareRounding(0);
+            bucketOrds = new LongKeyedBucketOrds.FromMany(bigArrays());
+            liveBucketCountUnderestimate = bigArrays().newIntArray(1, true);
         }
 
         @Override
@@ -520,7 +501,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         return roundingIdx;
                     }
                     collectBucket(sub, doc, bucketOrd);
-                    liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
+                    liveBucketCountUnderestimate = bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
                     int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
                     return increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
                 }
@@ -536,12 +517,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     }
                     if (mins.size() < owningBucketOrd + 1) {
                         long oldSize = mins.size();
-                        mins = context.bigArrays().grow(mins, owningBucketOrd + 1);
+                        mins = bigArrays().grow(mins, owningBucketOrd + 1);
                         mins.fill(oldSize, mins.size(), Long.MAX_VALUE);
                     }
                     if (maxes.size() < owningBucketOrd + 1) {
                         long oldSize = maxes.size();
-                        maxes = context.bigArrays().grow(maxes, owningBucketOrd + 1);
+                        maxes = bigArrays().grow(maxes, owningBucketOrd + 1);
                         maxes.fill(oldSize, maxes.size(), Long.MIN_VALUE);
                     }
 
@@ -584,7 +565,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             rebucketCount++;
             try (LongKeyedBucketOrds oldOrds = bucketOrds) {
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
-                bucketOrds = new LongKeyedBucketOrds.FromMany(context.bigArrays());
+                bucketOrds = new LongKeyedBucketOrds.FromMany(bigArrays());
                 for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(owningBucketOrd);
                     Rounding.Prepared preparedRounding = preparedRoundings[roundingIndexFor(owningBucketOrd)];
@@ -594,7 +575,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         long newBucketOrd = bucketOrds.add(owningBucketOrd, newKey);
                         mergeMap[(int) ordsEnum.ord()] = newBucketOrd >= 0 ? newBucketOrd : -1 - newBucketOrd;
                     }
-                    liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
+                    liveBucketCountUnderestimate = bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
                     liveBucketCountUnderestimate.set(owningBucketOrd, Math.toIntExact(bucketOrds.bucketsInOrd(owningBucketOrd)));
                 }
                 merge(mergeMap, bucketOrds.size());
@@ -626,7 +607,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         private void setRounding(long owningBucketOrd, int newRounding) {
-            roundingIndices = context.bigArrays().grow(roundingIndices, owningBucketOrd + 1);
+            roundingIndices = bigArrays().grow(roundingIndices, owningBucketOrd + 1);
             roundingIndices.set(owningBucketOrd, (byte) newRounding);
             if (preparedRoundings[newRounding] == null) {
                 preparedRoundings[newRounding] = prepareRounding(newRounding);

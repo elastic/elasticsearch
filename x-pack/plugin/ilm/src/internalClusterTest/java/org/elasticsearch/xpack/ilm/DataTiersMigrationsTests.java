@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -10,13 +11,13 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.DataTierMigrationRoutedStep;
@@ -65,8 +66,8 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -92,15 +93,15 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     public static Settings hotNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_HOT_NODE_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
     }
 
     public static Settings warmNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_WARM_NODE_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
     }
 
     public static Settings coldNode(final Settings settings) {
-        return onlyRole(settings, DataTier.DATA_COLD_NODE_ROLE);
+        return onlyRole(settings, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
     }
 
     public void testIndexDataTierMigration() throws Exception {
@@ -126,8 +127,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             policy, org.elasticsearch.common.collect.Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
         );
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();
@@ -142,7 +142,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("warm"));
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         logger.info("starting a warm data node");
         internalCluster().startNode(warmNode(Settings.EMPTY));
@@ -154,7 +154,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is(DataTierMigrationRoutedStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         logger.info("starting a cold data node");
         internalCluster().startNode(coldNode(Settings.EMPTY));
@@ -168,7 +168,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
             assertThat(indexLifecycleExplainResponse.getPhase(), is("cold"));
             assertThat(indexLifecycleExplainResponse.getStep(), is("complete"));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testUserOptsOutOfTierMigration() throws Exception {
@@ -189,8 +189,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             policy, org.elasticsearch.common.collect.Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase)
         );
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 
         Settings settings = Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1)
             .put(SETTING_NUMBER_OF_REPLICAS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build();

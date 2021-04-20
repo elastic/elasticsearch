@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.vectors;
 
@@ -12,43 +13,30 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class VectorsFeatureSetTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
     private ClusterService clusterService;
 
     @Before
     public void init() {
-        licenseState = mock(XPackLicenseState.class);
         clusterService = mock(ClusterService.class);
     }
 
     public void testAvailable() throws Exception {
-        VectorsFeatureSet featureSet = new VectorsFeatureSet(licenseState, clusterService);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(available);
-        assertEquals(available, featureSet.available());
-
+        VectorsFeatureSet featureSet = new VectorsFeatureSet(clusterService);
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage usage = future.get();
-        assertEquals(available, usage.available());
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new VectorsFeatureSetUsage(out.bytes().streamInput());
-        assertEquals(available, serializedUsage.available());
+        assertThat(usage.available(), is(true));
     }
 
     public void testUsageStats() throws Exception {
@@ -68,10 +56,9 @@ public class VectorsFeatureSetTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_testcluster")).metadata(metadata).build();
 
         Mockito.when(clusterService.state()).thenReturn(clusterState);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.VECTORS)).thenReturn(true);
 
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        VectorsFeatureSet vectorsFeatureSet = new VectorsFeatureSet(licenseState, clusterService);
+        VectorsFeatureSet vectorsFeatureSet = new VectorsFeatureSet(clusterService);
         vectorsFeatureSet.usage(future);
         VectorsFeatureSetUsage vectorUsage = (VectorsFeatureSetUsage) future.get();
         assertEquals(true, vectorUsage.enabled());

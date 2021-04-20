@@ -1,36 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,28 +25,17 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<ICUCollationKeywordFieldMapper.Builder> {
+public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
     private static final String FIELD_TYPE = "icu_collation_keyword";
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalysisICUPlugin());
-    }
-
-    @Override
-    protected ICUCollationKeywordFieldMapper.Builder newBuilder() {
-        return new ICUCollationKeywordFieldMapper.Builder("icu");
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -80,8 +56,8 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(1234);
+    protected Object getSampleValueForDocument() {
+        return 1234;
     }
 
     public void testDefaults() throws Exception {
@@ -120,7 +96,8 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("null_value", "1234")));
-        doc = mapper.parse(source(b -> {}));
+        doc = mapper.parse(source(b -> {
+        }));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -222,7 +199,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
                 () -> createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index_options", indexOptions))));
             assertThat(
                 e.getMessage(),
-                containsString("The [" + FIELD_TYPE + "] field does not support positions, got [index_options]=" + indexOptions)
+                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
             );
         }
     }
@@ -275,7 +252,7 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
             IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", FIELD_TYPE).field("language", "en")))
         );
-        assertThat(e.getMessage(), containsString("mapper [field] has different [collator]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [language] from [tr] to [en]"));
     }
 
 
@@ -298,24 +275,13 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertEquals(0, fields.length);
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        ICUCollationKeywordFieldMapper mapper = new ICUCollationKeywordFieldMapper.Builder("field").build(context);
-        assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(mapper, true));
-
-        ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
-            .ignoreAbove(4)
-            .build(context);
-        assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
-
-        ICUCollationKeywordFieldMapper nullValueMapper = new ICUCollationKeywordFieldMapper.Builder("field")
-            .nullValue("NULL")
-            .build(context);
-        assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("docvalue_fields is broken", true);
+        // https://github.com/elastic/elasticsearch/issues/70276
+        /*
+         * docvalue_fields loads garbage bytes.
+         */
+        return null;
     }
 }

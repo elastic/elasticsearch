@@ -1,33 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -46,13 +33,6 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
-
-        assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
-        assertThat(point.lat(), closeTo(42.0, 1e-5));
-        assertThat(point.lon(), closeTo(51.0, 1e-5));
-
-        assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
         assertThat(doc.rootDoc().getField("field.field"), notNullValue());
         assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
@@ -91,14 +71,6 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
-
-        assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
-        assertThat(point.lat(), closeTo(42.0, 1E-5));
-        assertThat(point.lon(), closeTo(51.0, 1E-5));
-
-        IndexableField shape = doc.rootDoc().getField("field.shape");
-        assertThat(shape, notNullValue());
 
         IndexableField field = doc.rootDoc().getField("field.text");
         assertThat(field, notNullValue());
@@ -142,10 +114,6 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
-
-        assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-
-        assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
         assertThat(doc.rootDoc().getField("field.text"), notNullValue());
         assertThat(doc.rootDoc().getField("field.text").stringValue(), is("foo"));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
@@ -94,7 +95,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertTrue(stats.getDistribution().isEmpty());
             assertEquals(0.0, stats.getEntropy(), 0);
 
-        }, null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -115,7 +116,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        }, null);
+        });
     }
 
     public void testMissing() throws IOException {
@@ -400,8 +401,9 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalStringStats> verify,
-        MappedFieldType fieldType)  throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     @Override
@@ -412,7 +414,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.BYTES);
+        return singletonList(CoreValuesSourceType.KEYWORD);
     }
 
     @Override

@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -63,7 +53,8 @@ public enum FormatNames {
     WEEK_DATE("weekDate", "week_date"),
     WEEK_DATE_TIME("weekDateTime", "week_date_time"),
     WEEK_DATE_TIME_NO_MILLIS("weekDateTimeNoMillis", "week_date_time_no_millis"),
-    WEEK_YEAR("weekyear", "week_year"),
+    WEEK_YEAR(null, "week_year"),
+    WEEKYEAR(null, "weekyear"),
     WEEK_YEAR_WEEK("weekyearWeek", "weekyear_week"),
     WEEKYEAR_WEEK_DAY("weekyearWeekDay", "weekyear_week_day"),
     YEAR(null, "year"),
@@ -110,6 +101,13 @@ public enum FormatNames {
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
                                                        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
                                                        .collect(Collectors.toSet());
+
+    public static final Set<FormatNames> WEEK_BASED_FORMATS = EnumSet.of(
+        BASIC_WEEK_DATE, BASIC_WEEK_DATE_TIME, BASIC_WEEK_DATE_TIME_NO_MILLIS,
+        WEEK_DATE, WEEK_DATE_TIME, WEEK_DATE_TIME_NO_MILLIS, WEEK_YEAR, WEEKYEAR, WEEK_YEAR_WEEK, WEEKYEAR_WEEK_DAY,
+        STRICT_WEEK_DATE, STRICT_WEEK_DATE_TIME,
+        STRICT_WEEK_DATE_TIME_NO_MILLIS, STRICT_WEEKYEAR, STRICT_WEEKYEAR_WEEK, STRICT_WEEKYEAR_WEEK_DAY);
+
     private final String camelCaseName;
     private final String snakeCaseName;
 

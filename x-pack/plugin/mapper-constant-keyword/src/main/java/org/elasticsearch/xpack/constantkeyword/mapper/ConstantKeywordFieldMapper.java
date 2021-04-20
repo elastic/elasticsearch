@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -26,16 +27,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that assigns every document the same value.
  */
-public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
+public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
@@ -60,11 +60,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,
         // by a dynamic mapping update.  Once it has been set, however, the value cannot be changed.
@@ -80,8 +80,8 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name) {
             super(name);
-            value.setShouldSerialize(() -> value.getValue() != null);
-            value.setMergeValidator((previous, current) -> previous == null || Objects.equals(previous, current));
+            value.setSerializerCheck((id, ic, v) -> v != null);
+            value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
         @Override
@@ -90,9 +90,9 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ConstantKeywordFieldMapper build(BuilderContext context) {
+        public ConstantKeywordFieldMapper build(ContentPath contentPath) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(buildFullName(context), value.getValue(), meta.getValue()));
+                    name, new ConstantKeywordFieldType(buildFullName(contentPath), value.getValue(), meta.getValue()));
         }
     }
 
@@ -128,11 +128,22 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(mapperService -> value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return value == null
+                ? lookup -> Collections.emptyList()
+                : lookup -> Collections.singletonList(value);
+        }
+
+        @Override
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (value == null) {
                 return false;
             }
@@ -140,7 +151,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
 
@@ -149,7 +160,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
                 Object lowerTerm, Object upperTerm,
                 boolean includeLower, boolean includeUpper,
                 ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-                QueryShardContext context) {
+                SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -166,7 +177,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions, QueryShardContext context) {
+                boolean transpositions, SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -196,7 +207,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -214,11 +225,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
         super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
-    }
-
-    @Override
-    protected ConstantKeywordFieldMapper clone() {
-        return (ConstantKeywordFieldMapper) super.clone();
     }
 
     @Override
@@ -249,17 +255,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
         }
-    }
-
-    @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-
-        return fieldType().value == null
-            ? lookup -> org.elasticsearch.common.collect.List.of()
-            : lookup -> org.elasticsearch.common.collect.List.of(fieldType().value);
     }
 
     @Override

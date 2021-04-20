@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.example.realm;
 
@@ -31,8 +32,8 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()
-            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString())
+            .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealmIT.USERNAME)
+            .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealmIT.PASSWORD)
             .build();
     }
 
@@ -54,8 +55,8 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         // Authenticate as the custom realm superuser
-        options.addHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER);
-        options.addHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW.toString());
+        options.addHeader(CustomRealm.USER_HEADER, CustomRealmIT.USERNAME);
+        options.addHeader(CustomRealm.PW_HEADER, CustomRealmIT.PASSWORD);
         // But "run-as" the role mapped user
         options.addHeader("es-security-runas-user", CustomRoleMappingRealm.USERNAME);
         request.setOptions(options);

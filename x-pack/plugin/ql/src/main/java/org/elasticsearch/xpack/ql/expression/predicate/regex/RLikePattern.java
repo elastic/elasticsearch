@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
-import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 
-public class RLikePattern implements StringPattern {
+public class RLikePattern extends AbstractStringPattern {
 
     private final String regexpPattern;
 
@@ -17,12 +18,12 @@ public class RLikePattern implements StringPattern {
     }
 
     @Override
-    public String asJavaRegex() {
-        return regexpPattern;
+    Automaton createAutomaton() {
+        return new RegExp(regexpPattern).toAutomaton();
     }
 
     @Override
-    public boolean matchesAll() {
-        return Operations.isTotal(new RegExp(regexpPattern).toAutomaton());
+    public String asJavaRegex() {
+        return regexpPattern;
     }
 }

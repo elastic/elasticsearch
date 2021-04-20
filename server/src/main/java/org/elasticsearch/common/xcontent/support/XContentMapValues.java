@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -32,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,24 +50,25 @@ public class XContentMapValues {
         }
 
         String key = pathElements[index];
-        Object currentValue = part.get(key);
+        Object currentValue;
         int nextIndex = index + 1;
-        while (currentValue == null && nextIndex != pathElements.length) {
-            key += "." + pathElements[nextIndex];
+
+        while (true) {
             currentValue = part.get(key);
+            if (currentValue != null) {
+                if (currentValue instanceof Map) {
+                    extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
+                } else if (currentValue instanceof List) {
+                    extractRawValues(values, (List) currentValue, pathElements, nextIndex);
+                } else {
+                    values.add(currentValue);
+                }
+            }
+            if (nextIndex == pathElements.length) {
+                return;
+            }
+            key += "." + pathElements[nextIndex];
             nextIndex++;
-        }
-
-        if (currentValue == null) {
-            return;
-        }
-
-        if (currentValue instanceof Map) {
-            extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
-        } else if (currentValue instanceof List) {
-            extractRawValues(values, (List) currentValue, pathElements, nextIndex);
-        } else {
-            values.add(currentValue);
         }
     }
 
@@ -92,7 +83,9 @@ public class XContentMapValues {
             } else if (value instanceof List) {
                 extractRawValues(values, (List) value, pathElements, index);
             } else {
-                values.add(value);
+                if (index == pathElements.length) {
+                    values.add(value);
+                }
             }
         }
     }
@@ -116,6 +109,31 @@ public class XContentMapValues {
             return null;
         }
         return XContentMapValues.extractValue(pathElements, 0, map, null);
+    }
+
+    /**
+     * For the provided nested path, return its value in the xContent map.
+     *
+     * @param nestedPath the nested field value's path in the map.
+     *
+     * @return the list associated with the path in the map or {@code null} if the path does not exits.
+     */
+    public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
+        Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
+        List<?> nestedParsedSource = null;
+        if (extractedValue != null) {
+            if (extractedValue instanceof List) {
+                // nested field has an array value in the _source
+                nestedParsedSource = (List<?>) extractedValue;
+            } else if (extractedValue instanceof Map) {
+                // nested field has an object value in the _source. This just means the nested field has just one inner object,
+                // which is valid, but uncommon.
+                nestedParsedSource = Collections.singletonList(extractedValue);
+            } else {
+                throw new IllegalStateException("extracted source isn't an object or an array");
+            }
+        }
+        return nestedParsedSource;
     }
 
     /**
@@ -161,19 +179,32 @@ public class XContentMapValues {
         if (currentValue instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) currentValue;
             String key = pathElements[index];
-            Object mapValue = map.get(key);
             int nextIndex = index + 1;
-            while (mapValue == null && nextIndex != pathElements.length) {
+            List<Object> extractedValues = new ArrayList<>();
+            while (true) {
+                if (map.containsKey(key)) {
+                    Object mapValue = map.get(key);
+                    if (mapValue == null) {
+                        extractedValues.add(nullValue);
+                    } else {
+                        Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
+                        if (val != null) {
+                            extractedValues.add(val);
+                        }
+                    }
+                }
+                if (nextIndex == pathElements.length) {
+                    if (extractedValues.size() == 0) {
+                        return null;
+                    } else if (extractedValues.size() == 1) {
+                        return extractedValues.get(0);
+                    } else {
+                        return extractedValues;
+                    }
+                }
                 key += "." + pathElements[nextIndex];
-                mapValue = map.get(key);
                 nextIndex++;
             }
-
-            if (map.containsKey(key) == false) {
-                return null;
-            }
-
-            return extractValue(pathElements, nextIndex, mapValue, nullValue);
         }
         return null;
     }

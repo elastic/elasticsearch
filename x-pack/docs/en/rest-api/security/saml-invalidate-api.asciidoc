@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-saml-invalidate]]
 === SAML invalidate API
+++++
+<titleabbrev>SAML invalidate</titleabbrev>
+++++
 
 Submits a SAML LogoutRequest message to {es} for consumption.
 

@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Flush job API
+=== Flush jobs API
 
-The flush job API provides the ability to flush a {ml} job's 
-datafeed in the cluster.
+Flushes an anomaly detection job's datafeed in the cluster.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Flush job request
+==== Flush jobs request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 All other fields are optional for the request.
@@ -41,7 +40,7 @@ to calculate interim results (requires `calc_interim` to be `true`)
 <5> Set the skip time to skip a particular time value
 
 [id="{upid}-{api}-response"]
-==== Flush job response
+==== Flush jobs response
 
 A +{response}+ contains an acknowledgement and an optional end date for the
 last finalized bucket

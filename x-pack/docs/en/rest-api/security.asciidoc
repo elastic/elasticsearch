@@ -61,9 +61,11 @@ without requiring basic authentication:
 You can use the following APIs to create, retrieve and invalidate API keys for access
 without requiring basic authentication:
 
-* <<security-api-create-api-key,Create API Key>>
-* <<security-api-get-api-key,Get API Key>>
-* <<security-api-invalidate-api-key,Invalidate API Key>>
+* <<security-api-create-api-key,Create API key>>
+* <<security-api-get-api-key,Get API key>>
+* <<security-api-invalidate-api-key,Invalidate API key>>
+* <<security-api-clear-api-key-cache,Clear API key cache>>
+* <<security-api-grant-api-key,Grant API key>>
 
 [discrete]
 [[security-user-apis]]
@@ -101,6 +103,7 @@ realm when using a custom web application other than Kibana
 * <<security-api-saml-authenticate, Submit an authentication response>>
 * <<security-api-saml-logout, Logout an authenticated user>>
 * <<security-api-saml-invalidate, Submit a logout request from the IdP>>
+* <<security-api-saml-sp-metadata,Generate SAML metadata>>
 
 
 include::security/authenticate.asciidoc[]
@@ -108,6 +111,7 @@ include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-privileges-cache.asciidoc[]
+include::security/clear-api-key-cache.asciidoc[]
 include::security/create-api-keys.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]
@@ -127,6 +131,7 @@ include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
 include::security/get-users.asciidoc[]
+include::security/grant-api-keys.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/invalidate-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
@@ -137,4 +142,5 @@ include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]
 include::security/saml-invalidate-api.asciidoc[]
+include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]

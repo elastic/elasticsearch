@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest;
@@ -22,11 +11,13 @@ package org.elasticsearch.test.rest;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -42,10 +33,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -75,21 +70,27 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -101,9 +102,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction.WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -115,6 +116,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+
+    public static final String CERTIFICATE_AUTHORITIES = "certificate_authorities";
+
+    public static final String CLIENT_CERT_PATH = "client.cert.path";
+    public static final String CLIENT_KEY_PATH = "client.key.path";
+    public static final String CLIENT_KEY_PASSWORD = "client.key.password";
+
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
@@ -299,6 +307,28 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Construct a Basic auth header
+     * @param username user name
+     * @param passwd user password
+     */
+    public static String basicAuthHeaderValue(String username, SecureString passwd) {
+        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
+        byte[] charBytes = null;
+        try {
+            chars.put(username).put(':').put(passwd.getChars());
+            charBytes = CharArrays.toUtf8Bytes(chars.array());
+
+            String basicToken = Base64.getEncoder().encodeToString(charBytes);
+            return "Basic " + basicToken;
+        } finally {
+            Arrays.fill(chars.array(), (char) 0);
+            if (charBytes != null) {
+                Arrays.fill(charBytes, (byte) 0);
+            }
+        }
+    }
+
+    /**
      * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
      * @deprecated this method is only required while we deprecate types and can be removed in 8.0
      */
@@ -421,7 +451,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (final IOException e) {
                 throw new AssertionError("error getting active tasks list", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -599,50 +629,90 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                Request request = new Request("GET", "_cat/templates");
-                request.addParameter("h", "name");
-                String templates = EntityUtils.toString(adminClient().performRequest(request).getEntity());
-                if (false == "".equals(templates)) {
-                    for (String template : templates.split("\n")) {
-                        if (isXPackTemplate(template)) continue;
-                        if ("".equals(template)) {
-                            throw new IllegalStateException("empty template in templates list:\n" + templates);
-                        }
-                        logger.info("Clearing template [{}]", template);
-                        try {
-                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
-                        } catch (ResponseException e) {
-                            // This is fine, it could be a V2 template
-                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
-                            try {
-                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
-                            } catch (ResponseException e2) {
-                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
+                // index templates, because these were introduced in 7.7.0:
+                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                    try {
+                        Request getTemplatesRequest = new Request("GET", "_index_template");
+                        getTemplatesRequest.setOptions(allowTypesRemovalWarnings());
+                        Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                            EntityUtils.toString(adminClient().performRequest(getTemplatesRequest).getEntity()), false);
+                        List<String> names = ((List<?>) composableIndexTemplates.get("index_templates")).stream()
+                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                            .filter(name -> isXPackTemplate(name) == false)
+                            .collect(Collectors.toList());
+                        if (names.isEmpty() == false) {
+                            // Ideally we would want to check the version of the elected master node and
+                            // send the delete request directly to that node.
+                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                                try {
+                                    adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
+                                } catch (ResponseException e) {
+                                    logger.warn(
+                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names), e);
+                                }
+                            } else {
+                                for (String name : names) {
+                                    try {
+                                        adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
+                                    } catch (ResponseException e) {
+                                        logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                    }
+                                }
                             }
                         }
+                    } catch (Exception e) {
+                        logger.debug("ignoring exception removing all composable index templates", e);
+                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                    }
+                    try {
+                        Request compReq = new Request("GET", "_component_template");
+                        compReq.setOptions(allowTypesRemovalWarnings());
+                        String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                        Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                        List<String> names = ((List<?>) cTemplates.get("component_templates")).stream()
+                            .map(ct -> (String) ((Map<?, ?>) ct).get("name"))
+                            .filter(name -> isXPackTemplate(name) == false)
+                            .collect(Collectors.toList());
+                        if (names.isEmpty() == false) {
+                            // Ideally we would want to check the version of the elected master node and
+                            // send the delete request directly to that node.
+                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                                try {
+                                    adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
+                                } catch (ResponseException e) {
+                                    logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                }
+                            } else {
+                                for (String componentTemplate : names) {
+                                    try {
+                                        adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                                    } catch (ResponseException e) {
+                                        logger.warn(
+                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.debug("ignoring exception removing all component templates", e);
+                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                     }
                 }
-                try {
-                    Request compReq = new Request("GET", "_component_template");
-                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
-                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
-                    @SuppressWarnings("unchecked")
-                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
-                        .map(ct -> (String) ct.get("name"))
-                        .collect(Collectors.toList());
-                    for (String componentTemplate : names) {
-                        try {
-                            if (isXPackTemplate(componentTemplate)) {
-                                continue;
-                            }
-                            adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
-                        } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
-                        }
+                // Always check for legacy templates:
+                Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                getLegacyTemplatesRequest.setOptions(allowTypesRemovalWarnings());
+                Map<String, Object> legacyTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                    EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()), false);
+                for (String name : legacyTemplates.keySet()) {
+                    if (isXPackTemplate(name)) {
+                        continue;
                     }
-                } catch (Exception e) {
-                    logger.info("ignoring exception removing all component templates", e);
-                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                    try {
+                        adminClient().performRequest(new Request("DELETE", "_template/" + name));
+                    } catch (ResponseException e) {
+                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                    }
                 }
             } else {
                 logger.debug("Clearing all templates");
@@ -675,8 +745,23 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Request deleteRequest = new Request("DELETE", "*");
+            //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
+            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
+            allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
+                    if (warnings.size() == 0) {
+                        return false;
+                    } else if (warnings.size() > 1) {
+                        return true;
+                    }
+                    // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
+                    final String warning = warnings.get(0);
+                    final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
+                        && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                    return isSystemIndexWarning == false;
+                });
+            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -691,15 +776,22 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            if (hasXPack() && nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_9_0))) {
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
-            // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
-            // that doesn't support data streams so it's safe to ignore
-            int statusCode = e.getResponse().getStatusLine().getStatusCode();
-            if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
-                throw e;
+            // We hit a version of ES that doesn't understand expand_wildcards, try again without it
+            try {
+                if (hasXPack()) {
+                    adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                }
+            } catch (ResponseException ee) {
+                // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified
+                //field or that doesn't support data streams so it's safe to ignore
+                int statusCode = ee.getResponse().getStatusLine().getStatusCode();
+                if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+                    throw ee;
+                }
             }
         }
     }
@@ -818,7 +910,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void refreshAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        // Allow system index deprecation warnings
+        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
+        requestOptions.setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            } else {
+                return warnings.get(0).startsWith("this request accesses system indices:") == false;
+            }
+        });
+        refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
     }
 
@@ -987,18 +1091,30 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
-        String keystorePath = settings.get(TRUSTSTORE_PATH);
-        if (keystorePath != null) {
+        String truststorePath = settings.get(TRUSTSTORE_PATH);
+        String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
+        String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
+
+        if (certificateAuthorities != null && truststorePath != null) {
+            throw new IllegalStateException("Cannot set both " + CERTIFICATE_AUTHORITIES + " and " + TRUSTSTORE_PATH
+                + ". Please configure one of these.");
+
+        }
+        if (truststorePath != null) {
+            if (inFipsJvm()) {
+                throw new IllegalStateException("Keystore " + truststorePath + "cannot be used in FIPS 140 mode. Please configure "
+                    + CERTIFICATE_AUTHORITIES + " with a PEM encoded trusted CA/certificate instead");
+            }
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
             if (keystorePass == null) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
             }
-            Path path = PathUtils.get(keystorePath);
-            if (!Files.exists(path)) {
+            Path path = PathUtils.get(truststorePath);
+            if (Files.exists(path) == false) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                final String keyStoreType = truststorePath.endsWith(".p12") ? "PKCS12" : "jks";
                 KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
@@ -1006,9 +1122,40 @@ public abstract class ESRestTestCase extends ESTestCase {
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
-            } catch (KeyStoreException |NoSuchAlgorithmException |KeyManagementException |CertificateException e) {
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
+        }
+        if (certificateAuthorities != null) {
+            Path caPath = PathUtils.get(certificateAuthorities);
+            if (Files.exists(caPath) == false) {
+                throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
+            }
+            try {
+                KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+                keyStore.load(null, null);
+                Certificate caCert = PemUtils.readCertificates(Collections.singletonList(caPath)).get(0);
+                keyStore.setCertificateEntry(caCert.toString(), caCert);
+                final SSLContextBuilder sslContextBuilder = SSLContexts.custom();
+                if (clientCertificatePath != null) {
+                    final Path certPath = PathUtils.get(clientCertificatePath);
+                    final Path keyPath = PathUtils.get(Objects.requireNonNull(settings.get(CLIENT_KEY_PATH), "No key provided"));
+                    final String password = settings.get(CLIENT_KEY_PASSWORD);
+                    final char[] passwordChars = password == null ? null : password.toCharArray();
+                    final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> passwordChars);
+                    final Certificate[] clientCertChain
+                        = PemUtils.readCertificates(Collections.singletonList(certPath)).toArray(new Certificate[1]);
+                    keyStore.setKeyEntry("client", key, passwordChars, clientCertChain);
+                    sslContextBuilder.loadKeyMaterial(keyStore, passwordChars);
+                }
+                SSLContext sslcontext = sslContextBuilder.loadTrustMaterial(keyStore, null).build();
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
+            } catch (GeneralSecurityException e) {
+                throw new RuntimeException("Error setting up ssl", e);
+            }
+        } else if (clientCertificatePath != null) {
+            throw new IllegalStateException("Client certificates are currently only supported when using a custom CA");
         }
         Map<String, String> headers = ThreadContext.buildDefaultHeaders(settings);
         Header[] defaultHeaders = new Header[headers.size()];
@@ -1042,8 +1189,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         return runningTasks;
     }
 
-    protected static void assertOK(Response response) {
+    public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    /**
+     * Permits subclasses to increase the default timeout when waiting for green health
+     */
+    @Nullable
+    protected String getEnsureGreenTimeout() {
+        return null;
     }
 
     /**
@@ -1051,11 +1206,14 @@ public abstract class ESRestTestCase extends ESTestCase {
      * in an non green state
      * @param index index to test for
      **/
-    public static void ensureGreen(String index) throws IOException {
+    public final void ensureGreen(String index) throws IOException {
         ensureHealth(index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
-            request.addParameter("timeout", "70s");
+            final String ensureGreenTimeout = getEnsureGreenTimeout();
+            if (ensureGreenTimeout != null) {
+                request.addParameter("timeout", ensureGreenTimeout);
+            }
             request.addParameter("level", "shards");
         });
     }
@@ -1064,7 +1222,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth("", requestConsumer);
     }
 
-    protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+    public static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
         ensureHealth(client(), index, requestConsumer);
     }
 
@@ -1128,8 +1286,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void deleteIndex(String name) throws IOException {
+        deleteIndex(client(), name);
+    }
+
+    protected static void deleteIndex(RestClient client, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1186,13 +1348,24 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(new Request("HEAD", "/" + index));
+        final Request getRequest = new Request("HEAD", "/" + index);
+        getRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get indices " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type " +
+                "name in mapping definitions.";
+            v.compatible(typesWarning);
+        }));
+        Response response = client().performRequest(getRequest);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
+        closeRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+            v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+        }));
+        assertOK(client().performRequest(closeRequest));
     }
 
     protected static void openIndex(String index) throws IOException {
@@ -1237,19 +1410,38 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
+        registerRepository(client(), repository, type, verify, settings);
+    }
+
+    protected static void registerRepository(
+        RestClient client,
+        String repository,
+        String type,
+        boolean verify,
+        Settings settings
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
         request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
 
-        final Response response = client().performRequest(request);
+        final Response response = client.performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
     }
 
     protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        createSnapshot(client(), repository, snapshot, waitForCompletion);
+    }
+
+    protected static void createSnapshot(
+        RestClient client,
+        String repository,
+        String snapshot,
+        boolean waitForCompletion
+    ) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
 
-        final Response response = client().performRequest(request);
+        final Response response = client.performRequest(request);
         assertThat(
             "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
             response.getStatusLine().getStatusCode(),
@@ -1267,6 +1459,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
+        deleteSnapshot(client(), repository, snapshot, ignoreMissing);
+    }
+
+    protected static void deleteSnapshot(RestClient client, String repository, String snapshot, boolean ignoreMissing) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        if (ignoreMissing) {
+            request.addParameter("ignore", "404");
+        }
+        final Response response = client.performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(),  ignoreMissing ? anyOf(equalTo(200), equalTo(404)) : equalTo(200));
     }
 
     @SuppressWarnings("unchecked")
@@ -1301,15 +1506,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".transform-")) {
             return true;
         }
+        if (name.startsWith(".deprecation-")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
-            case "logstash-index-template":
-            case ".logstash-management":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
             case "saml-service-provider":
-            case "ilm-history":
             case "logs":
             case "logs-settings":
             case "logs-mappings":
@@ -1320,6 +1525,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
+            case "ilm-history":
+            case "logstash-index-template":
+            case "security-index-template":
                 return true;
             default:
                 return false;
@@ -1438,19 +1646,39 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    protected static Response performSyncedFlush(String indexName) throws IOException {
+    protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
+        // prior to v7.11, the deprecation message for synced flush was incorrect so we also need to handle that
+        final List<String> incorrectWarningMessage = Collections.singletonList("Synced flush is deprecated and will be removed in 8.0." +
+            " Use flush at _/flush or /{index}/_flush instead.");
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_11_0))) {
             options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+        } else if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false &&
+                warnings.equals(incorrectWarningMessage) == false);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false &&
+                warnings.equals(expectedWarnings) == false && warnings.equals(incorrectWarningMessage) == false);
         }
-        return client().performRequest(request);
+        request.setOptions(options);
+        // We have to spin a synced-flush request because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                Response resp = client().performRequest(request);
+                if (retryOnConflict) {
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("failed"), equalTo(0));
+                }
+            } catch (ResponseException ex) {
+                assertThat(ex.getResponse().getStatusLine(), equalTo(HttpStatus.SC_CONFLICT));
+                if (retryOnConflict) {
+                    throw new AssertionError(ex); // cause assert busy to retry
+                }
+            }
+        });
     }
 
     /**
@@ -1484,6 +1712,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         });
     }
 
+    //TODO: replace usages of this with warning_regex or allowed_warnings_regex
     static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
         "templates \\[(.+)\\], composable templates will only match a single template$");
 

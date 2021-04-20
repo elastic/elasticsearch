@@ -6,7 +6,7 @@
 #ES_HOME=/usr/share/elasticsearch
 
 # Elasticsearch Java path
-#JAVA_HOME=
+#ES_JAVA_HOME=
 
 # Elasticsearch configuration directory
 # Note: this setting will be shared with command-line tools

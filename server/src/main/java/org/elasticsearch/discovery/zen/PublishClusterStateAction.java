@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.zen;
@@ -40,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -81,8 +69,8 @@ public class PublishClusterStateAction {
 
     // -> no need to put a timeout on the options, because we want the state response to eventually be received
     //  and not log an error if it arrives after the timeout
-    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
-        .withType(TransportRequestOptions.Type.STATE).build();
+    private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
     public interface IncomingClusterStateListener {
 
@@ -148,7 +136,7 @@ public class PublishClusterStateAction {
                     nodesToPublishTo.add(node);
                 }
             }
-            sendFullVersion = !discoverySettings.getPublishDiff() || clusterChangedEvent.previousState() == null;
+            sendFullVersion = discoverySettings.getPublishDiff() == false || clusterChangedEvent.previousState() == null;
             serializedStates = new HashMap<>();
             serializedDiffs = new HashMap<>();
 
@@ -198,7 +186,7 @@ public class PublishClusterStateAction {
             // try and serialize the cluster state once (or per version), so we don't serialize it
             // per node when we send it over the wire, compress it while we are at it...
             // we don't send full version if node didn't exist in the previous version of cluster state
-            if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
+            if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                 sendFullClusterState(clusterState, serializedStates, node, publishTimeout, sendingController);
             } else {
                 sendClusterStateDiff(clusterState, serializedDiffs, serializedStates, node, publishTimeout, sendingController);
@@ -214,7 +202,8 @@ public class PublishClusterStateAction {
         try {
             long timeLeftInNanos = Math.max(0, publishTimeout.nanos() - commitTime);
             final BlockingClusterStatePublishResponseHandler publishResponseHandler = sendingController.getPublishResponseHandler();
-            sendingController.setPublishingTimedOut(!publishResponseHandler.awaitAllNodes(TimeValue.timeValueNanos(timeLeftInNanos)));
+            sendingController.setPublishingTimedOut(
+                    publishResponseHandler.awaitAllNodes(TimeValue.timeValueNanos(timeLeftInNanos)) == false);
             if (sendingController.getPublishingTimedOut()) {
                 DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
                 // everyone may have just responded
@@ -241,7 +230,7 @@ public class PublishClusterStateAction {
         Diff<ClusterState> diff = null;
         for (final DiscoveryNode node : nodesToPublishTo) {
             try {
-                if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
+                if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                     // will send a full reference
                     if (serializedStates.containsKey(node.getVersion()) == false) {
                         serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
@@ -294,7 +283,7 @@ public class PublishClusterStateAction {
 
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.getVersion()),
-                    stateRequestOptions,
+                    STATE_REQUEST_OPTIONS,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override
@@ -329,7 +318,7 @@ public class PublishClusterStateAction {
                 clusterState.stateUUID(), clusterState.version(), node);
             transportService.sendRequest(node, COMMIT_ACTION_NAME,
                     new CommitClusterStateRequest(clusterState.stateUUID()),
-                    stateRequestOptions,
+                    STATE_REQUEST_OPTIONS,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override

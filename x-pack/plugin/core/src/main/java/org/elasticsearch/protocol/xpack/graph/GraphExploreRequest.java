@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.graph;
 
@@ -169,7 +170,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * operations involved in each hop are limited to the remaining time
      * available but can still overrun due to the nature of their "best efforts"
      * timeout support. When a timeout occurs partial results are returned.
-     * 
+     *
      * @param timeout
      *            a {@link TimeValue} object which determines the maximum length
      *            of time to spend exploring
@@ -227,7 +228,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * better with smaller samples as there are less look-ups required for
      * background frequencies of terms found in the documents
      * </p>
-     * 
+     *
      * @param maxNumberOfDocsPerHop
      *            shard-level sample size in documents
      */
@@ -268,7 +269,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * default value is true which means terms are selected based on
      * significance (see the {@link SignificantTerms} aggregation) rather than
      * popularity (using the {@link TermsAggregator}).
-     * 
+     *
      * @param value
      *            true if the significant_terms algorithm should be used.
      */
@@ -283,7 +284,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     /**
      * Return detailed information about vertex frequencies as part of JSON
      * results - defaults to false
-     * 
+     *
      * @param value
      *            true if detailed information is required in JSON responses
      */
@@ -299,7 +300,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * Add a stage in the graph exploration. Each hop represents a stage of
      * querying elasticsearch to identify terms which can then be connnected to
      * other terms in a subsequent hop.
-     * 
+     *
      * @param guidingQuery
      *            optional choice of query which influences which documents are
      *            considered in this stage
@@ -364,7 +365,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        
+
         builder.startObject("controls");
         {
             if (sampleSize != SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE) {

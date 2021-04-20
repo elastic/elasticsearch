@@ -7,7 +7,8 @@
 [role="xpack"]
 [id="{upid}-{api}"]
 === Delete expired data API
-Delete expired {ml} data.
+
+Deletes expired {ml} data.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 

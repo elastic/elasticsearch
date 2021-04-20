@@ -16,6 +16,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - ingest.geoip.downloader.enabled=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
@@ -23,14 +24,18 @@ services:
        - xpack.security.audit.enabled=true
        - xpack.security.authc.realms.file.file1.order=0
        - xpack.security.authc.realms.native.native1.order=1
-       - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
+       - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/testnode.pem
+       - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/testnode.crt
+       - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/testnode.pem
+       - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/testnode.crt
        - xpack.http.ssl.verification_mode=certificate
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
+       - action.destructive_requires_name=false
     volumes:
        - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
+       - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
+       - ./build/certs/testnode.crt:/usr/share/elasticsearch/config/testnode.crt
        - ./build/logs/default-1:/usr/share/elasticsearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:
@@ -65,6 +70,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - ingest.geoip.downloader.enabled=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
@@ -72,14 +78,18 @@ services:
        - xpack.security.audit.enabled=true
        - xpack.security.authc.realms.file.file1.order=0
        - xpack.security.authc.realms.native.native1.order=1
-       - xpack.security.transport.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
-       - xpack.security.http.ssl.keystore.path=/usr/share/elasticsearch/config/testnode.jks
+       - xpack.security.transport.ssl.key=/usr/share/elasticsearch/config/testnode.pem
+       - xpack.security.transport.ssl.certificate=/usr/share/elasticsearch/config/testnode.crt
+       - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/testnode.pem
+       - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/testnode.crt
        - xpack.http.ssl.verification_mode=certificate
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
+       - action.destructive_requires_name=false
     volumes:
        - ./build/repo:/tmp/es-repo
-       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
+       - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
+       - ./build/certs/testnode.crt:/usr/share/elasticsearch/config/testnode.crt
        - ./build/logs/default-2:/usr/share/elasticsearch/logs
        - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
     ports:

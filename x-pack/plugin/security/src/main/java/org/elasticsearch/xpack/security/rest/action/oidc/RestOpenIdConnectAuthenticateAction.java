@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.oidc;
 
@@ -22,9 +23,12 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateResponse;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -32,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri
  */
-public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler {
+public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger();
 
     static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>("oidc_authn",
@@ -64,12 +68,15 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
                     @Override
                     public RestResponse buildResponse(OpenIdConnectAuthenticateResponse response, XContentBuilder builder)
                         throws Exception {
-                        builder.startObject()
-                            .field("username", response.getPrincipal())
-                            .field("access_token", response.getAccessTokenString())
-                            .field("refresh_token", response.getRefreshTokenString())
-                            .field("expires_in", response.getExpiresIn().seconds())
-                            .endObject();
+                        builder.startObject();
+                        builder.field("username", response.getPrincipal());
+                        builder.field("access_token", response.getAccessTokenString());
+                        builder.field("refresh_token", response.getRefreshTokenString());
+                        builder.field("expires_in", response.getExpiresIn().seconds());
+                        if(response.getAuthentication() != null) {
+                            builder.field("authentication", response.getAuthentication());
+                        }
+                        builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });
@@ -79,5 +86,12 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
     @Override
     public String getName() {
         return "security_oidc_authenticate_action";
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.singleton("redirect_uri");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

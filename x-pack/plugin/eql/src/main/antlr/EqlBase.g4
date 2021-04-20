@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 grammar EqlBase;
@@ -55,7 +56,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (FORK (EQ booleanValue)?)? (by=joinKeys)?
+   : subquery (by=joinKeys)?
    ;
 
 subquery
@@ -65,9 +66,9 @@ subquery
 eventQuery
     : eventFilter
     ;
-    
+
 eventFilter
-    : (ANY | event=identifier) WHERE expression
+    : (ANY | event=eventValue) WHERE expression
     ;
 
 expression
@@ -99,7 +100,9 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/780
 //   https://github.com/antlr/antlr4/issues/781
 predicate
-    : NOT? kind=IN LP expression (COMMA expression)* RP
+    : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) constant
+    | kind=(SEQ | LIKE | LIKE_INSENSITIVE | REGEX | REGEX_INSENSITIVE) LP constant (COMMA constant)* RP
     ;
 
 primaryExpression
@@ -110,7 +113,12 @@ primaryExpression
     ;
 
 functionExpression
-    : name=IDENTIFIER LP (expression (COMMA expression)*)? RP
+    : name=functionName LP (expression (COMMA expression)*)? RP
+    ;
+
+functionName
+    : IDENTIFIER
+    | TILDE_IDENTIFIER
     ;
 
 constant
@@ -134,7 +142,7 @@ qualifiedName
 
 identifier
     : IDENTIFIER
-    | ESCAPED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 timeUnit
@@ -154,14 +162,18 @@ AND: 'and';
 ANY: 'any';
 BY: 'by';
 FALSE: 'false';
-FORK: 'fork';
 IN: 'in';
+IN_INSENSITIVE : 'in~';
 JOIN: 'join';
+LIKE: 'like';
+LIKE_INSENSITIVE: 'like~';
 MAXSPAN: 'maxspan';
 NOT: 'not';
 NULL: 'null';
 OF: 'of';
 OR: 'or';
+REGEX: 'regex';
+REGEX_INSENSITIVE: 'regex~';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';
@@ -169,6 +181,9 @@ WHERE: 'where';
 WITH: 'with';
 
 // Operators
+// dedicated string equality - case-insensitive and supporting * operator
+SEQ : ':';
+// regular operators
 ASGN : '=';
 EQ  : '==';
 NEQ : '!=';
@@ -190,14 +205,27 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 
+fragment STRING_ESCAPE
+    : '\\' [btnfr"'\\]
+    ;
 
-ESCAPED_IDENTIFIER
-    : '`' ( ~'`' | '``' )* '`'
+fragment HEX_DIGIT
+    : [0-9abcdefABCDEF]
+    ;
+
+fragment UNICODE_ESCAPE
+    : '\\u' '{' HEX_DIGIT+  '}' // 2-8 hex
+    ;
+
+fragment UNESCAPED_CHARS
+    : ~[\r\n"\\]
     ;
 
 STRING
-    : '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
-    | '"'   ('\\' [btnfr"'\\] | ~[\r\n"\\])* '"'
+    : '"' (STRING_ESCAPE | UNICODE_ESCAPE | UNESCAPED_CHARS)* '"'
+    | '"""' (~[\r\n])*? '"""' '"'? '"'?
+    // Old style quoting of string, handled as errors in AbstractBuilder
+    | '\''  ('\\' [btnfr"'\\] | ~[\r\n'\\])* '\''
     | '?"'  ('\\"' |~["\r\n])* '"'
     | '?\'' ('\\\'' |~['\r\n])* '\''
     ;
@@ -216,6 +244,19 @@ DECIMAL_VALUE
 // make @timestamp not require escaping, since @ has no other meaning
 IDENTIFIER
     : (LETTER | '_' | '@') (LETTER | DIGIT | '_')*
+    ;
+
+QUOTED_IDENTIFIER
+    : '`' ( ~'`' | '``' )* '`'
+    ;
+
+TILDE_IDENTIFIER
+    : LETTER (LETTER | DIGIT | '_')* '~'
+    ;
+
+eventValue
+    : STRING
+    | IDENTIFIER
     ;
 
 fragment EXPONENT

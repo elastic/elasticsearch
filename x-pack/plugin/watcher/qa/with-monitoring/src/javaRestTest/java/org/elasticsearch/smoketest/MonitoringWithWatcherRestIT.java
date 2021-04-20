@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
@@ -15,6 +16,7 @@ import org.junit.After;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.WatcherRestTestCase.deleteAllWatcherData;
 import static org.hamcrest.Matchers.is;
 
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
@@ -33,15 +35,16 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After
     public void cleanExporters() throws Exception {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(Strings.toString(jsonBuilder().startObject()
+        Request cleanupSettingsRequest = new Request("PUT", "/_cluster/settings");
+        cleanupSettingsRequest.setJsonEntity(Strings.toString(jsonBuilder().startObject()
                 .startObject("transient")
                     .nullField("xpack.monitoring.exporters.*")
                 .endObject().endObject()));
-        adminClient().performRequest(request);
-        adminClient().performRequest(new Request("DELETE", "/.watch*"));
+        adminClient().performRequest(cleanupSettingsRequest);
+        deleteAllWatcherData();
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/59132" )
     public void testThatLocalExporterAddsWatches() throws Exception {
         String watchId = createMonitoringWatch();
 
@@ -86,8 +89,9 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     private void assertTotalWatchCount(int expectedWatches) throws Exception {
         assertBusy(() -> {
-            assertOK(client().performRequest(new Request("POST", "/.watches/_refresh")));
-            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/.watches/_count")));
+            refreshAllIndices();
+            final Request countRequest = new Request("POST", "/_watcher/_query/watches");
+            ObjectPath path = ObjectPath.createFromResponse(client().performRequest(countRequest));
             int count = path.evaluate("count");
             assertThat(count, is(expectedWatches));
         });

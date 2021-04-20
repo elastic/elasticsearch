@@ -1,20 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
-import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm;
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm;
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm;
 
 public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
@@ -48,7 +54,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long", true, false, false, null);
+        UnsignedLongFieldType ft = new UnsignedLongFieldType("my_unsigned_long", true, false, false, null, Collections.emptyMap());
 
         assertEquals(
             LongPoint.newRangeQuery("my_unsigned_long", -9223372036854775808L, -9223372036854775808L),
@@ -148,5 +154,18 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
 
         // wrongly formatted numbers
         expectThrows(NumberFormatException.class, () -> parseUpperRangeTerm("18incorrectnumber", true));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        assertEquals(Collections.singletonList(0L), fetchSourceValue(mapper, 0L));
+        assertEquals(Collections.singletonList(9223372036854775807L), fetchSourceValue(mapper, 9223372036854775807L));
+        assertEquals(Collections.singletonList(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(mapper, "18446744073709551615"));
+        assertEquals(Collections.emptyList(), fetchSourceValue(mapper, ""));
+
+        MappedFieldType nullValueMapper = new UnsignedLongFieldMapper.Builder("field", false).nullValue("18446744073709551615")
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(Collections.singletonList(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
     }
 }

@@ -1,33 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -48,6 +36,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
@@ -67,14 +56,16 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
@@ -135,22 +126,16 @@ public abstract class TransportClient extends AbstractClient {
             providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
         }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
-        final Settings settings =
-                Settings.builder()
-                        .put(defaultSettings)
-                        .put(pluginsService.updatedSettings())
-                        .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
-                        .build();
-        final Set<DiscoveryNodeRole> possibleRoles = pluginsService.filterPlugins(Plugin.class)
-            .stream()
-            .map(Plugin::getRoles)
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
-        DiscoveryNode.setAdditionalRoles(possibleRoles);
         final List<Closeable> resourcesToClose = new ArrayList<>();
+        final Settings settings =
+            Settings.builder()
+                .put(defaultSettings)
+                .put(pluginsService.updatedSettings())
+                .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+                .build();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-        final NetworkService networkService = new NetworkService(Collections.emptyList());
+        final NetworkService networkService = new NetworkService(emptyList());
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
@@ -158,10 +143,10 @@ public abstract class TransportClient extends AbstractClient {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             SettingsModule settingsModule =
-                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, Collections.emptySet());
+                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, emptySet());
 
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+            IndicesModule indicesModule = new IndicesModule(emptyList());
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
@@ -185,11 +170,11 @@ public abstract class TransportClient extends AbstractClient {
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             ActionModule actionModule = new ActionModule(true, settings, null, settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(), threadPool,
-                    pluginsService.filterPlugins(ActionPlugin.class), null, null, null);
+                    pluginsService.filterPlugins(ActionPlugin.class), null, null, null, new SystemIndices(emptyMap()));
             modules.add(actionModule);
 
             CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
-                Collections.emptyList(),
+                emptyList(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
@@ -202,7 +187,7 @@ public abstract class TransportClient extends AbstractClient {
             final TransportService transportService = new TransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(),
                 boundTransportAddress -> DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 0),
-                    UUIDs.randomBase64UUID()), null, Collections.emptySet());
+                    UUIDs.randomBase64UUID()), null, emptySet());
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
@@ -227,7 +212,7 @@ public abstract class TransportClient extends AbstractClient {
             final List<? extends ActionType<?>> baseActions =
                     actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
             clientActions.addAll(baseActions);
-            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, clientActions);
+            final TransportProxyClient proxy = new TransportProxyClient(transportService, nodesService, clientActions);
 
             List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));
@@ -300,7 +285,7 @@ public abstract class TransportClient extends AbstractClient {
     private TransportClient(ClientTemplate template) {
         super(template.getSettings(), template.getThreadPool());
         this.injector = template.injector;
-        this.pluginLifecycleComponents = Collections.unmodifiableList(template.pluginLifecycleComponents);
+        this.pluginLifecycleComponents = unmodifiableList(template.pluginLifecycleComponents);
         this.nodesService = template.nodesService;
         this.proxy = template.proxy;
         this.namedWriteableRegistry = template.namedWriteableRegistry;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
@@ -9,11 +10,9 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -21,18 +20,14 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 
 import static java.util.Collections.singleton;
-
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
@@ -43,8 +38,13 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) {
+    protected Object getSampleValueForDocument() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return "test";
     }
 
     @Override
@@ -56,6 +56,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected Collection<Plugin> getPlugins() {
         return singleton(new ConstantKeywordMapperPlugin());
+    }
+
+    @Override
+    protected boolean allowsStore() {
+        return false;
     }
 
     public void testDefaults() throws Exception {
@@ -163,23 +168,13 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             }));
     }
 
-    public void testFetchValue() throws Exception {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
-        FieldMapper fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        ValueFetcher fetcher = fieldMapper.valueFetcher(mapperService, null, null);
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return ((ConstantKeywordFieldType) ft).value();
+    }
 
-        SourceLookup missingValueLookup = new SourceLookup();
-        SourceLookup nullValueLookup = new SourceLookup();
-        nullValueLookup.setSource(Collections.singletonMap("field", null));
-
-        assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
-
-        merge(mapperService, fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
-        fieldMapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        fetcher = fieldMapper.valueFetcher(mapperService, null, null);
-
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "constant_keyword").field("value", randomAlphaOfLengthBetween(1, 10));
     }
 }

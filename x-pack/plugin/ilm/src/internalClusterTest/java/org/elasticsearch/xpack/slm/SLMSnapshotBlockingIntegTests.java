@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,6 +33,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.After;
 import org.junit.Before;
@@ -54,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,18 +83,21 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     }
 
     @After
-    public void awaitNoMoreRunningOps() throws Exception {
+    public void cleanUp() throws Exception {
         awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{SLM_HISTORY_DATA_STREAM});
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, req).actionGet());
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(MockRepository.Plugin.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class,
+            DataStreamsPlugin.class);
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -100,7 +108,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, DataStreamsPlugin.class);
     }
 
     @Override
@@ -208,7 +216,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Check that the executed snapshot shows up in the SLM output as in_progress
             logger.info("--> Waiting for at least one data node to hit the block");
-            waitForBlockOnAnyDataNode(REPO, TimeValue.timeValueSeconds(30L));
+            waitForBlockOnAnyDataNode(REPO);
             assertBusy(() -> {
                 logger.info("--> at least one data node has hit the block");
                 GetSnapshotLifecycleAction.Response getResp =
@@ -283,13 +291,31 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         testUnsuccessfulSnapshotRetention(true);
     }
 
+    public void testRetentionWithMultipleRepositories() throws Exception {
+        disableRepoConsistencyCheck("test leaves behind an empty repository");
+        final String secondRepo = "other-repo";
+        createRepository(secondRepo, "fs");
+        final String policyId = "some-policy-id";
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, secondRepo,
+                "*", true,
+                true, new SnapshotRetentionConfiguration(null, 1, 2));
+        logger.info("-->  start snapshot");
+        client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId)).get();
+        // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
+        // are stopped
+        ensureGreen(SLM_HISTORY_DATA_STREAM);
+        client().admin().indices().prepareUpdateSettings(SLM_HISTORY_DATA_STREAM).setSettings(
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get();
+        testUnsuccessfulSnapshotRetention(randomBoolean());
+    }
+
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {
         final String indexName = "test-idx";
         final String policyId = "test-policy";
         final SnapshotState expectedUnsuccessfulState = partialSuccess ? SnapshotState.PARTIAL : SnapshotState.FAILED;
         // Setup
         createAndPopulateIndex(indexName);
-        createRepository(REPO, "mock");
+        createRepositoryNoVerify(REPO, "mock");
 
         createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));
@@ -303,14 +329,13 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
                         30, TimeUnit.SECONDS);
 
-                final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+                blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
 
                 logger.info("-->  start snapshot");
                 ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
                         .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
 
-                logger.info("--> waiting for block to kick in on " + masterNode);
-                waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
+                waitForBlock(internalCluster().getMasterName(), REPO);
 
                 logger.info("-->  stopping master node");
                 internalCluster().stopCurrentMasterNode();

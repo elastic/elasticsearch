@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.versionfield;
@@ -10,17 +11,13 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -46,13 +43,18 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("1.2.3");
+    protected Object getSampleValueForDocument() {
+        return "1.2.3";
     }
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         // no configurable parameters
+    }
+
+    @Override
+    protected boolean allowsStore() {
+        return false;
     }
 
     public void testDefaults() throws Exception {
@@ -134,16 +136,29 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
+    }
 
-        VersionStringFieldMapper mapper = new VersionStringFieldMapper.Builder("field").build(context);
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
-        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(mapper, 42L));
-        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(mapper, true));
+    private String randomVersionNumber() {
+        int numbers = between(1, 3);
+        String v = Integer.toString(between(0, 100));
+        for (int i = 1; i < numbers; i++) {
+            v += "." + between(0, 100);
+        }
+        return v;
+    }
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
-        assertEquals("Field [field] of type [version] doesn't support formats.", e.getMessage());
+    private String randomPrerelease() {
+        if (rarely()) {
+            return randomFrom("alpha", "beta", "prerelease", "whatever");
+        }
+        return randomFrom("alpha", "beta", "") + randomVersionNumber();
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

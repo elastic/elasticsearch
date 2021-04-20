@@ -1,28 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -33,9 +34,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestSystemIndexPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestSystemIndexPlugin.class);
     }
 
     public void testCannotMountSystemIndex() throws Exception {
@@ -51,19 +50,13 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         createAndPopulateIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden));
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createRepo(repositoryName);
+        createRepository(repositoryName, "fs");
 
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final CreateSnapshotResponse snapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(repositoryName, snapshotName)
-            .setIndices(indexName)
-            .setWaitForCompletion(true)
-            .get();
-
         final int numPrimaries = getNumShards(indexName).numPrimaries;
-        assertThat(snapshotResponse.getSnapshotInfo().successfulShards(), equalTo(numPrimaries));
-        assertThat(snapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        final SnapshotInfo snapshotInfo = createSnapshot(repositoryName, snapshotName, Collections.singletonList(indexName));
+        assertThat(snapshotInfo.successfulShards(), equalTo(numPrimaries));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
 
         if (randomBoolean()) {
             assertAcked(client.admin().indices().prepareClose(indexName));
@@ -78,7 +71,8 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean()).build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
 
         final ElasticsearchException exception = expectThrows(
@@ -97,6 +91,16 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             return org.elasticsearch.common.collect.List.of(
                 new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']')
             );
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 }

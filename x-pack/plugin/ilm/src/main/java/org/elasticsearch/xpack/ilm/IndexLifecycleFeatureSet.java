@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
@@ -27,13 +26,11 @@ import java.util.stream.Collectors;
 
 public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
     private ClusterService clusterService;
 
     @Inject
-    public IndexLifecycleFeatureSet(@Nullable XPackLicenseState licenseState, ClusterService clusterService) {
+    public IndexLifecycleFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -43,7 +40,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ILM);
+        return true;
     }
 
     @Override
@@ -60,7 +57,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         Metadata metadata = clusterService.state().metadata();
         IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
-        if (enabled() && lifecycleMetadata != null) {
+        if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
             metadata.indices().forEach(entry -> {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
@@ -79,9 +76,9 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
-            listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), policyStats));
+            listener.onResponse(new IndexLifecycleFeatureSetUsage(policyStats));
         } else {
-            listener.onResponse(new IndexLifecycleFeatureSetUsage(available()));
+            listener.onResponse(new IndexLifecycleFeatureSetUsage());
         }
     }
 

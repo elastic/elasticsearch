@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.history;
@@ -146,7 +147,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
                 final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo(SLM_POLICY_NAME));
                 assertNotNull(listener);
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
@@ -259,7 +260,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
                 return null;
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore this, it's verified in another test
-                return new PutLifecycleAction.Response(true);
+                return AcknowledgedResponse.TRUE;
             } else {
                 fail("client called with unexpected request:" + request.toString());
                 return null;
@@ -350,7 +351,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
             // Ignore this, it's verified in another test
-            return new PutLifecycleAction.Response(true);
+            return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;

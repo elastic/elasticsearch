@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -83,7 +84,7 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
-    
+
     private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
@@ -131,8 +132,8 @@ public class DatafeedJobTests extends ESTestCase {
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
-        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0), 
-                new Date(0), new Date(0), new Date(0));
+        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0),
+                new Date(0), new Date(0), new Date(0), Instant.now());
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
         expectedRequest.setDataDescription(dataDescription.build());
@@ -492,7 +493,7 @@ public class DatafeedJobTests extends ESTestCase {
                                           long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, new AnnotationPersister(resultsPersisterService, auditor), currentTimeSupplier,
+            client, auditor, new AnnotationPersister(resultsPersisterService), currentTimeSupplier,
             delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
     }
 

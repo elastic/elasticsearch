@@ -1,0 +1,139 @@
+[[migrating-7.11]]
+== Migrating to 7.11
+++++
+<titleabbrev>7.11</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.11.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+* <<breaking_711_ml_changes>>
+* <<breaking_711_rest_changes>>
+* <<breaking_711_search_changes>>
+* <<breaking_711_transform_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+[discrete]
+[[breaking-changes-7.11]]
+=== Breaking changes
+
+The following changes in {es} 7.11 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.11, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+//tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_711_ml_changes]]
+=== Machine learning changes
+.The trained models API parameter `for_export` is now renamed to `exclude_generated`.
+[%collapsible]
+====
+*Details* +
+The {ref}/get-trained-models.html[get trained models API] no longer accepts `for_export`.
+Use `exclude_generated` instead.
+====
+
+[discrete]
+[[breaking_711_rest_changes]]
+==== REST API changes
+
+.REST APIs that do not use a request body now return an error if a body is provided.
+[%collapsible]
+====
+*Details* +
+Several {es} REST APIs do not use a request body. In previous versions, you
+could provide a request body when calling these APIs, and {es} would ignore the
+body. These APIs now return an error if you provide a request body, even if
+empty.
+
+*Impact* +
+Update your application or workflow to avoid sending unneeded request bodies
+in REST API requests.
+====
+
+[discrete]
+[[breaking_711_search_changes]]
+==== Search changes
+
+[[highlight-normalization]]
+.Keyword fields with a custom normalizer will use the normalized form when highlighting.
+[%collapsible]
+====
+*Details* +
+Highlighters now use the same framework to load their values as the
+`fields` section of a search response.  This means that normalization
+will be applied to the values of a keyword field; for example, a
+field configured with a lowercase normalizer will return highlighted
+snippets in lower case.
+====
+
+[[text-subfields]]
+.Internal fields used for text search acceleration are hidden.
+[%collapsible]
+====
+*Details* +
+Text fields can add internal subfields using extra analysis to speed
+up prefix and phrase searches. Previously these were exposed to
+the field caps API and were available for searching directly. However,
+they did not implement all query types and could return bad results
+or throw errors if used via the query DSL. These subfields are now
+internal only and cannot be invoked as searchable fields in queries.
+====
+
+[[significant-text-non-text-fields]]
+.The significant text aggregation now throws an error if applied to a numeric field.
+[%collapsible]
+====
+*Details* +
+The significant text aggregation could previously be applied to a fields that
+were defined as numeric, which made little sense and would always return an
+empty result. Given that applying a text-specific aggregation to a non-text
+field is almost certainly a mistake, this has now been changed to throw an
+error.
+====
+
+[discrete]
+[[breaking_711_transform_changes]]
+==== Transform changes
+
+.Transforms now write `group_by` dates as strings.
+[%collapsible]
+====
+*Details* +
+Transforms now write dates used in a `group_by` as formatted ISO strings instead
+of `epoch_millis` values. Previously constructed transforms will still use
+`epoch_millis` values. You can configure and change the output format in the
+settings of the transform.
+====
+//end::notable-breaking-changes[]
+
+////
+[discrete]
+[[deprecated-7.11]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.10
+and will be removed in 8.0
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.10.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+////

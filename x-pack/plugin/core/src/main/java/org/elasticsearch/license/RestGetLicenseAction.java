@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -21,8 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -33,12 +33,10 @@ public class RestGetLicenseAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return singletonList(new ReplacedRoute(GET, "/_license", GET,  URI_BASE + "/license"));
+        return org.elasticsearch.common.collect.List.of(
+            Route.builder(GET, "/_license")
+                .replaces(GET, URI_BASE + "/license", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -71,7 +69,7 @@ public class RestGetLicenseAction extends XPackRestHandler {
                     @Override
                     public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
                         // Default to pretty printing, but allow ?pretty=false to disable
-                        if (!request.hasParam("pretty")) {
+                        if (request.hasParam("pretty") == false) {
                             builder.prettyPrint().lfAtEnd();
                         }
                         boolean hasLicense = response.license() != null;

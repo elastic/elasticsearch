@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -55,7 +46,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        AbstractRangeAggregatorFactory.registerAggregators(builder, REGISTRY_KEY);
+        builder.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            RangeAggregator::build,
+            true
+        );
     }
 
     public RangeAggregationBuilder(String name) {
@@ -147,9 +143,12 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected RangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+    protected RangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                 AggregatorFactory parent,
                                                 AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
@@ -157,18 +156,19 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             Double from = range.from;
             Double to = range.to;
             if (range.fromAsStr != null) {
-                from = parser.parseDouble(range.fromAsStr, false, queryShardContext::nowInMillis);
+                from = parser.parseDouble(range.fromAsStr, false, context::nowInMillis);
             }
             if (range.toAsStr != null) {
-                to = parser.parseDouble(range.toAsStr, false, queryShardContext::nowInMillis);
+                to = parser.parseDouble(range.toAsStr, false, context::nowInMillis);
             }
             return new Range(range.key, from, range.fromAsStr, to, range.toAsStr);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
-                metadata);
+
+        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory,
+                                          context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

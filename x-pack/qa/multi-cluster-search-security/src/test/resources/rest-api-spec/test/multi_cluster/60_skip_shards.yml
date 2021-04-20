@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:
@@ -63,7 +63,7 @@ teardown:
 
   # check that we skip the remote shard
   - do:
-     headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+     headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
      search:
        ccs_minimize_roundtrips: false
        rest_total_hits_as_int: true
@@ -81,7 +81,7 @@ teardown:
 
   # check that we skip the local shard
   - do:
-     headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+     headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
      search:
        ccs_minimize_roundtrips: false
        rest_total_hits_as_int: true

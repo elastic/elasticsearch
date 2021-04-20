@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -194,6 +183,7 @@ public final class LambdaBootstrap {
      *                            if the value is '1' if the delegate is an interface and '0'
      *                            otherwise; note this is an int because the bootstrap method
      *                            cannot convert constants to boolean
+     * @param injections Optionally add injectable constants into a method reference
      * @return A {@link CallSite} linked to a factory method for creating a lambda class
      * that implements the expected functional interface
      * @throws LambdaConversionException Thrown when an illegal type conversion occurs at link time
@@ -207,7 +197,9 @@ public final class LambdaBootstrap {
             int delegateInvokeType,
             String delegateMethodName,
             MethodType delegateMethodType,
-            int isDelegateInterface)
+            int isDelegateInterface,
+            int isDelegateAugmented,
+            Object... injections)
             throws LambdaConversionException {
         Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
         String lambdaClassName = Type.getInternalName(lookup.lookupClass()) + "$$Lambda" + loader.newLambdaIdentifier();
@@ -232,7 +224,7 @@ public final class LambdaBootstrap {
 
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
-            delegateMethodName, delegateMethodType, isDelegateInterface == 1, captures);
+            delegateMethodName, delegateMethodType, isDelegateInterface == 1, isDelegateAugmented == 1, captures, injections);
 
         endLambdaClass(cw);
 
@@ -377,7 +369,9 @@ public final class LambdaBootstrap {
             String delegateMethodName,
             MethodType delegateMethodType,
             boolean isDelegateInterface,
-            Capture[] captures)
+            boolean isDelegateAugmented,
+            Capture[] captures,
+            Object... injections)
             throws LambdaConversionException {
 
         String lamDesc = interfaceMethodType.toMethodDescriptorString();
@@ -443,9 +437,17 @@ public final class LambdaBootstrap {
             new Handle(delegateInvokeType, delegateClassType.getInternalName(),
                 delegateMethodName, delegateMethodType.toMethodDescriptorString(),
                 isDelegateInterface);
-        iface.invokeDynamic(delegateMethodName, Type.getMethodType(interfaceMethodType
-                .toMethodDescriptorString()).getDescriptor(), DELEGATE_BOOTSTRAP_HANDLE,
-                delegateHandle);
+        // Fill in args for indy. Always add the delegate handle and
+        // whether it's static or not then injections as necessary.
+        Object[] args = new Object[2 + injections.length];
+        args[0] = delegateHandle;
+        args[1] = delegateInvokeType == H_INVOKESTATIC && isDelegateAugmented == false ? 0 : 1;
+        System.arraycopy(injections, 0, args, 2, injections.length);
+        iface.invokeDynamic(
+                delegateMethodName,
+                Type.getMethodType(interfaceMethodType.toMethodDescriptorString()).getDescriptor(),
+                DELEGATE_BOOTSTRAP_HANDLE,
+                args);
 
         iface.returnValue();
         iface.endMethod();
@@ -517,7 +519,14 @@ public final class LambdaBootstrap {
     public static CallSite delegateBootstrap(Lookup lookup,
                                              String delegateMethodName,
                                              MethodType interfaceMethodType,
-                                             MethodHandle delegateMethodHandle) {
+                                             MethodHandle delegateMethodHandle,
+                                             int isVirtual,
+                                             Object... injections) {
+
+        if (injections.length > 0) {
+            delegateMethodHandle = MethodHandles.insertArguments(delegateMethodHandle, isVirtual, injections);
+        }
+
         return new ConstantCallSite(delegateMethodHandle.asType(interfaceMethodType));
     }
 }

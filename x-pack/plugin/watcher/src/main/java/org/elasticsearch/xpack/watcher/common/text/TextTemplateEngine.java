@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.text;
 
@@ -60,7 +61,7 @@ public class TextTemplateEngine {
 
     private String trimContentType(TextTemplate textTemplate) {
         String template = textTemplate.getTemplate();
-        if (!template.startsWith("__")){
+        if (template.startsWith("__") == false){
             return template; //Doesn't even start with __ so can't have a content type
         }
         // There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3

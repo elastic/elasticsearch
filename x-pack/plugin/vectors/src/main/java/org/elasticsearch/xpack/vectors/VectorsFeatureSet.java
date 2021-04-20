@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.vectors;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
@@ -21,12 +21,10 @@ import java.util.Map;
 
 public class VectorsFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     @Inject
-    public VectorsFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
-        this.licenseState = licenseState;
+    public VectorsFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
@@ -37,7 +35,7 @@ public class VectorsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
+        return true;
     }
 
     @Override
@@ -52,13 +50,11 @@ public class VectorsFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        boolean vectorsAvailable = available();
-        boolean vectorsEnabled = enabled();
         int numDenseVectorFields = 0;
         int numSparseVectorFields = 0;
         int avgDenseVectorDims = 0;
 
-        if (vectorsAvailable && clusterService.state() != null) {
+        if (clusterService.state() != null) {
             for (IndexMetadata indexMetadata : clusterService.state().metadata()) {
                 MappingMetadata mappingMetadata = indexMetadata.mapping();
                 if (mappingMetadata != null) {
@@ -85,7 +81,6 @@ public class VectorsFeatureSet implements XPackFeatureSet {
                 avgDenseVectorDims = avgDenseVectorDims / numDenseVectorFields;
             }
         }
-        listener.onResponse(new VectorsFeatureSetUsage(vectorsAvailable, vectorsEnabled,
-            numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims));
+        listener.onResponse(new VectorsFeatureSetUsage(numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims));
     }
 }

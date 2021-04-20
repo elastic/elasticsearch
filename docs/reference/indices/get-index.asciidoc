@@ -23,6 +23,12 @@ through the parameter include_type_name. For more details, please see <<removal-
 
 `GET /<target>`
 
+[[get-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[get-index-api-path-params]]
 ==== {api-path-parms-title}
@@ -53,7 +59,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, Boolean)
+If `false`, requests that target a missing index return an error. Defaults to
+`false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 

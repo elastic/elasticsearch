@@ -81,9 +81,7 @@ POST /_security/role/example3
       "privileges" : [ "read" ],
       "query" : {
         "template" : {
-          "source" : {
-            "terms" : { "group.statuses" : "{{#toJson}}_user.metadata.statuses{{/toJson}}" }
-          }
+          "source" : "{ \"terms\": { \"group.statuses\": {{#toJson}}_user.metadata.statuses{{/toJson}} }}"
         }
       }
     }

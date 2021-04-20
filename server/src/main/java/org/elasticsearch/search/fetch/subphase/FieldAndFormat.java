@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -41,13 +30,16 @@ import java.util.Objects;
 public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField FORMAT_FIELD = new ParseField("format");
+    private static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
 
+    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
+        new ConstructingObjectParser<>("fetch_field_and_format",
+        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2]));
 
-    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("docvalues_field",
-        a -> new FieldAndFormat((String) a[0], (String) a[1]));
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("format"));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
     }
 
     /**
@@ -62,16 +54,37 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         }
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (format != null) {
+            builder.field(FORMAT_FIELD.getPreferredName(), format);
+        }
+        if (this.includeUnmapped != null) {
+            builder.field(INCLUDE_UNMAPPED_FIELD.getPreferredName(), includeUnmapped);
+        }
+        builder.endObject();
+        return builder;
+    }
+
     /** The name of the field. */
     public final String field;
 
     /** The format of the field, or {@code null} if defaults should be used. */
     public final String format;
 
-    /** Sole constructor. */
+    /** Whether to include unmapped fields or not. */
+    public final Boolean includeUnmapped;
+
     public FieldAndFormat(String field, @Nullable String format) {
+        this(field, format, null);
+    }
+
+    public FieldAndFormat(String field, @Nullable String format, @Nullable Boolean includeUnmapped) {
         this.field = Objects.requireNonNull(field);
         this.format = format;
+        this.includeUnmapped = includeUnmapped;
     }
 
     /** Serialization constructor. */
@@ -82,6 +95,11 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         } else {
             format = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            this.includeUnmapped = in.readOptionalBoolean();
+        } else {
+            this.includeUnmapped = null;
+        }
     }
 
     @Override
@@ -89,6 +107,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         out.writeString(field);
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalString(format);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeOptionalBoolean(this.includeUnmapped);
         }
     }
 
@@ -98,24 +119,15 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         FieldAndFormat that = (FieldAndFormat) o;
         return Objects.equals(field, that.field) &&
-            Objects.equals(format, that.format);
+            Objects.equals(format, that.format) &&
+            Objects.equals(includeUnmapped, that.includeUnmapped);
     }
 
     @Override
     public int hashCode() {
         int h = field.hashCode();
         h = 31 * h + Objects.hashCode(format);
+        h = 31 * h + Objects.hashCode(includeUnmapped);
         return h;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(FIELD_FIELD.getPreferredName(), field);
-        if (format != null) {
-            builder.field(FORMAT_FIELD.getPreferredName(), format);
-        }
-        builder.endObject();
-        return builder;
     }
 }

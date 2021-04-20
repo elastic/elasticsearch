@@ -2,7 +2,7 @@
 == Metadata fields
 
 Each document has metadata associated with it, such as the `_index`, mapping
-<<mapping-type-field,`_type`>>, and `_id` metadata fields.  The behavior of
+<<mapping-type-field,`_type`>>, and `_id` metadata fields. The behavior of
 some of these metadata fields can be customized when a mapping type is created.
 
 [discrete]
@@ -34,6 +34,13 @@ some of these metadata fields can be customized when a mapping type is created.
     {plugins}/mapper-size.html[`mapper-size` plugin].
 
 [discrete]
+=== Doc count metadata field
+
+<<mapping-doc-count-field,`_doc_count`>>::
+
+    A custom field used for storing doc counts when a document represents pre-aggregated data.
+
+[discrete]
 === Indexing metadata fields
 
 <<mapping-field-names-field,`_field_names`>>::
@@ -59,6 +66,11 @@ some of these metadata fields can be customized when a mapping type is created.
 
     Application specific metadata.
 
+<<mapping-tier-field,`_tier`>>::
+
+    The current data tier preference of the index to which the document belongs.
+
+include::fields/doc-count-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
 
@@ -74,5 +86,6 @@ include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
-include::fields/type-field.asciidoc[]
+include::fields/tier-field.asciidoc[]
 
+include::fields/type-field.asciidoc[]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.flattened;
 
@@ -14,25 +15,13 @@ public class FlattenedFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected FlattenedFeatureSetUsage createTestInstance() {
-        return new FlattenedFeatureSetUsage(randomBoolean(), randomIntBetween(0, 1000));
+        return new FlattenedFeatureSetUsage(randomIntBetween(0, 1000));
     }
 
     @Override
     protected FlattenedFeatureSetUsage mutateInstance(FlattenedFeatureSetUsage instance) throws IOException {
-
-        boolean available = instance.available();
-        int fieldCount = instance.fieldCount();
-
-        switch (between(0, 1)) {
-            case 0:
-                available = !available;
-                break;
-            case 1:
-                fieldCount = randomValueOtherThan(instance.fieldCount(), () -> randomIntBetween(0, 1000));
-                break;
-        }
-
-        return new FlattenedFeatureSetUsage(available, fieldCount);
+        int fieldCount = randomValueOtherThan(instance.fieldCount(), () -> randomIntBetween(0, 1000));
+        return new FlattenedFeatureSetUsage(fieldCount);
     }
 
     @Override

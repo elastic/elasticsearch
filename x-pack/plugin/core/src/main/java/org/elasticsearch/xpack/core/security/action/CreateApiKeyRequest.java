@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -16,10 +17,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -33,6 +36,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     private String name;
     private TimeValue expiration;
+    private Map<String, Object> metadata;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
     private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
 
@@ -45,9 +49,15 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param expiration to specify expiration for the API key
      */
     public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+        this(name, roleDescriptors, expiration, null);
+    }
+
+    public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration,
+                               @Nullable Map<String, Object> metadata) {
         this.name = name;
         this.roleDescriptors = (roleDescriptors == null) ? Collections.emptyList() : Collections.unmodifiableList(roleDescriptors);
         this.expiration = expiration;
+        this.metadata = metadata;
     }
 
     public CreateApiKeyRequest(StreamInput in) throws IOException {
@@ -60,6 +70,11 @@ public final class CreateApiKeyRequest extends ActionRequest {
         this.expiration = in.readOptionalTimeValue();
         this.roleDescriptors = Collections.unmodifiableList(in.readList(RoleDescriptor::new));
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            this.metadata = in.readMap();
+        } else {
+            this.metadata = null;
+        }
     }
 
     public String getName() {
@@ -94,6 +109,14 @@ public final class CreateApiKeyRequest extends ActionRequest {
         this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
     }
 
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -110,6 +133,10 @@ public final class CreateApiKeyRequest extends ActionRequest {
                 validationException = addValidationError("api key name may not begin with an underscore", validationException);
             }
         }
+        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+            validationException =
+                addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
+        }
         return validationException;
     }
 
@@ -124,5 +151,11 @@ public final class CreateApiKeyRequest extends ActionRequest {
         out.writeOptionalTimeValue(expiration);
         out.writeList(roleDescriptors);
         refreshPolicy.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeMap(metadata);
+        }
+        // It's ok to not having an else branch to handle the metadata because this request is always
+        // sent to the local node, if the local node does not support metadata, it will be rejected by
+        // the rest handler
     }
 }

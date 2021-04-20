@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -209,15 +198,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public boolean hasContent() {
-        return content(false).length() > 0;
+        return contentLength() > 0;
+    }
+
+    public int contentLength() {
+        return httpRequest.content().length();
     }
 
     public BytesReference content() {
-        return content(true);
-    }
-
-    protected BytesReference content(final boolean contentConsumed) {
-        this.contentConsumed = this.contentConsumed | contentConsumed;
+        this.contentConsumed = true;
         return httpRequest.content();
     }
 
@@ -328,7 +317,7 @@ public class RestRequest implements ToXContent.Params {
         return params
             .keySet()
             .stream()
-            .filter(p -> !consumedParams.contains(p))
+            .filter(p -> consumedParams.contains(p) == false)
             .collect(Collectors.toList());
     }
 
@@ -341,6 +330,18 @@ public class RestRequest implements ToXContent.Params {
             return Float.parseFloat(sValue);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    public double paramAsDouble(String key, double defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(sValue);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Failed to parse double parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
 

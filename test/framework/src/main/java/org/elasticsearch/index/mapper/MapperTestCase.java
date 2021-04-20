@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -39,9 +28,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -54,9 +45,13 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -74,13 +69,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void writeField(XContentBuilder builder) throws IOException {
         builder.field("field");
-        writeFieldValue(builder);
+        builder.value(getSampleValueForDocument());
     }
 
     /**
-     * Writes a sample value for the field to the provided {@link XContentBuilder}.
+     * Returns a sample value for the field, to be used in a document
      */
-    protected abstract void writeFieldValue(XContentBuilder builder) throws IOException;
+    protected abstract Object getSampleValueForDocument();
+
+    /**
+     * Returns a sample value for the field, to be used when querying the field. Normally this is the same format as
+     * what is indexed as part of a document, and returned by {@link #getSampleValueForDocument()}, but there
+     * are cases where fields are queried differently frow how they are indexed e.g. token_count or runtime fields
+     */
+    protected Object getSampleValueForQuery() {
+        return getSampleValueForDocument();
+    }
 
     /**
      * This test verifies that the exists query created is the appropriate one, and aligns with the data structures
@@ -96,9 +100,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
-        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         MappedFieldType fieldType = mapperService.fieldType("field");
-        Query query = fieldType.existsQuery(queryShardContext);
+        Query query = fieldType.existsQuery(searchExecutionContext);
         assertExistsQuery(fieldType, query, fields);
     }
 
@@ -198,12 +202,28 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    protected void assertParseMinimalWarnings() {
-        // Most mappers don't emit any warnings
+    protected final void assertParseMinimalWarnings() {
+        String[] warnings = getParseMinimalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
     }
 
-    protected void assertParseMaximalWarnings() {
+    protected final void assertParseMaximalWarnings() {
+        String[] warnings = getParseMaximalWarnings();
+        if (warnings.length > 0) {
+            assertWarnings(warnings);
+        }
+    }
+
+    protected String[] getParseMinimalWarnings() {
         // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
+    }
+
+    protected String[] getParseMaximalWarnings() {
+        // Most mappers don't emit any warnings
+        return Strings.EMPTY_ARRAY;
     }
 
     /**
@@ -249,55 +269,35 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
+    protected String typeName() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(this::minimalMapping));
+        return ms.fieldType("field").typeName();
+    }
+
     public final void testDeprecatedBoost() throws IOException {
-        try {
-            createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("boost", 2.0);
-            }));
-            assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
-        }
-        catch (MapperParsingException e) {
-            assertThat(e.getMessage(), anyOf(
-                containsString("unknown parameter [boost]"),
-                containsString("[boost : 2.0]")));
-        }
-        assertParseMinimalWarnings();
-    }
-
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue) throws IOException {
-        return fetchSourceValue(mapper, sourceValue, null);
-    }
-
-    public static List<?> fetchSourceValue(FieldMapper mapper, Object sourceValue, String format) throws IOException {
-        String field = mapper.name();
-
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
-
-        ValueFetcher fetcher = mapper.valueFetcher(mapperService, null, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        MapperService ms = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("boost", 2.0);
+        }));
+        String type = typeName();
+        String[] warnings = Strings.concatStringArrays(getParseMinimalWarnings(),
+            new String[]{"Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
+                         "Parameter [boost] has no effect on type [" + type + "] and will be removed in future"});
+        allowedWarnings(warnings);
     }
 
     /**
-     * Use a {@linkplain FieldMapper} to extract values from doc values.
+     * Use a {@linkplain ValueFetcher} to extract values from doc values.
      */
     protected final List<?> fetchFromDocValues(MapperService mapperService, MappedFieldType ft, DocValueFormat format, Object sourceValue)
         throws IOException {
 
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
-            .fielddataBuilder("test", () -> {
-                throw new UnsupportedOperationException();
-            })
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService(), mapperService);
         SetOnce<List<?>> result = new SetOnce<>();
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup, null);
-            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
@@ -429,4 +429,259 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
+    public final void testTextSearchInfoConsistency() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
+        } else {
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+            assertNotNull(fieldType.termQuery(getSampleValueForQuery(), searchExecutionContext));
+        }
+        assertSearchable(fieldType);
+        assertParseMinimalWarnings();
+    }
+
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertEquals(fieldType.isSearchable(), fieldType.getTextSearchInfo() != TextSearchInfo.NONE);
+    }
+
+    /**
+     * Asserts that fetching a single value from doc values and from the native
+     * {@link MappedFieldType#valueFetcher} produce the same results.
+     * <p>
+     * Generally this method covers many many random cases but rarely. So if
+     * it fails its generally a good idea to capture its randomized
+     * parameters into a new method so we can be sure we consistently test
+     * any unique and interesting failure case. See the tests for
+     * {@link DateFieldMapper} for some examples.
+     */
+    public final void testFetch() throws IOException {
+        MapperService mapperService = randomFetchTestMapper();
+        try {
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertFetch(mapperService, "field", generateRandomInputValue(ft), randomFetchTestFormat());
+        } finally {
+            assertParseMinimalWarnings();
+        }
+    }
+
+    /**
+     * Asserts that fetching many values from doc values and from the native
+     * {@link MappedFieldType#valueFetcher} produce the same results.
+     * <p>
+     * Generally this method covers many many random cases but rarely. So if
+     * it fails its generally a good idea to capture its randomized
+     * parameters into a new method so we can be sure we consistently test
+     * any unique and interesting failure case. See the tests for
+     * {@link DateFieldMapper} for some examples.
+     */
+    public final void testFetchMany() throws IOException {
+        MapperService mapperService = randomFetchTestMapper();
+        try {
+            MappedFieldType ft = mapperService.fieldType("field");
+            int count = between(2, 10);
+            List<Object> values = new ArrayList<>(count);
+            while (values.size() < count) {
+                values.add(generateRandomInputValue(ft));
+            }
+            assertFetch(mapperService, "field", values, randomFetchTestFormat());
+        } finally {
+            assertParseMinimalWarnings();
+        }
+    }
+
+    protected final MapperService randomFetchTestMapper() throws IOException {
+        return createMapperService(mapping(b -> {
+            b.startObject("field");
+            randomFetchTestFieldConfig(b);
+            b.endObject();
+        }));
+    }
+
+    /**
+     * Field configuration for {@link #testFetch} and {@link #testFetchMany}.
+     * Default implementation delegates to {@link #minimalMapping} but can
+     * be overridden to randomize the field type and options.
+     */
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+    }
+
+    /**
+     * A random format to use when tripping in {@link #testFetch} and
+     * {@link #testFetchMany}.
+     */
+    protected String randomFetchTestFormat() {
+        return null;
+    }
+
+    /**
+     * Create a random {@code _source} value for this field. Must be compatible
+     * with {@link XContentBuilder#value(Object)} and the field's parser.
+     */
+    protected abstract Object generateRandomInputValue(MappedFieldType ft);
+
+    /**
+     * Assert that fetching a value using {@link MappedFieldType#valueFetcher}
+     * produces the same value as fetching using doc values.
+     */
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        ValueFetcher docValueFetcher = new DocValueFetcher(
+            ft.docValueFormat(format, null),
+            ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+        );
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
+        when(searchExecutionContext.getForField(ft)).thenAnswer(
+            inv -> { return fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); }); }
+        );
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
+            docValueFetcher.setNextReader(ir.leaves().get(0));
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup);
+            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup);
+            /*
+             * The native fetcher uses byte, short, etc but doc values always
+             * uses long or double. This difference is fine because on the outside
+             * users can't see it.
+             */
+            fromNative = fromNative.stream().map(o -> {
+                if (o instanceof Integer || o instanceof Short || o instanceof Byte) {
+                    return ((Number) o).longValue();
+                }
+                if (o instanceof Float) {
+                    return ((Float) o).doubleValue();
+                }
+                return o;
+            }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
+            /*
+             * Doc values sort according to something appropriate to the field
+             * and the native fetchers usually don't sort. We're ok with this
+             * difference. But we have to convince the test we're ok with it.
+             */
+            assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
+        });
+    }
+
+    /**
+     * A few field types (e.g. keyword fields) don't allow duplicate values, so in those cases we need to de-dup our expected values.
+     * Field types where this is the case should overwrite this. The default is to not de-duplicate though.
+     */
+    protected boolean dedupAfterFetch() {
+        return false;
+    }
+
+    /**
+     * @return whether or not this field type supports access to its values from a SearchLookup
+     */
+    protected boolean supportsSearchLookup() {
+        return true;
+    }
+
+    /**
+     * Checks that field data from this field produces the same values for query-time
+     * scripts and for index-time scripts
+     */
+    public final void testIndexTimeFieldData() throws IOException {
+        assumeTrue("Field type does not support access via search lookup", supportsSearchLookup());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertParseMinimalWarnings();
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        if (fieldType.isAggregatable() == false) {
+            return; // No field data available, so we ignore
+        }
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+
+            ScriptDocValues<?> fieldData = fieldType
+                .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(ctx)
+                .getScriptValues();
+
+            fieldData.setNextDocId(0);
+
+            DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
+            ScriptDocValues<?> indexData = fieldType
+                .fielddataBuilder("test", () -> {
+                    throw new UnsupportedOperationException();
+                })
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(reader.getContext())
+                .getScriptValues();
+            indexData.setNextDocId(0);
+
+            // compare index and search time fielddata
+            assertThat(fieldData, equalTo(indexData));
+        });
+    }
+
+    protected boolean allowsStore() {
+        return true;
+    }
+
+    /**
+     * Checks that loading stored fields for this field produces the same set of values
+     * for query time scripts and index time scripts
+     */
+    public final void testIndexTimeStoredFieldsAccess() throws IOException {
+
+        assumeTrue("FieldMapper implementation does not allow stored fields", allowsStore());
+        MapperService mapperService;
+        try {
+            mapperService = createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("store", true);
+            }));
+            assertParseMinimalWarnings();
+        } catch (MapperParsingException e) {
+            assertParseMinimalWarnings();
+            assumeFalse("Field type does not support stored fields", true);
+            return;
+        }
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        SourceToParse source = source(this::writeField);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+
+        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s) -> {
+            throw new UnsupportedOperationException();
+        });
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+
+            LeafReaderContext ctx = ir.leaves().get(0);
+            LeafStoredFieldsLookup storedFields = lookup.getLeafSearchLookup(ctx).fields();
+            storedFields.setDocument(0);
+
+            DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
+
+            LeafStoredFieldsLookup indexStoredFields = lookup.getLeafSearchLookup(reader.getContext()).fields();
+            indexStoredFields.setDocument(0);
+
+            // compare index and search time stored fields
+            assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
+        });
+    }
+
+    private BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
+        return (mft, lookupSource) -> mft
+            .fielddataBuilder("test", lookupSource)
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
 }

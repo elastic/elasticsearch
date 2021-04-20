@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -46,7 +35,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -58,6 +48,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -73,7 +64,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testSyncerSendsOffCorrectDocuments() throws Exception {
         IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TransportService transportService = new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> null, null, emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction =
@@ -84,7 +76,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
                 listener.onResponse(new ResyncReplicationResponse());
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
@@ -150,8 +142,9 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 syncActionCalled.set(true);
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
+        TransportService transportService = new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> null, null, emptySet());
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 
         int numDocs = 10;
@@ -212,13 +205,14 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         Engine.HistorySource source =
             shard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG;
         doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), eq(source), anyLong());
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TransportService transportService = new MockTransport().createTransportService(Settings.EMPTY, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> null, null, emptySet());
         List<Translog.Operation> sentOperations = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
             sentOperations.addAll(Arrays.asList(request.getOperations()));
             listener.onResponse(new ResyncReplicationResponse());
         };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(transportService, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
         syncer.resync(shard, fut);

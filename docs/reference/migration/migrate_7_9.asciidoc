@@ -27,7 +27,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 *Details* +
 In 7.9, {es} added built-in index templates for the `metrics-*-*` and
 `logs-*-*` index patterns, each with a priority of `100`.
-{ingest-guide}/ingest-management-overview.html[{agent}] uses these templates to
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
 create data streams.
 
 *Impact* +
@@ -59,8 +59,8 @@ set per-context.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of the `script.cache.max_size`
-setting. You may use `script.context.$CONTEXT.context_max_size` for the particular context.
-For example, for the `ingest` context, use `script.context.ingest.context_max_size`.
+setting. You may use `script.context.$CONTEXT.cache_max_size` for the particular context.
+For example, for the `ingest` context, use `script.context.ingest.cache_max_size`.
 
 ====
 

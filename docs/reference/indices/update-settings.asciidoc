@@ -26,6 +26,12 @@ PUT /my-index-000001/_settings
 
 `PUT /<target>/_settings`
 
+[[update-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [[update-index-settings-api-path-params]]
 ==== {api-path-parms-title}
@@ -55,7 +61,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `preserve_existing`::
-(Optional, boolean) If `true`, existing index settings remain unchanged.
+(Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -147,10 +153,10 @@ and reopen the index.
 
 [NOTE]
 ====
-You cannot close the write index of a data stream. 
+You cannot close the write index of a data stream.
 
 To update the analyzer for a data stream's write index and future backing
-indices, update the analyzer in the <<create-a-data-stream-template,index
+indices, update the analyzer in the <<create-index-template,index
 template used by the stream>>. Then <<manually-roll-over-a-data-stream,roll over
 the data stream>> to apply the new analyzer to the stream’s write index and
 future backing indices. This affects searches and any new data added to the
@@ -167,7 +173,7 @@ the following commands add the `content` analyzer to the `my-index-000001` index
 
 [source,console]
 --------------------------------------------------
-POST /my-index-000001/_close
+POST /my-index-000001/_close?wait_for_active_shards=0
 
 PUT /my-index-000001/_settings
 {

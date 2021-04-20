@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.transport;
@@ -76,7 +65,7 @@ final class TransportClientNodesService implements Closeable {
 
     private final TimeValue nodesSamplerInterval;
 
-    private final long pingTimeout;
+    private final TimeValue pingTimeout;
 
     private final ClusterName clusterName;
 
@@ -132,7 +121,7 @@ final class TransportClientNodesService implements Closeable {
         this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
         this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(settings);
-        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(settings).millis();
+        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(settings);
         this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(settings);
 
         if (logger.isDebugEnabled()) {
@@ -183,7 +172,7 @@ final class TransportClientNodesService implements Closeable {
                         break;
                     }
                 }
-                if (!found) {
+                if (found == false) {
                     filtered.add(transportAddress);
                 }
             }
@@ -210,7 +199,7 @@ final class TransportClientNodesService implements Closeable {
             }
             List<DiscoveryNode> listNodesBuilder = new ArrayList<>();
             for (DiscoveryNode otherNode : listedNodes) {
-                if (!otherNode.getAddress().equals(transportAddress)) {
+                if (otherNode.getAddress().equals(transportAddress) == false) {
                     listNodesBuilder.add(otherNode);
                 } else {
                     logger.debug("removing address [{}] from listed nodes", otherNode);
@@ -219,7 +208,7 @@ final class TransportClientNodesService implements Closeable {
             listedNodes = Collections.unmodifiableList(listNodesBuilder);
             List<DiscoveryNode> nodesBuilder = new ArrayList<>();
             for (DiscoveryNode otherNode : nodes) {
-                if (!otherNode.getAddress().equals(transportAddress)) {
+                if (otherNode.getAddress().equals(transportAddress) == false) {
                     nodesBuilder.add(otherNode);
                 } else {
                     logger.debug("disconnecting from node with address [{}]", otherNode);
@@ -243,9 +232,14 @@ final class TransportClientNodesService implements Closeable {
         // the close method
         final List<DiscoveryNode> nodes = this.nodes;
         if (closed) {
-            throw new IllegalStateException("transport client is closed");
+            listener.onFailure(new IllegalStateException("transport client is closed"));
+            return;
         }
-        ensureNodesAreAvailable(nodes);
+        if (nodes.isEmpty()) {
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
+            listener.onFailure(new NoNodeAvailableException(message));
+            return;
+        }
         int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index, hostFailureListener);
         DiscoveryNode node = retryListener.getNode(0);
@@ -346,13 +340,6 @@ final class TransportClientNodesService implements Closeable {
         return index;
     }
 
-    private void ensureNodesAreAvailable(List<DiscoveryNode> nodes) {
-        if (nodes.isEmpty()) {
-            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", this.listedNodes);
-            throw new NoNodeAvailableException(message);
-        }
-    }
-
     abstract class NodeSampler {
         public void sample() {
             synchronized (mutex) {
@@ -372,7 +359,7 @@ final class TransportClientNodesService implements Closeable {
         List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes) {
             for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
-                if (!transportService.nodeConnected(node)) {
+                if (transportService.nodeConnected(node) == false) {
                     try {
                         logger.trace("connecting to node [{}]", node);
                         transportService.connectToNode(node);
@@ -392,7 +379,7 @@ final class TransportClientNodesService implements Closeable {
         public void run() {
             try {
                 nodesSampler.sample();
-                if (!closed) {
+                if (closed == false) {
                     nodesSamplerCancellable = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.Names.GENERIC);
                 }
             } catch (Exception e) {
@@ -417,10 +404,10 @@ final class TransportClientNodesService implements Closeable {
                             }
                         });
                     transportService.sendRequest(connection, TransportLivenessAction.NAME, new LivenessRequest(),
-                        TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
+                        TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
                         handler);
                     final LivenessResponse livenessResponse = handler.txGet();
-                    if (!ignoreClusterName && !clusterName.equals(livenessResponse.getClusterName())) {
+                    if (ignoreClusterName == false && clusterName.equals(livenessResponse.getClusterName()) == false) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
                         newFilteredNodes.add(listedNode);
                     } else {
@@ -507,8 +494,7 @@ final class TransportClientNodesService implements Closeable {
                             }
                             transportService.sendRequest(pingConnection, ClusterStateAction.NAME,
                                 Requests.clusterStateRequest().clear().nodes(true).local(true),
-                                TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE)
-                                    .withTimeout(pingTimeout).build(),
+                                TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
                                 new TransportResponseHandler<ClusterStateResponse>() {
 
                                     @Override
@@ -550,7 +536,7 @@ final class TransportClientNodesService implements Closeable {
             HashSet<DiscoveryNode> newNodes = new HashSet<>();
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
-                if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
+                if (ignoreClusterName == false && clusterName.equals(entry.getValue().getClusterName()) == false) {
                     logger.warn("node {} not part of the cluster {}, ignoring...",
                             entry.getValue().getState().nodes().getLocalNode(), clusterName);
                     newFilteredNodes.add(entry.getKey());

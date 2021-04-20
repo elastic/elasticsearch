@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -72,7 +74,6 @@ import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequestBuilder;
@@ -96,7 +97,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.io.IOException;
@@ -246,7 +246,7 @@ public class SecurityClient {
         return new ChangePasswordRequestBuilder(client).username(username).source(source, xContentType, hasher);
     }
 
-    public void changePassword(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
+    public void changePassword(ChangePasswordRequest request, ActionListener<ActionResponse.Empty> listener) {
         client.execute(ChangePasswordAction.INSTANCE, request, listener);
     }
 
@@ -254,7 +254,7 @@ public class SecurityClient {
         return new SetEnabledRequestBuilder(client).username(username).enabled(enabled);
     }
 
-    public void setEnabled(SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
+    public void setEnabled(SetEnabledRequest request, ActionListener<ActionResponse.Empty> listener) {
         client.execute(SetEnabledAction.INSTANCE, request, listener);
     }
 

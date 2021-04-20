@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.TransportNodesListGatewayMetaState;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -64,8 +66,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         addSSLSettingsForNodePEMFiles(settingsBuilder, "transport.profiles.client.xpack.security.", true);
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -159,21 +161,22 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
                     ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
-                final DiscoveryNode handshake = PlainActionFuture.get(fut -> instance.handshake(connection, 10000, fut));
+                final DiscoveryNode handshake =
+                    PlainActionFuture.get(fut -> instance.handshake(connection, TimeValue.timeValueSeconds(10), fut));
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
                 CountDownLatch latch = new CountDownLatch(1);
-                instance.sendRequest(connection, NodeMappingRefreshAction.ACTION_NAME,
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest("foo", "bar", "baz"),
-                        TransportRequestOptions.EMPTY,
-                        new TransportResponseHandler<TransportResponse>() {
-                    @Override
-                    public TransportResponse read(StreamInput in) {
-                        try {
-                            fail("never get that far");
-                        } finally {
-                            latch.countDown();
-                        }
-                        return null;
+                instance.sendRequest(connection, TransportNodesListGatewayMetaState.ACTION_NAME,
+                    new TransportNodesListGatewayMetaState.Request("foo", "bar", "baz"),
+                    TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<TransportResponse>() {
+                        @Override
+                        public TransportResponse read(StreamInput in) {
+                            try {
+                                fail("never get that far");
+                            } finally {
+                                latch.countDown();
+                            }
+                            return null;
                     }
 
                     @Override

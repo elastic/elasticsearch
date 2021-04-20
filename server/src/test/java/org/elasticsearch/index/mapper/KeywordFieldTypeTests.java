@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -25,6 +14,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -40,9 +30,16 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,9 +53,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         KeywordFieldType ft = new KeywordFieldType("field");
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
-                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-                RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
-                randomBoolean(), randomBoolean(), null, null, null));
+            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+            RandomStrings.randomAsciiLettersOfLengthBetween(random(), 0, 5),
+            randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testTermQuery() {
@@ -110,8 +107,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         {
             FieldType fieldType = new FieldType();
             fieldType.setOmitNorms(false);
-            KeywordFieldType ft = new KeywordFieldType("field", false, fieldType, randomBoolean(), null, null, null, 1.0f,
-                Collections.emptyMap());
+            KeywordFieldType ft = new KeywordFieldType("field", fieldType);
             assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
         }
         {
@@ -123,10 +119,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-                ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
+                ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
                 "'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -134,15 +130,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new RegexpQuery(new Term("field","foo.*")),
-                ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
+                ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
+                () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
@@ -150,16 +146,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new FuzzyQuery(new Term("field","foo"), 2, 1, 50, true),
-                ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+                ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+                () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
                 () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1,
-                        randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE));
+                        randomBoolean(), MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
@@ -169,5 +165,72 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field").build(new ContentPath()).fieldType();
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
+        assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fetchSourceValue(mapper, "value", "format"));
+        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
+
+        MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
+        assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
+
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(), ScriptCompiler.NONE)
+            .normalizer("lowercase")
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "VALUE"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(normalizerMapper, 42L));
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "value"));
+
+        MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field")
+            .nullValue("NULL")
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    private static IndexAnalyzers createIndexAnalyzers() {
+        return new IndexAnalyzers(
+            org.elasticsearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            org.elasticsearch.common.collect.Map.ofEntries(
+                org.elasticsearch.common.collect.Map.entry("lowercase",
+                    new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                org.elasticsearch.common.collect.Map.entry("other_lowercase",
+                    new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+            ),
+            org.elasticsearch.common.collect.Map.of(
+                "lowercase",
+                new NamedAnalyzer(
+                    "lowercase",
+                    AnalyzerScope.INDEX,
+                    new CustomAnalyzer(
+                        TokenizerFactory.newFactory("lowercase", WhitespaceTokenizer::new),
+                        new CharFilterFactory[0],
+                        new TokenFilterFactory[] { new TokenFilterFactory() {
+
+                            @Override
+                            public String name() {
+                                return "lowercase";
+                            }
+
+                            @Override
+                            public TokenStream create(TokenStream tokenStream) {
+                                return new org.apache.lucene.analysis.core.LowerCaseFilter(tokenStream);
+                            }
+                        } }
+                    )
+                )
+            )
+        );
     }
 }

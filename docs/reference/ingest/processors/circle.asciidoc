@@ -57,6 +57,8 @@ The circle can be represented as either a WKT circle or a GeoJSON circle. The re
 polygon will be represented and indexed using the same format as the input circle. WKT will
 be translated to a WKT polygon, and GeoJSON circles will be translated to GeoJSON polygons.
 
+IMPORTANT: Circles that contain a pole are not supported.
+
 ==== Example: Circle defined in Well Known Text
 
 In this example a circle defined in WKT format is indexed

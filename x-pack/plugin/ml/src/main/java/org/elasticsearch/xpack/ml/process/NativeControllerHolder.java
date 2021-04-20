@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
@@ -37,7 +39,9 @@ public class NativeControllerHolder {
         if (MachineLearningField.AUTODETECT_PROCESS.get(environment.settings())) {
             synchronized (lock) {
                 if (nativeController == null) {
-                    nativeController = new NativeController(localNodeName, environment, new NamedPipeHelper());
+                    // It's OK to use an empty NamedXContentRegistry here as it's only used for
+                    // parsing controller responses, and these don't use any named X-Content objects.
+                    nativeController = new NativeController(localNodeName, environment, new NamedPipeHelper(), NamedXContentRegistry.EMPTY);
                 }
             }
             return nativeController;

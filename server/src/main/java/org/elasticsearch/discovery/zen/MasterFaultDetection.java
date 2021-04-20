@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.zen;
@@ -162,7 +151,7 @@ public class MasterFaultDetection extends FaultDetection {
     @Override
     protected void handleTransportDisconnect(DiscoveryNode node) {
         synchronized (masterNodeMutex) {
-            if (!node.equals(this.masterNode)) {
+            if (node.equals(this.masterNode) == false) {
                 return;
             }
             if (connectOnNetworkDisconnect) {
@@ -211,7 +200,7 @@ public class MasterFaultDetection extends FaultDetection {
 
         @Override
         public void run() {
-            if (!running) {
+            if (running == false) {
                 // return and don't spawn...
                 return;
             }
@@ -224,8 +213,7 @@ public class MasterFaultDetection extends FaultDetection {
 
             final MasterPingRequest request = new MasterPingRequest(
                 clusterStateSupplier.get().nodes().getLocalNode(), masterToPing, clusterName);
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
-                .withTimeout(pingRetryTimeout).build();
+            final TransportRequestOptions options = TransportRequestOptions.of(pingRetryTimeout, TransportRequestOptions.Type.PING);
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
                 new TransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
@@ -235,7 +223,7 @@ public class MasterFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleResponse(MasterPingResponseResponse response) {
-                            if (!running) {
+                            if (running == false) {
                                 return;
                             }
                             // reset the counter, we got a good result
@@ -249,7 +237,7 @@ public class MasterFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            if (!running) {
+                            if (running == false) {
                                 return;
                             }
                             synchronized (masterNodeMutex) {
@@ -330,12 +318,12 @@ public class MasterFaultDetection extends FaultDetection {
             final DiscoveryNodes nodes = clusterStateSupplier.get().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
-            if (!request.masterNode.equals(nodes.getLocalNode())) {
+            if (request.masterNode.equals(nodes.getLocalNode()) == false) {
                 throw new ThisIsNotTheMasterYouAreLookingForException();
             }
 
             // ping from nodes of version < 1.4.0 will have the clustername set to null
-            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+            if (request.clusterName != null && request.clusterName.equals(clusterName) == false) {
                 logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]",
                     request.clusterName, clusterName);
                 throw new ThisIsNotTheMasterYouAreLookingForException("master fault detection ping request is targeted for a different ["
@@ -350,7 +338,7 @@ public class MasterFaultDetection extends FaultDetection {
             // all processing is finished.
             //
 
-            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.sourceNode)) {
+            if (nodes.isLocalNodeElectedMaster() == false || nodes.nodeExists(request.sourceNode) == false) {
                 logger.trace("checking ping from {} under a cluster state thread", request.sourceNode);
                 masterService.submitStateUpdateTask("master ping (from: " + request.sourceNode + ")", new ClusterStateUpdateTask() {
 
@@ -358,7 +346,7 @@ public class MasterFaultDetection extends FaultDetection {
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
-                        if (!nodes.nodeExists(request.sourceNode)) {
+                        if (nodes.nodeExists(request.sourceNode) == false) {
                             throw new NodeDoesNotExistOnMasterException();
                         }
                         return currentState;

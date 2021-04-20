@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -27,11 +16,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -152,7 +141,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         try {
             IdsQueryBuilder builder = PARSER.apply(parser, null);
             if (builder.types().length > 0) {
-                deprecationLogger.deprecate("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.TYPES, "ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             return builder;
         } catch (IllegalArgumentException e) {
@@ -171,8 +160,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         if (ids.isEmpty()) {
             return new MatchNoneQueryBuilder();
         }
-        QueryShardContext context = queryRewriteContext.convertToShardContext();
-        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
+        if (context != null && context.getFieldType(IdFieldMapper.NAME) == null) {
             // no mappings yet
             return new MatchNoneQueryBuilder();
         }
@@ -180,22 +169,21 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");
         }
-        final DocumentMapper mapper = context.getMapperService().documentMapper();
         Collection<String> typesForQuery;
         if (types.length == 0) {
             typesForQuery = context.queryTypes();
         } else if (types.length == 1 && Metadata.ALL.equals(types[0])) {
-            typesForQuery = Collections.singleton(mapper.type());
+            typesForQuery = Collections.singleton(context.getType());
         } else {
             typesForQuery = new HashSet<>(Arrays.asList(types));
         }
 
-        if (typesForQuery.contains(mapper.type())) {
+        if (typesForQuery.contains(context.getType())) {
             return idField.termsQuery(new ArrayList<>(ids), context);
         } else {
             return new MatchNoDocsQuery("Type mismatch");

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -22,21 +11,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -81,8 +67,18 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field(getFromField(), getFrom("long_range")).field(getToField(), getTo("long_range")).endObject();
+    protected Object getSampleValueForDocument() {
+        return Map.of(getFromField(), getFrom("long_range"), getToField(), getTo("long_range"));
+    }
+
+    @Override
+    protected Object getSampleValueForQuery() {
+        return 6;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -95,8 +91,8 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    protected String[] getParseMaximalWarnings() {
+        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -347,9 +343,10 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     public void testSerializeDefaults() throws Exception {
         for (String type : types()) {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
-            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.mapping().getRoot().getMapper("field");
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            mapper.doXContentBody(builder, params);
             String got = Strings.toString(builder.endObject());
 
             // if type is date_range we check that the mapper contains the default format and locale
@@ -367,39 +364,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
-        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(List.of(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
-            fetchSourceValue(longMapper, longRange));
-
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
-            .format("yyyy/MM/dd||epoch_millis")
-            .build(context);
-        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(List.of(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
-            fetchSourceValue(dateMapper, dateRange));
-    }
-
-    public void testParseSourceValueWithFormat() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(context);
-        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(List.of(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
-            fetchSourceValue(longMapper, longRange));
-
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
-            .format("strict_date_time")
-            .build(context);
-        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(List.of(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29")),
-            fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
-        assertEquals(List.of(org.elasticsearch.common.collect.Map.of("lt", "662428800000")),
-            fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        // Doc value fetching crashes.
+        // https://github.com/elastic/elasticsearch/issues/70269
+        // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
+        assumeFalse("DocValuesFetcher doesn't work", true);
+        return null;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -35,6 +36,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
 
+    private static final int MIN_PASSWORD_LENGTH = inFipsJvm() ? 14 : 6;
+
     // Randomly use SSL (or not)
     private static boolean useSSL;
 
@@ -49,10 +52,10 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         logger.info("--> use SSL? {}", useSSL);
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal));
+                .put(super.nodeSettings(nodeOrdinal, otherSettings));
         addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
         builder.put("xpack.security.http.ssl.enabled", useSSL);
         return builder.build();
@@ -81,8 +84,9 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         int numToAdd = randomIntBetween(1,10);
         Set<String> addedUsers = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
-            String uname = randomAlphaOfLength(5);
-            c.preparePutUser(uname, "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
+            final String uname = randomAlphaOfLength(5);
+            final char[] password = randomAlphaOfLengthBetween(MIN_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH * 2).toCharArray();
+            c.preparePutUser(uname, password, getFastStoredHashAlgoForTests(), "role1", "user").get();
             addedUsers.add(uname);
         }
         logger.error("--> waiting for .security index");

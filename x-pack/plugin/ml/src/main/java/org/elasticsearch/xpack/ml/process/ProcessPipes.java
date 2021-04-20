@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -76,7 +77,7 @@ public class ProcessPipes {
      *              May be null or empty for processes not associated with a specific job.
      */
     public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, Duration timeout, String processName, String jobId,
-                        boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
+                        Long uniqueId, boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
                         boolean wantRestorePipe, boolean wantPersistPipe) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
@@ -88,8 +89,11 @@ public class ProcessPipes {
         // main() function.
         StringBuilder prefixBuilder = new StringBuilder();
         prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env)).append(Objects.requireNonNull(processName)).append('_');
-        if (!Strings.isNullOrEmpty(jobId)) {
+        if (Strings.isNullOrEmpty(jobId) == false) {
             prefixBuilder.append(jobId).append('_');
+        }
+        if (uniqueId != null) {
+            prefixBuilder.append(uniqueId).append('_');
         }
         String prefix = prefixBuilder.toString();
         String suffix = String.format(Locale.ROOT, "_%d", JvmInfo.jvmInfo().getPid());

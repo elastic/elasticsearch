@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-parent-aggregation]]
-=== Parent Aggregation
+=== Parent aggregation
+++++
+<titleabbrev>Parent</titleabbrev>
+++++
 
 A special single bucket aggregation that selects parent documents that have the specified type, as defined in a <<parent-join,`join` field>>.
 

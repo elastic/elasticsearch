@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -36,12 +25,13 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,7 +78,7 @@ public class JoinHelper {
 
     private final MasterService masterService;
     private final TransportService transportService;
-    private final JoinTaskExecutor joinTaskExecutor;
+    private volatile JoinTaskExecutor joinTaskExecutor;
 
     private final TimeValue joinTimeout; // only used for Zen1 joining
     private final NodeHealthService nodeHealthService;
@@ -96,6 +86,8 @@ public class JoinHelper {
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
+
+    private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
     JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -106,23 +98,28 @@ public class JoinHelper {
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
+
+            private final long term = currentTermSupplier.getAsLong();
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
                 throws Exception {
-                // This is called when preparing the next cluster state for publication. There is no guarantee that the term we see here is
-                // the term under which this state will eventually be published: the current term may be increased after this check due to
-                // some other activity. That the term is correct is, however, checked properly during publication, so it is sufficient to
-                // check it here on a best-effort basis. This is fine because a concurrent change indicates the existence of another leader
-                // in a higher term which will cause this node to stand down.
-
-                final long currentTerm = currentTermSupplier.getAsLong();
-                if (currentState.term() != currentTerm) {
+                // The current state that MasterService uses might have been updated by a (different) master in a higher term already
+                // Stop processing the current cluster state update, as there's no point in continuing to compute it as
+                // it will later be rejected by Coordinator.publish(...) anyhow
+                if (currentState.term() > term) {
+                    logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
+                    throw new NotMasterException("Higher term encountered (current: " + currentState.term() + " > used: " +
+                        term + "), there is a newer master");
+                } else if (currentState.nodes().getMasterNodeId() == null && joiningTasks.stream().anyMatch(Task::isBecomeMasterTask)) {
+                    assert currentState.term() < term : "there should be at most one become master task per election (= by term)";
                     final CoordinationMetadata coordinationMetadata =
-                            CoordinationMetadata.builder(currentState.coordinationMetadata()).term(currentTerm).build();
+                            CoordinationMetadata.builder(currentState.coordinationMetadata()).term(term).build();
                     final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
                     currentState = ClusterState.builder(currentState).metadata(metadata).build();
+                } else if (currentState.nodes().isLocalNodeElectedMaster()) {
+                    assert currentState.term() == term : "term should be stable for the same master";
                 }
                 return super.execute(currentState, joiningTasks);
             }
@@ -146,15 +143,18 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
-                    localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID() + ", rejecting");
+                        localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "]. " +
+                            getClusterUuidMismatchExplanation(dataPaths, maxLocalStorageNodes));
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -166,10 +166,10 @@ public class JoinHelper {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
                     localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("mixed-version cluster join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID()
-                        + ", rejecting");
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "] and a mix of versions. " +
+                            getClusterUuidMismatchExplanation(dataPaths, maxLocalStorageNodes));
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -182,6 +182,14 @@ public class JoinHelper {
         transportService.registerRequestHandler(
             MembershipAction.DISCOVERY_LEAVE_ACTION_NAME, ThreadPool.Names.SAME, MembershipAction.LeaveRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
+    }
+
+    static String getClusterUuidMismatchExplanation(List<String> dataPaths, int maxLocalStorageNodes) {
+        return "This is forbidden and usually indicates an incorrect discovery or cluster bootstrapping configuration. Note that the " +
+                "cluster UUID persists across restarts and can only be changed by deleting the contents of the node's data " +
+                (dataPaths.size() == 1 ? "path " : "paths ") + dataPaths + " which will also remove any data held by " +
+                (maxLocalStorageNodes == 1 ? "this node." : "all nodes that use " +
+                (dataPaths.size() == 1 ? "this data path." : "these data paths."));
     }
 
     private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {
@@ -287,21 +295,16 @@ public class JoinHelper {
             if (Coordinator.isZen1Node(destination)) {
                 actionName = MembershipAction.DISCOVERY_JOIN_ACTION_NAME;
                 transportRequest = new MembershipAction.JoinRequest(transportService.getLocalNode());
-                transportRequestOptions = TransportRequestOptions.builder().withTimeout(joinTimeout).build();
+                transportRequestOptions = TransportRequestOptions.timeout(joinTimeout);
             } else {
                 actionName = JOIN_ACTION_NAME;
                 transportRequest = joinRequest;
                 transportRequestOptions = TransportRequestOptions.EMPTY;
             }
             transportService.sendRequest(destination, actionName, transportRequest, transportRequestOptions,
-                new TransportResponseHandler<Empty>() {
+                new TransportResponseHandler.Empty() {
                     @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
-
-                    @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
@@ -317,11 +320,6 @@ public class JoinHelper {
                         lastFailedJoinAttempt.set(attempt);
                         onCompletion.run();
                     }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
                 });
         } else {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
@@ -331,26 +329,15 @@ public class JoinHelper {
     public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         assert startJoinRequest.getSourceNode().isMasterNode()
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
-        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
-            startJoinRequest, new TransportResponseHandler<Empty>() {
+        transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
                 @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
+                public void handleResponse(TransportResponse.Empty response) {
                     logger.debug("successful response to {} from {}", startJoinRequest, destination);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
                     logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
             });
     }
@@ -408,6 +395,7 @@ public class JoinHelper {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, JoinCallback joinCallback) {
             final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
+            assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT),
                 joinTaskExecutor, new JoinTaskListener(task, joinCallback));
         }
@@ -474,10 +462,12 @@ public class JoinHelper {
                 });
                 pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {
                 });
+                joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(stateUpdateSource, pendingAsTasks, ClusterStateTaskConfig.build(Priority.URGENT),
                     joinTaskExecutor);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
+                joinTaskExecutor = null;
                 joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.onFailure(
                     new CoordinationStateRejectedException("became follower")));
             }

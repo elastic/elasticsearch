@@ -1,0 +1,137 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              excludes: ["nested.stored_only"]
+            properties:
+              nested:
+                type: nested
+                properties:
+                  field:
+                    type: text
+                    fields:
+                      vectors:
+                        type: text
+                        term_vector: "with_positions_offsets"
+                      postings:
+                        type: text
+                        index_options: "offsets"
+                  stored:
+                    type: text
+                    store: true
+                  stored_only:
+                    type: text
+                    store: true
+  - do:
+      index:
+        index: test
+        id:    1
+        refresh: true
+        body:
+          nested:
+            field : "The quick brown fox is brown."
+            stored : "The quick brown fox is brown."
+            stored_only : "The quick brown fox is brown."
+
+---
+"Unified highlighter":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: "nested"
+              query:
+                multi_match:
+                  query: "quick brown fox"
+                  fields: [ "nested.field", "nested.field.vectors", "nested.field.postings" ]
+              inner_hits:
+                highlight:
+                  type: "unified"
+                  fields:
+                    nested.field: {}
+                    nested.field.vectors: {}
+                    nested.field.postings: {}
+
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.field.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>." }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.field\.vectors.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>." }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.field\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>." }
+
+---
+"Unified highlighter with stored fields":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: "nested"
+              query:
+                multi_match:
+                  query: "quick brown fox"
+                  fields: [ "nested.stored", "nested.stored_only" ]
+              inner_hits:
+                highlight:
+                  type: "unified"
+                  fields:
+                    nested.stored: {}
+                    nested.stored_only: {}
+
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.stored.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>." }
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.stored_only.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>." }
+
+---
+"Unified highlighter with stored fields and disabled source":
+  - skip:
+      version: "- 7.10.1"
+      reason: "bug fix introduced in 7.10.2"
+  - do:
+      indices.create:
+        index: disabled_source
+        body:
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              nested:
+                type: nested
+                properties:
+                  field:
+                    type: text
+                  stored_only:
+                    type: text
+                    store: true
+  - do:
+      index:
+        index: disabled_source
+        id:    1
+        refresh: true
+        body:
+          nested:
+            field: "The quick brown fox is brown."
+            stored_only: "The quick brown fox is brown."
+
+  - do:
+      search:
+        index: disabled_source
+        body:
+          query:
+            nested:
+              path: "nested"
+              query:
+                multi_match:
+                  query: "quick brown fox"
+                  fields: ["nested.field", "nested.stored_only"]
+              inner_hits:
+                highlight:
+                  type: "unified"
+                  fields:
+                    nested.field: {}
+                    nested.stored_only: {}
+
+  - is_false: hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.field
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.stored_only.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}

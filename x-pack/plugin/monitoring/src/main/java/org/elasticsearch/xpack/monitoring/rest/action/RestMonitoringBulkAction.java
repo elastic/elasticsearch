@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -52,18 +54,11 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(
-                POST, "/_monitoring/bulk",
-                POST, "/_xpack/monitoring/_bulk"),
-            new ReplacedRoute(
-                PUT, "/_monitoring/bulk",
-                PUT, "/_xpack/monitoring/_bulk")));
+            Route.builder(POST, "/_monitoring/bulk")
+                .replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_monitoring/bulk")
+                .replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()));
     }
 
     @Override

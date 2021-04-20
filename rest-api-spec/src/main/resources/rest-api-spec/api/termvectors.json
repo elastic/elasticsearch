@@ -5,6 +5,11 @@
       "description":"Returns information and statistics about terms in the fields of a particular document."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

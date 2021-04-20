@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -194,6 +195,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         String phaseDefinition = randomAlphaOfLengthBetween(15, 50);
         String repositoryName = randomAlphaOfLengthBetween(10, 20);
         String snapshotName = randomAlphaOfLengthBetween(10, 20);
+        String snapshotIndexName = randomAlphaOfLengthBetween(10, 20);
         long indexCreationDate = randomLong();
         long phaseTime = randomLong();
         long actionTime = randomLong();
@@ -212,6 +214,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         customMetadata.put("step_time", String.valueOf(stepTime));
         customMetadata.put("snapshot_repository", repositoryName);
         customMetadata.put("snapshot_name", snapshotName);
+        customMetadata.put("snapshot_index_name", snapshotIndexName);
         return customMetadata;
     }
 }

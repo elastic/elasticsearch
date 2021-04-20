@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -433,6 +434,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder()
                 .put(REALM_SETTINGS_PREFIX + ".type", "saml")
@@ -481,6 +483,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
@@ -520,6 +523,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");

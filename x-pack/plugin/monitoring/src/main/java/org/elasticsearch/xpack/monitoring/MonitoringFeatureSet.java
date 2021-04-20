@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -21,15 +21,12 @@ import java.util.Map;
 public class MonitoringFeatureSet implements XPackFeatureSet {
 
     private final MonitoringService monitoring;
-    private final XPackLicenseState licenseState;
     private final Exporters exporters;
 
     @Inject
     public MonitoringFeatureSet(@Nullable MonitoringService monitoring,
-                                @Nullable XPackLicenseState licenseState,
                                 @Nullable Exporters exporters) {
         this.monitoring = monitoring;
-        this.licenseState = licenseState;
         this.exporters = exporters;
     }
 
@@ -40,7 +37,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.MONITORING);
+        return true;
     }
 
     @Override
@@ -57,7 +54,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
 
-        listener.onResponse(new MonitoringFeatureSetUsage(available(), collectionEnabled, exportersUsage(exporters)));
+        listener.onResponse(new MonitoringFeatureSetUsage(collectionEnabled, exportersUsage(exporters)));
     }
 
     static Map<String, Object> exportersUsage(Exporters exporters) {

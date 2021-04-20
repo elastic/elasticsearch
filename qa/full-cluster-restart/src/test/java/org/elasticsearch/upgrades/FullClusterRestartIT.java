@@ -1,23 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.upgrades;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
@@ -41,39 +61,12 @@ import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -255,6 +248,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createTemplate = new Request("PUT", "/_template/template_1");
             createTemplate.setJsonEntity(Strings.toString(mappingsAndSettings));
+            createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             client().performRequest(createTemplate);
             client().performRequest(new Request("PUT", "/" + index));
         }
@@ -342,7 +336,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
-            client().performRequest(new Request("POST", "/_refresh"));
+            refreshAllIndices();
         } else {
             numDocs = countOfIndexedRandomDocuments();
         }
@@ -427,7 +421,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             numDocs = countOfIndexedRandomDocuments();
         }
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(response);
@@ -728,13 +722,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(client().performRequest(flushRequest));
 
             if (randomBoolean()) {
-                // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
-                // We added this synced flush so we can exercise different paths of recovery code.
-                try {
-                    performSyncedFlush(index);
-                } catch (ResponseException ignored) {
-                    // synced flush is optional here
-                }
+                performSyncedFlush(index, randomBoolean());
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -889,7 +877,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
-        createTemplateRequest.setOptions(allowTypesRemovalWarnings());
+        createTemplateRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(RestPutIndexTemplateAction.DEPRECATION_WARNING);
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in put template " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', and requests are expected to omit the " +
+                "type name in mapping definitions.";
+            v.compatible(typesWarning);
+        }));
 
         client().performRequest(createTemplateRequest);
 
@@ -1448,7 +1442,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 flush(index, randomBoolean());
             } else if (randomBoolean()) {
-                performSyncedFlush(index);
+                performSyncedFlush(index, randomBoolean());
             }
             saveInfoDocument("doc_count", Integer.toString(numDocs));
         }
@@ -1457,73 +1451,108 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
     }
 
-    public void testCreateSystemIndexInOldVersion() throws Exception {
-        assumeTrue("only run on old cluster", isRunningAgainstOldCluster());
-        // create index
-        Request createTestIndex = new Request("PUT", "/test_index_old");
-        createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0, \"index.number_of_shards\": 1}}");
-        client().performRequest(createTestIndex);
+    @SuppressWarnings("unchecked")
+    public void testSystemIndexMetadataIsUpgraded() throws Exception {
+        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
+            "access to system indices will be prevented by default";
+        if (isRunningAgainstOldCluster()) {
+            // create index
+            Request createTestIndex = new Request("PUT", "/test_index_old");
+            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0, \"index.number_of_shards\": 1}}");
+            client().performRequest(createTestIndex);
 
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"_doc\"}}\n" +
-            "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            Request bulk = new Request("POST", "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\", \"_type\" : \"" + type + "\"}}\n" +
+                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
         if (isRunningAgainstAncientCluster() == false) {
             bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         }
-        client().performRequest(bulk);
+            client().performRequest(bulk);
 
-        // start a async reindex job
-        Request reindex = new Request("POST", "/_reindex");
-        reindex.setJsonEntity(
-            "{\n" +
-                "  \"source\":{\n" +
-                "    \"index\":\"test_index_old\"\n" +
-                "  },\n" +
-                "  \"dest\":{\n" +
-                "    \"index\":\"test_index_reindex\"\n" +
-                "  }\n" +
-                "}");
-        reindex.addParameter("wait_for_completion", "false");
-        Map<String, Object> response = entityAsMap(client().performRequest(reindex));
-        String taskId = (String) response.get("task");
+            // start a async reindex job
+            Request reindex = new Request("POST", "/_reindex");
+            reindex.setJsonEntity(
+                "{\n" +
+                    "  \"source\":{\n" +
+                    "    \"index\":\"test_index_old\"\n" +
+                    "  },\n" +
+                    "  \"dest\":{\n" +
+                    "    \"index\":\"test_index_reindex\"\n" +
+                    "  }\n" +
+                    "}");
+            reindex.addParameter("wait_for_completion", "false");
+            Map<String, Object> response = entityAsMap(client().performRequest(reindex));
+            String taskId = (String) response.get("task");
 
-        // wait for task
-        Request getTask = new Request("GET", "/_tasks/" + taskId);
-        getTask.addParameter("wait_for_completion", "true");
-        client().performRequest(getTask);
+            // wait for task
+            Request getTask = new Request("GET", "/_tasks/" + taskId);
+            getTask.addParameter("wait_for_completion", "true");
+            client().performRequest(getTask);
 
-        // make sure .tasks index exists
-        assertBusy(() -> {
+            // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.addParameter("allow_no_indices", "false");
             if (getOldClusterVersion().onOrAfter(Version.V_6_7_0) && getOldClusterVersion().before(Version.V_7_0_0)) {
                 getTasksIndex.addParameter("include_type_name", "false");
             }
-            assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
-        });
-    }
 
-    @SuppressWarnings("unchecked" +
-        "")
-    public void testSystemIndexGetsUpdatedMetadata() throws Exception {
-        assumeFalse("only run in upgraded cluster", isRunningAgainstOldCluster());
+            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(systemIndexWarning);
+                v.compatible(systemIndexWarning);
+            }));
+            assertBusy(() -> {
+                try {
+                    assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
+                } catch (ResponseException e) {
+                    throw new AssertionError(".tasks index does not exist yet");
+                }
+            });
 
-        assertBusy(() -> {
-            Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
-            Map<String, Object> response = entityAsMap(client().performRequest(clusterStateRequest));
-            Map<String, Object> metadata = (Map<String, Object>) response.get("metadata");
-            assertNotNull(metadata);
-            Map<String, Object> indices = (Map<String, Object>) metadata.get("indices");
-            assertNotNull(indices);
+            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
+            // upgraded properly. If we're already on 8.x, skip this part of the test.
+            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                // Create an alias to make sure it gets upgraded properly
+                Request putAliasRequest = new Request("POST", "/_aliases");
+                putAliasRequest.setJsonEntity("{\n" +
+                    "  \"actions\": [\n" +
+                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
+                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
+                    "  ]\n" +
+                    "}");
+                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
+            }
+        } else {
+            assertBusy(() -> {
+                Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
+                Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(clusterStateRequest)))
+                    .get("metadata.indices");
 
-            Map<String, Object> tasksIndex = (Map<String, Object>) indices.get(".tasks");
-            assertNotNull(tasksIndex);
-            assertThat(tasksIndex.get("system"), is(true));
+                // Make sure our non-system index is still non-system
+                assertThat(new XContentTestUtils.JsonMapView(indices).get("test_index_old.system"), is(false));
 
-            Map<String, Object> testIndex = (Map<String, Object>) indices.get("test_index_old");
-            assertNotNull(testIndex);
-            assertThat(testIndex.get("system"), is(false));
-        });
+                // Can't get the .tasks index via JsonMapView because it splits on `.`
+                assertThat(indices, hasKey(".tasks"));
+                XContentTestUtils.JsonMapView tasksIndex = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".tasks"));
+                assertThat(tasksIndex.get("system"), is(true));
+
+                // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
+                final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
+                assertThat(tasksCreatedVersionString, notNullValue());
+                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
+                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                    // Verify that the alias survived the upgrade
+                    Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
+                    getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                        v.current(systemIndexWarning);
+                        v.compatible(systemIndexWarning);
+                    }));
+                    Map<String, Object> aliasResponse = entityAsMap(client().performRequest(getAliasRequest));
+                    assertThat(aliasResponse, hasKey(".tasks"));
+                    assertThat(aliasResponse, hasKey("test_index_reindex"));
+                }
+            });
+        }
     }
 
     public void testEnableSoftDeletesOnRestore() throws Exception {

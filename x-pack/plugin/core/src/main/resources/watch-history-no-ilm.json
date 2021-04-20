@@ -613,6 +613,7 @@
       }
     }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for watcher history indices",
     "managed": true

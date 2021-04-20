@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -20,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CreateApiKeyRequestTests extends ESTestCase {
@@ -69,6 +71,17 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), is(1));
         assertThat(ve.validationErrors().get(0), containsString("api key name may not begin with an underscore"));
+    }
+
+    public void testMetadataKeyValidation() {
+        final String name = randomAlphaOfLengthBetween(1, 256);
+        CreateApiKeyRequest request = new CreateApiKeyRequest();
+        request.setName(name);
+        request.setMetadata(org.elasticsearch.common.collect.Map.of("_foo", "bar"));
+        final ActionRequestValidationException ve = request.validate();
+        assertNotNull(ve);
+        assertThat(ve.validationErrors().size(), equalTo(1));
+        assertThat(ve.validationErrors().get(0), containsString("metadata keys may not start with [_]"));
     }
 
     public void testSerialization() throws IOException {

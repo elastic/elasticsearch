@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -10,10 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -174,10 +177,16 @@ public class Realms implements Iterable<Realm> {
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
         Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
+        Set<String> unconfiguredBasicRealms = new HashSet<>(
+            org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
             final RealmConfig.RealmIdentifier identifier = entry.getKey();
             if (false == entry.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY)) {
-                missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+                // If the realm is disabled, it is ok to have no order setting. This is only really useful for file/native realm.
+                // Because settings of other realms can just be entirely removed.
+                if (entry.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true)) {
+                    missingOrderRealmSettingKeys.add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
+                }
             } else {
                 orderToRealmOrderSettingKeys.computeIfAbsent(entry.getValue().get(RealmSettings.ORDER_SETTING_KEY), k -> new TreeSet<>())
                     .add(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING));
@@ -187,7 +196,8 @@ public class Realms implements Iterable<Realm> {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
-            if (!config.enabled()) {
+            unconfiguredBasicRealms.remove(identifier.getType());
+            if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
                 }
@@ -216,7 +226,8 @@ public class Realms implements Iterable<Realm> {
             realms.add(realm);
         }
 
-        if (!realms.isEmpty()) {
+        logDeprecationForImplicitlyDisabledBasicRealms(realms, unconfiguredBasicRealms);
+        if (realms.isEmpty() == false) {
             Collections.sort(realms);
         } else {
             // there is no "realms" configuration, add the defaults
@@ -302,15 +313,15 @@ public class Realms implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
-            realms.add(fileRealm.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    settings, env, threadContext)));
+            RealmConfig.RealmIdentifier realmIdentifier =
+                new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
+            realms.add(fileRealm.create(new RealmConfig(realmIdentifier, settings, env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext)));
+            RealmConfig.RealmIdentifier realmIdentifier =
+                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
+            realms.add(indexRealmFactory.create(new RealmConfig(realmIdentifier, settings, env, threadContext)));
         }
     }
 
@@ -348,8 +359,8 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
         if (missingOrderRealmSettingKeys.size() > 0) {
-            deprecationLogger.deprecate("unordered_realm_config", "Found realms without order config: [{}]. " +
-                    "In next major release, node will fail to start with missing realm order.",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "unordered_realm_config",
+                "Found realms without order config: [{}]. In next major release, node will fail to start with missing realm order.",
                 String.join("; ", missingOrderRealmSettingKeys)
             );
         }
@@ -360,11 +371,38 @@ public class Realms implements Iterable<Realm> {
             .sorted()
             .collect(Collectors.toList());
         if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            deprecationLogger.deprecate("duplicate_realm_order",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "duplicate_realm_order",
                     "Found multiple realms configured with the same order: [{}]. " +
                     "In next major release, node will fail to start with duplicated realm order.",
                 String.join("; ", duplicatedRealmOrderSettingKeys));
         }
     }
 
+    private void logDeprecationForImplicitlyDisabledBasicRealms(List<Realm> realms, Set<String> unconfiguredBasicRealms) {
+        if (realms.isEmpty()) {  // No available realm
+            final List<String> explicitlyDisabledBasicRealms =
+                Sets.difference(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                    unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
+            if (explicitlyDisabledBasicRealms.isEmpty()) {
+                return;
+            }
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_basic_realms",
+                "Found explicitly disabled basic {}: [{}]. But {} will be enabled because no other realms are configured or enabled. " +
+                    "In next major release, explicitly disabled basic realms will remain disabled.",
+                explicitlyDisabledBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(explicitlyDisabledBasicRealms, ","),
+                explicitlyDisabledBasicRealms.size() == 1 ? "it" : "they");
+        } else { // There are configured and enabled realms
+            if (unconfiguredBasicRealms.isEmpty()) {
+                return;
+            }
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "implicitly_disabled_basic_realms",
+                "Found implicitly disabled basic {}: [{}]. {} disabled because there are other explicitly configured realms. " +
+                    "In next major release, basic realms will always be enabled unless explicitly disabled.",
+                unconfiguredBasicRealms.size() == 1 ? "realm" : "realms",
+                Strings.collectionToDelimitedString(unconfiguredBasicRealms, ","),
+                unconfiguredBasicRealms.size() == 1 ? "It is" : "They are"
+            );
+        }
+    }
 }

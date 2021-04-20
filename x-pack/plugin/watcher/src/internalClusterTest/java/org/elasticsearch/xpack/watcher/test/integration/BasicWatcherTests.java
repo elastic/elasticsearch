@@ -1,25 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -377,5 +387,124 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithMinimumPerformedActionsCount(watchName, 1);
+    }
+
+    public void testQueryWatches() {
+        int numWatches = 6;
+        for (int i = 0; i < numWatches; i++) {
+            PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
+                .setSource(watchBuilder()
+                    .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
+                    .addAction("_logger", loggingAction("log me"))
+                    .metadata(Map.of("key1", i, "key2", numWatches - i)))
+                .get();
+            assertThat(putWatchResponse.isCreated(), is(true));
+        }
+        refresh();
+
+        QueryWatchesAction.Request request =
+            new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
+        QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("0"));
+        java.util.Map<?, ?> watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(6));
+        assertThat(response.getWatches().get(1).getId(), equalTo("1"));
+        watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(5));
+
+        request = new QueryWatchesAction.Request(2, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("2"));
+        watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(4));
+        assertThat(response.getWatches().get(1).getId(), equalTo("3"));
+        watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key2"), equalTo(3));
+
+        request = new QueryWatchesAction.Request(null, null, new TermQueryBuilder("_id", "4"), null, null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo(1L));
+        assertThat(response.getWatches().size(), equalTo(1));
+        assertThat(response.getWatches().get(0).getId(), equalTo("4"));
+        watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key1"), equalTo(4));
+        assertThat(watcherMetadata.get("key2"), equalTo(2));
+
+        request = new QueryWatchesAction.Request(4, 2, null, List.of(new FieldSortBuilder("metadata.key2")), null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("1"));
+        watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(0).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key1"), equalTo(1));
+        assertThat(watcherMetadata.get("key2"), equalTo(5));
+        assertThat(response.getWatches().get(1).getId(), equalTo("0"));
+        watcherMetadata = (java.util.Map<?, ?>) response.getWatches().get(1).getSource().getAsMap().get("metadata");
+        assertThat(watcherMetadata.get("key1"), equalTo(0));
+        assertThat(watcherMetadata.get("key2"), equalTo(6));
+    }
+
+    public void testQueryWatchesNoWatches() {
+        QueryWatchesAction.Request request = new QueryWatchesAction.Request(null, null, null, null, null);
+        QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo(0L));
+        assertThat(response.getWatches().size(), equalTo(0));
+
+        // Even if there is no .watches index this api should work and return 0 watches.
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("*");
+        deleteIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+        client().admin().indices().delete(deleteIndexRequest).actionGet();
+        request = new QueryWatchesAction.Request(null, null, null, null, null);
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo(0L));
+        assertThat(response.getWatches().size(), equalTo(0));
+    }
+
+    public void testQueryWatchesSearchAfter() {
+        int numWatches = 6;
+        for (int i = 0; i < numWatches; i++) {
+            PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
+                .setSource(watchBuilder()
+                    .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
+                    .addAction("_logger", loggingAction("log me"))
+                    .metadata(Map.of("_id", i)))
+                .get();
+            assertThat(putWatchResponse.isCreated(), is(true));
+        }
+        refresh();
+
+        QueryWatchesAction.Request request =
+            new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")), null);
+        QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("0"));
+        assertThat(response.getWatches().get(1).getId(), equalTo("1"));
+
+        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
+            new SearchAfterBuilder().setSortValues(new Object[]{"1"}));
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("2"));
+        assertThat(response.getWatches().get(1).getId(), equalTo("3"));
+
+        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
+            new SearchAfterBuilder().setSortValues(new Object[]{"3"}));
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(2));
+        assertThat(response.getWatches().get(0).getId(), equalTo("4"));
+        assertThat(response.getWatches().get(1).getId(), equalTo("5"));
+
+        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
+            new SearchAfterBuilder().setSortValues(new Object[]{"5"}));
+        response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
+        assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
+        assertThat(response.getWatches().size(), equalTo(0));
     }
 }

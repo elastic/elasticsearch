@@ -60,7 +60,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
@@ -107,6 +107,10 @@ upper bound of data that is included in the checkpoint.
 was created.
 =====
 //End checkpointing.last
+
+`last_search_time`:::
+(date)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
 
 //Begin checkpointing.next
 `next`:::
@@ -187,6 +191,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 .Properties of `stats`
 [%collapsible%open]
 ====
+
+`delete_time_in_ms`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
+`documents_deleted`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
 
 `documents_indexed`:::
 (long)
@@ -298,6 +310,8 @@ The API returns the following results:
         "pages_processed" : 78,
         "documents_processed" : 6027,
         "documents_indexed" : 68,
+        "documents_deleted": 22,
+        "delete_time_in_ms": 214,
         "trigger_count" : 168,
         "index_time_in_ms" : 412,
         "index_total" : 20,

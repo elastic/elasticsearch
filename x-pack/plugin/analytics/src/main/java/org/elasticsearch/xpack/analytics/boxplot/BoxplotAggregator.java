@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.boxplot;
@@ -21,8 +22,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     protected final double compression;
 
     BoxplotAggregator(String name, ValuesSource valuesSource, DocValueFormat formatter, double compression,
-                      SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+                      AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -57,13 +58,12 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         if (valuesSource instanceof HistogramValuesSource.Histogram) {
             final HistogramValues values = ((HistogramValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
+                    TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                     if (values.advanceExact(doc)) {
                         final HistogramValue sketch = values.histogram();
                         while(sketch.next()) {
@@ -77,9 +77,9 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    states = bigArrays.grow(states, bucket + 1);
+                    states = bigArrays().grow(states, bucket + 1);
                     if (values.advanceExact(doc)) {
-                        TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
+                        TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                         if (values.advanceExact(doc)) {
                             final int valueCount = values.docValueCount();
                             for (int i = 0; i < valueCount; i++) {

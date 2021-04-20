@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -154,7 +156,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     public void testCreateReadDeleteCheckPoint() throws InterruptedException {
-        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoints();
+        TransformCheckpoint checkpoint = TransformCheckpointTests.randomTransformCheckpoint();
 
         // create
         assertAsync(listener -> transformConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
@@ -351,7 +353,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig("transform_test_delete_old_configurations");
         client().admin()
             .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings()))
+            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings())
+                .origin(ClientHelper.TRANSFORM_ORIGIN))
             .actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -387,7 +390,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformStoredDoc transformStoredDoc = TransformStoredDocTests.randomTransformStoredDoc(transformId);
         client().admin()
             .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings()))
+            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings())
+                .origin(ClientHelper.TRANSFORM_ORIGIN))
             .actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -416,7 +420,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             is(true)
         );
 
-        assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), true, null, null);
+        assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener), 1L, null, null);
 
         client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));

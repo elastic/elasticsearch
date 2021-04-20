@@ -52,11 +52,17 @@ DELETE /_index_template/*
 GET /_data_stream/my-data-stream/_stats
 ----
 
+[[data-stream-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor` or `manage` <<privileges-list-indices,index privilege>>
+for the data stream.
 
 [[data-stream-stats-api-request]]
 ==== {api-request-title}
 
-`GET /_data_stream/<data-stream>`
+`GET /_data_stream/<data-stream>/_stats`
 
 
 [[data-stream-stats-api-path-params]]
@@ -72,8 +78,12 @@ To target all data streams in a cluster, omit this parameter or use `*`.
 [[data-stream-stats-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
+
 `human`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the response includes statistics in human-readable <<byte-units,byte
 values>>. Defaults to `false`.
 

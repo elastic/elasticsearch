@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.stats;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -50,6 +40,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -106,9 +97,9 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
                 .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
                 .build();
@@ -408,7 +399,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // make sure we see throttling kicking in:
         boolean done = false;
         long start = System.currentTimeMillis();
-        while (!done) {
+        while (done == false) {
             for(int i=0; i<100; i++) {
                 // Provoke slowish merging by making many unique terms:
                 StringBuilder sb = new StringBuilder();
@@ -612,11 +603,23 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         client().admin().indices().prepareRefresh().get();
-        stats = client().admin().indices().prepareStats().setSegments(true).get();
+
+        final boolean includeSegmentFileSizes = randomBoolean();
+        stats = client().admin().indices().prepareStats().setSegments(true).setIncludeSegmentFileSizes(includeSegmentFileSizes).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
+        if (includeSegmentFileSizes) {
+            assertThat(stats.getTotal().getSegments().getFiles().size(), greaterThan(0));
+            for (ObjectObjectCursor<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles()) {
+                assertThat(cursor.value.getExt(), notNullValue());
+                assertThat(cursor.value.getTotal(), greaterThan(0L));
+                assertThat(cursor.value.getCount(), greaterThan(0L));
+                assertThat(cursor.value.getMin(), greaterThan(0L));
+                assertThat(cursor.value.getMax(), greaterThan(0L));
+            }
+        }
     }
 
     public void testAllFlags() throws Exception {
@@ -1143,7 +1146,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     executionFailures.get().add(e);
                     latch.countDown();
                 }
-                while (!stop.get()) {
+                while (stop.get() == false) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
                     final IndexResponse response =
                         client()
@@ -1171,7 +1174,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 final IndicesStatsRequest request = new IndicesStatsRequest();
                 request.all();
                 request.indices(new String[0]);
-                while (!stop.get()) {
+                while (stop.get() == false) {
                     try {
                         final IndicesStatsResponse response = client().admin().indices().stats(request).get();
                         if (response.getFailedShards() > 0) {

@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Named;
 import org.gradle.api.file.CopySpec;
-import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 
@@ -30,12 +19,12 @@ import java.util.function.Supplier;
 public class DistributionArchive implements Named {
 
     private TaskProvider<? extends AbstractArchiveTask> archiveTask;
-    private TaskProvider<Copy> explodedDistTask;
+    private TaskProvider<Sync> expandedDistTask;
     private final String name;
 
-    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Copy> explodedDistTask, String name) {
+    public DistributionArchive(TaskProvider<? extends AbstractArchiveTask> archiveTask, TaskProvider<Sync> expandedDistTask, String name) {
         this.archiveTask = archiveTask;
-        this.explodedDistTask = explodedDistTask;
+        this.expandedDistTask = expandedDistTask;
         this.name = name;
     }
 
@@ -45,7 +34,7 @@ public class DistributionArchive implements Named {
 
     public void content(Supplier<CopySpec> p) {
         this.archiveTask.configure(t -> t.with(p.get()));
-        this.explodedDistTask.configure(t -> t.with(p.get()));
+        this.expandedDistTask.configure(t -> t.with(p.get()));
     }
 
     @Override
@@ -57,7 +46,7 @@ public class DistributionArchive implements Named {
         return archiveTask;
     }
 
-    public TaskProvider<Copy> getExplodedArchiveTask() {
-        return explodedDistTask;
+    public TaskProvider<Sync> getExpandedDistTask() {
+        return expandedDistTask;
     }
 }

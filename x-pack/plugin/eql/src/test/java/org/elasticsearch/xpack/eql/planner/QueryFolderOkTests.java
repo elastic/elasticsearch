@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
-import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -111,13 +109,6 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
     }
 
     public void test() {
-        String testName = name.toLowerCase(Locale.ROOT);
-        // skip tests that do not make sense from case sensitivity point of view
-        boolean isCaseSensitiveValidTest = testName.endsWith("sensitive") == false
-            || testName.endsWith("-casesensitive") && configuration.isCaseSensitive()
-            || testName.endsWith("-caseinsensitive") && configuration.isCaseSensitive() == false;
-        Assume.assumeTrue(isCaseSensitiveValidTest);
-
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;

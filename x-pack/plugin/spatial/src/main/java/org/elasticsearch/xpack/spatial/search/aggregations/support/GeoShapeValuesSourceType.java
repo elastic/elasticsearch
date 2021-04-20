@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
@@ -14,16 +15,16 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
-import java.util.function.LongSupplier;
 
 public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
 
@@ -45,7 +46,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+    public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
         boolean isGeoPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
         boolean isGeoShape = fieldContext.indexFieldData() instanceof IndexGeoShapeFieldData;
         if (isGeoPoint == false && isGeoShape == false) {
@@ -59,32 +60,28 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+    public ValuesSource replaceMissing(
+        ValuesSource valuesSource,
+        Object rawMissing,
+        DocValueFormat docValueFormat,
+        AggregationContext context
+    ) {
         GeoShapeValuesSource geoShapeValuesSource = (GeoShapeValuesSource) valuesSource;
-        final MultiGeoShapeValues.GeoShapeValue missing = MultiGeoShapeValues.GeoShapeValue.missing(rawMissing.toString());
+        final GeoShapeValues.GeoShapeValue missing = GeoShapeValues.GeoShapeValue.missing(rawMissing.toString());
         return new GeoShapeValuesSource() {
             @Override
-            public MultiGeoShapeValues geoShapeValues(LeafReaderContext context) {
-                MultiGeoShapeValues values = geoShapeValuesSource.geoShapeValues(context);
-                return new MultiGeoShapeValues() {
+            public GeoShapeValues geoShapeValues(LeafReaderContext context) {
+                GeoShapeValues values = geoShapeValuesSource.geoShapeValues(context);
+                return new GeoShapeValues() {
 
-                    private int count;
+                    private boolean exists;
 
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
-                        if (values.advanceExact(doc)) {
-                            count = values.docValueCount();
-                        } else {
-                            count = 0;
-                        }
+                        exists = values.advanceExact(doc);
                         // always return true because we want to return a value even if
                         // the document does not have a value
                         return true;
-                    }
-
-                    @Override
-                    public int docValueCount() {
-                        return count == 0 ? 1 : count;
                     }
 
                     @Override
@@ -93,12 +90,8 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
                     }
 
                     @Override
-                    public GeoShapeValue nextValue() throws IOException {
-                        if (count > 0) {
-                            return values.nextValue();
-                        } else {
-                            return missing;
-                        }
+                    public GeoShapeValue value() throws IOException {
+                        return exists ?  values.value() : missing;
                     }
 
                     @Override

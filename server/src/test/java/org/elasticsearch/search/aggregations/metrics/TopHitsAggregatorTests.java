@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -39,12 +28,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -59,21 +45,8 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TopHitsAggregatorTests extends AggregatorTestCase {
-
-    @Override
-    protected MapperService mapperServiceMock() {
-        MapperService mapperService = mock(MapperService.class);
-        DocumentMapper mapper = mock(DocumentMapper.class);
-        when(mapper.typeText()).thenReturn(new Text("type"));
-        when(mapper.type()).thenReturn("type");
-        when(mapperService.documentMapper()).thenReturn(mapper);
-        return mapperService;
-    }
-
     public void testTopLevel() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
@@ -85,11 +58,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         SearchHits searchHits = ((TopHits) result).getHits();
         assertEquals(3L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
-        assertEquals("type", searchHits.getAt(0).getType());
+        assertEquals("_doc", searchHits.getAt(0).getType());
         assertEquals("2", searchHits.getAt(1).getId());
-        assertEquals("type", searchHits.getAt(1).getType());
+        assertEquals("_doc", searchHits.getAt(1).getType());
         assertEquals("1", searchHits.getAt(2).getId());
-        assertEquals("type", searchHits.getAt(2).getType());
+        assertEquals("_doc", searchHits.getAt(2).getType());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
     }
 

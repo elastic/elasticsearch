@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -55,14 +56,33 @@ public final class XPackField {
     public static final String ANALYTICS = "analytics";
     /** Name constant for the enrich plugin. */
     public static final String ENRICH = "enrich";
-    /** Name constant for the constant-keyword plugin. */
+    /**
+     * Name constant for the constant-keyword plugin.
+     */
     public static final String CONSTANT_KEYWORD = "constant_keyword";
-    /** Name constant for the searchable snapshots feature. */
+    /**
+     * Name constant for the searchable snapshots feature.
+     */
     public static final String SEARCHABLE_SNAPSHOTS = "searchable_snapshots";
-    /** Name constant for the data streams feature. */
+    /**
+     * Name constant for the data streams feature.
+     */
     public static final String DATA_STREAMS = "data_streams";
+    /**
+     * Name constant for the data tiers feature.
+     */
+    public static final String DATA_TIERS = "data_tiers";
+    /**
+     * Name constant for the aggregate_metric plugin.
+     */
+    public static final String AGGREGATE_METRIC = "aggregate_metric";
+    /**
+     * Name constant for the operator privileges feature.
+     */
+    public static final String OPERATOR_PRIVILEGES = "operator_privileges";
 
-    private XPackField() {}
+    private XPackField() {
+    }
 
     public static String featureSettingPrefix(String featureName) {
         return XPackField.SETTINGS_NAME + "." + featureName;

@@ -18,13 +18,13 @@ POST /my-index-000001/_flush/synced
 [[synced-flush-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/flush/synced`
+`POST /<index>/_flush/synced`
 
-`GET /<index>/flush/synced`
+`GET /<index>/_flush/synced`
 
-`POST /flush/synced`
+`POST /_flush/synced`
 
-`GET /flush/synced`
+`GET /_flush/synced`
 
 
 [[synced-flush-api-desc]]

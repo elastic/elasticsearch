@@ -1,27 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -32,14 +27,18 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader.getElasticsearchDirectoryReader;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class ReadOnlyEngineTests extends EngineTestCase {
 
@@ -70,7 +69,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getPersistedLocalCheckpoint()));
                 engine.flush();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, engine.getSeqNoStats(globalCheckpoint.get()),
-                    engine.getTranslogStats(), false, Function.identity(), true);
+                    engine.getTranslogStats(), false, Function.identity(), true, randomBoolean());
                 lastSeqNoStats = engine.getSeqNoStats(globalCheckpoint.get());
                 lastDocIds = getDocIds(engine, true);
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -84,6 +83,11 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     if (rarely()) {
                         engine.flush();
                     }
+                }
+                try (ReadOnlyEngine readOnlyEngineWithLazySoftDeletes = new ReadOnlyEngine(engine.engineConfig,
+                    engine.getSeqNoStats(globalCheckpoint.get()),
+                    engine.getTranslogStats(), false, Function.identity(), true, true)) {
+                    EngineTestCase.checkNoSoftDeletesLoaded(readOnlyEngineWithLazySoftDeletes);
                 }
                 Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
                 Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
@@ -100,7 +104,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
                 assertThat(getDocIds(readOnlyEngine, false), equalTo(lastDocIds));
-                try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
+                try (Engine.GetResult getResult = readOnlyEngine.get(get, docMapper(get.type()), randomSearcherWrapper())) {
                     assertTrue(getResult.exists());
                 }
             }
@@ -138,7 +142,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
                 engine.syncTranslog();
                 engine.flushAndClose();
-                readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity(), true);
+                readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity(), true, randomBoolean());
                 Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), true);
                 assertEquals(flush, readOnlyEngine.flush(randomBoolean(), true));
             } finally {
@@ -166,7 +170,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.flushAndClose();
 
                 IllegalStateException exception = expectThrows(IllegalStateException.class,
-                    () -> new ReadOnlyEngine(config, null, null, true, Function.identity(), true) {
+                    () -> new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean()) {
                         @Override
                         protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
                             // we don't want the assertion to trip in this test
@@ -184,8 +188,9 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(Version.CURRENT.luceneVersion);
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity(), true)) {
+            store.createEmpty();
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity(), true,
+                randomBoolean())) {
                 Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class :
                     UnsupportedOperationException.class;
                 expectThrows(expectedException, () -> readOnlyEngine.index(null));
@@ -205,14 +210,54 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(Version.CURRENT.luceneVersion);
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity(), true)) {
+            store.createEmpty();
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , new TranslogStats(), true, Function.identity(), true,
+                randomBoolean())) {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {
                     readOnlyEngine.verifyEngineBeforeIndexClosing();
                 } catch (final IllegalStateException e) {
                     fail("Read-only engine pre-closing verifications failed");
                 }
+            }
+        }
+    }
+
+    public void testForceMergeOnReadOnlyEngine() throws IOException {
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            int numDocs = scaledRandomIntBetween(10, 100);
+            int numSegments;
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < numDocs; i++) {
+                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
+                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                    engine.flush();
+                    globalCheckpoint.set(i);
+                }
+                engine.syncTranslog();
+                engine.flushAndClose();
+                numSegments = engine.getLastCommittedSegmentInfos().size();
+            }
+
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity(), true,
+                randomBoolean())) {
+                if (numSegments > 1) {
+                    final int target = between(1, numSegments - 1);
+                    UnsupportedOperationException exception = expectThrows(UnsupportedOperationException.class,
+                            () -> readOnlyEngine.forceMerge(true, target, false, false, false, UUIDs.randomBase64UUID()));
+                    assertThat(exception.getMessage(), equalTo("force merge is not supported on a read-only engine, " +
+                            "target max number of segments[" + target + "], current number of segments[" + numSegments + "]."));
+                }
+
+                readOnlyEngine.forceMerge(true, ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS,
+                    false, false, false, UUIDs.randomBase64UUID());
+                readOnlyEngine.forceMerge(true, numSegments, false, false, false, UUIDs.randomBase64UUID());
+                readOnlyEngine.forceMerge(true, numSegments+1, false, false, false, UUIDs.randomBase64UUID());
+                assertEquals(readOnlyEngine.getLastCommittedSegmentInfos().size(), numSegments);
             }
         }
     }
@@ -236,7 +281,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 engine.flushAndClose();
             }
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity(), true)) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity(), true,
+                randomBoolean())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
                 readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
 
@@ -273,17 +319,90 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
                 assertThat(engine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
                 assertThat(engine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
-                assertThat(engine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
+                assertThat(engine.getTranslogStats().getEarliestLastModifiedAge(), greaterThanOrEqualTo(0L));
 
                 engine.flush(true, true);
             }
 
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true,
+                randomBoolean())) {
                 assertThat(readOnlyEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
                 assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
-                assertThat(readOnlyEngine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
+                assertThat(readOnlyEngine.getTranslogStats().getEarliestLastModifiedAge(), greaterThanOrEqualTo(0L));
+            }
+        }
+    }
+
+    public void testSearcherId() throws Exception {
+        IOUtils.close(engine, store);
+        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            final MergePolicy mergePolicy = new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                @Override
+                public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) {
+                    return true;
+                }
+            };
+            final EngineConfig config = config(defaultSettings, store, createTempDir(), mergePolicy, null, null, globalCheckpoint::get);
+            String lastSearcherId;
+            Map<String, Engine.Operation> latestOps = new HashMap<>();
+            try (InternalEngine engine = createEngine(null, null, null, config)) {
+                lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
+                assertNotNull(lastSearcherId);
+                int iterations = randomIntBetween(0, 10);
+                for (int i = 0; i < iterations; i++) {
+                    assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(lastSearcherId));
+                    final List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100),
+                        engine.getProcessedLocalCheckpoint() + 1L, false, randomBoolean(), randomBoolean());
+                    boolean hasChanges = false;
+                    for (Engine.Operation op : operations) {
+                        if (op instanceof Engine.Index) {
+                            engine.index((Engine.Index) op);
+                            if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                                latestOps.put(op.id(), op);
+                                hasChanges = true;
+                            }
+                        } else if (op instanceof Engine.Delete) {
+                            engine.delete((Engine.Delete) op);
+                            final Engine.Operation lastOp = latestOps.get(op.id());
+                            hasChanges |= (lastOp instanceof Engine.Index && lastOp.seqNo() < op.seqNo());
+                            if (lastOp == null || lastOp.seqNo() < op.seqNo()) {
+                                latestOps.put(op.id(), op);
+                            }
+                        } else {
+                            assertThat(op, instanceOf(Engine.NoOp.class));
+                            engine.noOp((Engine.NoOp) op);
+                        }
+                        if (randomInt(100) < 10) {
+                            engine.refresh("test");
+                        }
+                        if (rarely()) {
+                            engine.flush(false, true);
+                        }
+                    }
+                    engine.flush(randomBoolean(), true);
+                    final String newSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
+                    if (hasChanges || config.getIndexSettings().isSoftDeleteEnabled()) {
+                        assertThat(newSearcherId, not(equalTo(lastSearcherId)));
+                    } else {
+                        assertThat(newSearcherId, equalTo(lastSearcherId));
+                    }
+                    if (randomBoolean()) {
+                        engine.flush(true, true);
+                        assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(newSearcherId));
+                    }
+                    lastSearcherId = newSearcherId;
+                }
+                globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+            }
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true,
+                randomBoolean())) {
+                try (Engine.SearcherSupplier searcher =
+                         readOnlyEngine.acquireSearcherSupplier(Function.identity(), randomFrom(Engine.SearcherScope.values()))) {
+                    assertThat(searcher.getSearcherId(), equalTo(lastSearcherId));
+                }
             }
         }
     }

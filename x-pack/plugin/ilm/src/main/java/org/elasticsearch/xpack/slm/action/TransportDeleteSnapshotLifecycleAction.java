@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm.action;
@@ -18,14 +19,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -36,17 +35,8 @@ public class TransportDeleteSnapshotLifecycleAction extends
     public TransportDeleteSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected DeleteSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
-        return new DeleteSnapshotLifecycleAction.Response(in);
+                DeleteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, DeleteSnapshotLifecycleAction.Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override
@@ -54,7 +44,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
                                    ClusterState state,
                                    ActionListener<DeleteSnapshotLifecycleAction.Response> listener) throws Exception {
         clusterService.submitStateUpdateTask("delete-snapshot-lifecycle-" + request.getLifecycleId(),
-            new AckedClusterStateUpdateTask<DeleteSnapshotLifecycleAction.Response>(request, listener) {
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new DeleteSnapshotLifecycleAction.Response(acknowledged);

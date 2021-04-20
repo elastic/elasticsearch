@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Class containing all the cluster, node, and index deprecation checks that will be served
@@ -41,38 +42,51 @@ public class DeprecationChecks {
         ));
 
 
-    static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
-        Collections.unmodifiableList(Arrays.asList(
-            NodeDeprecationChecks::checkPidfile,
-            NodeDeprecationChecks::checkProcessors,
-            NodeDeprecationChecks::checkMissingRealmOrders,
-            NodeDeprecationChecks::checkUniqueRealmOrders,
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
-            NodeDeprecationChecks::checkClusterRemoteConnectSetting,
-            NodeDeprecationChecks::checkNodeLocalStorageSetting,
-            NodeDeprecationChecks::checkGeneralScriptSizeSetting,
-            NodeDeprecationChecks::checkGeneralScriptExpireSetting,
-            NodeDeprecationChecks::checkGeneralScriptCompileSettings,
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.ENRICH_ENABLED_SETTING),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.FLATTENED_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.INDEX_LIFECYCLE_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.MONITORING_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.ROLLUP_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.SQL_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.TRANSFORM_ENABLED),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                XPackSettings.VECTORS_ENABLED)
-        ));
+    static final List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS;
+
+        static {
+            final Stream<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> legacyRoleSettings = DiscoveryNode.getPossibleRoles()
+                .stream()
+                .filter(r -> r.legacySetting() != null)
+                .map(r -> (s, p) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
+            NODE_SETTINGS_CHECKS = Stream.concat(
+                legacyRoleSettings,
+                Stream.of(
+                    NodeDeprecationChecks::javaVersionCheck,
+                    NodeDeprecationChecks::checkPidfile,
+                    NodeDeprecationChecks::checkProcessors,
+                    NodeDeprecationChecks::checkMissingRealmOrders,
+                    NodeDeprecationChecks::checkUniqueRealmOrders,
+                    NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+                    NodeDeprecationChecks::checkClusterRemoteConnectSetting,
+                    NodeDeprecationChecks::checkNodeLocalStorageSetting,
+                    NodeDeprecationChecks::checkGeneralScriptSizeSetting,
+                    NodeDeprecationChecks::checkGeneralScriptExpireSetting,
+                    NodeDeprecationChecks::checkGeneralScriptCompileSettings,
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.ENRICH_ENABLED_SETTING),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.FLATTENED_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.INDEX_LIFECYCLE_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.MONITORING_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.ROLLUP_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.SQL_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.TRANSFORM_ENABLED),
+                    (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                        XPackSettings.VECTORS_ENABLED),
+                    NodeDeprecationChecks::checkMultipleDataPaths
+                )
+            ).collect(Collectors.toList());
+        }
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
@@ -84,11 +98,6 @@ public class DeprecationChecks {
             IndexDeprecationChecks::fieldNamesDisabledCheck
         ));
 
-    static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
-            Collections.unmodifiableList(Arrays.asList(
-                    MlDeprecationChecks::checkDataFeedAggregations,
-                    MlDeprecationChecks::checkDataFeedQuery
-            ));
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.

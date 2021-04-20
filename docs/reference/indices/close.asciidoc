@@ -11,6 +11,7 @@ Closes an index.
 POST /my-index-000001/_close
 --------------------------------------------------
 // TEST[setup:my_index]
+// TEST[warning:the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour]
 
 
 [[close-index-api-request]]
@@ -18,6 +19,11 @@ POST /my-index-000001/_close
 
 `POST /<index>/_close`
 
+[[close-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
 [[close-index-api-desc]]
 ==== {api-description-title}
@@ -52,7 +58,18 @@ Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+`wait_for_active_shards`::
++
+--
+(Optional, string) The number of shard copies that must be active before
+proceeding with the operation. Set to `all`, `index-setting`, or any positive
+integer up to the total number of shards in the index (`number_of_replicas+1`).
+The value `index-setting` means to wait according to the index setting
+`index.write.wait_for_active_shards`. Default: `0`, meaning do not wait for any
+shards to be ready.
+
+See <<index-wait-for-active-shards>>.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
@@ -66,7 +83,8 @@ The following example shows how to close an index:
 --------------------------------------------------
 POST /my-index-000001/_close
 --------------------------------------------------
-// TEST[s/^/PUT my-index-000001\n/]
+// TEST[setup:my_index]
+// TEST[warning:the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour]
 
 The API returns following response:
 

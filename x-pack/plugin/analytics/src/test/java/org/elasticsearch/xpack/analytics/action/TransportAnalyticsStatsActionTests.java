@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.action;
 
@@ -82,7 +83,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
             new ClusterName("cluster_name"), nodeResponses, emptyList());
 
-        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
+        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(response);
         try (XContentBuilder builder = jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

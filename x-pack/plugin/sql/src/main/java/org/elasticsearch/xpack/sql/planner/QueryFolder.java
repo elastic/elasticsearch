@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -142,8 +143,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
 
-                Map<Attribute, Expression> aliases = new LinkedHashMap<>(queryC.aliases());
-                Map<Attribute, Pipe> processors = new LinkedHashMap<>(queryC.scalarFunctions());
+                AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
+                AttributeMap.Builder<Pipe> processors = AttributeMap.<Pipe>builder().putAll(queryC.scalarFunctions());
 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
@@ -161,9 +162,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        new AttributeMap<>(aliases),
+                        aliases.build(),
                         queryC.pseudoFunctions(),
-                        new AttributeMap<>(processors),
+                        processors.build(),
                         queryC.sort(),
                         queryC.limit(),
                         queryC.shouldTrackHits(),
@@ -421,19 +422,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             // track aliases defined in the SELECT and used inside GROUP BY
             // SELECT x AS a ... GROUP BY a
-            Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
             String id = null;
+
+            AttributeMap.Builder<Expression> aliases = AttributeMap.builder();
             for (NamedExpression ne : a.aggregates()) {
                 if (ne instanceof Alias) {
-                    aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                    aliases.put(ne.toAttribute(), ((Alias) ne).child());
                 }
             }
 
-            if (aliasMap.isEmpty() == false) {
-                Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
-                newAliases.putAll(aliasMap);
-                queryC = queryC.withAliases(new AttributeMap<>(newAliases));
+            if (aliases.build().isEmpty() == false) {
+                aliases.putAll(queryC.aliases());
+                queryC = queryC.withAliases(aliases.build());
             }
+
 
             // build the group aggregation
             // NB: any reference in grouping is already "optimized" by its source so there's no need to look for aliases
@@ -598,10 +600,13 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 else {
                     GroupByKey matchingGroup = null;
                     if (groupingContext != null) {
+                        target = queryC.aliases().resolve(target, target);
+                        id = Expressions.id(target);
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
+                        queryC = queryC.addColumn(
+                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
                     }
                     // fallback
                     else {
@@ -705,7 +710,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // if it's a reference, get the target expression
                     if (orderExpression instanceof ReferenceAttribute) {
-                        orderExpression = qContainer.aliases().get(orderExpression);
+                        orderExpression = qContainer.aliases().resolve(orderExpression);
                     }
                     String lookup = Expressions.id(orderExpression);
                     GroupByKey group = qContainer.findGroupForAgg(lookup);
@@ -872,7 +877,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, typeToken());
+            return plan.transformUp(typeToken(), this::rule);
         }
 
         @Override

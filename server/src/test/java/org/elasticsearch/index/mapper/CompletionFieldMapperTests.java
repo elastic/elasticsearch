@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -33,11 +22,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +40,6 @@ import org.hamcrest.core.CombinableMatcher;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -69,8 +54,8 @@ import static org.hamcrest.Matchers.is;
 public class CompletionFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value("value");
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     @Override
@@ -121,6 +106,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         return new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
     }
 
+    @Override
+    protected boolean allowsStore() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
 
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
@@ -129,7 +119,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -158,7 +148,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -747,24 +737,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertWarnings("You have defined more than [10] completion contexts in the mapping for index [null]. " +
+        assertWarnings("You have defined more than [10] completion contexts in the mapping for field [field]. " +
             "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0].");
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
-        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("completion", defaultAnalyzer, Version.CURRENT).build(context);
-
-        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(mapper, "value"));
-
-        List<String> list = org.elasticsearch.common.collect.List.of("first", "second");
-        assertEquals(list, fetchSourceValue(mapper, list));
-
-        Map<String, Object> object = org.elasticsearch.common.collect.Map.of(
-            "input", org.elasticsearch.common.collect.List.of("first", "second"), "weight", "2.718");
-        assertEquals(org.elasticsearch.common.collect.List.of(object), fetchSourceValue(mapper, object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {
@@ -795,4 +769,9 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         };
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("We don't have doc values or fielddata", true);
+        return null;
+    }
 }

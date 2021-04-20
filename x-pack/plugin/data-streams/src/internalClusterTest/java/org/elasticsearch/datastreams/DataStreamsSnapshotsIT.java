@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.datastreams;
 
@@ -10,8 +11,10 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,11 +23,12 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -44,13 +48,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(transportClientRatio = 0)
@@ -115,10 +123,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots(REPO).setSnapshots(SNAPSHOT).get();
-        java.util.List<SnapshotInfo> snap = snapshot.getSnapshots();
-        assertEquals(1, snap.size());
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
 
         assertTrue(
             client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
@@ -149,6 +154,109 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
     }
 
+    public void testSnapshotAndRestoreAllDataStreamsInPlace() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+
+        // Close all indices:
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("*");
+        closeIndexRequest.indicesOptions(IndicesOptions.strictExpandHidden());
+        assertAcked(client.admin().indices().close(closeIndexRequest).actionGet());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get();
+        assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, "_doc", id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).get();
+        assertThat(
+            ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+            contains(equalTo("ds"), equalTo("other-ds"))
+        );
+        java.util.List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(DS_BACKING_INDEX_NAME));
+        backingIndices = ds.getDataStreams().get(1).getDataStream().getIndices();
+        String expectedBackingIndexName = DataStream.getDefaultBackingIndexName("other-ds", 1);
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(expectedBackingIndexName));
+    }
+
+    public void testSnapshotAndRestoreInPlace() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+
+        // A rollover after taking snapshot. The new backing index should be a standalone index after restoring
+        // and not part of the data stream:
+        RolloverRequest rolloverRequest = new RolloverRequest("ds", null);
+        RolloverResponse rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
+        assertThat(rolloverResponse.isRolledOver(), is(true));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 2)));
+
+        // Close all backing indices of ds data stream:
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(".ds-ds-*");
+        closeIndexRequest.indicesOptions(IndicesOptions.strictExpandHidden());
+        assertAcked(client.admin().indices().close(closeIndexRequest).actionGet());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get();
+        assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, "_doc", id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[] { "ds" });
+        GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).actionGet();
+        assertThat(
+            ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+            contains(equalTo("ds"))
+        );
+        java.util.List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
+        assertThat(ds.getDataStreams().get(0).getDataStream().getIndices(), hasSize(1));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(DS_BACKING_INDEX_NAME)));
+
+        // The backing index created as part of rollover should still exist (but just not part of the data stream)
+        assertThat(indexExists(DataStream.getDefaultBackingIndexName("ds", 2)), is(true));
+        // An additional rollover should create a new backing index (3th generation) and leave .ds-ds-...-2 index as is:
+        rolloverRequest = new RolloverRequest("ds", null);
+        rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
+        assertThat(rolloverResponse.isRolledOver(), is(true));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 3)));
+    }
+
     public void testSnapshotAndRestoreAll() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
@@ -161,10 +269,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots(REPO).setSnapshots(SNAPSHOT).get();
-        java.util.List<SnapshotInfo> snap = snapshot.getSnapshots();
-        assertEquals(1, snap.size());
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
 
         assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
         assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
@@ -459,7 +564,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setPartial(false)
             .execute();
         logger.info("--> wait for block to kick in");
-        waitForBlockOnAnyDataNode(repositoryName, TimeValue.timeValueMinutes(1));
+        waitForBlockOnAnyDataNode(repositoryName);
 
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
@@ -480,5 +585,134 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo((SnapshotState.SUCCESS)));
         assertThat(snapshotInfo.dataStreams(), contains(dataStream));
         assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
+    }
+
+    public void testCloneSnapshotThatIncludesDataStream() throws Exception {
+        final String sourceSnapshotName = "snap-source";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        assertSuccessful(
+            client.admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, sourceSnapshotName)
+                .setWaitForCompletion(true)
+                .setIndices("ds", indexWithoutDataStream)
+                .setIncludeGlobalState(false)
+                .execute()
+        );
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1")
+                .setIndices(indexWithoutDataStream)
+                .get()
+        );
+    }
+
+    public void testPartialRestoreSnapshotThatIncludesDataStream() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        createFullSnapshot(REPO, snapshot);
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setIndices(indexWithoutDataStream)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(randomBoolean())
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
+    public void testSnapshotDSDuringRollover() throws Exception {
+        // repository consistency check requires at least one snapshot per registered repository
+        createFullSnapshot(REPO, "snap-so-repo-checks-pass");
+        final String repoName = "mock-repo";
+        createRepository(repoName, "mock");
+        final boolean partial = randomBoolean();
+        blockAllDataNodes(repoName);
+        final String snapshotName = "ds-snap";
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setPartial(partial)
+            .setIncludeGlobalState(randomBoolean())
+            .execute();
+        waitForBlockOnAnyDataNode(repoName);
+        awaitNumberOfSnapshotsInProgress(1);
+        final ActionFuture<RolloverResponse> rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("ds", null));
+
+        if (partial) {
+            assertTrue(rolloverResponse.get().isRolledOver());
+        } else {
+            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse::actionGet);
+            assertThat(e.getMessage(), containsString("Cannot roll over data stream that is being snapshotted:"));
+        }
+        unblockAllDataNodes(repoName);
+        final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);
+
+        assertThat(snapshotInfo.dataStreams(), hasItems("ds"));
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
+
+        RestoreInfo restoreSnapshotResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get()
+            .getRestoreInfo();
+
+        assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
+        assertEquals(restoreSnapshotResponse.failedShards(), 0);
+    }
+
+    public void testSnapshotDSDuringRolloverAndDeleteOldIndex() throws Exception {
+        // repository consistency check requires at least one snapshot per registered repository
+        createFullSnapshot(REPO, "snap-so-repo-checks-pass");
+        final String repoName = "mock-repo";
+        createRepository(repoName, "mock");
+        blockAllDataNodes(repoName);
+        final String snapshotName = "ds-snap";
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setPartial(true)
+            .setIncludeGlobalState(randomBoolean())
+            .execute();
+        waitForBlockOnAnyDataNode(repoName);
+        awaitNumberOfSnapshotsInProgress(1);
+        final RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("ds", null)).get();
+        assertTrue(rolloverResponse.isRolledOver());
+
+        logger.info("--> deleting former write index");
+        assertAcked(client().admin().indices().prepareDelete(rolloverResponse.getOldIndex()));
+
+        unblockAllDataNodes(repoName);
+        final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);
+
+        assertThat(
+            "snapshot should not contain 'ds' since none of its indices existed both at the start and at the end of the snapshot",
+            snapshotInfo.dataStreams(),
+            not(hasItems("ds"))
+        );
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "other-ds" })).get()
+        );
+
+        RestoreInfo restoreSnapshotResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices("other-ds")
+            .get()
+            .getRestoreInfo();
+
+        assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
+        assertEquals(restoreSnapshotResponse.failedShards(), 0);
     }
 }

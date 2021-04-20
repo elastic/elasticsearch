@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -13,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -35,13 +37,13 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void assertParseMinimalWarnings() {
-        assertWarnings("The [sparse_vector] field type is deprecated and will be removed in 8.0.");
+    protected String[] getParseMinimalWarnings() {
+        return new String[]{ "The [sparse_vector] field type is deprecated and will be removed in 8.0." };
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertParseMinimalWarnings();
+    protected String[] getParseMaximalWarnings() {
+        return getParseMinimalWarnings();
     }
 
     @Override
@@ -55,8 +57,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.startObject().field("1", 1).endObject();
+    protected boolean allowsStore() {
+        return false;
+    }
+
+    @Override
+    protected Object getSampleValueForDocument() {
+        return Collections.singletonMap("1", 1);
     }
 
     @Override
@@ -104,7 +111,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             decodedValues,
             0.001f
         );
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
@@ -232,5 +239,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     public void testMeta() throws IOException {
         super.testMeta();
         assertParseMinimalWarnings();
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("doesn't support docvalues_fetcher", true);
+        return null;
     }
 }

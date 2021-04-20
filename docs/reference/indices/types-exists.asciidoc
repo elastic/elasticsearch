@@ -19,7 +19,7 @@ HEAD my-index-000001/_mapping/message
 [[indices-types-exists-api-request]]
 ==== {api-request-title}
 
-`HEAD /<index>/mapping/<type>`
+`HEAD /<index>/_mapping/<type>`
 
 
 [[indices-types-exists-api-path-params]]

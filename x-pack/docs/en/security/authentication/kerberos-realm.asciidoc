@@ -33,7 +33,7 @@ Kerberos V5 principal names are of format `primary/instance@REALM`, where
 by a slash(`/`) from the primary. For a user, usually it is not used; for
 service hosts, it is the fully qualified domain name of the host.
 
-`REALM` is the Kerberos realm. Usually it is is the domain name in upper case.
+`REALM` is the Kerberos realm. Usually it is the domain name in upper case.
 An example of a typical user principal is `user@ES.DOMAIN.LOCAL`. An example of 
 a typical service principal is `HTTP/es.domain.local@ES.DOMAIN.LOCAL`.
 --

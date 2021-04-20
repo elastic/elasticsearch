@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal
@@ -27,13 +16,14 @@ import org.apache.tools.zip.ZipFile
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.Unroll
 
 class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         buildFile << """
         import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-        
+
         plugins {
             id 'elasticsearch.internal-distribution-archive-setup'
         }
@@ -99,32 +89,35 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
         import org.gradle.api.internal.artifacts.ArtifactAttributes;
 
+        def snapshotFile = file("snapshot-\${version}.txt")
+        snapshotFile << 'some snapshot content'
         distribution_archives {
             producerTar {
                 content {
                     project.copySpec {
                         from 'someFile.txt'
+                        from snapshotFile
                     }
                 }
             }
         }
-        
+
         project('consumer') { p ->
             configurations {
                 consumeArchive {}
                 consumeDir {}
             }
-            
+
             dependencies {
                 consumeDir project(path: ':producer-tar', configuration:'extracted')
                 consumeArchive project(path: ':producer-tar', configuration:'default' )
             }
-            
+
             tasks.register("copyDir", Copy) {
                 from(configurations.consumeDir)
                 into('build/dir')
             }
-            
+
             tasks.register("copyArchive", Copy) {
                 from(configurations.consumeArchive)
                 into('build/archives')
@@ -134,19 +127,61 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         when:
         def result = gradleRunner("copyArchive").build()
 
-        then:"tar task executed and target folder contains plain tar"
+        then: "tar task executed and target folder contains plain tar"
         result.task(':buildProducerTar').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyArchive').outcome == TaskOutcome.SUCCESS
         file("producer-tar/build/distributions/elasticsearch.tar.gz").exists()
         file("consumer/build/archives/elasticsearch.tar.gz").exists()
 
         when:
-        result = gradleRunner("copyDir").build()
-        then:"plain copy task executed and target folder contains plain content"
+        result = gradleRunner("copyDir", "-Pversion=1.0").build()
+        then: "plain copy task executed and target folder contains plain content"
         result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
         file("producer-tar/build/install/someFile.txt").exists()
+        file("producer-tar/build/install/snapshot-1.0.txt").exists()
         file("consumer/build/dir/someFile.txt").exists()
+
+        when:
+        gradleRunner("copyDir", "-Pversion=2.0").build()
+        then: "old content is cleared out"
+        file("producer-tar/build/install/someFile.txt").exists()
+        !file("producer-tar/build/install/snapshot-1.0.txt").exists()
+        file("producer-tar/build/install/snapshot-2.0.txt").exists()
+    }
+
+    def "builds extracted distribution via extractedAssemble"() {
+        given:
+        file('someFile.txt') << "some content"
+        settingsFile << """
+            include ':producer-tar'
+        """
+
+        buildFile << """
+        import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+        import org.gradle.api.internal.artifacts.ArtifactAttributes;
+
+        def snapshotFile = file("snapshot.txt")
+        snapshotFile << 'some snapshot content'
+        distribution_archives {
+            producerTar {
+                content {
+                    project.copySpec {
+                        from 'someFile.txt'
+                        from snapshotFile
+                    }
+                }
+            }
+        }
+        """
+        when:
+        def result = gradleRunner(":producer-tar:extractedAssemble").build()
+
+        then: "tar task executed and target folder contains plain tar"
+        result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
+
+        file("producer-tar/build/install").exists()
+        file("producer-tar/build/distributions/elasticsearch.tar.gz").exists() == false
     }
 
     private static boolean assertTarPermissionDefaults(File tarArchive) {

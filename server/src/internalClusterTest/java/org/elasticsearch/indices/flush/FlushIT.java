@@ -1,31 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,6 +57,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -73,6 +65,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -231,10 +224,28 @@ public class FlushIT extends ESIntegTestCase {
             assertNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         logger.info("--> trying sync flush");
-        SyncedFlushResponse syncedFlushResult = client().admin().indices().prepareSyncedFlush("test").get();
+        // since we expect a warning to be returned, we need to manually capture the warning in a header
+        // as the future can be completed outside of the test thread
+        final Client client = client();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<SyncedFlushResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<Map<String, List<String>>> headerRef = new AtomicReference<>();
+        client.admin().indices().prepareSyncedFlush("test").execute(
+            new LatchedActionListener<>(ActionListener.wrap(r -> {
+                responseRef.set(r);
+                headerRef.set(client.threadPool().getThreadContext().getResponseHeaders());
+            }, e -> fail(e.getMessage())), latch));
+        latch.await();
         logger.info("--> sync flush done");
         stop.set(true);
         indexingThread.join();
+        SyncedFlushResponse syncedFlushResult = responseRef.get();
+        Map<String, List<String>> headers = headerRef.get();
+        assertThat(headers.containsKey("Warning"), is(true));
+        assertThat(headers.get("Warning")
+            .stream()
+            .anyMatch(s -> s.contains(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE)),
+            is(true));
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertFlushResponseEqualsShardStats(indexStats.getShards(), syncedFlushResult.getShardsResultPerIndex().get("test"));
         refresh();
@@ -298,9 +309,12 @@ public class FlushIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder()
+            prepareCreate("test")
+                .setSettings(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas))
+                .addMapping("doc", "value", "type=text")
+                .get()
         );
         ensureGreen();
         final Index index = clusterService().state().metadata().index("test").getIndex();

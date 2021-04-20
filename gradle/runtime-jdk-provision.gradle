@@ -13,7 +13,7 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
       }
     }
   }
-} else if (BuildParams.isBundledJdkSupported()) {
+} else {
   jdks {
     provisioned_runtime {
       vendor = VersionProperties.bundledJdkVendor

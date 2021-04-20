@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -93,6 +83,19 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
+    /**
+     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn throw errors since we use these
+     * e.g. for sorting documents with `null` values first or last
+     */
+    public void testPrintersLongMinMaxValue() {
+        for (FormatNames format : FormatNames.values()) {
+            DateFormatter formatter = DateFormatters.forPattern(format.getSnakeCaseName());
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MIN_VALUE));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MAX_VALUE));
+        }
+        assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. Use \"weekyear\" format instead");
+    }
+
     public void testInvalidEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("invalid"));
@@ -143,6 +146,15 @@ public class DateFormattersTests extends ESTestCase {
         ZonedDateTime second = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
         assertThat(first, is(second));
+    }
+
+    public void testNanoOfSecondWidth() throws Exception {
+        ZonedDateTime first = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1"));
+        assertThat(first.getNano(), is(100000000));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001"));
+        assertThat(second.getNano(), is(1));
     }
 
     public void testLocales() {
@@ -383,6 +395,12 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
+    public void testWeek_yearDeprecation() {
+        DateFormatter.forPattern("week_year");
+        assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. " +
+                "Use \"weekyear\" format instead");
+    }
+
     public void testCamelCaseDeprecation() {
         String[] deprecatedNames = new String[]{
             "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime",
@@ -391,7 +409,8 @@ public class DateFormattersTests extends ESTestCase {
             "dateHourMinuteSecond", "dateHourMinuteSecondFraction", "dateHourMinuteSecondMillis", "dateOptionalTime",
             "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond", "hourMinuteSecondFraction", "hourMinuteSecondMillis",
             "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
-            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis", "weekyear", "weekyearWeek", "weekyearWeekDay",
+            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis",
+            "weekyearWeek", "weekyearWeekDay",
             "yearMonth", "yearMonthDay", "strictBasicWeekDate", "strictBasicWeekDateTime",
             "strictBasicWeekDateTimeNoMillis", "strictDate", "strictDateHour", "strictDateHourMinute", "strictDateHourMinuteSecond",
             "strictDateHourMinuteSecondFraction", "strictDateHourMinuteSecondMillis", "strictDateOptionalTime",
@@ -408,7 +427,7 @@ public class DateFormattersTests extends ESTestCase {
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
             assertThat(dateFormatter.pattern(), equalTo(name));
             assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                "Use snake case name " + snakeCaseName + " instead.");
+                    "Use snake case name " + snakeCaseName + " instead.");
 
             dateFormatter = DateFormatter.forPattern(snakeCaseName);
             assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));

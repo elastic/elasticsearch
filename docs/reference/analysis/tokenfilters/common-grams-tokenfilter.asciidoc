@@ -171,14 +171,14 @@ Either this or the `common_words` parameter is required.
 --
 
 `ignore_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, matches for common words matching are case-insensitive.
 Defaults to `false`.
 
 `query_mode`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter excludes the following tokens from the output:
 
 * Unigrams for common words

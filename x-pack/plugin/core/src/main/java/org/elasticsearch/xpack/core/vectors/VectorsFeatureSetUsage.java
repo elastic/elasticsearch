@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.vectors;
@@ -37,9 +38,9 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeVInt(avgDenseVectorDims);
     }
 
-    public VectorsFeatureSetUsage(boolean available, boolean enabled, int numDenseVectorFields, int numSparseVectorFields,
+    public VectorsFeatureSetUsage(int numDenseVectorFields, int numSparseVectorFields,
                                   int avgDenseVectorDims) {
-        super(XPackField.VECTORS, available, enabled);
+        super(XPackField.VECTORS, true, true);
         this.numDenseVectorFields = numDenseVectorFields;
         this.numSparseVectorFields = numSparseVectorFields;
         this.avgDenseVectorDims = avgDenseVectorDims;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
@@ -534,7 +534,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         String forecastId = forecast(job.getId(),
             TimeValue.timeValueHours(1),
             TimeValue.ZERO,
-            new ByteSizeValue(50, ByteSizeUnit.MB).getBytes());
+            ByteSizeValue.ofMb(50).getBytes());
 
         waitForecastToFinish(job.getId(), forecastId);
         closeJob(job.getId());

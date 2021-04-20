@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -36,6 +26,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -93,25 +84,28 @@ public class TransportUpgradeStatusAction
     }
 
     @Override
-    protected ShardUpgradeStatus shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting) {
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        List<Segment> segments = indexShard.segments(false);
-        long total_bytes = 0;
-        long to_upgrade_bytes = 0;
-        long to_upgrade_bytes_ancient = 0;
-        for (Segment seg : segments) {
-            total_bytes += seg.sizeInBytes;
-            if (seg.version.major != Version.CURRENT.luceneVersion.major) {
-                to_upgrade_bytes_ancient += seg.sizeInBytes;
-                to_upgrade_bytes += seg.sizeInBytes;
-            } else if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
-                // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
-                // instead, we should check if the codec has changed
-                to_upgrade_bytes += seg.sizeInBytes;
+    protected void shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<ShardUpgradeStatus> listener) {
+        ActionListener.completeWith(listener, () -> {
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            List<Segment> segments = indexShard.segments(false);
+            long total_bytes = 0;
+            long to_upgrade_bytes = 0;
+            long to_upgrade_bytes_ancient = 0;
+            for (Segment seg : segments) {
+                total_bytes += seg.sizeInBytes;
+                if (seg.version.major != Version.CURRENT.luceneVersion.major) {
+                    to_upgrade_bytes_ancient += seg.sizeInBytes;
+                    to_upgrade_bytes += seg.sizeInBytes;
+                } else if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
+                    // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
+                    // instead, we should check if the codec has changed
+                    to_upgrade_bytes += seg.sizeInBytes;
+                }
             }
-        }
 
-        return new ShardUpgradeStatus(indexShard.routingEntry(), total_bytes, to_upgrade_bytes, to_upgrade_bytes_ancient);
+            return new ShardUpgradeStatus(indexShard.routingEntry(), total_bytes, to_upgrade_bytes, to_upgrade_bytes_ancient);
+        });
     }
 }

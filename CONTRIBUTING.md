@@ -1,7 +1,10 @@
 Contributing to elasticsearch
 =============================
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+
+If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
+make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
 
 Bug reports
 -----------
@@ -95,25 +98,25 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
+JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 8, the build supports compiling with
-JDK 14 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 15 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions IntelliJ 2019.2 and
-onwards. We would like to support Eclipse, but few of us use it and has fallen
-into [disrepair][eclipse].
+We support development in IntelliJ versions IntelliJ 2020.1 and
+onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -126,7 +129,7 @@ specifically these lines tell you that Elasticsearch is ready:
     [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
     [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
 
-But to be honest its typically easier to wait until the console stopps scrolling
+But to be honest its typically easier to wait until the console stops scrolling
 and then run `curl` in another window like this:
 
     curl -u elastic:password localhost:9200
@@ -135,9 +138,10 @@ and then run `curl` in another window like this:
 
 ### Importing the project into IntelliJ IDEA
 
-Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
+Elasticsearch builds using Java 15. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
+"15"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -148,6 +152,123 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
  - Select **File > Open**
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
+
+#### Checkstyle
+
+If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
+check the Elasticsearch code. However, the Checkstyle configuration file does
+not work by default with the IntelliJ plugin, so instead an IDE-specific config
+file is generated automatically after IntelliJ finishes syncing.
+
+   1. We have some custom Checkstyle rules. In order to use them, you need
+      to make sure the rules are built, by running: `./gradlew build-tools:assemble`
+   2. Open **Preferences > Tools > Checkstyle**
+   3. Tell Checkstyle where to find the custom rules. Under the
+      "Third-Party Checks" section, click the "+" button.
+   4. Select `buildSrc/build/distributions/build-tools-$VERSION.jar`
+   5. Make sure that "Checkstyle version" is set to the highest version
+   6. Change the "Scan Scope" to "Only Java sources (including tests)"
+   7. Click the "+" under "Configuration file"
+   8. Set "Description" to "Elasticsearch"
+   9. Select "Use a local Checkstyle file"
+   10. For the "File", enter `checkstyle_ide.xml`
+   11. Tick "Store relative to project location"
+   12. Click "Next", then "Finish".
+   13. Click the box next to the new configuration to make it "Active".
+       Without doing this, you'll have to explicitly choose the
+       "Elasticsearch" configuration in the Checkstyle tool window and run
+       the check manually.
+   14. Click "OK" to apply the new preferences
+
+#### Formatting
+
+We are in the process of migrating towards automatic formatting Java file
+using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
+Code Formatter] installed, you can apply formatting directly in IntelliJ.
+
+   1. Open **Preferences > Other Settings > Eclipse Code Formatter**
+   2. Click "Use the Eclipse Code Formatter"
+   3. Under "Eclipse formatter config", select "Eclipse workspace/project
+      folder or config file"
+   4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
+
+Note that only some sub-projects in the Elasticsearch project are currently
+fully-formatted. You can see a list of project that **are not**
+automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
+
+### Importing the project into Eclipse
+
+Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
+
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
+
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formatter**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
+
+### REST Endpoint Conventions
+
+Elasticsearch typically uses singular nouns rather than plurals in URLs.
+For example:
+
+    /_ingest/pipeline
+    /_ingest/pipeline/{id}
+
+but not:
+
+    /_ingest/pipelines
+    /_ingest/pipelines/{id}
+
+You may find counterexamples, but new endpoints should use the singular
+form.
 
 ### Java Language Formatting Guidelines
 
@@ -228,34 +349,24 @@ top-level `x-pack` directory, all contributed code should have the following
 license header unless instructed otherwise:
 
     /*
-     * Licensed to Elasticsearch under one or more contributor
-     * license agreements. See the NOTICE file distributed with
-     * this work for additional information regarding copyright
-     * ownership. Elasticsearch licenses this file to you under
-     * the Apache License, Version 2.0 (the "License"); you may
-     * not use this file except in compliance with the License.
-     * You may obtain a copy of the License at
-     *
-     *    http://www.apache.org/licenses/LICENSE-2.0
-     *
-     * Unless required by applicable law or agreed to in writing,
-     * software distributed under the License is distributed on an
-     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-     * KIND, either express or implied.  See the License for the
-     * specific language governing permissions and limitations
-     * under the License.
+     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+     * or more contributor license agreements. Licensed under the Elastic License
+     * 2.0 and the Server Side Public License, v 1; you may not use this file except
+     * in compliance with, at your election, the Elastic License 2.0 or the Server
+     * Side Public License, v 1.
      */
 
 The top-level `x-pack` directory contains code covered by the [Elastic
-license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+license](licenses/ELASTIC-LICENSE-2.0.txt). Community contributions to this code are
 welcome, and should have the following license header unless instructed
 otherwise:
 
     /*
      * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-     * or more contributor license agreements. Licensed under the Elastic License;
-     * you may not use this file except in compliance with the Elastic License.
-     */
+     * or more contributor license agreements. Licensed under the Elastic License
+     * 2.0; you may not use this file except in compliance with the Elastic License
+     * 2.0.
+*/
 
 It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
@@ -415,13 +526,13 @@ allows you to use these configurations arbitrarily. Here are some of the most
 common configurations in our build and how we use them:
 
 <dl>
-<dt>`implementation`</dt><dd>Dependencies that are used by the project 
+<dt>`implementation`</dt><dd>Dependencies that are used by the project
 at compile and runtime but are not exposed as a compile dependency to other dependent projects.
-Dependencies added to the `implementation` configuration are considered an implementation detail 
+Dependencies added to the `implementation` configuration are considered an implementation detail
 that can be changed at a later date without affecting any dependent projects.</dd>
-<dt>`api`</dt><dd>Dependencies that are used as compile and runtime depdendencies of a project
+<dt>`api`</dt><dd>Dependencies that are used as compile and runtime dependencies of a project
  and are considered part of the external api of the project.
-<dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but 
+<dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but
 are on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
@@ -526,3 +637,6 @@ repeating in this section because it has come up in this context.
 [eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow
+[Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
+[spotless]: https://github.com/diffplug/spotless
+[Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -236,6 +238,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task) {
+            final Runnable releaseRequest = new RunOnce(request::decRef);
+            request.incRef();
             return new AbstractRunnable() {
                 @Override
                 public boolean isForceExecution() {
@@ -256,6 +260,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 protected void doRun() throws Exception {
                     handler.messageReceived(request, channel, task);
                 }
+
+                @Override
+                public void onAfter() {
+                    releaseRequest.run();
+                }
             };
         }
 
@@ -270,7 +279,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-            final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
                 if (licenseState.isSecurityEnabled()) {
                     String profile = channel.getProfileName();
@@ -288,6 +296,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert filter != null;
                     final Thread executingThread = Thread.currentThread();
 
+                    final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
                     CheckedConsumer<Void, Exception> consumer = (x) -> {
                         final Executor executor;
                         if (executingThread == Thread.currentThread()) {
@@ -312,7 +321,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     ActionListener<Void> filterListener = ActionListener.wrap(consumer, receiveMessage::onFailure);
                     filter.inbound(action, request, channel, filterListener);
                 } else {
-                    receiveMessage.run();
+                    getReceiveRunnable(request, channel, task).run();
                 }
             }
         }

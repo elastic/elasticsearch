@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -39,9 +28,11 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -410,13 +401,13 @@ public class RoundingTests extends ESTestCase {
             long max = mainDate + 2 * interval;
 
             /*
-             * Prepare a rounding with one extra interval of range because
-             * in the tests far below we call round(round(min)). The first
-             * round might spit out a time below the min if min is near a
-             * daylight savings time transition. So we request an extra big
+             * Prepare a rounding with two extra intervals of range because
+             * in the tests far below we call round(round(min) - 1). The first
+             * round might spit out a time below min - interval if min is near
+             * a daylight savings time transition. So we request an extra big
              * range just in case.
              */
-            Rounding.Prepared prepared = rounding.prepare(min - interval, max);
+            Rounding.Prepared prepared = rounding.prepare(min - 2 * interval, max);
 
             // Round a whole bunch of dates and make sure they line up with the known good java time implementation
             Rounding.Prepared javaTimeRounding = rounding.prepareJavaTime();
@@ -449,13 +440,13 @@ public class RoundingTests extends ESTestCase {
                     assertThat("Values smaller than rounded value should round further down", prepared.round(roundedDate - 1),
                         lessThan(roundedDate));
                     assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
+                    assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+                    assertThat("NextRounding value rounds to itself", nextRoundingValue,
+                        isDate(rounding.round(nextRoundingValue), tz));
 
                     if (tz.getRules().isFixedOffset()) {
-                        assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
                         assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
                             equalTo(interval));
-                        assertThat("NextRounding value should be a rounded date", nextRoundingValue,
-                            equalTo(rounding.round(nextRoundingValue)));
                     }
                     previousRoundedValue = roundedDate;
                 } catch (AssertionError e) {
@@ -467,6 +458,48 @@ public class RoundingTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testHardNextRoundingValue() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(960000, ZoneId.of("Europe/Minsk"));
+        long rounded = rounding.prepareForUnknown().round(877824908400L);
+        long next = rounding.prepareForUnknown().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testOtherHardNextRoundingValue() {
+        Rounding rounding = new Rounding.TimeIntervalRounding(480000, ZoneId.of("Portugal"));
+        long rounded = rounding.prepareJavaTime().round(972780720000L);
+        long next = rounding.prepareJavaTime().nextRoundingValue(rounded);
+        assertThat(next, greaterThan(rounded));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well our janky Newton's Method/binary search hybrid.
+     */
+    public void testHardNewtonsMethod() {
+        ZoneId tz = ZoneId.of("Asia/Jerusalem");
+        Rounding rounding = new Rounding.TimeIntervalRounding(19800000, tz);
+        assertThat(rounding.prepareJavaTime().nextRoundingValue(1824929914182L), isDate(time("2027-10-31T01:30:00", tz), tz));
+    }
+
+    /**
+     * Check a {@link Rounding.Prepared#nextRoundingValue} that was difficult
+     * to build well with the java.time APIs.
+     */
+    public void testOtherHardNewtonsMethod() {
+        ZoneId tz = ZoneId.of("America/Glace_Bay");
+        Rounding rounding = new Rounding.TimeIntervalRounding(13800000, tz);
+        assertThat(rounding.prepareJavaTime().nextRoundingValue(1383463147373L), isDate(time("2013-11-03T03:40:00", tz), tz));
     }
 
     /**
@@ -726,7 +759,7 @@ public class RoundingTests extends ESTestCase {
 
     /**
      * Tests for DST transitions that cause the rounding to jump "backwards" because they round
-     * from one back to the previous day. Usually these rounding start before 
+     * from one back to the previous day. Usually these rounding start before
      */
     public void testForwardsBackwardsTimeZones() {
         for (String zoneId : JAVA_ZONE_IDS) {
@@ -937,14 +970,30 @@ public class RoundingTests extends ESTestCase {
         Rounding.Prepared prepared = unitRounding.prepare(time("2010-01-01T00:00:00.000Z"), time("2020-01-01T00:00:00.000Z"));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             closeTo(3600.0, 0.000001));
-        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(60.0, 0.000001));
-        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+            closeTo(3600.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            closeTo(60.0, 0.000001));
+        assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.HOUR_OF_DAY),
+            closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY),
+            closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.DAY_OF_MONTH),
+            closeTo(1 / 24.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH),
             closeTo(1 / 24.0, 0.000001));
         assertThat(prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
             closeTo(1 / 168.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            closeTo(1 / 168.0, 0.000001));
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.MONTH_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [month] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR));
         assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [month] with non-month based calendar interval " +
             "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
         ex = expectThrows(IllegalArgumentException.class,
@@ -952,7 +1001,15 @@ public class RoundingTests extends ESTestCase {
         assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [quarter] with non-month based calendar interval " +
             "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
         ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [quarter] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
             () -> prepared.roundingSize(time("2015-01-01T00:00:00.000Z"), Rounding.DateTimeUnit.YEAR_OF_CENTURY));
+        assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [year] with non-month based calendar interval " +
+            "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY));
         assertThat(ex.getMessage(), equalTo("Cannot use month-based rate unit [year] with non-month based calendar interval " +
             "histogram [hour] only week, day, hour, minute and second are supported for this histogram"));
     }
@@ -965,6 +1022,9 @@ public class RoundingTests extends ESTestCase {
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), closeTo(3.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), closeTo(1.0, 0.000001));
+        assertThat(prepared.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), closeTo(0.25, 0.000001));
         // Real interval based
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.SECOND_OF_MINUTE), closeTo(7776000.0, 0.000001));
         assertThat(prepared.roundingSize(firstQuarter, Rounding.DateTimeUnit.MINUTES_OF_HOUR), closeTo(129600.0, 0.000001));
@@ -973,6 +1033,39 @@ public class RoundingTests extends ESTestCase {
         long thirdQuarter = prepared.round(time("2015-07-01T00:00:00.000Z"));
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(92.0, 0.000001));
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2208.0, 0.000001));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> prepared.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE));
+        assertThat(ex.getMessage(), equalTo("Cannot use non month-based rate unit [second] with calendar interval histogram " +
+            "[quarter] only month, quarter and year are supported for this histogram"));
+    }
+
+    public void testFixedRoundingPoints() {
+        Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.QUARTER_OF_YEAR).build();
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2020-01-01T00:00:00"), time("2021-01-01T00:00:00")),
+            "2020-01-01T00:00:00",
+            "2020-04-01T00:00:00",
+            "2020-07-01T00:00:00",
+            "2020-10-01T00:00:00",
+            "2021-01-01T00:00:00"
+        );
+        rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build();
+        assertFixedRoundingPoints(
+            rounding.prepare(time("2020-01-01T00:00:00"), time("2020-01-06T00:00:00")),
+            "2020-01-01T00:00:00",
+            "2020-01-02T00:00:00",
+            "2020-01-03T00:00:00",
+            "2020-01-04T00:00:00",
+            "2020-01-05T00:00:00",
+            "2020-01-06T00:00:00"
+        );
+    }
+
+    private void assertFixedRoundingPoints(Rounding.Prepared prepared, String... expected) {
+        assertThat(
+            Arrays.stream(prepared.fixedRoundingPoints()).mapToObj(Instant::ofEpochMilli).collect(toList()),
+            equalTo(Arrays.stream(expected).map(RoundingTests::time).map(Instant::ofEpochMilli).collect(toList()))
+        );
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,
@@ -1033,7 +1126,7 @@ public class RoundingTests extends ESTestCase {
         if (tz.getId().equals("Pacific/Guam") || tz.getId().equals("Pacific/Saipan")) {
             // Clocks went back at 00:01 in 1969, causing overlapping days.
             return t <= time("1969-01-25T00:00:00Z")
-                || t >= time("1969-01-26T00:00:00Z");  
+                || t >= time("1969-01-26T00:00:00Z");
         }
 
         return true;

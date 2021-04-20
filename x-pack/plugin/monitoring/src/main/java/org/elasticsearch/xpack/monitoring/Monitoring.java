@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -36,8 +37,10 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.action.TransportMonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.ccr.StatsCollector;
@@ -50,9 +53,11 @@ import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardsCollector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
+import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringMigrateAlertsAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -65,7 +70,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 /**
@@ -81,6 +85,9 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Deprecated
     public static final Setting<Boolean> CLEAN_WATCHER_HISTORY = boolSetting("xpack.watcher.history.cleaner_service.enabled",
         true, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
+
+    public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
+        false, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     protected final Settings settings;
     private final boolean transportClientMode;
@@ -124,10 +131,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
+        final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
-        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(),
+            migrationCoordinator));
+        exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, migrationCoordinator, cleanerService));
         exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
             dynamicSSLService);
 
@@ -144,19 +153,22 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
-        return Arrays.asList(monitoringService, exporters, cleanerService);
+        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class)
+        );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return singletonList(new RestMonitoringBulkAction());
+        return Arrays.asList(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }
 
     @Override
@@ -177,6 +189,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
         settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
+        settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
         return Collections.unmodifiableList(settings);
     }
 

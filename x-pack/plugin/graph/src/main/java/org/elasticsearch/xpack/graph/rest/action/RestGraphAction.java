@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.graph.rest.action;
@@ -10,6 +11,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -66,20 +68,16 @@ public class RestGraphAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
         return unmodifiableList(asList(
-            new ReplacedRoute(GET, "/{index}/_graph/explore", GET, "/{index}" + URI_BASE + "/graph/_explore"),
-            new ReplacedRoute(POST, "/{index}/_graph/explore", POST, "/{index}" + URI_BASE + "/graph/_explore"),
-            new ReplacedRoute(
-                GET, "/{index}/{type}/_graph/explore",
-                GET, "/{index}/{type}" + URI_BASE + "/graph/_explore"),
-            new ReplacedRoute(
-                POST, "/{index}/{type}_graph/explore",
-                POST, "/{index}/{type}" + URI_BASE + "/graph/_explore")));
+            Route.builder(GET, "/{index}/_graph/explore")
+                .replaces(GET, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_graph/explore")
+                .replaces(POST, "/{index}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/_graph/explore")
+                .replaces(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}_graph/explore")
+                .replaces(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", RestApiVersion.V_7).build()
+        ));
     }
 
     @Override
@@ -113,7 +111,7 @@ public class RestGraphAction extends XPackRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "graph_with_types", TYPES_DEPRECATION_MESSAGE);
             graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));

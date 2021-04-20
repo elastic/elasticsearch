@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.env;
@@ -86,6 +75,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -250,7 +240,7 @@ public final class NodeEnvironment  implements Closeable {
      * @param settings settings from elasticsearch.yml
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
+        if (DiscoveryNode.nodeRequiresLocalStorage(settings) == false) {
             nodePaths = null;
             sharedDataPath = null;
             locks = null;
@@ -315,11 +305,11 @@ public final class NodeEnvironment  implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
 
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.canContainData(settings)) {
                 ensureAtomicMoveSupported(nodePaths);
             }
 
-            if (DiscoveryNode.isDataNode(settings) == false) {
+            if (DiscoveryNode.canContainData(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
                     ensureNoIndexMetadata(nodePaths);
                 }
@@ -465,11 +455,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param shardId the id of the shard to delete to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
+    public void deleteShardDirectorySafe(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
-            deleteShardDirectoryUnderLock(lock, indexSettings);
+            deleteShardDirectoryUnderLock(lock, indexSettings, listener);
         }
     }
 
@@ -514,18 +508,24 @@ public final class NodeEnvironment  implements Closeable {
      * @throws IOException if an IOException occurs
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
-    public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardDirectoryUnderLock(
+        ShardLock lock,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
+        listener.accept(paths);
         IOUtils.rm(paths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
+            listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
@@ -577,11 +577,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index being deleted
      * @throws IOException if any of the shards data directories can't be locked or deleted
      */
-    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
-            throws IOException, ShardLockObtainFailedException {
+    public void deleteIndexDirectorySafe(
+        Index index,
+        long lockTimeoutMS,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
-            deleteIndexDirectoryUnderLock(index, indexSettings);
+            deleteIndexDirectoryUnderLock(index, indexSettings, listener);
         } finally {
             IOUtils.closeWhileHandlingException(locks);
         }
@@ -594,13 +598,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param index the index to delete
      * @param indexSettings settings for the index being deleted
      */
-    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
+    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        listener.accept(indexPaths);
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+            listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
     }
@@ -1038,7 +1044,7 @@ public final class NodeEnvironment  implements Closeable {
 
 
     private void assertEnvIsLocked() {
-        if (!closed.get() && locks != null) {
+        if (closed.get() == false && locks != null) {
             for (Lock lock : locks) {
                 try {
                     lock.ensureValid();

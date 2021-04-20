@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
@@ -62,8 +63,8 @@ public class InvalidateTokenResponseTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        List invalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
-        List previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
+        List<String> invalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
+        List<String> previouslyInvalidatedTokens = Arrays.asList(generateRandomStringArray(20, 15, false));
         TokensInvalidationResult result = new TokensInvalidationResult(invalidatedTokens, previouslyInvalidatedTokens,
             Arrays.asList(new ElasticsearchException("foo", new IllegalArgumentException("this is an error message")),
                 new ElasticsearchException("bar", new IllegalArgumentException("this is an error message2"))), RestStatus.OK);

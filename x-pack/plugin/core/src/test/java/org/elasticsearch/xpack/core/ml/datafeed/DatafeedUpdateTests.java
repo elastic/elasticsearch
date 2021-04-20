@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,12 +49,15 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -134,6 +139,14 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),
                 SearchRequest.DEFAULT_INDICES_OPTIONS));
+        }
+        if (randomBoolean()) {
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("type", "keyword");
+            settings.put("script", "");
+            Map<String, Object> field = new HashMap<>();
+            field.put("runtime_field_foo", settings);
+            builder.setRuntimeMappings(field);
         }
         return builder.build();
     }
@@ -246,6 +259,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
         update.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("type", "keyword");
+        settings.put("script", "");
+        Map<String, Object> field = new HashMap<>();
+        field.put("updated_runtime_field_foo", settings);
+        update.setRuntimeMappings(field);
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
@@ -261,6 +280,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
         assertThat(updatedDatafeed.getDelayedDataCheckConfig().isEnabled(), equalTo(true));
         assertThat(updatedDatafeed.getDelayedDataCheckConfig().getCheckWindow(), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(updatedDatafeed.getRuntimeMappings(), hasKey("updated_runtime_field_foo"));
     }
 
     public void testApply_givenAggregations() throws IOException {
@@ -363,7 +383,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
         case 0:
             builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
@@ -417,9 +437,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             }
             break;
         case 7:
-            ArrayList<ScriptField> scriptFields = new ArrayList<>(instance.getScriptFields());
-            scriptFields.add(new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true));
-            builder.setScriptFields(scriptFields);
+            builder.setScriptFields(CollectionUtils.appendToCopy(instance.getScriptFields(),
+                    new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true)));
             builder.setAggregations(null);
             break;
         case 8:
@@ -460,6 +479,18 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                     Boolean.toString(randomBoolean()),
                     SearchRequest.DEFAULT_INDICES_OPTIONS));
             }
+            break;
+        case 12:
+                if (instance.getRuntimeMappings() != null) {
+                    builder.setRuntimeMappings(null);
+                } else {
+                    Map<String, Object> settings = new HashMap<>();
+                    settings.put("type", "keyword");
+                    settings.put("script", "");
+                    Map<String, Object> field = new HashMap<>();
+                    field.put("runtime_field_foo", settings);
+                    builder.setRuntimeMappings(field);
+                }
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

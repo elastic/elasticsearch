@@ -1,38 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.indices;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.GetAliasesResponseTests;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,44 +32,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.hamcrest.Matchers.equalTo;
 
-public class GetIndexResponseTests extends ESTestCase {
+public class GetIndexResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.admin.indices.get.GetIndexResponse,
+    GetIndexResponse> {
 
-    // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
-    // a random client object, converting it to a server object then serializing it to xContent, and finally
-    // parsing it back as a client object. We check equality between the original client object, and the parsed one.
-    public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            GetIndexResponseTests::createTestInstance,
-            GetIndexResponseTests::toXContent,
-            GetIndexResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .assertToXContentEquivalence(false)
-            .assertEqualsConsumer(GetIndexResponseTests::assertEqualInstances)
-            .test();
-    }
-
-    private static void assertEqualInstances(GetIndexResponse expected, GetIndexResponse actual) {
-        assertArrayEquals(expected.getIndices(), actual.getIndices());
-        assertEquals(expected.getMappings(), actual.getMappings());
-        assertEquals(expected.getSettings(), actual.getSettings());
-        assertEquals(expected.getDefaultSettings(), actual.getDefaultSettings());
-        assertEquals(expected.getAliases(), actual.getAliases());
-    }
-
-    private static GetIndexResponse createTestInstance() {
+    @Override
+    protected org.elasticsearch.action.admin.indices.get.GetIndexResponse createServerTestInstance(XContentType xContentType) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        Map<String, MappingMetadata> mappings = new HashMap<>();
-        Map<String, List<AliasMetadata>> aliases = new HashMap<>();
-        Map<String, Settings> settings = new HashMap<>();
-        Map<String, Settings> defaultSettings = new HashMap<>();
-        Map<String, String> dataStreams = new HashMap<>();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
-            mappings.put(index, createMappingsForIndex());
+            ImmutableOpenMap.Builder<String, MappingMetadata> indexMapping = ImmutableOpenMap.builder();
+            indexMapping.put(MapperService.SINGLE_MAPPING_NAME, createMappingsForIndex());
+            mappings.put(index, indexMapping.build());
 
             List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
@@ -103,7 +72,29 @@ public class GetIndexResponseTests extends ESTestCase {
                 dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
             }
         }
-        return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
+        return new org.elasticsearch.action.admin.indices.get.GetIndexResponse(indices,
+            mappings.build(), aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build());
+    }
+
+    @Override
+    protected GetIndexResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return GetIndexResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(org.elasticsearch.action.admin.indices.get.GetIndexResponse serverTestInstance,
+                                   GetIndexResponse clientInstance) {
+        assertArrayEquals(serverTestInstance.getIndices(), clientInstance.getIndices());
+        assertThat(serverTestInstance.getMappings().size(), equalTo(clientInstance.getMappings().size()));
+        for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetadata>> cursor : serverTestInstance.getMappings()) {
+            MappingMetadata serverMapping = cursor.value.get(MapperService.SINGLE_MAPPING_NAME);
+            MappingMetadata clientMapping = clientInstance.getMappings().get(cursor.key);
+            assertThat(serverMapping, equalTo(clientMapping));
+        }
+        assertMapEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
+        assertMapEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
+        assertMapEquals(serverTestInstance.getAliases(), clientInstance.getAliases());
+        assertMapEquals(serverTestInstance.getDataStreams(), clientInstance.getDataStreams());
     }
 
     private static MappingMetadata createMappingsForIndex() {
@@ -166,38 +157,4 @@ public class GetIndexResponseTests extends ESTestCase {
         return mappings;
     }
 
-    private static void toXContent(GetIndexResponse response, XContentBuilder builder) throws IOException {
-        // first we need to repackage from GetIndexResponse to org.elasticsearch.action.admin.indices.get.GetIndexResponse
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
-
-        Map<String, MappingMetadata> indexMappings = response.getMappings();
-        for (String index : response.getIndices()) {
-            MappingMetadata mmd = indexMappings.get(index);
-            ImmutableOpenMap.Builder<String, MappingMetadata> typedMappings = ImmutableOpenMap.builder();
-            if (mmd != null) {
-                typedMappings.put(MapperService.SINGLE_MAPPING_NAME, mmd);
-            }
-            allMappings.put(index, typedMappings.build());
-            aliases.put(index, response.getAliases().get(index));
-            settings.put(index, response.getSettings().get(index));
-            defaultSettings.put(index, response.getDefaultSettings().get(index));
-        }
-
-        org.elasticsearch.action.admin.indices.get.GetIndexResponse serverResponse
-            = new org.elasticsearch.action.admin.indices.get.GetIndexResponse(
-                response.getIndices(),
-                allMappings.build(),
-                aliases.build(),
-                settings.build(),
-                defaultSettings.build(),
-                ImmutableOpenMap.<String, String>builder().build()
-            );
-
-        // then we can call its toXContent method, forcing no output of types
-        Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-        serverResponse.toXContent(builder, params);
-    }
 }

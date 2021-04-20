@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.joda;
@@ -58,6 +47,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assumeFalse("won't work in jdk8 " +
                 "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
             runtimeJdk8);
+    }
+
+    public void testIncorrectFormat() {
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis");
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time");
     }
 
     public void testTimezoneParsing() {
@@ -532,9 +526,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-1-31", "yearMonthDay");
         assertSameDate("2012-12-1", "yearMonthDay");
 
-        assertSameDate("2018", "week_year");
-        assertSameDate("1", "week_year");
-        assertSameDate("2017", "week_year");
+        assertSameDate("2018", "weekyear");
+        assertSameDate("1", "weekyear");
+        assertSameDate("2017", "weekyear");
 
         assertSameDate("2018-W29", "weekyear_week");
         assertSameDate("2018-W1", "weekyear_week");

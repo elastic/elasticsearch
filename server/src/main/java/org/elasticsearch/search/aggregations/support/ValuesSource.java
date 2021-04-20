@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -76,12 +65,12 @@ public abstract class ValuesSource {
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
      */
-    public abstract Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
 
     /**
-     * Check if this values source supports using global ordinals
+     * Check if this values source supports using global and segment ordinals.
      */
-    public boolean hasGlobalOrdinals() {
+    public boolean hasOrdinals() {
         return false;
     }
 
@@ -106,7 +95,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
             // TODO lookup the min and max rounding when appropriate
             return Rounding::prepareForUnknown;
         }
@@ -122,7 +111,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
@@ -174,7 +163,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public boolean hasGlobalOrdinals() {
+            public boolean hasOrdinals() {
                 return true;
             }
 
@@ -387,7 +376,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
             return Rounding::prepareForUnknown;
         }
 
@@ -584,7 +573,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
             throw new AggregationExecutionException("can't round a [GEO_POINT]");
         }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job;
 
@@ -18,9 +19,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -247,7 +248,7 @@ public class JobManager {
         Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecate("ml_create_job_delimited_data",
+            deprecationLogger.deprecate(DeprecationCategory.API, "ml_create_job_delimited_data",
                 "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
@@ -429,7 +430,7 @@ public class JobManager {
     }
 
     private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
-        if (modelSnapshotId != null) {
+        if (modelSnapshotId != null && ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) == false) {
             voidChainTaskExecutor.add(listener -> {
                 jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
@@ -465,12 +466,12 @@ public class JobManager {
             }
             jobResultsProvider.modelSizeStats(job.getId(), modelSizeStats -> {
                 if (modelSizeStats != null) {
-                    ByteSizeValue modelSize = new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES);
+                    ByteSizeValue modelSize = ByteSizeValue.ofBytes(modelSizeStats.getModelBytes());
                     if (newModelMemoryLimit < modelSize.getMb()) {
                         listener.onFailure(ExceptionsHelper.badRequestException(
                                 Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
-                                        new ByteSizeValue(modelSize.getMb(), ByteSizeUnit.MB),
-                                        new ByteSizeValue(newModelMemoryLimit, ByteSizeUnit.MB))));
+                                        ByteSizeValue.ofMb(modelSize.getMb()),
+                                        ByteSizeValue.ofMb(newModelMemoryLimit))));
                         return;
                     }
                 }
@@ -600,6 +601,11 @@ public class JobManager {
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
         CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+            // In case we are reverting to the empty snapshot the quantiles will be null
+            if (modelSnapshot.getQuantiles() == null) {
+                actionListener.onResponse(new RevertModelSnapshotAction.Response(modelSnapshot));
+                return;
+            }
             jobResultsPersister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(quantilesResponse -> {
                         // The quantiles can be large, and totally dominate the output -

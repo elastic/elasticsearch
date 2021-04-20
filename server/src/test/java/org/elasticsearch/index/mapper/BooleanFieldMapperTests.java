@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -27,25 +16,21 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
-    protected void writeFieldValue(XContentBuilder builder) throws IOException {
-        builder.value(true);
+    protected Object getSampleValueForDocument() {
+        return true;
     }
 
     @Override
@@ -54,8 +39,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+    protected String[] getParseMaximalWarnings() {
+        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -199,19 +184,29 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertParseMaximalWarnings();
     }
 
-    public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        switch (between(0, 3)) {
+            case 0:
+                return randomBoolean();
+            case 1:
+                return randomBoolean() ? "true" : "false";
+            case 2:
+                return randomBoolean() ? "true" : "";
+            case 3:
+                return randomBoolean() ? "true" : null;
+            default:
+                throw new IllegalStateException();
+        }
+    }
 
-        BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
-        assertEquals(List.of(true), fetchSourceValue(mapper, true));
-        assertEquals(List.of(false), fetchSourceValue(mapper, "false"));
-        assertEquals(List.of(false), fetchSourceValue(mapper, ""));
-
-        Map<String, Object> mapping = org.elasticsearch.common.collect.Map.of("type", "boolean", "null_value", true);
-        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder("field");
-        builder.parse("field", null, new HashMap<>(mapping));
-        BooleanFieldMapper nullValueMapper = builder.build(context);
-        assertEquals(List.of(true), fetchSourceValue(nullValueMapper, null));
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 }

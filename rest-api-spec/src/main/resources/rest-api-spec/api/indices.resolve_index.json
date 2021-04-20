@@ -5,6 +5,10 @@
       "description":"Returns information about any matching indices, aliases, and data streams"
     },
     "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

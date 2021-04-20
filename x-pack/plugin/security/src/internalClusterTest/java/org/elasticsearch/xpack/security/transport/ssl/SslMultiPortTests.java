@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
@@ -58,7 +59,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * </ul>
      */
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort+100);
 
@@ -70,7 +71,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         addSSLSettingsForNodePEMFiles(builder, "transport.profiles.client.xpack.security.", true);
         builder.put("transport.profiles.client.port", randomClientPortRange)
             .put("transport.profiles.client.bind_host", NetworkAddress.format(localAddress))

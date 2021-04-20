@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 /**
@@ -97,6 +86,41 @@
  *
  * <li>After the deletion of the snapshot's data from the repository finishes, the {@code SnapshotsService} will submit a cluster state
  * update to remove the deletion's entry in {@code SnapshotDeletionsInProgress} which concludes the process of deleting a snapshot.</li>
+ * </ol>
+ *
+ * <h2>Cloning a Snapshot</h2>
+ *
+ * <p>Cloning part of a snapshot is a process executed entirely on the master node. On a high level, the process of cloning a snapshot is
+ * analogous to that of creating a snapshot from data in the cluster except that the source of data files is the snapshot repository
+ * instead of the data nodes. It begins with cloning all shards and then finalizes the cloned snapshot the same way a normal snapshot would
+ * be finalized. Concretely, it is executed as follows:</p>
+ *
+ * <ol>
+ *     <li>First, {@link org.elasticsearch.snapshots.SnapshotsService#cloneSnapshot} is invoked which will place a placeholder entry into
+ *     {@code SnapshotsInProgress} that does not yet contain any shard clone assignments. Note that unlike in the case of snapshot
+ *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#clones} are not created in the
+ *     initial cluster state update as is done for shard snapshot assignments in
+ *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
+ *     computed purely from information in the current cluster state while shard clone assignments require information to be read from the
+ *     repository, which is too slow of a process to be done inside a cluster state update. Loading this information ahead of creating a
+ *     task in the cluster state, runs the risk of race conditions where the source snapshot is being deleted before the clone task is
+ *     enqueued in the cluster state.</li>
+ *     <li>Once a placeholder task for the clone operation is put into the cluster state, we must determine the number of shards in each
+ *     index that is to be cloned as well as ensure the health of the index snapshots in the source snapshot. In order to determine the
+ *     shard count for each index that is to be cloned, we load the index metadata for each such index using the repository's
+ *     {@link org.elasticsearch.repositories.Repository#getSnapshotIndexMetaData} method. In order to ensure the health of the source index
+ *     snapshots, we load the {@link org.elasticsearch.snapshots.SnapshotInfo} for the source snapshot and check for shard snapshot
+ *     failures of the relevant indices.</li>
+ *     <li>Once all shard counts are known and the health of all source indices data has been verified, we populate the
+ *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
+ *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, master executes them on its snapshot thread-pool
+ *     by invoking {@link org.elasticsearch.repositories.Repository#cloneShardSnapshot} for each shard that is to be cloned. Each completed
+ *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_STATE_EXECUTOR} which updates the
+ *     clone's {@code SnapshotsInProgress.Entry} to mark the shard clone operation completed.</li>
+ *     <li>Once all the entries in {@code SnapshotsInProgress.Entry#clones} have completed, the clone is finalized just like any other
+ *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#endSnapshot}. The only difference being that the metadata that
+ *     is written out for indices and the global metadata are read from the source snapshot in the repository instead of the cluster state.
+ *     </li>
  * </ol>
  *
  * <h2>Concurrent Snapshot Operations</h2>

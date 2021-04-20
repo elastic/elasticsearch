@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -37,19 +26,21 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -66,13 +57,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     private RangeFieldType createDefaultFieldType() {
         if (type == RangeType.DATE) {
-            return new RangeFieldType("field", true, false, true, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+            return new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         }
-        return new RangeFieldType("field", type, true, false, true, Collections.emptyMap());
+        return new RangeFieldType("field", type);
     }
 
     public void testRangeQuery() throws Exception {
-        QueryShardContext context = createContext();
+        SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();
 
         ShapeRelation relation = randomFrom(ShapeRelation.values());
@@ -93,7 +84,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
-        QueryShardContext context = createContext();
+        SearchExecutionContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
         RangeFieldType ft = createDefaultFieldType();
 
@@ -151,7 +142,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
     public void testFromLargerToErrors() throws Exception {
-        QueryShardContext context = createContext();
+        SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();
 
         final Object from;
@@ -206,18 +197,17 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ex.getMessage().contains("is greater than `to` value"));
     }
 
-    private QueryShardContext createContext() {
+    private SearchExecutionContext createContext() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
+        return new SearchExecutionContext(0, 0, idxSettings, null, null, null, null, null, null,
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {
-        QueryShardContext context = createContext();
-        RangeFieldType strict
-            = new RangeFieldType("field", true, false, false, RangeFieldMapper.Defaults.DATE_FORMATTER, Collections.emptyMap());
+        SearchExecutionContext context = createContext();
+        RangeFieldType strict = new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
         ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
 
@@ -236,13 +226,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, true, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType
-            = new DateFieldType("field", true, false, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
+            = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
@@ -252,14 +242,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
      * field, so we randomize a few cases and compare the generated queries here
      */
     public void testDateVsDateRangeBounds() {
-        QueryShardContext context = createContext();
+        SearchExecutionContext context = createContext();
 
         // date formatter that truncates seconds, so we get some rounding behavior
         final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm");
         long lower = randomLongBetween(formatter.parseMillis("2000-01-01T00:00"), formatter.parseMillis("2010-01-01T00:00"));
         long upper = randomLongBetween(formatter.parseMillis("2011-01-01T00:00"), formatter.parseMillis("2020-01-01T00:00"));
 
-        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, Collections.emptyMap());
+        RangeFieldType fieldType = new RangeFieldType("field", true, false, false, formatter, false, Collections.emptyMap());
         String lowerAsString = formatter.formatMillis(lower);
         String upperAsString = formatter.formatMillis(upper);
         // also add date math rounding to days occasionally
@@ -276,7 +266,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
         DateFieldType dateFieldType = new DateFieldType("field");
-        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, !includeLower, null, formatter.toDateMathParser(), () -> 0);
+        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, includeLower == false, null, formatter.toDateMathParser(), () -> 0);
         if (includeLower == false) {
             ++lowerBoundLong;
         }
@@ -471,7 +461,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
-        QueryShardContext context = createContext();
+        SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
@@ -481,14 +471,50 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
             ft.termQuery(value, context));
     }
-    
+
     public void testCaseInsensitiveQuery() throws Exception {
-        QueryShardContext context = createContext();
+        SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
         QueryShardException ex = expectThrows(QueryShardException.class,
             () ->   ft.termQueryCaseInsensitive(value, context));
         assertTrue(ex.getMessage().contains("does not support case insensitive term queries"));
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT)
+            .build(new ContentPath())
+            .fieldType();
+        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
+            fetchSourceValue(longMapper, longRange));
+
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT)
+            .format("yyyy/MM/dd||epoch_millis")
+            .build(new ContentPath())
+            .fieldType();
+        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", 597429487111L);
+        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
+            fetchSourceValue(dateMapper, dateRange));
+    }
+
+    public void testParseSourceValueWithFormat() throws IOException {
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT)
+            .build(new ContentPath())
+            .fieldType();
+        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
+            fetchSourceValue(longMapper, longRange));
+
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT)
+            .format("strict_date_time")
+            .build(new ContentPath())
+            .fieldType();
+        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990-12-29T00:00:00.000Z");
+        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29")),
+            fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
+        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "662428800000")),
+            fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
     }
 }

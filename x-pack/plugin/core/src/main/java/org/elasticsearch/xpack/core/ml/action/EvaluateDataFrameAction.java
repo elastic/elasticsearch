@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -53,6 +54,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         private static final ParseField QUERY = new ParseField("query");
         private static final ParseField EVALUATION = new ParseField("evaluation");
 
+        @SuppressWarnings({ "unchecked"})
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
             a -> new Request((List<String>) a[0], (QueryProvider) a[1], (Evaluation) a[2]));
@@ -67,10 +69,10 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         }
 
         private static Evaluation parseEvaluation(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             Evaluation evaluation = parser.namedObject(Evaluation.class, parser.currentName(), null);
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return evaluation;
         }
 

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor;
@@ -14,11 +16,12 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunc
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation;
 
 /*
  * Whitelisted class for EQL scripts.
@@ -27,13 +30,22 @@ import java.util.List;
  */
 public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
-    InternalEqlScriptUtils() {}
-
-    public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
-        return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    InternalEqlScriptUtils() {
     }
 
-    public static Boolean cidrMatch(String s, List<Object>  addresses) {
+    public static Boolean seq(Object left, Object right) {
+        return InsensitiveBinaryComparisonOperation.SEQ.apply(left, right);
+    }
+
+    public static Boolean sneq(Object left, Object right) {
+        return InsensitiveBinaryComparisonOperation.SNEQ.apply(left, right);
+    }
+
+    public static String between(String s, String left, String right, Boolean greedy, Boolean caseInsensitive) {
+        return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseInsensitive);
+    }
+
+    public static Boolean cidrMatch(String s, List<Object> addresses) {
         return (Boolean) CIDRMatchFunctionProcessor.doProcess(s, addresses);
     }
 
@@ -41,12 +53,12 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) ConcatFunctionProcessor.doProcess(values);
     }
 
-    public static Boolean endsWith(String s, String pattern, Boolean isCaseSensitive) {
-        return (Boolean) EndsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
+    public static Boolean endsWith(String s, String pattern, Boolean caseInsensitive) {
+        return (Boolean) EndsWithFunctionProcessor.doProcess(s, pattern, caseInsensitive);
     }
 
-    public static Integer indexOf(String s, String substring, Number start, Boolean isCaseSensitive) {
-        return (Integer) IndexOfFunctionProcessor.doProcess(s, substring, start, isCaseSensitive);
+    public static Integer indexOf(String s, String substring, Number start, Boolean caseInsensitive) {
+        return (Integer) IndexOfFunctionProcessor.doProcess(s, substring, start, caseInsensitive);
     }
 
     public static Integer length(String s) {
@@ -57,8 +69,8 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) ToStringFunctionProcessor.doProcess(s);
     }
 
-    public static Boolean stringContains(String string, String substring, Boolean isCaseSensitive) {
-        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring, isCaseSensitive);
+    public static Boolean stringContains(String string, String substring, Boolean caseInsensitive) {
+        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring, caseInsensitive);
     }
 
     public static Number number(String source, Number base) {

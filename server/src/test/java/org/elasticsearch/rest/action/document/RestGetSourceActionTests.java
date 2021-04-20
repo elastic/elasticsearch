@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.document;
@@ -23,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -65,13 +55,20 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used in path
      */
     public void testTypeInPath() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier(
+            (action, r) -> new GetResponse(new GetResult("index", "_doc", "id", 0, 1, 0, true, new BytesArray("{}"), null, null))
+        );
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                    .withMethod(method)
+            // Ensure we have a fresh context for each request so we don't get duplicate headers
+            try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(method)
                     .withPath("/some_index/some_type/id/_source")
                     .build();
-            dispatchRequest(request);
-            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+
+                dispatchRequest(request);
+                assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+            }
         }
     }
 
@@ -79,16 +76,22 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      * test deprecation is logged if type is used as parameter
      */
     public void testTypeParameter() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier(
+            (action, r) -> new GetResponse(new GetResult("index", "_doc", "id", 0, 1, 0, true, new BytesArray("{}"), null, null))
+        );
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-                    .withMethod(method)
+            // Ensure we have a fresh context for each request so we don't get duplicate headers
+            try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(method)
                     .withPath("/some_index/_source/id")
                     .withParams(params)
                     .build();
-            dispatchRequest(request);
-            assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+                dispatchRequest(request);
+                assertWarnings(RestGetSourceAction.TYPES_DEPRECATION_MESSAGE);
+            }
         }
     }
 

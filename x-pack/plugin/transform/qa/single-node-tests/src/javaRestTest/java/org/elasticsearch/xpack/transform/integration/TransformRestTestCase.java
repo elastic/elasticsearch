@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -40,7 +41,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
@@ -101,6 +101,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
+            long affiliate = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 11);
+
             if (i % 12 == 0) {
                 hour = 10 + (i % 13);
             }
@@ -132,6 +134,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             }
             if ((user == userWithMissingBuckets && missingBucketField.equals("timestamp")) == false) {
                 bulk.append("\"timestamp\":\"").append(date_string).append("\",");
+            }
+            if ((user == userWithMissingBuckets && missingBucketField.equals("affiliate_id")) == false) {
+                bulk.append("\"affiliate_id\":\"").append("affiliate_").append(affiliate).append("\",");
             }
 
             // always add @timestamp to avoid complicated logic regarding ','
@@ -180,10 +185,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     .field("type", "keyword")
                     .endObject()
                     .startObject("stars")
-                    .field("type", "integer")
+                    .field("type", randomFrom("integer", "long")) // gh#64347 unsigned_long disabled
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")
+                    .endObject()
+                    .startObject("affiliate_id")
+                    .field("type", "keyword")
                     .endObject()
                     .endObject()
                     .endObject();
@@ -221,7 +229,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndex(String indexName) throws IOException {
-        createReviewsIndex(indexName, 1000, "date", false, -1, null);
+        createReviewsIndex(indexName, 1000, "date", false, 5, "affiliate_id");
     }
 
     protected void createPivotReviewsTransform(String transformId, String transformIndex, String query) throws IOException {
@@ -238,8 +246,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
-
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
 
         String config = "{ \"dest\": {\"index\":\"" + transformIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
         // Set frequency high for testing
@@ -258,10 +264,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + " } } } }"
             + "}";
 
-        createTransformRequest.setJsonEntity(config);
-
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        createReviewsTransform(transformId, authHeader, config);
     }
 
     protected void createPivotReviewsTransform(
@@ -272,8 +275,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String authHeader,
         String sourceIndex
     ) throws IOException {
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{";
 
         if (pipeline != null) {
@@ -298,10 +299,34 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "     \"avg_rating\": {"
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"affiliate_missing\": {"
+            + "       \"missing\": {"
+            + "         \"field\": \"affiliate_id\""
+
             + " } } } },"
             + "\"frequency\":\"1s\""
             + "}";
 
+        createReviewsTransform(transformId, authHeader, config);
+    }
+
+    protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
+        String config = "{"
+            + " \"dest\": {\"index\":\"" + transformIndex + "\"},"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"latest\": {"
+            + "   \"unique_key\": [ \"user_id\" ],"
+            + "   \"sort\": \"@timestamp\""
+            + " },"
+            + "\"frequency\":\"1s\""
+            + "}";
+
+        createReviewsTransform(transformId, null, config);
+    }
+
+    private void createReviewsTransform(String transformId, String authHeader, String config) throws IOException {
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
         createTransformRequest.setJsonEntity(config);
 
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -480,6 +505,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
         // the configuration index should be empty
         Request request = new Request("GET", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_search");
+        request.setOptions(
+            expectWarnings(
+                "this request accesses system indices: ["
+                    + TransformInternalIndexConstants.LATEST_INDEX_NAME
+                    + "], but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
         try {
             Response searchResponse = adminClient().performRequest(request);
             Map<String, Object> searchResult = entityAsMap(searchResponse);
@@ -537,6 +569,14 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(expected, actual, 0.000001);
+    }
+
+    protected void assertOneCount(String query, String field, int expected) throws IOException {
+        Map<String, Object> searchResult = getAsMap(query);
+
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        int actual = (Integer) ((List<?>) XContentMapValues.extractValue(field, searchResult)).get(0);
+        assertEquals(expected, actual);
     }
 
     protected static String getTransformEndpoint() {

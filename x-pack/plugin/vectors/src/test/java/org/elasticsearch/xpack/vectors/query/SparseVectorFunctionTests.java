@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.vectors.query;
@@ -53,9 +54,9 @@ public class SparseVectorFunctionTests extends ESTestCase {
                 docVectorDims, docVectorValues, docVectorDims.length);
             SparseVectorScriptDocValues docValues = mock(SparseVectorScriptDocValues.class);
             when(docValues.getEncodedValue()).thenReturn(encodedDocVector);
+            when(docValues.indexVersion()).thenReturn(indexVersion);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript._getIndexVersion()).thenReturn(indexVersion);
             when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, docValues));
 
             testDotProduct(docValues, scoreScript);
@@ -119,9 +120,9 @@ public class SparseVectorFunctionTests extends ESTestCase {
             Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        when(dvs.indexVersion()).thenReturn(Version.CURRENT);
 
         ScoreScript scoreScript = mock(ScoreScript.class);
-        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
         when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, dvs));
 
         Map<String, Number> queryVector = new HashMap<String, Number>() {{
@@ -168,9 +169,9 @@ public class SparseVectorFunctionTests extends ESTestCase {
             Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        when(dvs.indexVersion()).thenReturn(Version.CURRENT);
 
         ScoreScript scoreScript = mock(ScoreScript.class);
-        when(scoreScript._getIndexVersion()).thenReturn(Version.CURRENT);
         when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, dvs));
 
         Map<String, Number> queryVector = new HashMap<String, Number>() {{

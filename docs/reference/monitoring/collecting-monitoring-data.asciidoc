@@ -42,7 +42,7 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 --
 
 .. Set the `xpack.monitoring.collection.enabled` setting to `true` on each
-node in the cluster. By default, it is is disabled (`false`).
+node in the cluster. By default, it is disabled (`false`).
 +
 --
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each
@@ -155,7 +155,7 @@ xpack.monitoring.exporters:
 --
 
 .. If you configured the monitoring cluster to use
-<<configuring-tls,encrypted communications>>, you must use the HTTPS protocol in
+<<encrypt-internode-communication,encrypted communications>>, you must use the HTTPS protocol in
 the `host` setting. You must also specify the trusted CA certificates that will
 be used to verify the identity of the nodes in the monitoring cluster.
 

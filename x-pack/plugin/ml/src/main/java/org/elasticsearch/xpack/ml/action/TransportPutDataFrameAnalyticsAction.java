@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -19,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -62,6 +64,8 @@ public class TransportPutDataFrameAnalyticsAction
 
     private static final Logger logger = LogManager.getLogger(TransportPutDataFrameAnalyticsAction.class);
 
+    private static final Version MIN_VERSION_FOR_RUNTIME_FIELDS = Version.V_7_12_0;
+
     private final XPackLicenseState licenseState;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final SecurityContext securityContext;
@@ -77,7 +81,8 @@ public class TransportPutDataFrameAnalyticsAction
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 DataFrameAnalyticsConfigProvider configProvider, DataFrameAnalyticsAuditor auditor) {
         super(PutDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
+                PutDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, PutDataFrameAnalyticsAction.Response::new,
+                ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -93,6 +98,7 @@ public class TransportPutDataFrameAnalyticsAction
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             null,
+            null,
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
@@ -100,16 +106,6 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
         this.maxModelMemoryLimit = maxModelMemoryLimit;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutDataFrameAnalyticsAction.Response read(StreamInput in) throws IOException {
-        return new PutDataFrameAnalyticsAction.Response(in);
     }
 
     @Override
@@ -123,12 +119,28 @@ public class TransportPutDataFrameAnalyticsAction
 
         final DataFrameAnalyticsConfig config = request.getConfig();
 
+        // Check if runtime mappings are used but the cluster contains nodes on a version
+        // before runtime fields were introduced and reject such configs.
+        if (config.getSource().getRuntimeMappings().isEmpty() == false
+                && state.nodes().getMinNodeVersion().before(MIN_VERSION_FOR_RUNTIME_FIELDS)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                    "at least one cluster node is on a version [{}] that does not support [{}]; " +
+                    "all nodes should be at least on version [{}] in order to create data frame analytics with [{}]",
+                    state.nodes().getMinNodeVersion(),
+                    SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(),
+                    MIN_VERSION_FOR_RUNTIME_FIELDS,
+                    SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
+                )
+            );
+            return;
+        }
+
         ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
             aBoolean -> putValidatedConfig(config, listener),
             listener::onFailure
         );
 
-        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(),
+        sourceDestValidator.validate(clusterService.state(), config.getSource().getIndex(), config.getDest().getIndex(), null,
             SourceDestValidations.ALL_VALIDATIONS, sourceDestValidationListener);
     }
 

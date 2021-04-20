@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-geocentroid-aggregation]]
-=== Geo Centroid Aggregation
+=== Geo-centroid aggregation
+++++
+<titleabbrev>Geo-centroid</titleabbrev>
+++++
 
 A metric aggregation that computes the weighted {wikipedia}/Centroid[centroid] from all coordinate values for geo fields.
 
@@ -147,6 +150,7 @@ The response for the above aggregation:
 
 [discrete]
 [role="xpack"]
+[[geocentroid-aggregation-geo-shape]]
 ==== Geo Centroid Aggregation on `geo_shape` fields
 
 The centroid metric for geo-shapes is more nuanced than for points. The centroid of a specific aggregation bucket

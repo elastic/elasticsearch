@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
@@ -32,8 +33,8 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = super.nodeSettings(nodeOrdinal);
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(settings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false), false);
         Path keyPath;

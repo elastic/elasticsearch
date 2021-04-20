@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
@@ -42,12 +44,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("passwd".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
         // adds a dummy user to the native realm to force .security index creation
-        securityClient().preparePutUser("dummy_user", "password".toCharArray(), Hasher.BCRYPT, "missing_role").get();
+        securityClient().preparePutUser("dummy_user", "dummy_user_password".toCharArray(), Hasher.BCRYPT, "missing_role").get();
         assertSecurityIndexActive();
     }
 
@@ -221,7 +223,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
         assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
-        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)  
+        // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("user_monitor", USERS_PASSWD));
         RequestOptions options = optionsBuilder.build();

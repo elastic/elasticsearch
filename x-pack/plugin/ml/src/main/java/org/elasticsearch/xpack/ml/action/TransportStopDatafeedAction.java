@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -15,6 +17,8 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -48,6 +53,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+
 public class TransportStopDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask, StopDatafeedAction.Request,
         StopDatafeedAction.Response, StopDatafeedAction.Response> {
 
@@ -57,17 +64,20 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     private final PersistentTasksService persistentTasksService;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final OriginSettingClient client;
 
     @Inject
     public TransportStopDatafeedAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                        ClusterService clusterService, PersistentTasksService persistentTasksService,
-                                       DatafeedConfigProvider datafeedConfigProvider, AnomalyDetectionAuditor auditor) {
+                                       DatafeedConfigProvider datafeedConfigProvider, AnomalyDetectionAuditor auditor,
+                                       Client client) {
         super(StopDatafeedAction.NAME, clusterService, transportService, actionFilters, StopDatafeedAction.Request::new,
             StopDatafeedAction.Response::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.auditor = Objects.requireNonNull(auditor);
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
     }
 
     /**
@@ -162,6 +172,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                                     PersistentTasksCustomMetadata tasks, DiscoveryNodes nodes,
                                     List<String> startedDatafeeds, List<String> stoppingDatafeeds) {
         final Set<String> executorNodes = new HashSet<>();
+        final List<String> startedDatafeedsJobs = new ArrayList<>();
         for (String datafeedId : startedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask == null) {
@@ -170,6 +181,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 assert datafeedTask != null : msg;
                 logger.error(msg);
             } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+                startedDatafeedsJobs.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
                 executorNodes.add(datafeedTask.getExecutorNode());
             } else {
                 // This is the easy case - the datafeed is not currently assigned to a valid node,
@@ -185,7 +197,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
             }
         }
 
-        request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
+        request.setNodes(executorNodes.toArray(new String[0]));
 
         // wait for started and stopping datafeeds
         // Map datafeedId -> datafeed task Id.
@@ -195,7 +207,32 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 .collect(Collectors.toList());
 
         ActionListener<StopDatafeedAction.Response> finalListener = ActionListener.wrap(
-                r -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, r, listener),
+                r -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, r, ActionListener.wrap(
+                    finished -> {
+                        if (startedDatafeedsJobs.isEmpty()) {
+                            listener.onResponse(finished);
+                            return;
+                        }
+                        client.admin().indices().prepareRefresh(startedDatafeedsJobs
+                            .stream()
+                            .map(AnomalyDetectorsIndex::jobResultsAliasedName)
+                            .toArray(String[]::new))
+                            .execute(ActionListener.wrap(
+                                _unused -> listener.onResponse(finished),
+                                ex -> {
+                                    logger.warn(
+                                        () -> new ParameterizedMessage(
+                                            "failed to refresh job [{}] results indices when stopping datafeeds [{}]",
+                                            startedDatafeedsJobs,
+                                            startedDatafeeds
+                                        ),
+                                        ex);
+                                    listener.onResponse(finished);
+                                }
+                            ));
+                    },
+                    listener::onFailure
+                )),
                 e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
                         // A node has dropped out of the cluster since we started executing the requests.
@@ -339,17 +376,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                 }
             }
             return true;
-        }, request.getTimeout(), new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean result) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }, request.getTimeout(), listener.delegateFailure((l, result) -> l.onResponse(response)));
     }
 
     @Override

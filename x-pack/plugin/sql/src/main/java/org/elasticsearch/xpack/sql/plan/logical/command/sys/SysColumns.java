@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -31,6 +32,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -71,7 +73,7 @@ public class SysColumns extends Command {
     public List<Attribute> output() {
         return output(false);
     }
-    
+
     private List<Attribute> output(boolean odbcCompatible) {
         // https://github.com/elastic/elasticsearch/issues/35376
         // ODBC expects some fields as SHORT while JDBC as Integer
@@ -128,7 +130,7 @@ public class SysColumns extends Command {
 
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, session.configuration().filter(),
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, emptyMap(),
                 ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
@@ -139,7 +141,7 @@ public class SysColumns extends Command {
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, session.configuration().filter(),
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, emptyMap(),
                 ActionListener.wrap(r -> {
                     List<List<?>> rows = new ArrayList<>();
                     // populate the data only when a target is found
@@ -167,7 +169,7 @@ public class SysColumns extends Command {
             name = prefix != null ? prefix + "." + name : name;
             EsField field = entry.getValue();
             DataType type = field.getDataType();
-            
+
             // skip the nested, object and unsupported types
             if (isPrimitive(type)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
@@ -214,7 +216,7 @@ public class SysColumns extends Command {
             }
         }
     }
-    
+
     private static Object odbcCompatible(Integer value, boolean isOdbcClient) {
         if (isOdbcClient && value != null) {
             return Short.valueOf(value.shortValue());

@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -82,8 +80,8 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         dispatchRequest(restRequest);
 
         final ClearSecurityCacheRequest clearSecurityCacheRequest = requestHolder.get();
-        assertThat(Set.of(clearSecurityCacheRequest.keys()),
-            equalTo(Arrays.stream(names).map(n -> namespace + "/" + service + "/" + n).collect(Collectors.toUnmodifiableSet())));
+        assertThat(org.elasticsearch.common.collect.Set.of(clearSecurityCacheRequest.keys()),
+            equalTo(Arrays.stream(names).map(n -> namespace + "/" + service + "/" + n).collect(Collectors.toSet())));
     }
 
     public void testInnerPrepareRequestWillThrowErrorOnInvalidTokenNames() {
@@ -93,7 +91,7 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
             () -> randomValueOtherThanMany(n -> n.contains(","), ValidationTests::randomInvalidTokenName));
 
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withParams(Map.of(
+            .withParams(org.elasticsearch.common.collect.Map.of(
                 "namespace", randomAlphaOfLengthBetween(3, 8),
                 "service", randomAlphaOfLengthBetween(3, 8),
                 "name", Strings.arrayToCommaDelimitedString(names)))

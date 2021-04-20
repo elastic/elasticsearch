@@ -32,7 +32,8 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache"));
+        return org.elasticsearch.common.collect.List.of(
+            new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache"));
     }
 
     @Override
@@ -58,7 +59,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
                 }
                 qualifiedTokenNames.add(namespace + "/" + service + "/" + name);
             }
-            req.keys(qualifiedTokenNames.toArray(String[]::new));
+            req.keys(qualifiedTokenNames.toArray(new String[0]));
         }
         return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new RestActions.NodesResponseRestListener<>(channel));
     }

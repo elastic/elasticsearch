@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -196,11 +197,11 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
         assertThat(store.getCache().count(), equalTo(tokens.size()));
 
         // Invalidate a single entry
-        store.invalidate(List.of(randomFrom(tokens).getQualifiedName()));
+        store.invalidate(org.elasticsearch.common.collect.List.of(randomFrom(tokens).getQualifiedName()));
         assertThat(store.getCache().count(), equalTo(tokens.size() - 1));
 
         // Invalidate all entries
-        store.invalidate(List.of(accountId.asPrincipal() + "/"));
+        store.invalidate(org.elasticsearch.common.collect.List.of(accountId.asPrincipal() + "/"));
         assertThat(store.getCache().count(), equalTo(0));
 
         // auth everything again

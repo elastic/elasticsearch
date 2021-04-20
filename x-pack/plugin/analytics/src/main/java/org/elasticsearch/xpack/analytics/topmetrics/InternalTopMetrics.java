@@ -165,9 +165,9 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
 
     @Override
     public final double sortValue(String key) {
-        int index = metricNames.indexOf(name);
+        int index = metricNames.indexOf(key);
         if (index < 0) {
-            throw new IllegalArgumentException("unknown metric [" + name + "]");
+            throw new IllegalArgumentException("unknown metric [" + key + "]");
         }
         if (topMetrics.isEmpty()) {
             return Double.NaN;

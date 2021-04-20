@@ -89,6 +89,8 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
             new RestClearServiceAccountTokenStoreCacheAction(Settings.EMPTY, mock(XPackLicenseState.class));
         final String[] names = randomArray(2, 4, String[]::new,
             () -> randomValueOtherThanMany(n -> n.contains(","), ValidationTests::randomInvalidTokenName));
+        // Add a valid name in the mix, we should still have one invalid name
+        names[names.length - 1] = ValidationTests.randomTokenName();
 
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withParams(org.elasticsearch.common.collect.Map.of(

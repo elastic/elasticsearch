@@ -31,7 +31,7 @@ data stream, index, or index alias.
 
 `<target>`::
 (Optional, string)
-Comma-separated list of data streams and indices to clear from the cache.
+Comma-separated list of data streams, indices, and index aliases to clear from the cache.
 To clear the entire cache, omit this parameter. Supports wildcards (`*`).
 
 

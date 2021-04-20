@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -40,7 +41,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracke
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -123,12 +124,23 @@ public class FrozenCacheService implements Releasable {
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
                         );
                     }
+
+                    @SuppressWarnings("unchecked")
+                    final List<String> dataPaths = (List<String>) settings.get(Environment.PATH_DATA_SETTING);
+                    if (dataPaths.size() > 1) {
+                        throw new SettingsException(
+                            "setting [{}={}] is not permitted on nodes with multiple data paths [{}]",
+                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                            value.getStringRep(),
+                            String.join(",", dataPaths)
+                        );
+                    }
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(NodeRoleSettings.NODE_ROLES_SETTING);
+                final List<Setting<?>> settings = Arrays.asList(NodeRoleSettings.NODE_ROLES_SETTING, Environment.PATH_DATA_SETTING);
                 return settings.iterator();
             }
 

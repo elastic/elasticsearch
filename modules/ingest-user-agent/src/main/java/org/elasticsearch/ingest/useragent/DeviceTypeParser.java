@@ -35,7 +35,9 @@ public class DeviceTypeParser {
     private static final String AGENT_STRING_PARSER = "agent_string_parsers";
     private static final String robot = "Robot", tablet = "Tablet", desktop = "Desktop", phone = "Phone";
 
-    private final List<String> patternListKeys = List.of(OS_PARSERS, BROWSER_PARSER, DEVICE_PARSER, AGENT_STRING_PARSER);
+    private final List<String> patternListKeys = org.elasticsearch.common.collect.List.of(
+        OS_PARSERS, BROWSER_PARSER, DEVICE_PARSER, AGENT_STRING_PARSER
+    );
 
     private final HashMap<String, ArrayList<DeviceTypeSubPattern>> deviceTypePatterns = new HashMap<>();
 

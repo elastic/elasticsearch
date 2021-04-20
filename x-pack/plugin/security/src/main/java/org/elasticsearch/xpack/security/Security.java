@@ -208,11 +208,11 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountsTokenStore;
-import org.elasticsearch.xpack.security.authc.service.FileServiceAccountsTokenStore;
-import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -513,15 +513,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);
         components.add(httpTlsRuntimeCheck);
 
-        final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore = new IndexServiceAccountsTokenStore(
+        final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
             settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
-        components.add(indexServiceAccountsTokenStore);
+        components.add(indexServiceAccountTokenStore);
 
-        final FileServiceAccountsTokenStore fileServiceAccountsTokenStore =
-            new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool, cacheInvalidatorRegistry);
+        final FileServiceAccountTokenStore fileServiceAccountTokenStore =
+            new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, cacheInvalidatorRegistry);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(
-            List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore), threadPool.getThreadContext()), httpTlsRuntimeCheck);
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountTokenStore(
+            List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore), threadPool.getThreadContext()), httpTlsRuntimeCheck);
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
@@ -747,9 +747,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
         settingsList.add(OPERATOR_PRIVILEGES_ENABLED);
-        settingsList.add(CachingServiceAccountsTokenStore.CACHE_TTL_SETTING);
-        settingsList.add(CachingServiceAccountsTokenStore.CACHE_HASH_ALGO_SETTING);
-        settingsList.add(CachingServiceAccountsTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
+        settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
+        settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),

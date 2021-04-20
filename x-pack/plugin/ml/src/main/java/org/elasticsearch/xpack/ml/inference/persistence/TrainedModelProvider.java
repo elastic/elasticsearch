@@ -113,9 +113,9 @@ public class TrainedModelProvider {
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
-    private static final int COMPRESSED_STRING_CHUNK_SIZE = 16 * 1024 * 1024;
+    private static final int COMPRESSED_MODEL_CHUNK_SIZE = 16 * 1024 * 1024;
     private static final int MAX_NUM_DEFINITION_DOCS = 100;
-    private static final int MAX_COMPRESSED_STRING_SIZE = COMPRESSED_STRING_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
+    private static final int MAX_COMPRESSED_MODEL_SIZE = COMPRESSED_MODEL_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -293,15 +293,15 @@ public class TrainedModelProvider {
         List<TrainedModelDefinitionDoc> trainedModelDefinitionDocs = new ArrayList<>();
         try {
             BytesReference compressedDefinition = trainedModelConfig.getCompressedDefinition();
-            if (compressedDefinition.length() > MAX_COMPRESSED_STRING_SIZE) {
+            if (compressedDefinition.length() > MAX_COMPRESSED_MODEL_SIZE) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "Unable to store model as compressed definition has length [{}] the limit is [{}]",
+                        "Unable to store model as compressed definition of size [{}] bytes the limit is [{}] bytes",
                         compressedDefinition.length(),
-                        MAX_COMPRESSED_STRING_SIZE));
+                        MAX_COMPRESSED_MODEL_SIZE));
                 return;
             }
-            List<BytesReference> chunkedDefinition = chunkDefinitionWithSize(compressedDefinition, COMPRESSED_STRING_CHUNK_SIZE);
+            List<BytesReference> chunkedDefinition = chunkDefinitionWithSize(compressedDefinition, COMPRESSED_MODEL_CHUNK_SIZE);
             for(int i = 0; i < chunkedDefinition.size(); ++i) {
                 trainedModelDefinitionDocs.add(new TrainedModelDefinitionDoc.Builder()
                     .setDocNum(i)

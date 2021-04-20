@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.autoscaling.util.FrozenUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 public class FrozenStorageDeciderService implements AutoscalingDeciderService {
@@ -54,11 +53,13 @@ public class FrozenStorageDeciderService implements AutoscalingDeciderService {
 
     static long estimateSize(IndexMetadata imd, ClusterInfo info) {
         int copies = imd.getNumberOfReplicas() + 1;
-        return IntStream.range(0, imd.getNumberOfShards())
-            .mapToObj(s -> new ShardId(imd.getIndex(), s))
-            .mapToLong(s -> info.getShardDataSetSize(s).orElse(0L))
-            .map(s -> s * copies)
-            .sum();
+        long sum = 0;
+        for (int i = 0; i < imd.getNumberOfShards(); ++i) {
+            ShardId shardId = new ShardId(imd.getIndex(), i);
+            long size = info.getShardDataSetSize(shardId).orElse(0L);
+            sum += size * copies;
+        }
+        return sum;
     }
 
     @Override

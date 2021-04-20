@@ -6,7 +6,7 @@
 <titleabbrev>Searchable snapshot statistics</titleabbrev>
 ++++
 
-experimental[]
+experimental::[]
 
 Retrieve statistics about searchable snapshots shards.
 

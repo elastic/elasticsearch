@@ -231,7 +231,6 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         assertThat(metrics.getValuesAsStrings("double"), equalTo(Collections.singletonList("5.0")));
         assertThat(metrics.getValuesAsStrings("bytes"), equalTo(Collections.singletonList("cat")));
         assertThat(metrics.getValuesAsStrings("null"), equalTo(Collections.singletonList("null")));
-        assertThat(metrics.size(), equalTo(1));
     }
 
     private InternalTopMetrics resultWithAllTypes() {

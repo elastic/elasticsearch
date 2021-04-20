@@ -35,7 +35,7 @@ import java.util.Optional;
  */
 public class ClusterInfo implements ToXContentFragment, Writeable {
 
-    public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_8_0_0; // todo: Version.V_7_13_0;
+    public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
 
     private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;
     private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;

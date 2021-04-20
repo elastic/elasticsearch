@@ -71,7 +71,8 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
     }
 
     public void testIsDedicatedFrozenNode() {
-        runRoleTest(DiscoveryNode::isDedicatedFrozenNode, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        assertTrue(DiscoveryNode.isDedicatedFrozenNode(onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)));
+        assertFalse(DiscoveryNode.isDedicatedFrozenNode(removeRoles(Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
         assertTrue(DiscoveryNode.isDedicatedFrozenNode(addRoles(nonDataNode(),
             org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
         assertFalse(DiscoveryNode.isDedicatedFrozenNode(

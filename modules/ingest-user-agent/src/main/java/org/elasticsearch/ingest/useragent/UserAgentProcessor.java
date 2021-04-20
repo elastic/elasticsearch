@@ -149,9 +149,9 @@ public class UserAgentProcessor extends AbstractProcessor {
                                 deviceDetails.put("type", "Other");
                             }
                         }
-                        uaDetails.put("device", deviceDetails);
-                        break;
                     }
+                    uaDetails.put("device", deviceDetails);
+                    break;
                 }
             }
         } else {
@@ -226,9 +226,9 @@ public class UserAgentProcessor extends AbstractProcessor {
                                     deviceDetails.put("type", "Other");
                                 }
                             }
-                            uaDetails.put("device", deviceDetails);
-                            break;
                         }
+                        uaDetails.put("device", deviceDetails);
+                        break;
                 }
             }
         }

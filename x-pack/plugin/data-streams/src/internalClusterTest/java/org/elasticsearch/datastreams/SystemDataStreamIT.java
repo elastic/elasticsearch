@@ -73,10 +73,18 @@ public class SystemDataStreamIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(getTestTransportPlugin());
         plugins.add(NioTransportPlugin.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
         plugins.add(Netty4Plugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
         return plugins;
     }
 

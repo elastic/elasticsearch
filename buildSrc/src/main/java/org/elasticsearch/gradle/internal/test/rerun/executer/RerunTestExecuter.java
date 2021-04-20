@@ -65,7 +65,8 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
 
     void report(int runCount, List<TestDescriptorInternal> activeDescriptors) {
         String report = "================\n"
-            + "Test JDK System exit trace (run: "
+            + "Test jvm exited unexpectedly.\n"
+            + "Test jvm system exit trace (run: "
             + runCount
             + ")\n"
             + activeDescriptors.stream()

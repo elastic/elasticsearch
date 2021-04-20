@@ -31,8 +31,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         tasks.named("test").configure {
             maxParallelForks = 4
             testLogging {
-                // set options for log level LIFECYCLE
-                events "started", "passed", "standard_out", "failed"
+                events "standard_out", "failed"
                 exceptionFormat "short"
             }
         }
@@ -56,11 +55,21 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test").buildAndFail()
         result.output.contains("total executions: 2") == false
         and: "no jvm system exit tracing provided"
-        normalized(result.output).contains("Test JDK System exit trace:") == false
+        normalized(result.output).contains("""Test jvm exited unexpectedly.
+Test jvm system exit trace:""") == false
     }
 
     def "all tests are rerun when test jvm has crashed"() {
         when:
+        settingsFile.text = """
+        plugins {
+            id "com.gradle.enterprise" version "3.6.1"
+        }
+        gradleEnterprise {
+            server = 'https://gradle-enterprise.elastic.co/'
+        }
+        """ + settingsFile.text
+
         buildFile.text = """
         plugins {
           id 'java'
@@ -85,7 +94,17 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         }
         
         """
-        createSystemExitTest("JdkKillingTest")
+        createTest("AnotherTest")
+        createFailedTest("AnotherTest1")
+        createTest("AnotherTest2")
+        createTest("AnotherTest3")
+        createTest("AnotherTest4")
+        createTest("AnotherTest5")
+        createSystemExitTest("AnotherTest6")
+        createTest("AnotherTest7")
+        createTest("AnotherTest8")
+        createFailedTest("AnotherTest9")
+        createTest("AnotherTest10")
         createTest("SimpleTest")
         createTest("SimpleTest2")
         createTest("SimpleTest3")
@@ -97,12 +116,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         createTest("SomeOtherTest")
         then:
         def result = gradleRunner("test").build()
-        result.output.contains("JdkKillingTest total executions: 2")
+        result.output.contains("AnotherTest6 total executions: 2")
         // triggered only in the second overall run
         and: 'Tracing is provided'
         normalized(result.output).contains("""================
-Test JDK System exit trace (run: 1)
-Gradle Test Executor 1 > JdkKillingTest > someTest
+Test jvm exited unexpectedly.
+Test jvm system exit trace (run: 1)
+Gradle Test Executor 1 > AnotherTest6 > someTest
 ================""")
     }
 
@@ -139,10 +159,10 @@ Gradle Test Executor 1 > JdkKillingTest > someTest
         result.output.contains("JdkKillingTest total executions: 4")
         result.output.contains("Max retries(4) hit")
         and: 'Tracing is provided'
-        normalized(result.output).contains("Test JDK System exit trace (run: 1)")
-        normalized(result.output).contains("Test JDK System exit trace (run: 2)")
-        normalized(result.output).contains("Test JDK System exit trace (run: 3)")
-        normalized(result.output).contains("Test JDK System exit trace (run: 4)")
+        normalized(result.output).contains("Test jvm system exit trace (run: 1)")
+        normalized(result.output).contains("Test jvm system exit trace (run: 2)")
+        normalized(result.output).contains("Test jvm system exit trace (run: 3)")
+        normalized(result.output).contains("Test jvm system exit trace (run: 4)")
     }
 
     private String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
@@ -157,7 +177,12 @@ Gradle Test Executor 1 > JdkKillingTest > someTest
                     """ : ''
             }
 
-            ${fail ? "Assert.fail();" :''}
+            ${fail ? """
+                    if(count <= ${timesFailing}) {
+                        Assert.fail();
+                    }
+                    """ : ''
+            }
         """
     }
 
@@ -165,7 +190,7 @@ Gradle Test Executor 1 > JdkKillingTest > someTest
         createTest(clazzName, testMethodContent(true, false, timesFailing))
     }
     private File createFailedTest(String clazzName) {
-        createTest(clazzName, testMethodContent(false, true))
+        createTest(clazzName, testMethodContent(false, true, 1))
     }
 
     private File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {

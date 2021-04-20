@@ -211,6 +211,11 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         return metricNames;
     }
 
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
+    }
+
     SortOrder getSortOrder() {
         return sortOrder;
     }

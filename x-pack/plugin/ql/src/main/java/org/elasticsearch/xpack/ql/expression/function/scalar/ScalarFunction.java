@@ -113,12 +113,31 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        String template = basicTemplate(aggregate);
+        String template = "{}";
         ParamsBuilder paramsBuilder = paramsBuilder().agg(aggregate);
-        if (template.indexOf("nullSafeCastNumeric") > 0) {
-            // SUM(integral_type) requires returning a LONG value, the other cast aggs keep their type
-            DataType dataType = "SUM".equals(aggregate.functionName()) ? LONG : aggregate.dataType();
-            paramsBuilder.variable(dataType.name());
+
+        DataType nullSafeCastDataType = null;
+        DataType dataType = aggregate.dataType();
+        if (dataType.name().equals("DATE") || dataType == DATETIME ||
+            // Aggregations on date_nanos are returned as string
+            aggregate.field().dataType() == DATETIME) {
+
+            template = "{sql}.asDateTime({})";
+        } else if (dataType.isInteger()) {
+            // MAX, MIN need to retain field's data type, so that possible operations on integral types (like division) work
+            // correctly -> perform a cast in the aggs filtering script, the bucket selector for HAVING.
+            // SQL function classes not available in QL: filter by name
+            String fn = aggregate.functionName();
+            if ("MAX".equals(fn) || "MIN".equals(fn)) {
+                nullSafeCastDataType = dataType;
+            } else if ("SUM".equals(fn)) {
+                // SUM(integral_type) requires returning a LONG value
+                nullSafeCastDataType = LONG;
+            }
+        }
+        if (nullSafeCastDataType != null) {
+            template = "{ql}.nullSafeCastNumeric({},{})";
+            paramsBuilder.variable(nullSafeCastDataType.name());
         }
         return new ScriptTemplate(processScript(template), paramsBuilder.build(), dataType());
     }
@@ -126,32 +145,10 @@ public abstract class ScalarFunction extends Function {
     // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        String template = basicTemplate(grouping);
+        String template = "{}";
         return new ScriptTemplate(processScript(template),
             paramsBuilder().grouping(grouping).build(),
             dataType());
-    }
-
-    // FIXME: this needs to be refactored to account for different datatypes in different projects (ie DATE from SQL)
-    private String basicTemplate(Function function) {
-        if (function.dataType().name().equals("DATE") || function.dataType() == DATETIME ||
-            // Aggregations on date_nanos are returned as string
-            (function instanceof AggregateFunction && ((AggregateFunction) function).field().dataType() == DATETIME)) {
-
-            return "{sql}.asDateTime({})";
-        } else if (function instanceof AggregateFunction) {
-            DataType dt = function.dataType();
-            if (dt.isInteger()) {
-                // MAX, MIN need to retain field's data type, so that possible operations on integral types (like division) work
-                // correctly -> perform a cast in the aggs filtering script, the bucket selector for HAVING.
-                // SQL function classes not available in QL: filter by name
-                String fn = function.functionName();
-                if ("MAX".equals(fn) || "MIN".equals(fn) || "SUM".equals(fn)) {
-                    return "{ql}.nullSafeCastNumeric({},{})";
-                }
-            }
-        }
-        return "{}";
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {

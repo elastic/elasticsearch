@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Unary
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
@@ -57,11 +55,7 @@ public class InternalQlScriptUtils {
     }
 
     public static Number nullSafeCastNumeric(Number number, String typeName) {
-        DataType toType = fromTypeName(typeName);
-        if (toType.isNumeric() == false) {
-            throw new QlIllegalArgumentException("Casting target [" + typeName + "] is not a numerical type");
-        }
-        return number == null || Double.isNaN(number.doubleValue()) ? null : (Number) convert(number, toType);
+        return number == null || Double.isNaN(number.doubleValue()) ? null : (Number) convert(number, fromTypeName(typeName));
     }
 
 

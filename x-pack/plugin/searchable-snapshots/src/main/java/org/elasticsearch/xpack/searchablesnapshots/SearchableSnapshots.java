@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnaps
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.upgrade.SearchableSnapshotIndexMetadataUpgrader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -354,6 +355,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
         components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
+        new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
         return Collections.unmodifiableList(components);
     }
 

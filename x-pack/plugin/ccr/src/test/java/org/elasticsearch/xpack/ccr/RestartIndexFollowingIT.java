@@ -6,9 +6,12 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
@@ -16,15 +19,19 @@ import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class RestartIndexFollowingIT extends CcrIntegTestCase {
 
@@ -92,10 +99,19 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1", "doc").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(() -> {
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits(),
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
-        });
+        assertBusy(() -> assertThat(
+                followerClient().prepareSearch("index2").get().getHits().getTotalHits(),
+                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)));
+
+        cleanRemoteCluster();
+        assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
+        assertAcked(followerClient().admin().indices().prepareClose("index2"));
+
+        final ActionFuture<AcknowledgedResponse> unfollowFuture
+                = followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2"));
+        final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, unfollowFuture::actionGet);
+        assertThat(elasticsearchException.getMessage(), containsString("no such remote cluster"));
+        assertThat(elasticsearchException.getMetadataKeys(), hasItem("es.failed_to_remove_retention_leases"));
     }
 
     private void setupRemoteCluster() throws Exception {

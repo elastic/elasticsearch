@@ -1,0 +1,139 @@
+[role="xpack"]
+[testenv="basic"]
+[[search-aggregations-bucket-correlation-aggregation]]
+=== Bucket Correlation Aggregation
+++++
+<titleabbrev>Bucket Correlation Aggregation</titleabbrev>
+++++
+
+A sibling pipeline aggregation which executes a correlation function on the
+configured sibling multi-bucket aggregation.
+
+
+[[bucket-correlation-agg-syntax]]
+==== Parameters
+
+`buckets_path`::
+(Required, string)
+Path to the buckets that contain one set of values to correlate.
+For syntax, see <<buckets-path-syntax>>
+
+`function`::
+(Required, object)
+The correlation function to execute.
++
+.Properties of `function`
+[%collapsible%open]
+====
+`count_correlation`:::
+(Required^*^, object)
+The configuration to calculate a count correlation. This function is designed for
+determining the correlation of a term value and a given metric. Consequently, there
+are some restrictions.
+
+* The `buckets_path` must point to a `_count` metric
+* The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`
+* When utilizing this function, an initial calculation to gather the required `indicator` values is required.
+
+.Properties of `count_correlation`
+[%collapsible%open]
+=====
+`indicator`:::
+(Required, object)
+The indicator with which to correlate the configured `bucket_path` values.
+
+.Properties of `indicator`
+[%collapsible%open]
+=====
+`expectations`:::
+(Required, array)
+An array of numbers with which to correlate the configured `bucket_path` values. The length of this value must always equal
+the number of buckets returned by the `bucket_path`.
+
+`fractions`:::
+(Optional, array)
+An array of fractions to use when averaging and calculating variance. This should be used if the pre-calculated data and the
+`buckets_path` have known gaps. The length of `fractions`, if provided, must equal `expectations`.
+
+`doc_count`:::
+(Required, integer)
+The total number of documents that initially created the `expectations`. This should always be greater than or equal to the sum
+of all values in the `buckets_path` as this is the originating superset of data to which we are correlating the term values.
+=====
+=====
+====
+
+==== Syntax
+
+A `bucket_correlation` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+  "bucket_correlation": {
+    "buckets_path": "range_values>_count", <1>
+    "function": {
+      "count_correlation": { <2>
+        "expectations": [...],
+        "doc_count": 10000
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The buckets containing the values to correlate against
+<2> The correlation function definition
+
+
+[[bucket-correlation-agg-example]]
+==== Example
+
+The following snippet correlates the individual terms in the field `service.version.keyword` with the `latency` metric. Not shown
+is the pre-calculation of the `latency` indicator values, which was done utilizing the
+<<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation.
+
+Since this example has 50 individual range buckets and 50 expectation values, they are elided for brevity.
+
+[source,console]
+-------------------------------------------------
+GET apm-7.12.0-transaction-generated/_search
+{
+  "size": 0,
+  "aggs": {
+    "field_terms": {
+      "terms": {
+        "field": "service.version.keyword", <1>
+        "size": 20
+      },
+      "aggs": {
+        "latency_range": {
+          "range": { <2>
+            "field": "transaction.duration.us",
+            "ranges": [...],
+            "keyed": true
+          }
+        },
+        "correlation": {
+          "bucket_correlation": { <3>
+            "buckets_path": "latency_range>_count",
+            "count_correlation": {
+              "indicator": {
+                 "expectations": [...],
+                 "doc_count": 20000
+               }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+-------------------------------------------------
+// NOTCONSOLE
+
+<1> The term buckets containing a range aggregation and the bucket correlation aggregation. Both are utilized to calculate
+    the correlation of the term values with the latency
+<2> The range aggregation on the latency field. The ranges were created referencing the percentiles of the latency field
+<3> The bucket correlation aggregation that will calculate the correlation of the number of term values within each range
+    and the previously calculated indicator values.

@@ -16,10 +16,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 
 /**
  * Returns information about snapshot
@@ -34,6 +37,11 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_snapshots_action";
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(INDEX_DETAILS_XCONTENT_PARAM);
     }
 
     @Override

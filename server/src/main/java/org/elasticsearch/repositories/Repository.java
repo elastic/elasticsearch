@@ -202,9 +202,17 @@ public interface Repository extends LifecycleComponent {
      * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param listener              listener invoked on completion
      */
-    void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       @Nullable String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                       Map<String, Object> userMetadata, ActionListener<String> listener);
+    void snapshotShard(
+            Store store,
+            MapperService mapperService,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            IndexCommit snapshotIndexCommit,
+            @Nullable String shardStateIdentifier,
+            IndexShardSnapshotStatus snapshotStatus,
+            Version repositoryMetaVersion,
+            Map<String, Object> userMetadata,
+            ActionListener<ShardSnapshotResult> listener);
 
     /**
      * Restores snapshot of the shard.
@@ -262,8 +270,12 @@ public interface Repository extends LifecycleComponent {
      * @param shardGeneration shard generation in repo
      * @param listener        listener to complete with new shard generation once clone has completed
      */
-    void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
-                            ActionListener<String> listener);
+    void cloneShardSnapshot(
+            SnapshotId source,
+            SnapshotId target,
+            RepositoryShardId shardId,
+            @Nullable String shardGeneration,
+            ActionListener<ShardSnapshotResult> listener);
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

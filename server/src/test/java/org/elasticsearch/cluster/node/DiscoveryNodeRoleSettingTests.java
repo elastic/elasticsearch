@@ -15,6 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
@@ -68,4 +70,12 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{role.legacySetting()});
     }
 
+    public void testIsDedicatedFrozenNode() {
+        runRoleTest(DiscoveryNode::isDedicatedFrozenNode, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        assertTrue(DiscoveryNode.isDedicatedFrozenNode(addRoles(nonDataNode(),
+            org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
+        assertFalse(DiscoveryNode.isDedicatedFrozenNode(
+            addRoles(org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+                DiscoveryNodeRole.DATA_HOT_NODE_ROLE))));
+    }
 }

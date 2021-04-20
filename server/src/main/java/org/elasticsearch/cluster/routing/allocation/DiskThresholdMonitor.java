@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -150,7 +149,7 @@ public class DiskThresholdMonitor {
             final DiskUsage usage = entry.value;
             final RoutingNode routingNode = routingNodes.node(node);
 
-            if (isFrozenOnlyNode(routingNode)) {
+            if (isDedicatedFrozenNode(routingNode)) {
                 ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
                 long frozenFloodStageThreshold = diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total).getBytes();
                 if (usage.getFreeBytes() < frozenFloodStageThreshold) {
@@ -395,13 +394,11 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isFrozenOnlyNode(RoutingNode routingNode) {
+    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }
         DiscoveryNode node = routingNode.node();
-        return node.getRoles().contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
-            node.getRoles().stream().filter(DiscoveryNodeRole::canContainData)
-                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+        return node.isDedicatedFrozenNode();
     }
 }

@@ -42,7 +42,6 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         assertThat(needsUpgrade(metadataBuilder), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71973")
     public void testUpgradeIndices() {
         Metadata.Builder metadataBuilder = addIndex(
             partial_7_12(),
@@ -93,15 +92,10 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
     }
 
     private Settings partial_7_13plus() {
-        Settings settings = searchableSnapshotSettings(
+        return shardLimitGroupFrozen(searchableSnapshotSettings(
             VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT),
             true
-        );
-        if (randomBoolean()) {
-            return shardLimitGroupFrozen(settings);
-        } else {
-            return settings;
-        }
+        ));
     }
 
     private Settings full() {

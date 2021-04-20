@@ -658,7 +658,7 @@ public abstract class ValuesSource {
 
     /**
      * {@linkplain ValuesSource} for fields who's values are best thought of
-     * as ranges of numbers.
+     * as ranges of numbers, dates, or IP addresses.
      */
     public static class Range extends ValuesSource {
         private final RangeType rangeType;

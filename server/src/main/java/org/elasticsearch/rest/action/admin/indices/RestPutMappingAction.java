@@ -78,8 +78,7 @@ public class RestPutMappingAction extends BaseRestHandler {
                 throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
                     "the include_type_name parameter is set to true.");
             }
-            // TODO what about the type in the source? it should be skipped?
-            //  (different than in RestCreateIndexAction which expects the _doc)
+
             Map<String, Object> mappingSource = prepareV7Mappings(includeTypeName, sourceAsMap);
             putMappingRequest.source(mappingSource);
         } else {
@@ -103,8 +102,8 @@ public class RestPutMappingAction extends BaseRestHandler {
                 throw new IllegalArgumentException("name cannot be empty string");
             }
             @SuppressWarnings("unchecked")
-            Map<String, Object> typedMappings = (Map<String, Object>) mappings.get(typeName);
-            return typedMappings;
+            Map<String, Object> typelessMappings = (Map<String, Object>) mappings.get(typeName);
+            return typelessMappings;
         }
         return mappings;
     }

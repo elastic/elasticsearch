@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -65,6 +66,7 @@ public final class TransformInternalIndex {
      *                  checkpoint::checkpoint
      * version 5 (7.7): stats::processing_time_in_ms, stats::processing_total
      * version 6 (7.12):stats::delete_time_in_ms, stats::documents_deleted
+     * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
      */
 
     // constants for mappings
@@ -84,6 +86,7 @@ public final class TransformInternalIndex {
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
+    public static final String FLATTENED = "flattened";
 
     public static SystemIndexDescriptor getSystemIndexDescriptor() throws IOException {
         return SystemIndexDescriptor.builder()
@@ -319,6 +322,18 @@ public final class TransformInternalIndex {
             .endObject()
             .startObject(TransformField.CREATE_TIME.getPreferredName())
                 .field(TYPE, DATE)
+            .endObject()
+            .startObject(TransformConfig.Function.PIVOT.getParseField().getPreferredName())
+                .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformConfig.Function.LATEST.getParseField().getPreferredName())
+                .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.RETENTION_POLICY.getPreferredName())
+                .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.SYNC.getPreferredName())
+                .field(TYPE, FLATTENED)
             .endObject();
     }
 

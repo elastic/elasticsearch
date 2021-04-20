@@ -254,7 +254,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
             in.readMap(), in.readBoolean(), in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean() // TODO change to V_7_13_0
+            in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()
         );
     }
 
@@ -271,7 +271,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         out.writeMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_13_0
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(system);
         }
     }

@@ -39,53 +39,14 @@ Example response:
 {
   "features" : [
     {
-      "feature_name" : "async_search",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "enrich",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "fleet",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "geoip",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "kibana",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "logstash_management",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "machine_learning",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "searchable_snapshots",
-      "status" : "SUCCESS"
-    },
-    {
       "feature_name" : "security",
       "status" : "SUCCESS"
     },
     {
       "feature_name" : "tasks",
       "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "transform",
-      "status" : "SUCCESS"
-    },
-    {
-      "feature_name" : "watcher",
-      "status" : "SUCCESS"
     }
   ]
 }
 ----
+// TESTRESPONSE[s/"features" : \[[^\]]*\]/"features": $body.$_path/]

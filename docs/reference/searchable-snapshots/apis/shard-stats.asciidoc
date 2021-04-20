@@ -8,7 +8,7 @@
 
 experimental::[]
 
-Retrieve statistics about searchable snapshots shards.
+Retrieves statistics about searchable snapshots.
 
 [[searchable-snapshots-api-stats-request]]
 ==== {api-request-title}

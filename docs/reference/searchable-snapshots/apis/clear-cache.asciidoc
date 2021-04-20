@@ -8,7 +8,8 @@
 
 experimental::[]
 
-Clear the cache of searchable snapshots.
+Clears indices and data streams from the <<shared-cache,shared searchable
+snapshot cache>>.
 
 [[searchable-snapshots-api-clear-cache-request]]
 ==== {api-request-title}

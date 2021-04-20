@@ -958,7 +958,7 @@ PUT my-index-00001/
       },
       "voltage_corrected": {
         "type": "double",
-        "on_script_error": "reject", <1>
+        "on_script_error": "fail", <1>
         "script": {
           "source": """
         emit(doc['voltage'].value * params['multiplier'])

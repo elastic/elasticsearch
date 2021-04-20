@@ -83,15 +83,9 @@ public class NetworkUtilsTests extends ESTestCase {
         }
     }
 
-    public void testNonExistingInterface() throws Exception {
+    public void testNonExistingInterface() {
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix" , "non-existing"));
         assertThat(exception.getMessage(), containsString("setting [settingValue] matched no network interfaces; valid values include"));
-        for (NetworkInterface anInterface : getInterfaces()) {
-            // virtual interfaces might pop up or disappear while the test is running, so ignore them
-            if (anInterface.isVirtual() == false) {
-                assertThat(exception.getMessage(), containsString(anInterface.getName() + ":suffix"));
-            }
-        }
     }
 }

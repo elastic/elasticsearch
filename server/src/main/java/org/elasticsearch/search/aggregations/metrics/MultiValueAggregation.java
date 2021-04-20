@@ -23,7 +23,7 @@ public interface MultiValueAggregation extends Aggregation {
     Iterable<String> valueNames();
 
     /**
-     * Return an iterable over all results by name
+     * Return an iterable over all results with the specified name
      *
      * @param name of the value
      * @return iterable over all values formatted as string

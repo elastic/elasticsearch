@@ -15,22 +15,24 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
 import static  org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.METRIC_FIELD;
 
 
-public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiValue {
+public class InternalTopMetrics extends InternalMultiValueAggregation {
     private final SortOrder sortOrder;
     private final int size;
     private final List<String> metricNames;
@@ -162,21 +164,26 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     }
 
     @Override
-    public double value(String name) {
+    public Iterable<String> getValuesAsStrings(String name) {
         int index = metricNames.indexOf(name);
         if (index < 0) {
             throw new IllegalArgumentException("unknown metric [" + name + "]");
         }
         if (topMetrics.isEmpty()) {
-            return Double.NaN;
+            return Collections.emptyList();
         }
-        assert topMetrics.size() == 1 : "property paths should only resolve against top metrics with size == 1.";
-        // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
-        MetricValue value = topMetrics.get(0).metricValues.get(index);
-        if (value == null) {
-            return Double.NaN;
-        }
-        return value.numberValue().doubleValue();
+        return topMetrics.stream().map(r -> {
+            MetricValue value = r.metricValues.get(index);
+            if (value == null) {
+                return "null";
+            }
+            return value.getValue().format(value.getFormat());
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    public int size() {
+        return size;
     }
 
     @Override

@@ -172,7 +172,6 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
                     new DataDescription.Builder()
                         .setTimeFormat("epoch"));
 
-        registerJob(job);
         putJob(job);
     }
 }

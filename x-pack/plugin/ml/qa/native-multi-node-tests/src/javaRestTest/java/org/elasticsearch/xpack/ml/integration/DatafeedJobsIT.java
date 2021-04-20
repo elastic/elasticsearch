@@ -99,7 +99,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
 
         Job.Builder job = createScheduledJob("lookback-job");
-        registerJob(job);
         PutJobAction.Response putJobResponse = putJob(job);
         assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
         openJob(job.getId());
@@ -108,7 +107,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // Having a pattern with missing indices is acceptable
         List<String> indices = Arrays.asList("data-*", "missing-*");
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), indices);
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
         startDatafeed(datafeedConfig.getId(), 0L, now);
@@ -146,7 +144,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         client().admin().cluster().prepareHealth("datafeed_data_stream").setWaitForYellowStatus().get();
 
         Job.Builder job = createScheduledJob("lookback-data-stream-job");
-        registerJob(job);
         PutJobAction.Response putJobResponse = putJob(job);
         assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
         openJob(job.getId());
@@ -155,7 +152,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed",
             job.getId(),
             Collections.singletonList("datafeed_data_stream"));
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
         startDatafeed(datafeedConfig.getId(), 0L, now);
@@ -196,7 +192,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         jobBuilder.setAnalysisConfig(analysisConfig);
         jobBuilder.setDataDescription(dataDescription);
 
-        registerJob(jobBuilder);
         putJob(jobBuilder);
         openJob(jobBuilder.getId());
         assertBusy(() -> assertEquals(getJobStats(jobBuilder.getId()).get(0).getState(), JobState.OPENED));
@@ -215,7 +210,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         DatafeedConfig datafeedConfig = dfBuilder.build();
 
-        registerDatafeed(datafeedConfig);
+
         putDatafeed(datafeedConfig);
 
         startDatafeed(datafeedConfig.getId(), 0L, now);
@@ -247,13 +242,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = "lookback-datafeed-datafeed-recreated";
         DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"));
 
-        registerJob(job);
         putJob(job);
 
         CheckedRunnable<Exception> openAndRunJob = () -> {
             openJob(job.getId());
             assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
-            registerDatafeed(datafeedConfig);
+
             putDatafeed(datafeedConfig);
             // Datafeed did not do anything yet, hence search_count is equal to 0.
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
@@ -282,13 +276,11 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder jobA = createScheduledJob("lookback-job-jobid-updated");
         Job.Builder jobB = createScheduledJob("other-lookback-job-jobid-updated");
         for (Job.Builder job : Arrays.asList(jobA, jobB)) {
-            registerJob(job);
             putJob(job);
         }
 
         String datafeedId = "lookback-datafeed";
         DatafeedConfig datafeedConfig = createDatafeed(datafeedId, jobA.getId(), Arrays.asList("data"));
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
         CheckedConsumer<Job.Builder, Exception> openAndRunJob = job -> {
@@ -322,12 +314,10 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
 
         Job.Builder job = createScheduledJob("lookback-job-query-delay-updated");
-        registerJob(job);
         putJob(job);
 
         String datafeedId = "lookback-datafeed-query-delay-updated";
         DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"));
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
         openJob(job.getId());
@@ -370,7 +360,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         String scrollJobId = "stop-restart-scroll";
         Job.Builder scrollJob = createScheduledJob(scrollJobId);
-        registerJob(scrollJob);
         putJob(scrollJob);
         openJob(scrollJobId);
         assertBusy(() -> assertEquals(getJobStats(scrollJobId).get(0).getState(), JobState.OPENED));
@@ -378,7 +367,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeedConfig = createDatafeedBuilder(scrollJobId+ "-datafeed", scrollJobId, Collections.singletonList(indexName))
             .setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)))
             .build();
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
 
@@ -408,7 +396,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         compositeJob.setAnalysisConfig(
             new AnalysisConfig.Builder(compositeJob.getAnalysisConfig()).setSummaryCountFieldName("doc_count")
         );
-        registerJob(compositeJob);
         putJob(compositeJob);
         openJob(compositeJobId);
         assertBusy(() -> assertEquals(getJobStats(compositeJobId).get(0).getState(), JobState.OPENED));
@@ -433,7 +420,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             // Start off chunking at an hour so that it runs more slowly and the test has time to stop it in the middle of processing
             .setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)))
             .build();
-        registerDatafeed(compositeDatafeedConfig);
         putDatafeed(compositeDatafeedConfig);
         startDatafeed(compositeDatafeedConfig.getId(), 0L, null);
 
@@ -660,7 +646,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data", numDocs, twoWeeksAgo, oneWeekAgo);
 
         Job.Builder job = createScheduledJob("lookback-job-stopped-then-killed");
-        registerJob(job);
         PutJobAction.Response putJobResponse = putJob(job);
         assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
         openJob(job.getId());
@@ -671,7 +656,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         // Use lots of chunks so we have time to stop the lookback before it completes
         datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
@@ -714,7 +698,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }
 
         Job.Builder job = createScheduledJob(jobId);
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
@@ -725,7 +708,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             datafeedConfigBuilder.setMaxEmptySearches(maxEmptySearches);
         }
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
         assertBusy(() -> {

@@ -56,7 +56,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -101,7 +100,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -147,7 +145,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -195,7 +192,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(110L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 

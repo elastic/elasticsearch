@@ -252,7 +252,7 @@ public class FrozenCacheService implements Releasable {
         try {
             totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
         } catch (IOException e) {
-            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodePaths()[0] + "]");
+            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodeDataPaths()[0] + "]");
         }
         this.cacheSize = calculateCacheSize(settings, totalFsSize);
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();

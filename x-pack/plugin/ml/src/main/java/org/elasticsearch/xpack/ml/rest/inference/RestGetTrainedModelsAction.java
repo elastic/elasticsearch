@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
+    private static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
 
     @Override
     public List<Route> routes() {
@@ -74,14 +75,14 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
                     GetTrainedModelsAction.Request.INCLUDE.getPreferredName(),
                     Strings.EMPTY_ARRAY)));
         final GetTrainedModelsAction.Request request;
-        if (restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION)) {
+        if (restRequest.hasParam(INCLUDE_MODEL_DEFINITION)) {
             deprecationLogger.deprecate(
                 DeprecationCategory.API,
-                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION,
+                INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",
-                GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION);
+                INCLUDE_MODEL_DEFINITION);
             request = new GetTrainedModelsAction.Request(modelId,
-                restRequest.paramAsBoolean(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION, false),
+                restRequest.paramAsBoolean(INCLUDE_MODEL_DEFINITION, false),
                 tags);
         } else {
             request = new GetTrainedModelsAction.Request(modelId, tags, includes);

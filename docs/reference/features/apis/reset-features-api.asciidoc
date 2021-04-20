@@ -1,16 +1,14 @@
 [[reset-features-api]]
-=== Reset Features API
+=== Reset features API
 ++++
 <titleabbrev>Reset features</titleabbrev>
 ++++
 
 experimental::[]
 
-Clears the state of features in Elasticsearch, including security and machine
-learning indices.
+Clears all of the the state information stored in system indices by {es} features, including the security and machine learning indices.
 
-WARNING: This may be useful for testing clusters, but should not be used in
-production clusters.
+WARNING: Intended for development and testing use only. Do not reset features on a production cluster.  
 
 [source,console]
 -----------------------------------
@@ -26,21 +24,16 @@ POST /_features/_reset
 [[reset-features-api-desc]]
 ==== {api-description-title}
 
-A feature state includes one or more system indices necessary for a given
-feature to function. Built-in features and features defined by plugins may
-or may not provide endpoints for resetting the state of those features, so
-this endpoint provides a high-level way of clearing cluster state.
+Return a cluster to the same state as a new installation by resetting the feature state for all {es} features. This deletes all state information stored in system indices.
 
-Use the <<get-features-api,get features API>> to see a list of features that
-will be affected by this endpoint. This API clears all features.
+Note that select features might provide a way to reset particular system indices. Using this API resets _all_ features, both those that are built-in and implemented as plugins. 
 
-WARNING: The list of features that will be cleared comes from the node against
-which you issue this command, so if you have any doubts about which nodes have
-certain plugins installed, you will want to issue your command against the
-master node.
+To list the features that will be affected, use the <<get-features-api,get features API>>. 
+
+IMPORTANT: The features installed on the node you submit this request to are the features that will be reset. Run on the master node if you have any doubts about which plugins are installed on individual nodes.
 
 ==== {api-examples-title}
-
+Example response:
 [source,console-result]
 ----
 {

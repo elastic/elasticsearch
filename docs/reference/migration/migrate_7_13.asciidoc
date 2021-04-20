@@ -33,6 +33,32 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+[discrete]
+[[breaking_713_mapping_changes]]
+==== Mapping changes
+
+[[geo-mappers-external-values]]
+.Geo mappers no longer accept external values from multifields
+[%collapsible]
+====
+*Details* +
+In earlier versions, geo fields could theoretically be used as a subfield
+if their parent field set a geometry object as an external value during
+parsing. This functionality was unused within the {es} codebase and
+blocked required changes to allow index-time scripts on geo_point fields,
+so it has been removed.
+====
+
+[[geo-point-geohash-subfields]]
+.Geopoint mappers pass geohashes to subfields one-by-one
+[%collapsible]
+====
+*Details* +
+In earlier versions, a multiply-valued geopoint field would pass
+its values as geohashes to subfields by combining them in to a single
+comma-delimited string. These are now passed one-by-one as single
+geohash strings.
+====
 
 [discrete]
 [[deprecated-7.13]]

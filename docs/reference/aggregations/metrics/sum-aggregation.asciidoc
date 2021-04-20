@@ -47,7 +47,9 @@ The name of the aggregation (`hat_prices` above) also serves as the key by which
 
 [[sum-aggregation-0-not-null]]
 [NOTE]
-When `sum` runs on an unmapped field or when the query filters out all matches, the `sum`'s value will be `0`. Not `null` as you might expect if you are used to relatoinal databases.
+When `sum` runs on an unmapped field, when the query filters out all matches,
+or when all matches are misssing values for the field, the `sum`'s value will
+be `0.0`. Not `null` as you might expect if you are used to relational databases.
 
 ==== Script
 
@@ -124,13 +126,17 @@ POST /sales/_search?size=0
     "hat_prices": {
       "sum": {
         "field": "price",
-        "missing": 100 <1>
+        "missing": 100
       }
     }
   }
 }
 --------------------------------------------------
 // TEST[setup:sales]
+
+If all values are missing are you don't define a `missing` value then the
+result is `0.0`. See also the <<sum-aggregation-0-not-null,note>> about empty
+sums for more.
 
 [[search-aggregations-metrics-sum-aggregation-histogram-fields]]
 ==== Histogram fields

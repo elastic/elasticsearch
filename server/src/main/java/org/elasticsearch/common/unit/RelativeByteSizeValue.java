@@ -40,7 +40,7 @@ public class RelativeByteSizeValue {
         return absolute;
     }
 
-    RatioValue getRatio() {
+    public RatioValue getRatio() {
         return ratio;
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
 import java.util.Collection;
@@ -40,6 +41,7 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
     private final Settings settings;
     private final ThreadPool threadPool;
     private final Cache<String, ListenableFuture<CachedResult>> cache;
+    private CacheIteratorHelper<String, ListenableFuture<CachedResult>> cacheIteratorHelper;
     private final Hasher hasher;
 
     CachingServiceAccountsTokenStore(Settings settings, ThreadPool threadPool) {
@@ -51,8 +53,10 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
                 .setExpireAfterWrite(ttl)
                 .setMaximumWeight(CACHE_MAX_TOKENS_SETTING.get(settings))
                 .build();
+            cacheIteratorHelper = new CacheIteratorHelper<>(cache);
         } else {
             cache = null;
+            cacheIteratorHelper = null;
         }
         hasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
     }
@@ -92,7 +96,12 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
                 }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
             } else {
                 doAuthenticate(token, ActionListener.wrap(success -> {
-                    logger.trace("cache service token [{}] authentication result", token.getQualifiedName());
+                    if (false == success) {
+                        // Do not cache failed attempt
+                        cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
+                    } else {
+                        logger.trace("cache service token [{}] authentication result", token.getQualifiedName());
+                    }
                     listenableCacheEntry.onResponse(new CachedResult(hasher, success, token));
                     listener.onResponse(success);
                 }, e -> {
@@ -107,12 +116,25 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
         }
     }
 
+    /**
+     * Invalidate cache entries with keys matching to the specified qualified token names.
+     * @param qualifiedTokenNames The list of qualified toke names. If a name has trailing
+     *                            slash, it is treated as a prefix wildcard, i.e. all keys
+     *                            with this prefix are considered matching.
+     */
     @Override
     public final void invalidate(Collection<String> qualifiedTokenNames) {
         if (cache != null) {
             logger.trace("invalidating cache for service token [{}]",
                 Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
-            qualifiedTokenNames.forEach(cache::invalidate);
+            for (String qualifiedTokenName : qualifiedTokenNames) {
+                if (qualifiedTokenName.endsWith("/")) {
+                    // Wildcard case of invalidating all tokens for a service account, e.g. "elastic/fleet-server/"
+                    cacheIteratorHelper.removeKeysIf(key -> key.startsWith(qualifiedTokenName));
+                } else {
+                    cache.invalidate(qualifiedTokenName);
+                }
+            }
         }
     }
 

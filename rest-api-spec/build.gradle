@@ -279,6 +279,7 @@ tasks.named("yamlRestCompatTest").configure {
     'snapshot.get/10_basic/Get snapshot info contains include_global_state',
     'snapshot.get/10_basic/Get snapshot info when verbose is false',
     'snapshot.get/10_basic/Get snapshot info with metadata',
+    'snapshot.get/10_basic/Get snapshot info with index details',
     'suggest/20_completion/Suggestions with source should work',
     'termvectors/11_basic_with_types/Basic tests for termvector get',
     'termvectors/20_issue7121/Term vector API should return \'found: false\' for docs between index and refresh',

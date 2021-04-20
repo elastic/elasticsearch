@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models-aliases.html",
       "description":"Creates a new model alias (or reassigns an existing one) to refer to the trained model"
     },
-    "stability":"beta",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],

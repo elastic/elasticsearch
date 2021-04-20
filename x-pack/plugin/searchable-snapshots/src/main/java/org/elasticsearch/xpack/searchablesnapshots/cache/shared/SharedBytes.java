@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -62,9 +61,6 @@ public class SharedBytes extends AbstractRefCounted {
         Path cacheFile = null;
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
-            if (cacheFile == null) {
-                throw new IOException("Could not find a directory with adequate free space for cache file");
-            }
             Preallocate.preallocate(cacheFile, fileSize);
             // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
             // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
@@ -103,24 +99,22 @@ public class SharedBytes extends AbstractRefCounted {
      *
      * @return path for the cache file or {@code null} if none could be found
      */
-    @Nullable
     public static Path findCacheSnapshotCacheFilePath(NodeEnvironment environment, long fileSize) throws IOException {
-        Path cacheFile = null;
-        for (Path path : environment.nodeDataPaths()) {
-            Files.createDirectories(path);
-            // TODO: be resilient to this check failing and try next path?
-            long usableSpace = Environment.getUsableSpace(path);
-            Path p = path.resolve(CACHE_FILE_NAME);
-            if (Files.exists(p)) {
-                usableSpace += Files.size(p);
-            }
-            // TODO: leave some margin for error here
-            if (usableSpace > fileSize) {
-                cacheFile = p;
-                break;
-            }
+        assert environment.nodeDataPaths().length == 1;
+        Path path = environment.nodeDataPaths()[0];
+        Files.createDirectories(path);
+        // TODO: be resilient to this check failing and try next path?
+        long usableSpace = Environment.getUsableSpace(path);
+        Path p = path.resolve(CACHE_FILE_NAME);
+        if (Files.exists(p)) {
+            usableSpace += Files.size(p);
         }
-        return cacheFile;
+        // TODO: leave some margin for error here
+        if (usableSpace > fileSize) {
+            return p;
+        } else {
+            throw new IOException("Not enough free space for cache file of size [" + fileSize + "] in path [" + path + "]");
+        }
     }
 
     @Override

@@ -27,6 +27,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -48,9 +49,13 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"roles\": [],\n"
         + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
+        + "  \"token\": {\n"
+        + "    \"name\": \"%s\"\n"
+        + "  },\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
-        + "  },\n" + "  \"enabled\": true,\n"
+        + "  },\n"
+        + "  \"enabled\": true,\n"
         + "  \"authentication_realm\": {\n"
         + "    \"name\": \"service_account\",\n"
         + "    \"type\": \"service_account\"\n"
@@ -74,6 +79,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "            \"logs-*\",\n"
         + "            \"metrics-*\",\n"
         + "            \"traces-*\",\n"
+        + "            \"synthetics-*\",\n"
         + "            \".logs-endpoint.diagnostic.collection-*\"\n"
         + "          ],\n"
         + "          \"privileges\": [\n"
@@ -161,7 +167,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
@@ -237,7 +245,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testFileTokenAndApiTokenCanShareTheSameNameAndBothWorks() throws IOException {
@@ -320,6 +330,17 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response deleteTokenResponse2 = client().performRequest(deleteTokenRequest2);
         assertOK(deleteTokenResponse2);
         assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
+    }
+
+    public void testClearCache() throws IOException {
+        final Request clearCacheRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/"
+            + randomFrom("", "*", "api-token-1", "api-token-1,api-token2") + "/_clear_cache");
+        final Response clearCacheResponse = client().performRequest(clearCacheRequest);
+        assertOK(clearCacheResponse);
+        final Map<String, Object> clearCacheResponseMap = responseAsMap(clearCacheResponse);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodesMap = (Map<String, Object>) clearCacheResponseMap.get("_nodes");
+        assertThat(nodesMap.get("failed"), equalTo(0));
     }
 
     public void testManageOwnApiKey() throws IOException {

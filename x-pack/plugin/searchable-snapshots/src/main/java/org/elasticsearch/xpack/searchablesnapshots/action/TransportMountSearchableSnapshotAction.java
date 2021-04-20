@@ -154,8 +154,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
             // we cannot apply this setting during rolling upgrade.
-            // todo: update version after backport
-            if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+            if (minNodeVersion.onOrAfter(Version.V_7_13_0)) {
                 settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP);
             }
         }

@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -303,17 +302,14 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testCalculateCacheSize() {
-        FsInfo.Path smallPathInfo = new FsInfo.Path("ignored", null, 10000, 0, 0);
-        FsInfo.Path largePathInfo = new FsInfo.Path("ignored", null, ByteSizeValue.ofTb(10).getBytes(), 0, 0);
-        assertThat(FrozenCacheService.calculateCacheSize(Settings.EMPTY, smallPathInfo), equalTo(0L));
+        long smallSize = 10000;
+        long largeSize = ByteSizeValue.ofTb(10).getBytes();
+        assertThat(FrozenCacheService.calculateCacheSize(Settings.EMPTY, smallSize), equalTo(0L));
         final Settings settings = Settings.builder()
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .build();
-        assertThat(FrozenCacheService.calculateCacheSize(settings, smallPathInfo), equalTo(9000L));
-        assertThat(
-            FrozenCacheService.calculateCacheSize(settings, largePathInfo),
-            equalTo(largePathInfo.getTotal().getBytes() - ByteSizeValue.ofGb(100).getBytes())
-        );
+        assertThat(FrozenCacheService.calculateCacheSize(settings, smallSize), equalTo(9000L));
+        assertThat(FrozenCacheService.calculateCacheSize(settings, largeSize), equalTo(largeSize - ByteSizeValue.ofGb(100).getBytes()));
     }
 
     private static CacheKey generateCacheKey() {

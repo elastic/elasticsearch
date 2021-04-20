@@ -28,9 +28,9 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.SparseFileTracker;
@@ -256,13 +256,13 @@ public class FrozenCacheService implements Releasable {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        FsInfo.Path pathInfo;
+        long totalFsSize;
         try {
-            pathInfo = FsProbe.getFSInfo(environment.nodePaths()[0]);
+            totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
         } catch (IOException e) {
             throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodePaths()[0] + "]");
         }
-        this.cacheSize = calculateCacheSize(settings, pathInfo);
+        this.cacheSize = calculateCacheSize(settings, totalFsSize);
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         this.numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
@@ -293,9 +293,9 @@ public class FrozenCacheService implements Releasable {
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
     }
 
-    static long calculateCacheSize(Settings settings, FsInfo.Path pathInfo) {
+    static long calculateCacheSize(Settings settings, long totalFsSize) {
         return SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
-            .calculateValue(pathInfo.getTotal(), SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
+            .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
             .getBytes();
     }
 

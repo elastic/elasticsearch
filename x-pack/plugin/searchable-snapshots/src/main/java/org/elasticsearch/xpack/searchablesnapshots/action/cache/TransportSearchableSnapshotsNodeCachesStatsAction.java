@@ -26,6 +26,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -50,6 +52,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
 
     private final Supplier<FrozenCacheService> frozenCacheService;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportSearchableSnapshotsNodeCachesStatsAction(
@@ -57,7 +60,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService
+        SearchableSnapshots.FrozenCacheServiceSupplier frozenCacheService,
+        XPackLicenseState licenseState
     ) {
         super(
             ACTION_NAME,
@@ -72,6 +76,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             NodeCachesStatsResponse.class
         );
         this.frozenCacheService = frozenCacheService;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -111,6 +116,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     @Override
     protected NodeCachesStatsResponse nodeOperation(NodeRequest request) {
+        SearchableSnapshots.ensureValidLicense(licenseState);
         final FrozenCacheService.Stats frozenCacheStats;
         if (frozenCacheService.get() != null) {
             frozenCacheStats = frozenCacheService.get().getStats();

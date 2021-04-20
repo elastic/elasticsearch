@@ -565,7 +565,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
     private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(JOB_ID, extractedFields, indices, query, scrollSize,
-            headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory);
+            headers, includeSource, supportsRowsWithMissingValues, trainTestSplitterFactory, Collections.emptyMap());
         return new TestExtractor(client, context);
     }
 

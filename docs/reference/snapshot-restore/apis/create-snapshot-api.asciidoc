@@ -48,11 +48,13 @@ You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, w
 backup taken from a running {es} cluster.
 
 By default, a snapshot includes all data streams and open indices in the
-cluster, as well as the cluster state.  You can change this behavior by
+cluster, as well as the cluster state. You can change this behavior by
 specifying a list of data streams and indices to back up in the body of the
 snapshot request.
 
-NOTE: You must register a snapshot repository before performing snapshot and restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register new repositories and update existing ones.
+NOTE: You must register a snapshot repository before performing snapshot and
+restore operations. Use the <<put-snapshot-repo-api,create or update snapshot
+repository API>> to register new repositories and update existing ones.
 
 The snapshot process is incremental. When creating a snapshot, {es} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
 
@@ -119,7 +121,7 @@ IMPORTANT: By default, the entire snapshot will fail if one or more indices incl
 (Optional, array of strings)
 A list of feature states to be included in this snapshot. A list of features
 available for inclusion in the snapshot and their descriptions be can be
-retrieved using the <<get-snapshottable-features-api,get snapshottable features API>>.
+retrieved using the <<get-features-api,get features API>>.
 Each feature state includes one or more system indices containing data necessary
 for the function of that feature. Providing an empty array will include no feature
 states in the snapshot, regardless of the value of `include_global_state`.

@@ -36,22 +36,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
-    private static final ParseField MAX_SINGLE_PRIMARY_SIZE = new ParseField("max_single_primary_size");
+    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(ResizeRequest::setMaxSinglePrimarySize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SIZE.getPreferredName()),
-            MAX_SINGLE_PRIMARY_SIZE, ObjectParser.ValueType.STRING);
+        PARSER.declareField(ResizeRequest::setMaxPrimaryShardSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
+            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
-    private ByteSizeValue maxSinglePrimarySize;
+    private ByteSizeValue maxPrimaryShardSize;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -61,7 +61,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         copySettings = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             if (in.readBoolean()) {
-                maxSinglePrimarySize = new ByteSizeValue(in);
+                maxPrimaryShardSize = new ByteSizeValue(in);
             }
         }
     }
@@ -88,8 +88,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
-        if (maxSinglePrimarySize != null && maxSinglePrimarySize.getBytes() <= 0) {
-            validationException = addValidationError("max_single_primary_size must be greater than 0", validationException);
+        if (maxPrimaryShardSize != null && maxPrimaryShardSize.getBytes() <= 0) {
+            validationException = addValidationError("max_primary_shard_size must be greater than 0", validationException);
         }
         assert copySettings == null || copySettings;
         return validationException;
@@ -107,7 +107,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(maxSinglePrimarySize);
+            out.writeOptionalWriteable(maxPrimaryShardSize);
         }
     }
 
@@ -192,22 +192,22 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     /**
-     * Sets the max single primary shard size of the target index.
+     * Sets the max primary shard size of the target index.
      * It's used to calculate an optimum shards number of the target index according to storage of
      * the source index, each shard's storage of the target index will not be greater than this parameter,
      * while the shards number of the target index still be a factor of the source index's shards number.
      *
-     * @param maxSinglePrimarySize the max single primary shard size of the target index
+     * @param maxPrimaryShardSize the max primary shard size of the target index
      */
-    public void setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
-        this.maxSinglePrimarySize = maxSinglePrimarySize;
+    public void setMaxPrimaryShardSize(ByteSizeValue maxPrimaryShardSize) {
+        this.maxPrimaryShardSize = maxPrimaryShardSize;
     }
 
     /**
-     * Returns the max single primary shard size of the target index
+     * Returns the max primary shard size of the target index
      */
-    public ByteSizeValue getMaxSinglePrimarySize() {
-        return maxSinglePrimarySize;
+    public ByteSizeValue getMaxPrimaryShardSize() {
+        return maxPrimaryShardSize;
     }
 
     @Override
@@ -226,8 +226,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
-            if (maxSinglePrimarySize != null) {
-                builder.field(MAX_SINGLE_PRIMARY_SIZE.getPreferredName(), maxSinglePrimarySize);
+            if (maxPrimaryShardSize != null) {
+                builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
             }
         }
         builder.endObject();

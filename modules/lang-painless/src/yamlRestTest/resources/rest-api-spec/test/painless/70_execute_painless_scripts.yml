@@ -11,6 +11,20 @@ setup:
                 type: keyword
               text:
                 type: text
+              point:
+                type: geo_point
+              p0:
+                type: geo_point
+              p1:
+                type: geo_point
+              date:
+                type: date
+              date0:
+                type: date
+              date1:
+                type: date
+              ip:
+                type: ip
 
 ---
 "Execute with defaults":
@@ -68,3 +82,214 @@ setup:
               rank: 4
             index: "my-index"
   - match: { result: 0.8 }
+
+---
+"Execute with boolean field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value < params.max_rank);"
+            params:
+              max_rank: 5.0
+          context: "boolean_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: [ true ] }
+
+
+---
+"Execute with boolean field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value < params.max_rank); emit(false); emit(false); emit(true);"
+            params:
+              max_rank: 5.0
+          context: "boolean_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: [ false, false, true, true ] }
+
+---
+"Execute with date field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['date'].value.toInstant().toEpochMilli())"
+          context: "date_field"
+          context_setup:
+            document:
+              date: "2015-01-01T12:10:30Z"
+            index: "my-index"
+  - match: { result: [ 1420114230000 ] }
+
+---
+"Execute with date field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['date0'][0].toInstant().toEpochMilli()); emit(doc['date1'][0].toInstant().toEpochMilli());"
+          context: "date_field"
+          context_setup:
+            document:
+              date0: "2015-01-01T12:10:30Z"
+              date1: "2010-11-30T13:14:35Z"
+            index: "my-index"
+  - match: { result: [ 1291122875000, 1420114230000 ] }
+
+---
+"Execute with double field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value * params.max_rank)"
+            params:
+              max_rank: 5.0
+          context: "double_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: [ 20.0 ] }
+
+---
+"Execute with double field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value * params.max_rank); emit(400.0); emit(55.0)"
+            params:
+              max_rank: 5.0
+          context: "double_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: [ 20.0, 55.0, 400.0 ] }
+
+---
+"Execute with geo point field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['point'].value.lat + 1.0, doc['point'].value.lon - 1.0)"
+          context: "geo_point_field"
+          context_setup:
+            document:
+              point: "30.0,40.0"
+            index: "my-index"
+  - match: { result: [ 3176939252927413179 ] }
+
+---
+"Execute with geo point field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['p0'][0].lat + 1.0, doc['p0'][0].lon - 1.0); emit(doc['p1'][0].lat + 1.0, doc['p1'][0].lon - 1.0)"
+          context: "geo_point_field"
+          context_setup:
+            document:
+              p0: "30.0,40.0"
+              p1: "40.0,30.0"
+            index: "my-index"
+  - match: { result: [ 3176939252927413179, 4201758367059757556 ] }
+
+---
+"Execute with ip field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['ip'].value);"
+          context: "ip_field"
+          context_setup:
+            document:
+              ip: "192.168.1.254"
+            index: "my-index"
+
+---
+"Execute with ip field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['ip'].value); emit('127.0.0.1'); emit('255.255.255.255')"
+          context: "ip_field"
+          context_setup:
+            document:
+              ip: "192.168.1.254"
+            index: "my-index"
+
+---
+"Execute with long field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value * (long)params.max_rank)"
+            params:
+              max_rank: 5.0
+          context: "long_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: [ 20 ] }
+
+---
+"Execute with long field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value * (long)params.max_rank); emit(35); emit(0); emit(-90); emit(20);"
+            params:
+              max_rank: 5.0
+          context: "long_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "my-index"
+  - match: { result: [ -90, 0, 20, 20, 35 ] }
+
+---
+"Execute with keyword field context (single-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['point'].value.lat.toString().substring(0, 5));"
+          context: "keyword_field"
+          context_setup:
+            document:
+              point: "30.2,40.2"
+            index: "my-index"
+  - match: { result.0: "30.19" }
+
+---
+"Execute with keyword field context (multi-value)":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['point'].value.lat.toString().substring(0, 5));
+                     emit(doc['point'].value.lon.toString().substring(0, 5) + 'test');"
+          context: "keyword_field"
+          context_setup:
+            document:
+              point: "30.2,40.2"
+            index: "my-index"
+  - match: { result.0: "30.19" }
+  - match: { result.1: "40.19test" }

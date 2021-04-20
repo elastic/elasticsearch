@@ -94,27 +94,37 @@ public class DiskUsageTests extends ESTestCase {
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         Path test0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
-        commonStats0.store = new StoreStats(100, 0L);
+        commonStats0.store = new StoreStats(100, 101, 0L);
         ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), false, PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         Path test1Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("1");
         CommonStats commonStats1 = new CommonStats();
-        commonStats1.store = new StoreStats(1000, 0L);
+        commonStats1.store = new StoreStats(1000, 1001, 0L);
+        CommonStats commonStats2 = new CommonStats();
+        commonStats2.store = new StoreStats(1000, 999, 0L);
         ShardStats[] stats  = new ShardStats[] {
                 new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0 , null, null, null),
-                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null, null, null)
+                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1 , null, null, null),
+                new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats2 , null, null, null)
         };
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizes = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
         ClusterState state = ClusterState.builder(new ClusterName("blarg")).version(0).build();
-        InternalClusterInfoService.buildShardLevelInfo(stats, shardSizes, routingToPath, new HashMap<>());
+        InternalClusterInfoService.buildShardLevelInfo(stats, shardSizes, shardDataSetSizes, routingToPath, new HashMap<>());
         assertEquals(2, shardSizes.size());
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));
         assertEquals(100L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_0)).longValue());
         assertEquals(1000L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_1)).longValue());
+
+        assertEquals(2, shardDataSetSizes.size());
+        assertTrue(shardDataSetSizes.containsKey(test_0.shardId()));
+        assertTrue(shardDataSetSizes.containsKey(test_1.shardId()));
+        assertEquals(101L, shardDataSetSizes.get(test_0.shardId()).longValue());
+        assertEquals(1001L, shardDataSetSizes.get(test_1.shardId()).longValue());
 
         assertEquals(2, routingToPath.size());
         assertTrue(routingToPath.containsKey(test_0));

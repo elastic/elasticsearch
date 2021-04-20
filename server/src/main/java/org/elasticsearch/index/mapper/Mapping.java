@@ -38,11 +38,11 @@ public final class Mapping implements ToXContentFragment {
         new MetadataFieldMapper[0],
         Collections.emptyMap());
 
-    final RootObjectMapper root;
-    final MetadataFieldMapper[] metadataMappers;
-    final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
-    final Map<String, MetadataFieldMapper> metadataMappersByName;
-    final Map<String, Object> meta;
+    private final RootObjectMapper root;
+    private final Map<String, Object> meta;
+    private final MetadataFieldMapper[] metadataMappers;
+    private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
+    private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
@@ -65,9 +65,36 @@ public final class Mapping implements ToXContentFragment {
         this.meta = meta;
     }
 
-    /** Return the root object mapper. */
-    RootObjectMapper root() {
+    /**
+     * Returns the root object for the current mapping
+     */
+    RootObjectMapper getRoot() {
         return root;
+    }
+
+    /**
+     * Returns the meta section for the current mapping
+     */
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
+    MetadataFieldMapper[] getSortedMetadataMappers() {
+        return metadataMappers;
+    }
+
+    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappersMap() {
+        return metadataMappersMap;
+    }
+
+    /** Get the metadata mapper with the given class. */
+    @SuppressWarnings("unchecked")
+    <T extends MetadataFieldMapper> T getMetadataMapperByClass(Class<T> clazz) {
+        return (T) metadataMappersMap.get(clazz);
+    }
+
+    MetadataFieldMapper getMetadataMapperByName(String mapperName) {
+        return metadataMappersByName.get(mapperName);
     }
 
     void validate(MappingLookup mappers) {
@@ -82,12 +109,6 @@ public final class Mapping implements ToXContentFragment {
      */
     Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
         return new Mapping(rootObjectMapper, metadataMappers, meta);
-    }
-
-    /** Get the root mapper with the given class. */
-    @SuppressWarnings("unchecked")
-    <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
-        return (T) metadataMappersMap.get(clazz);
     }
 
     /**
@@ -129,10 +150,6 @@ public final class Mapping implements ToXContentFragment {
         }
 
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
-    }
-
-    MetadataFieldMapper getMetadataMapper(String mapperName) {
-        return metadataMappersByName.get(mapperName);
     }
 
     @Override

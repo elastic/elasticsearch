@@ -71,7 +71,7 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
         if (obj instanceof AbstractGetResourcesResponse == false) {
             return false;
         }
-        AbstractGetResourcesResponse other = (AbstractGetResourcesResponse) obj;
+        AbstractGetResourcesResponse<?> other = (AbstractGetResourcesResponse<?>) obj;
         return Objects.equals(resources, other.resources);
     }
 

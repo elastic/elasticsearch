@@ -27,9 +27,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class BulkRejectionIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 1)
             .build();

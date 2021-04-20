@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -106,7 +107,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         if (dataType == GEO_SHAPE) {
             try {
                 return new GeoShape(values);
-            } catch (IOException ex) {
+            } catch (IOException | XContentParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName());
             }
         }

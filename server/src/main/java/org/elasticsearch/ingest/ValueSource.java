@@ -69,7 +69,7 @@ public interface ValueSource {
             // modified if templating is not available
             if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && ((String) value).contains("{{")) {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, scriptOptions, Map.of());
-                return new TemplatedValue(scriptService.compile(script, TemplateScript.CONTEXT));
+                return new TemplatedValue(scriptService.compile(script, TemplateScript.INGEST_CONTEXT));
             } else {
                 return new ObjectValue(value);
             }

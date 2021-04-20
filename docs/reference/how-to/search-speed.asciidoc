@@ -165,8 +165,8 @@ include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 [discrete]
 === Avoid scripts
 
-If possible, avoid using <<modules-scripting,scripts>> or
-<<script-fields,scripted fields>> in searches. See
+If possible, avoid using <<modules-scripting,script>>-based sorting, scripts in
+aggregations, and the <<query-dsl-script-score-query,`script_score`>> query. See
 <<scripts-and-search-speed>>.
 
 

@@ -43,4 +43,13 @@ public class DocCountProvider {
     public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
         docCountPostings = ctx.reader().postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
     }
+
+    public boolean alwaysOne() {
+        return docCountPostings == null;
+    }
+
+    @Override
+    public String toString() {
+        return "doc counts are " + (alwaysOne() ? "always one" : "based on " + docCountPostings);
+    }
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
@@ -39,7 +39,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -54,10 +53,12 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -71,7 +72,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -284,7 +285,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         expectThrows(IllegalArgumentException.class, () ->
             MetadataRolloverService.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);
@@ -334,7 +335,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .build();
         rolloverRequest.getCreateIndexRequest().settings(settings);
         final CreateIndexClusterStateUpdateRequest createIndexRequest = MetadataRolloverService.prepareDataStreamCreateIndexRequest(
-            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest());
+            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest(), null);
         for (String settingKey : settings.keySet()) {
             assertThat(settings.get(settingKey), equalTo(createIndexRequest.settings().get(settingKey)));
         }
@@ -389,6 +390,25 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean()));
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
+    }
+
+    public void testRolloverDoesntRejectOperationIfValidComposableTemplateOverridesLegacyTemplate() {
+        final IndexTemplateMetadata legacyTemplate = IndexTemplateMetadata.builder("legacy-template")
+            .patterns(Arrays.asList("foo-*", "bar-*"))
+            .putAlias(AliasMetadata.builder("foo-write")).putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
+            .build();
+
+        // v2 template overrides the v1 template and does not define the rollover aliases
+        final ComposableIndexTemplate composableTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo-*",
+            "bar-*")).template(new Template(null, null, null)).build();
+
+        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put(legacyTemplate).put("composable-template", composableTemplate).build();
+        String indexName = randomFrom("foo-123", "bar-xyz");
+        String aliasName = randomFrom("foo-write", "bar-write");
+
+        // the valid v2 template takes priority over the v1 template so the validation should not throw any exception
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean());
     }
 
     public void testHiddenAffectsResolvedTemplates() {
@@ -479,11 +499,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, null, shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -539,9 +559,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(new ContentPath());
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+                "@timestamp",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                ScriptCompiler.NONE,
+                false,
+                Version.CURRENT).build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
@@ -579,11 +603,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, null, shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -637,9 +661,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(new ContentPath());
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+                "@timestamp",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                ScriptCompiler.NONE,
+                false,
+                Version.CURRENT).build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
@@ -677,11 +705,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, new AliasValidator(), shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -736,7 +764,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
         MetadataRolloverService rolloverService = new MetadataRolloverService(null, createIndexService, metadataIndexAliasesService,
-            mockIndexNameExpressionResolver);
+            mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
 
@@ -782,11 +810,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
             clusterService, indicesService, allocationService, null, null, env,
-            null, testThreadPool, null, new SystemIndices(Map.of()), false);
+            null, testThreadPool, null, EmptySystemIndices.INSTANCE, false);
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
             new AliasValidator(), null, xContentRegistry());
         MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-            mockIndexNameExpressionResolver);
+            mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);

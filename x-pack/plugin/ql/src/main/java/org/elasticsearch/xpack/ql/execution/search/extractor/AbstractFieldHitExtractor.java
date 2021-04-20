@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,13 +83,66 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         Object value = null;
         DocumentField field = null;
         if (hitName != null) {
-            // a nested field value is grouped under the nested parent name (ie dep.dep_name lives under "dep":[{dep_name:value}])
-            field = hit.field(hitName);
+            value = unwrapFieldsMultiValue(extractNestedField(hit));
         } else {
             field = hit.field(fieldName);
+            if (field != null) {
+                value = unwrapFieldsMultiValue(field.getValues());
+            }
         }
-        if (field != null) {
-            value = unwrapFieldsMultiValue(field.getValues());
+        return value;
+    }
+
+    /*
+     * For a path of fields like root.nested1.nested2.leaf where nested1 and nested2 are nested field types,
+     * fieldName is root.nested1.nested2.leaf, while hitName is root.nested1.nested2
+     * We first look for root.nested1.nested2 or root.nested1 or root in the SearchHit until we find something.
+     * If the DocumentField lives under "root.nested1" the remaining path to search for (in the DocumentField itself) is nested2.
+     * After this step is done, what remains to be done is just getting the leaf values.
+     */
+    @SuppressWarnings("unchecked")
+    private Object extractNestedField(SearchHit hit) {
+        Object value;
+        DocumentField field;
+        String tempHitname = hitName;
+        List<String> remainingPath = new ArrayList<>();
+        // first, search for the "root" DocumentField under which the remaining path of nested document values is
+        while ((field = hit.field(tempHitname)) == null) {
+            int indexOfDot = tempHitname.lastIndexOf(".");
+            if (indexOfDot < 0) {// there is no such field in the hit
+                return null;
+            }
+            remainingPath.add(0, tempHitname.substring(indexOfDot + 1));
+            tempHitname = tempHitname.substring(0, indexOfDot);
+        }
+        // then dig into DocumentField's structure until we reach the field we are interested into
+        if (remainingPath.size() > 0) {
+            List<Object> values = field.getValues();
+            Iterator<String> pathIterator = remainingPath.iterator();
+            while (pathIterator.hasNext()) {
+                String pathElement = pathIterator.next();
+                Map<String, List<Object>> elements = (Map<String, List<Object>>) values.get(0);
+                values = elements.get(pathElement);
+                /*
+                 * if this path is not found it means we hit another nested document (inner_root_1.inner_root_2.nested_field_2)
+                 * something like this
+                 * "root_field_1.root_field_2.nested_field_1" : [
+                 *     {
+                 *       "inner_root_1.inner_root_2.nested_field_2" : [
+                 *         {
+                 *           "leaf_field" : [
+                 *             "abc2"
+                 *           ]
+                 * So, start re-building the path until the right one is found, ie inner_root_1.inner_root_2......
+                 */
+                while (values == null) {
+                    pathElement += "." + pathIterator.next();
+                    values = elements.get(pathElement);
+                }
+            }
+            value = ((Map<String, Object>) values.get(0)).get(fieldName.substring(hitName.length() + 1));
+        } else {
+            value = field.getValues();
         }
         return value;
     }

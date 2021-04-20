@@ -175,7 +175,10 @@ for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
 is the same as `like`.
 
 `fields`::
-A list of fields to fetch and analyze the text from.
+A list of fields to fetch and analyze the text from. Defaults to the
+`index.query.default_field` index setting, which has a default value of `*`. The
+`*` value matches all fields eligible for <<term-level-queries,term-level
+queries>>, excluding metadata fields.
 
 [discrete]
 [[mlt-query-term-selection]]

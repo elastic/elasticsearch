@@ -93,7 +93,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.canContainData(settings) || DiscoveryNode.isMasterNode(settings)) {
             if (isDedicatedVotingOnlyNode(DiscoveryNode.getRolesFromSettings(settings)) == false) {
                 clusterService.addHighPriorityApplier(this);
             }
@@ -209,7 +209,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
                     // repository is created on both master and data nodes
-                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                    return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
 
                 @Override
@@ -336,7 +336,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
                     // repository was created on both master and data nodes
-                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                    return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
             });
     }
@@ -349,7 +349,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 final String verificationToken = repository.startVerification();
                 if (verificationToken != null) {
                     try {
-                        verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
+                        verifyAction.verify(repositoryName, verificationToken, listener.delegateFailure(
                             (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                 try {
                                     repository.endVerification(verificationToken);
@@ -380,9 +380,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
-    static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
-        return roles.contains(DiscoveryNodeRole.MASTER_ROLE) && roles.contains(DiscoveryNodeRole.DATA_ROLE) == false &&
-            roles.stream().anyMatch(role -> role.roleName().equals("voting_only"));
+    public static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.MASTER_ROLE)
+                && roles.stream().noneMatch(DiscoveryNodeRole::canContainData)
+                && roles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     /**

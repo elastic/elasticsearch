@@ -41,7 +41,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -130,7 +129,7 @@ public class RecoverySourceHandler {
     }
 
     public void addListener(ActionListener<RecoveryResponse> listener) {
-        future.addListener(listener, EsExecutors.newDirectExecutorService());
+        future.addListener(listener);
     }
 
     /**
@@ -292,7 +291,8 @@ public class RecoverySourceHandler {
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false);
+                final Translog.Snapshot phase2Snapshot =
+                    shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false, false);
                 resources.add(phase2Snapshot);
                 retentionLock.close();
 
@@ -337,7 +337,7 @@ public class RecoverySourceHandler {
     }
 
     private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false, true)) {
             return snapshot.totalOperations();
         }
     }
@@ -769,7 +769,7 @@ public class RecoverySourceHandler {
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                ActionListener.delegateFailure(listener, (l, newCheckpoint) -> {
+                listener.delegateFailure((l, newCheckpoint) -> {
                     targetLocalCheckpoint.updateAndGet(curr -> SequenceNumbers.max(curr, newCheckpoint));
                     l.onResponse(null);
                 }));
@@ -962,7 +962,7 @@ public class RecoverySourceHandler {
         // are deleted
         cancellableThreads.checkForCancel();
         recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
-            ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
+            listener.delegateResponse((l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetadata[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetadata[]::new);
                 ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetadata::length)); // check small files first
                 handleErrorOnSendFiles(store, e, mds);

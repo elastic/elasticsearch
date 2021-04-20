@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -29,9 +30,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String index;
     private String dataStreamName;
     private final String providedName;
+    private long nameResolvedAt;
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private SystemDataStreamDescriptor systemDataStreamDescriptor;
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -84,6 +87,19 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * At what point in time the provided name was resolved into the index name
+     */
+    public CreateIndexClusterStateUpdateRequest nameResolvedInstant(long nameResolvedAt) {
+        this.nameResolvedAt = nameResolvedAt;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
+        this.systemDataStreamDescriptor = systemDataStreamDescriptor;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -112,6 +128,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return recoverFrom;
     }
 
+    public SystemDataStreamDescriptor systemDataStreamDescriptor() {
+        return systemDataStreamDescriptor;
+    }
+
     /**
      * The name that was provided by the user. This might contain a date math expression.
      * @see IndexMetadata#SETTING_INDEX_PROVIDED_NAME
@@ -119,6 +139,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     public String getProvidedName() {
         return providedName;
     }
+
+    /**
+     * The instant at which the name provided by the user was resolved
+     */
+    public long getNameResolvedAt() { return nameResolvedAt;}
 
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
@@ -162,6 +187,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             ", aliases=" + aliases +
             ", blocks=" + blocks +
             ", waitForActiveShards=" + waitForActiveShards +
+            ", systemDataStreamDescriptor=" + systemDataStreamDescriptor +
             '}';
     }
 }

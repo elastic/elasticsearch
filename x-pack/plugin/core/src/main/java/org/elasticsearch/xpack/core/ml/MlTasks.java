@@ -37,6 +37,9 @@ public final class MlTasks {
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetadata.Assignment(null,
             "persistent task cannot be assigned while upgrade mode is enabled.");
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS =
+        new PersistentTasksCustomMetadata.Assignment(null,
+            "persistent task will not be assigned as a feature reset is in progress.");
 
     private MlTasks() {
     }
@@ -206,11 +209,20 @@ public final class MlTasks {
             return Collections.emptySet();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> true)
+        return openJobTasks(tasks)
                 .stream()
                 .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
+
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> openJobTasks(@Nullable PersistentTasksCustomMetadata tasks) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_TASK_NAME, task -> true);
+    }
+
 
     /**
      * Get the job Ids of anomaly detector job tasks that do

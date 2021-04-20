@@ -9,7 +9,7 @@ It's set automatically by {ilm-init} when the rollover action completes successf
 You can set it manually to skip rollover if you need to make an exception
 to your normal lifecycle policy and update the alias to force a roll over, 
 but want {ilm-init} to continue to manage the index. 
-If you use the rollover API. It is not necessary to  configure this setting manually. 
+If you use the rollover API, it is not necessary to configure this setting manually. 
 
 If an index's lifecycle policy is removed, this setting is also removed.
 

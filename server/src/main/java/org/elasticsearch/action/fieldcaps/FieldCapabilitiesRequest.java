@@ -48,11 +48,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            includeUnmapped = in.readBoolean();
-        } else {
-            includeUnmapped = false;
-        }
+        includeUnmapped = in.getVersion().onOrAfter(Version.V_7_2_0) ? in.readBoolean() : false;
         indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
         nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
         runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
@@ -96,6 +92,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeMap(runtimeFields);
+        } else {
+            if (false == runtimeFields.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
+                    + "with version [" + out.getVersion() + "]");
+            }
         }
     }
 

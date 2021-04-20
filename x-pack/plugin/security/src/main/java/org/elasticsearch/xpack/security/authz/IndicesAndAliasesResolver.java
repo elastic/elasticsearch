@@ -31,7 +31,7 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
 import java.util.ArrayList;

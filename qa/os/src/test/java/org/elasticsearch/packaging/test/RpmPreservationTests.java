@@ -10,13 +10,10 @@ package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
-import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
@@ -53,7 +50,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         setHeap(null); // remove test heap options, so the config directory can be removed
         enableGeoIpDownloader(installation);
         remove(distribution());
-        
+
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());
 

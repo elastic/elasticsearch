@@ -34,8 +34,8 @@ For more information, see <<security-privileges>>.
 
 `<target>`::
 (Optional, string)
-A comma-separated list of data streams and indices for which the
-statistics must be retrieved.
+Comma-separated list of data streams and indices to retrieve statistics for. To
+retrieve statistics for all data streams and indices, omit this parameter.
 
 
 [[searchable-snapshots-api-stats-example]]

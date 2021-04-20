@@ -41,7 +41,8 @@ public class TransportGetServiceAccountCredentialsAction
     }
 
     @Override
-    protected void doExecute(Task task, GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
+    protected void doExecute(Task task, GetServiceAccountCredentialsRequest request,
+                             ActionListener<GetServiceAccountCredentialsResponse> listener) {
         httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service account tokens", () -> {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             serviceAccountService.findTokensFor(accountId, nodeName, listener);

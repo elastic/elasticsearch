@@ -69,10 +69,7 @@ Which returns
         "name": "Mac OS X",
         "version": "10.10.5",
         "full": "Mac OS X 10.10.5"
-      },
-      "device" : {
-        "name" : "Mac"
-      },
+      }
     }
   }
 }

@@ -180,8 +180,10 @@ public abstract class ValuesSource {
              * the first leaf and has the ordinal {@code 1} in the second leaf.
              * And {@code "d"} gets the ordinal {@code 2} in both leaves.
              * <p>
-             * This can be a huge pain if you have to compare the ordinals
-             * of values from different segments.
+             * If you have to compare the ordinals of values from different
+             * segments then you'd need to somehow merge them. {@link #globalOrdinalsValues}
+             * provides such a merging at the cost of longer startup times when
+             * the index has been modified.
              */
             public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context) throws IOException;
 

@@ -76,6 +76,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.translog.Translog;
@@ -786,7 +787,12 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
                     if (randomBoolean()) {
-                        directory.clearCache();
+                        directory.clearCache(); // should not clear CacheService cache
+                        assertBusy(() -> assertListOfFiles(cacheDir, greaterThan(0), greaterThan(0L)));
+                        for (BlobStoreIndexShardSnapshot.FileInfo file : directory.files()) {
+                            final CacheKey cacheKey = directory.createCacheKey(file.physicalName());
+                            cacheService.removeFromCache(cacheKey);
+                        }
                         assertBusy(() -> assertListOfFiles(cacheDir, equalTo(0), equalTo(0L)));
                     }
                 }

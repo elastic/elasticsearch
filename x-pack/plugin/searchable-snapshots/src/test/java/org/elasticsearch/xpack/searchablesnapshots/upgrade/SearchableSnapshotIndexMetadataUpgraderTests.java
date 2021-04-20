@@ -42,6 +42,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         assertThat(needsUpgrade(metadataBuilder), is(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71973")
     public void testUpgradeIndices() {
         Metadata.Builder metadataBuilder = addIndex(
             partial_7_12(),

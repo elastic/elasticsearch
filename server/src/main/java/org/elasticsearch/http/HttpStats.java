@@ -8,7 +8,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,20 +37,14 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            clientStats = in.readList(ClientStats::new);
-        } else {
-            clientStats = List.of();
-        }
+        clientStats = in.readList(ClientStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeList(clientStats);
-        }
+        out.writeList(clientStats);
     }
 
     public long getServerOpen() {
@@ -138,15 +131,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         ClientStats(StreamInput in) throws IOException {
             this.id = in.readInt();
             this.agent = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.localAddress = in.readOptionalString();
-                this.remoteAddress = in.readOptionalString();
-                this.lastUri = in.readOptionalString();
-            } else {
-                this.localAddress = in.readString();
-                this.remoteAddress = in.readString();
-                this.lastUri = in.readString();
-            }
+            this.localAddress = in.readOptionalString();
+            this.remoteAddress = in.readOptionalString();
+            this.lastUri = in.readOptionalString();
             this.forwardedFor = in.readOptionalString();
             this.opaqueId = in.readOptionalString();
             this.openedTimeMillis = in.readLong();
@@ -192,15 +179,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             out.writeOptionalString(agent);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(localAddress);
-                out.writeOptionalString(remoteAddress);
-                out.writeOptionalString(lastUri);
-            } else {
-                out.writeString(localAddress);
-                out.writeString(remoteAddress);
-                out.writeString(lastUri);
-            }
+            out.writeOptionalString(localAddress);
+            out.writeOptionalString(remoteAddress);
+            out.writeOptionalString(lastUri);
             out.writeOptionalString(forwardedFor);
             out.writeOptionalString(opaqueId);
             out.writeLong(openedTimeMillis);

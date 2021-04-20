@@ -25,7 +25,6 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
 
     private final TestRerunTaskExtension extension;
     private final TestExecuter<JvmTestExecutionSpec> delegate;
-    private TestJvmCrashReporter jvmCrashReporter;
 
     public RerunTestExecuter(TestRerunTaskExtension extension, TestExecuter<JvmTestExecutionSpec> delegate) {
         this.extension = extension;
@@ -34,7 +33,7 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
 
     @Override
     public void execute(JvmTestExecutionSpec spec, TestResultProcessor testResultProcessor) {
-        int maxRetries = extension.getMaxRetries().get();
+        int maxRetries = extension.getMaxReruns().get();
         if (maxRetries <= 0) {
             delegate.execute(spec, testResultProcessor);
             return;
@@ -44,21 +43,19 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
 
         int retryCount = 0;
         JvmTestExecutionSpec testExecutionSpec = spec;
-
         while (true) {
             try {
                 delegate.execute(testExecutionSpec, retryTestResultProcessor);
                 break;
             } catch (ExecException e) {
-                if (retryCount == maxRetries) {
-                    throw new GradleException("Max retries hit", e);
+                report(retryCount + 1, retryTestResultProcessor.getActiveDescriptors());
+                if (retryCount++ == maxRetries) {
+                    throw new GradleException("Max retries(" + maxRetries + ") hit", e);
                 } else {
-                    retryTestResultProcessor.reset(++retryCount == maxRetries);
+                    retryTestResultProcessor.reset();
                 }
             }
         }
-        jvmCrashReporter = new TestJvmCrashReporter(retryTestResultProcessor.getFailPaths());
-
     }
 
     @Override
@@ -66,30 +63,18 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
         delegate.stopNow();
     }
 
-    public void reportJvmCrashDetails() {
-        jvmCrashReporter.report();
-    }
-
-    private class TestJvmCrashReporter {
-        private List<TestDescriptorInternal> failPaths;
-
-        TestJvmCrashReporter(List<TestDescriptorInternal> failPaths) {
-            this.failPaths = failPaths;
-        }
-
-        void report() {
-            if (failPaths.size() > 0) {
-                String report = "================\n"
-                    + "Test JDK System exit trace:\n"
-                    + failPaths.stream()
-                        .filter(d -> d.getId() instanceof CompositeIdGenerator.CompositeId)
-                        .sorted(Comparator.comparing(o -> o.getId().toString()))
-                        .map(TestDescriptorInternal::getName)
-                        .collect(Collectors.joining(" > "))
-                    + "\n"
-                    + "================\n";
-                System.out.println(report);
-            }
-        }
+    void report(int runCount, List<TestDescriptorInternal> activeDescriptors) {
+        String report = "================\n"
+            + "Test JDK System exit trace (run: "
+            + runCount
+            + ")\n"
+            + activeDescriptors.stream()
+                .filter(d -> d.getId() instanceof CompositeIdGenerator.CompositeId)
+                .sorted(Comparator.comparing(o -> o.getId().toString()))
+                .map(TestDescriptorInternal::getName)
+                .collect(Collectors.joining(" > "))
+            + "\n"
+            + "================\n";
+        System.out.println(report);
     }
 }

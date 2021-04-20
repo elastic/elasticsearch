@@ -24,18 +24,18 @@ public class TestRerunTaskExtension {
     /**
      * The default number of reruns we allow for a test task.
      */
-    public static final Integer DEFAULT_MAX_RETRIES = 1;
+    public static final Integer DEFAULT_MAX_RERUNS = 1;
 
     /**
      * The name of the extension added to each test task.
      */
     public static String NAME = "rerun";
 
-    private final Property<Integer> maxRetries;
+    private final Property<Integer> maxReruns;
 
     @Inject
     public TestRerunTaskExtension(ObjectFactory objects) {
-        this.maxRetries = objects.property(Integer.class).convention(DEFAULT_MAX_RETRIES);
+        this.maxReruns = objects.property(Integer.class).convention(DEFAULT_MAX_RERUNS);
     }
 
     /**
@@ -46,8 +46,8 @@ public class TestRerunTaskExtension {
      *
      * @return the maximum number of times to rerun all tests of a task
      */
-    public Property<Integer> getMaxRetries() {
-        return maxRetries;
+    public Property<Integer> getMaxReruns() {
+        return maxReruns;
     }
 
 }

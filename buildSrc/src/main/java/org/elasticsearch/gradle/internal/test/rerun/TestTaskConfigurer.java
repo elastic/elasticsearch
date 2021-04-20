@@ -27,7 +27,6 @@ public final class TestTaskConfigurer {
         TestRerunTaskExtension extension = test.getExtensions()
             .create(TestRerunTaskExtension.NAME, TestRerunTaskExtension.class, objectFactory);
         test.doFirst(new InitTaskAction(extension));
-        test.doLast(new FinalizeTaskAction());
     }
 
     private static RerunTestExecuter createRetryTestExecuter(Task task, TestRerunTaskExtension extension) {
@@ -41,18 +40,6 @@ public final class TestTaskConfigurer {
 
     private static void setTestExecuter(Task task, RerunTestExecuter rerunTestExecuter) {
         invoke(declaredMethod(Test.class, "setTestExecuter", TestExecuter.class), task, rerunTestExecuter);
-    }
-
-    private static class FinalizeTaskAction implements Action<Task> {
-        @Override
-        public void execute(Task task) {
-            TestExecuter<JvmTestExecutionSpec> testExecuter = getTestExecuter(task);
-            if (testExecuter instanceof RerunTestExecuter) {
-                ((RerunTestExecuter) testExecuter).reportJvmCrashDetails();
-            } else {
-                throw new IllegalStateException("Unexpected test executer: " + testExecuter);
-            }
-        }
     }
 
     private static class InitTaskAction implements Action<Task> {

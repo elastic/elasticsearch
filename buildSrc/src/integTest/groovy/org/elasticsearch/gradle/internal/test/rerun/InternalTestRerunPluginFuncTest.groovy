@@ -101,34 +101,74 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         // triggered only in the second overall run
         and: 'Tracing is provided'
         normalized(result.output).contains("""================
-Test JDK System exit trace:
+Test JDK System exit trace (run: 1)
 Gradle Test Executor 1 > JdkKillingTest > someTest
 ================""")
     }
 
-    private String testMethodContent(boolean withSystemExit, boolean fail) {
+    def "reruns tests till max rerun count is reached"() {
+        when:
+        buildFile.text = """
+        plugins {
+          id 'java'
+          id 'elasticsearch.internal-test-rerun'
+        }
+
+        repositories {
+            mavenCentral()
+        }
+        
+        dependencies {
+            testImplementation 'junit:junit:4.13.1'
+        }
+        
+        tasks.named("test").configure {
+            rerun {
+                maxReruns = 4
+            }
+            testLogging {
+                // set options for log level LIFECYCLE
+                events "standard_out", "failed"
+                exceptionFormat "short"
+            }
+        }
+        """
+        createSystemExitTest("JdkKillingTest", 5)
+        then:
+        def result = gradleRunner("test").buildAndFail()
+        result.output.contains("JdkKillingTest total executions: 4")
+        result.output.contains("Max retries(4) hit")
+        and: 'Tracing is provided'
+        normalized(result.output).contains("Test JDK System exit trace (run: 1)")
+        normalized(result.output).contains("Test JDK System exit trace (run: 2)")
+        normalized(result.output).contains("Test JDK System exit trace (run: 3)")
+        normalized(result.output).contains("Test JDK System exit trace (run: 4)")
+    }
+
+    private String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
         return """
             int count = countExecutions();
             System.out.println(getClass().getSimpleName() + " total executions: " + count);
 
-            ${withSystemExit ? '''
-                    if(count < 2) {
+            ${withSystemExit ? """
+                    if(count <= ${timesFailing}) {
                         System.exit(1);
                     }
-                    ''' : ''
+                    """ : ''
             }
 
             ${fail ? "Assert.fail();" :''}
         """
     }
 
-    private File createSystemExitTest(String clazzName) {
-        createTest(clazzName, testMethodContent(true, false))
+    private File createSystemExitTest(String clazzName, timesFailing = 1) {
+        createTest(clazzName, testMethodContent(true, false, timesFailing))
     }
     private File createFailedTest(String clazzName) {
         createTest(clazzName, testMethodContent(false, true))
     }
-    private File createTest(String clazzName, String content = testMethodContent(false, false)) {
+
+    private File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {
         file("src/test/java/org/acme/${clazzName}.java") << """
             import org.junit.Test;
             import org.junit.Before;

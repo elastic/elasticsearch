@@ -18,9 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 final class RerunTestResultProcessor implements TestResultProcessor {
 
@@ -29,8 +26,6 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     private final Map<Object, TestDescriptorInternal> activeDescriptorsById = new HashMap<>();
 
     private Object rootTestDescriptorId;
-
-    private List<Map<Object, TestDescriptorInternal>> storedActiveDescriptorsWhenFailed = new ArrayList<>();
 
     RerunTestResultProcessor(TestResultProcessor delegate) {
         this.delegate = delegate;
@@ -51,7 +46,7 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     @Override
     public void completed(Object testId, TestCompleteEvent testCompleteEvent) {
         if (testId.equals(rootTestDescriptorId)) {
-            if (lastRun() == false) {
+            if (activeDescriptorsById.size() != 1) {
                 return;
             }
         } else {
@@ -71,26 +66,12 @@ final class RerunTestResultProcessor implements TestResultProcessor {
         delegate.failure(testId, throwable);
     }
 
-    private boolean lastRun() {
-        return activeDescriptorsById.size() == 1;
-    }
-
-    public void reset(boolean lastRetry) {
-        storeActiveDescriptors();
+    public void reset() {
         this.activeDescriptorsById.clear();
     }
 
-    private void storeActiveDescriptors() {
-        this.storedActiveDescriptorsWhenFailed.add(new HashMap<>(activeDescriptorsById));
-    }
+    public List<TestDescriptorInternal> getActiveDescriptors() {
+        return new ArrayList<>(activeDescriptorsById.values());
 
-    public List<TestDescriptorInternal> getFailPaths() {
-        return storedActiveDescriptorsWhenFailed.stream()
-            .flatMap(
-                (Function<
-                    Map<Object, TestDescriptorInternal>,
-                    Stream<TestDescriptorInternal>>) objectTestDescriptorInternalMap -> objectTestDescriptorInternalMap.values().stream()
-            )
-            .collect(Collectors.toList());
     }
 }

@@ -6,7 +6,7 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
-experimental[]
+experimental::[]
 
 Clear the cache of searchable snapshots.
 

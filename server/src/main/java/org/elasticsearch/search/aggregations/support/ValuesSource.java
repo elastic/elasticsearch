@@ -456,9 +456,9 @@ public abstract class ValuesSource {
         /**
          * Get a 64 bit signed view into the values in this leaf.
          * <p>
-         * If the values have precision beyond the decimal point then they'll
-         * be rounded but they'll accurately represent values up
-         * to {@link Long#MAX_VALUE}.
+         * If the values have precision beyond the decimal point then they'll be
+         * <a href="https://docs.oracle.com/javase/specs/jls/se15/html/jls-5.html#jls-5.1.3">"narrowed"</a>
+         * but they'll accurately represent values up to {@link Long#MAX_VALUE}.
          */
         public abstract SortedNumericDocValues longValues(LeafReaderContext context) throws IOException;
 
@@ -466,7 +466,9 @@ public abstract class ValuesSource {
          * Get a double precision floating point view into the values in this leaf.
          * <p>
          * These values will preserve any precision beyond the decimal point but
-         * are limited to {@code double}'s standard 53 bit mantissa.
+         * are limited to {@code double}'s standard 53 bit mantissa. If the "native"
+         * field has values that can't be accurately represented in those 53 bits
+         * they'll be <a href="https://docs.oracle.com/javase/specs/jls/se15/html/jls-5.html#jls-5.1.2">"widened"</a>
          */
         public abstract SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException;
 

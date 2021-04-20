@@ -336,7 +336,58 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".enrich-*")
                             .privileges("manage", "read", "write")
                             .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("viewer", buildViewerRoleDescriptor())
+                .put("editor", buildEditorRoleDescriptor())
                 .immutableMap();
+    }
+
+    private static RoleDescriptor buildViewerRoleDescriptor() {
+        return new RoleDescriptor(
+            "viewer",
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                // Stack
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/~(([.]|ilm-history-).*)/")
+                    .privileges("read", "view_index_metadata").build(),
+                // Security
+                RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("read").build() },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            null);
+    }
+
+    private static RoleDescriptor buildEditorRoleDescriptor() {
+        return new RoleDescriptor("editor",
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                // Stack
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/~(([.]|ilm-history-).*)/")
+                    .privileges("read", "view_index_metadata").build(),
+                // Observability
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("observability-annotations")
+                    .privileges("read", "view_index_metadata", "write").build(),
+                // Security
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".siem-signals-*", ".lists-*", ".items-*")
+                    .privileges("read", "view_index_metadata", "write", "maintenance").build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("all").build() },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            null);
     }
 
     private static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {

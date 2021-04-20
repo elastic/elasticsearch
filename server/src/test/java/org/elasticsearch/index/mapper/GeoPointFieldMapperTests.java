@@ -313,7 +313,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", "1234.333")))
         );
-        assertThat(e.getMessage(), containsString("Failed to parse field [field] of type [geo_point]"));
+        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [geo_point]"));
         assertThat(e.getRootCause().getMessage(), containsString("unsupported symbol [.] in geohash [1234.333]"));
     }
 
@@ -360,5 +360,35 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "geo_point");
+                b.field("script", "test");
+                b.field("ignore_z_value", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping [_doc]: Field [ignore_z_value] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "geo_point");
+                b.field("script", "test");
+                b.field("null_value", "POINT (1 1)");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "long");
+                b.field("script", "test");
+                b.field("ignore_malformed", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping [_doc]: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+        }
     }
 }

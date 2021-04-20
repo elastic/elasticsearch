@@ -138,7 +138,7 @@ public class DiskThresholdMonitor {
 
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-                if (isFrozenOnlyNode(routingNode)) {
+                if (isDedicatedFrozenNode(routingNode)) {
                     logger.warn("flood stage disk watermark [{}] exceeded on {}",
                         diskThresholdSettings.describeFloodStageThreshold(), usage);
                     continue;
@@ -162,7 +162,7 @@ public class DiskThresholdMonitor {
                 continue;
             }
 
-            if (isFrozenOnlyNode(routingNode)) {
+            if (isDedicatedFrozenNode(routingNode)) {
                 // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
                 // and this allows us to use more of the local storage for cache.
                 continue;
@@ -366,13 +366,11 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isFrozenOnlyNode(RoutingNode routingNode) {
+    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }
         DiscoveryNode node = routingNode.node();
-        return node.getRoles().contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
-            node.getRoles().stream().filter(DiscoveryNodeRole::canContainData)
-                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+        return node.isDedicatedFrozenNode();
     }
 }

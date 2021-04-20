@@ -98,7 +98,7 @@ public class FrozenCacheService implements Releasable {
     public static final Setting<RelativeByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
         (settings) -> {
-            if (isDedicatedFrozen(settings)) {
+            if (DiscoveryNode.isDedicatedFrozenNode(settings)) {
                 return "90%";
             } else {
                 return ByteSizeValue.ZERO.getStringRep();
@@ -144,7 +144,7 @@ public class FrozenCacheService implements Releasable {
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
         (settings) -> {
-            if (SNAPSHOT_CACHE_SIZE_SETTING.exists(settings) == false && isDedicatedFrozen(settings)) {
+            if (SNAPSHOT_CACHE_SIZE_SETTING.exists(settings) == false && DiscoveryNode.isDedicatedFrozenNode(settings)) {
                 return "100GB";
             }
 
@@ -181,14 +181,6 @@ public class FrozenCacheService implements Releasable {
         },
         Setting.Property.NodeScope
     );
-
-    private static boolean isDedicatedFrozen(Settings settings) {
-        Set<DiscoveryNodeRole> rolesFromSettings = DiscoveryNode.getRolesFromSettings(settings);
-        return rolesFromSettings.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
-            && rolesFromSettings.stream()
-                .filter(DiscoveryNodeRole::canContainData)
-                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
-    }
 
     public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",

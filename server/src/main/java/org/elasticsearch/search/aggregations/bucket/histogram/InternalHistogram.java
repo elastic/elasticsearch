@@ -377,8 +377,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
         }
         Counter counter = new Counter();
-        reduceContext.consumeBucketsAndMaybeBreak(counter.size);
         iterateEmptyBuckets(list, list.listIterator(), counter);
+        reduceContext.consumeBucketsAndMaybeBreak(counter.size);
 
         /*
          * Now that we're sure we have space we allocate all the buckets.

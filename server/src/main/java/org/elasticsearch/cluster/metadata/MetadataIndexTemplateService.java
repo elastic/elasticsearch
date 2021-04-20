@@ -416,7 +416,7 @@ public class MetadataIndexTemplateService {
 
     public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-            Settings mergedSettings = resolveSettings(metadata, template);
+            Settings mergedSettings = resolveSettings(template, metadata.componentTemplates());
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
                 throw new InvalidIndexTemplateException(name, "global composable templates may not specify the setting "
                     + IndexMetadata.INDEX_HIDDEN_SETTING.getKey());
@@ -968,6 +968,16 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
+        return collectMappings(template, componentTemplates, indexName);
+    }
+
+    /**
+     * Collect the given v2 template into an ordered list of mappings.
+     */
+    public static List<CompressedXContent> collectMappings(final ComposableIndexTemplate template,
+                                                           final Map<String, ComponentTemplate> componentTemplates,
+                                                           final String indexName) throws Exception {
+        Objects.requireNonNull(template, "Composable index template must be provided");
         List<CompressedXContent> mappings = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
@@ -1027,11 +1037,15 @@ public class MetadataIndexTemplateService {
         if (template == null) {
             return Settings.EMPTY;
         }
-        return resolveSettings(metadata, template);
+        return resolveSettings(template, metadata.componentTemplates());
     }
 
-    private static Settings resolveSettings(Metadata metadata, ComposableIndexTemplate template) {
-        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+    /**
+     * Resolve the provided v2 template and component templates into a collected {@link Settings} object
+     */
+    public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+        Objects.requireNonNull(template, "attempted to resolve settings for a null template");
+        Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
         List<Settings> componentSettings = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
@@ -1089,6 +1103,18 @@ public class MetadataIndexTemplateService {
             return Collections.emptyList();
         }
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        return resolveAliases(template, componentTemplates, failIfTemplateHasDataStream, templateName);
+    }
+
+    /**
+     * Resolve the given v2 template and component templates into an ordered list of aliases
+     */
+    static List<Map<String, AliasMetadata>> resolveAliases(final ComposableIndexTemplate template,
+                                                           final Map<String, ComponentTemplate> componentTemplates,
+                                                           final boolean failIfTemplateHasDataStream,
+                                                           @Nullable String templateName) {
+        Objects.requireNonNull(template, "attempted to resolve aliases for a null template");
+        Objects.requireNonNull(componentTemplates, "attempted to resolve aliases with null component templates");
         List<Map<String, AliasMetadata>> aliases = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)

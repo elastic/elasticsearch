@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static final String repoName = "test-repo";
     private static final String indexName = "test-index";

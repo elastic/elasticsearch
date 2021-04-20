@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,6 +27,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
@@ -225,6 +230,30 @@ public class FrozenCacheServiceTests extends ESTestCase {
                 + "] to be positive ["
                 + new ByteSizeValue(size(500)).getStringRep()
                 + "] on node without the data_frozen role is deprecated, roles are [data_hot]"
+        );
+    }
+
+    public void testMultipleDataPathsRejectedOnFrozenNodes() {
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), org.elasticsearch.common.collect.List.of("a", "b"))
+            .build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
+        );
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                "setting ["
+                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                    + "="
+                    + new ByteSizeValue(size(500)).getStringRep()
+                    + "] is not permitted on nodes with multiple data paths [a,b]"
+            )
         );
     }
 

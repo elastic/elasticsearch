@@ -184,7 +184,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public Iterable<String> getValuesAsStrings(String name) {
+    public List<String> getValuesAsStrings(String name) {
         int index = metricNames.indexOf(name);
         if (index < 0) {
             throw new IllegalArgumentException("unknown metric [" + name + "]");
@@ -199,11 +199,6 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             }
             return value.getValue().format(value.getFormat());
         }).collect(Collectors.toList());
-    }
-
-    @Override
-    public int size() {
-        return size;
     }
 
     @Override

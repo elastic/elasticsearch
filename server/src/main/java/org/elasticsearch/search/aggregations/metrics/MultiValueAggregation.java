@@ -10,6 +10,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 
+import java.util.List;
+
 public interface MultiValueAggregation extends Aggregation {
 
     /**
@@ -23,19 +25,10 @@ public interface MultiValueAggregation extends Aggregation {
     Iterable<String> valueNames();
 
     /**
-     * Return an iterable over all results with the specified name
+     * Return a list of all results with the specified name
      *
      * @param name of the value
-     * @return iterable over all values formatted as string
+     * @return list of all values formatted as string
      */
-    Iterable<String> getValuesAsStrings(String name);
-
-    /**
-     * Return the maximum number of results per value
-     *
-     * Note: A single result might not have `size()` values
-     *
-     * @return maximum number of results per value
-     */
-    int size();
+    List<String> getValuesAsStrings(String name);
 }

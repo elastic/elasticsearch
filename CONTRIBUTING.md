@@ -436,7 +436,7 @@ is to be helpful, not to turn writing code into a chore.
        regular comments in the code. Remember as well that Elasticsearch
        has extensive [user documentation](./docs), and it is not the role
        of Javadoc to replace that.
-        1. If a method's performance is "unexpected" then its good to call that
+        * If a method's performance is "unexpected" then it's good to call that
            out in the javadoc. Especially if its usually fast but sometimes
            very slow (shakes fist at caching).
    12. Please still try to make class, method or variable names as

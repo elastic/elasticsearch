@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
 
@@ -98,7 +99,13 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return removeDataStream(deleteIndexService, indexNameExpressionResolver, currentState, request);
+                    return removeDataStream(
+                        deleteIndexService,
+                        indexNameExpressionResolver,
+                        currentState,
+                        request,
+                        ds -> systemIndices.validateDataStreamAccess(ds, threadPool.getThreadContext())
+                    );
                 }
 
                 @Override
@@ -113,9 +120,14 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         MetadataDeleteIndexService deleteIndexService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState currentState,
-        DeleteDataStreamAction.Request request
+        DeleteDataStreamAction.Request request,
+        Consumer<String> systemDataStreamAccessValidator
     ) {
-        Set<String> dataStreams = new HashSet<>(Arrays.asList(request.getNames()));
+        List<String> names = getDataStreamNames(indexNameExpressionResolver, currentState, request.getNames(), request.indicesOptions());
+        Set<String> dataStreams = new HashSet<>(names);
+        for (String dataStreamName : dataStreams) {
+            systemDataStreamAccessValidator.accept(dataStreamName);
+        }
         Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {

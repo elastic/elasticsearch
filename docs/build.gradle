@@ -375,36 +375,6 @@ buildRestTests.setups['user_hits'] = '''
             {"index":{}}
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
 
-
-// Fake bank account data used by getting-started.asciidoc
-buildRestTests.setups['bank'] = '''
-  - do:
-        indices.create:
-          index: bank
-          body:
-            settings:
-              number_of_shards: 5
-              number_of_routing_shards: 5
-  - do:
-        bulk:
-          index: bank
-          refresh: true
-          body: |
-#bank_data#
-'''
-/* Load the actual accounts only if we're going to use them. This complicates
- * dependency checking but that is a small price to pay for not building a
- * 400kb string every time we start the build. */
-File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
-buildRestTests.inputs.file(accountsFile)
-buildRestTests.doFirst {
-  String accounts = accountsFile.getText('UTF-8')
-  // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['bank'] =
-    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
-}
-
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:

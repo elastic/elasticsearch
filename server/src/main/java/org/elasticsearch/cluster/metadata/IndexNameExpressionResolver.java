@@ -314,20 +314,20 @@ public class IndexNameExpressionResolver {
 
     private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
         final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate().negate();
-        final List<IndexMetadata> matchedSystemIndexMetadata = concreteIndices.stream()
+        final List<IndexMetadata> systemIndicesThatShouldNotBeAccessed = concreteIndices.stream()
             .map(metadata::index)
             .filter(IndexMetadata::isSystem)
             .filter(idxMetadata -> systemIndexAccessPredicate.test(idxMetadata.getIndex().getName()))
             .collect(Collectors.toList());
 
-        if (matchedSystemIndexMetadata.isEmpty()) {
+        if (systemIndicesThatShouldNotBeAccessed.isEmpty()) {
             return;
         }
 
         final List<String> resolvedSystemIndices = new ArrayList<>();
         final Set<String> resolvedSystemDataStreams = new HashSet<>();
         final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
-        for (IndexMetadata idxMetadata : matchedSystemIndexMetadata) {
+        for (IndexMetadata idxMetadata : systemIndicesThatShouldNotBeAccessed) {
             IndexAbstraction abstraction = indicesLookup.get(idxMetadata.getIndex().getName());
             if (abstraction.getParentDataStream() != null) {
                 resolvedSystemDataStreams.add(abstraction.getParentDataStream().getName());

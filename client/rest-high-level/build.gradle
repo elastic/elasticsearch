@@ -113,4 +113,7 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
 }

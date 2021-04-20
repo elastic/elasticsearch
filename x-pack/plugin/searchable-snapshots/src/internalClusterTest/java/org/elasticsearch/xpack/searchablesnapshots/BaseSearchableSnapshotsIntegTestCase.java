@@ -244,7 +244,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 }
             }
         }
-        assertTrue("no shard folder found", shardFolderFound);
+        assertTrue("no shard folder found for index " + indexName, shardFolderFound);
     }
 
     protected void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

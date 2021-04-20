@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.gen.script.Scripts.PARAM;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 
@@ -113,7 +114,7 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
-        String template = "{}";
+        String template = PARAM;
         ParamsBuilder paramsBuilder = paramsBuilder().agg(aggregate);
 
         DataType nullSafeCastDataType = null;
@@ -145,7 +146,7 @@ public abstract class ScalarFunction extends Function {
     // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
-        String template = "{}";
+        String template = PARAM;
         return new ScriptTemplate(processScript(template),
             paramsBuilder().grouping(grouping).build(),
             dataType());

@@ -24,15 +24,15 @@ snapshot cache>>.
 If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API. You must also
 have the `manage` <<privileges-list-indices,index privileges>> for the target
-data stream or index.
+data stream, index, or index alias.
 
 [[searchable-snapshots-api-clear-cache-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
 (Optional, string)
-A comma-separated list of data streams and indices for which the
-searchable snapshots cache must be cleared.
+Comma-separated list of data streams and indices to clear from the cache.
+To clear the entire cache, omit this parameter. Supports wildcards (`*`).
 
 
 [[searchable-snapshots-api-clear-cache-example]]

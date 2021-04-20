@@ -450,7 +450,7 @@ public class IndexNameExpressionResolver {
      */
     public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, getSystemIndexAccessPredicate());
-        String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(indexAbstraction, context);
+        String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction, context);
         return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }
 
@@ -460,7 +460,7 @@ public class IndexNameExpressionResolver {
     public String resolveDateMathExpression(String dateExpression) {
         // The data math expression resolver doesn't rely on cluster state or indices options, because
         // it just resolves the date math to an actual date.
-        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, getSystemIndexAccessPredicate()));
+        return DateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, getSystemIndexAccessPredicate()));
     }
 
     /**
@@ -468,7 +468,7 @@ public class IndexNameExpressionResolver {
      * @return If the specified string is data math expression then this method returns the resolved expression.
      */
     public String resolveDateMathExpression(String dateExpression, long time) {
-        return dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, getSystemIndexAccessPredicate()));
+        return DateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, getSystemIndexAccessPredicate()));
     }
 
     /**
@@ -1140,7 +1140,7 @@ public class IndexNameExpressionResolver {
         }
 
         @SuppressWarnings("fallthrough")
-        String resolveExpression(String expression, final Context context) {
+        static String resolveExpression(String expression, final Context context) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;
             }

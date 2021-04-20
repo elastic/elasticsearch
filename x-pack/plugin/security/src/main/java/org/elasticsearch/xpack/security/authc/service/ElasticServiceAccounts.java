@@ -28,7 +28,7 @@ final class ElasticServiceAccounts {
             new RoleDescriptor.IndicesPrivileges[]{
                 RoleDescriptor.IndicesPrivileges
                     .builder()
-                    .indices("logs-*", "metrics-*", "traces-*", ".logs-endpoint.diagnostic.collection-*")
+                    .indices("logs-*", "metrics-*", "traces-*", "synthetics-*", ".logs-endpoint.diagnostic.collection-*")
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
                 RoleDescriptor.IndicesPrivileges

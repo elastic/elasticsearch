@@ -245,7 +245,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             indexScriptValues(searchLookup, readerContext, doc, parseContext);
         } catch (Exception e) {
-            if ("ignore".equals(onScriptError)) {
+            if ("continue".equals(onScriptError)) {
                 parseContext.addIgnoredField(name());
             } else {
                 throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
@@ -538,6 +538,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             public Builder add(String field) {
                 copyToBuilders.add(field);
                 return this;
+            }
+
+            public boolean hasValues() {
+                return copyToBuilders.isEmpty() == false;
             }
 
             public CopyTo build() {
@@ -979,7 +983,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 "on_script_error",
                 true,
                 initializer,
-                "reject", "ignore").requiresParameters(dependentScriptParam);
+                "fail", "continue").requiresParameters(dependentScriptParam);
         }
     }
 
@@ -1069,6 +1073,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          */
         protected String buildFullName(ContentPath contentPath) {
             return contentPath.pathAsText(name);
+        }
+
+        protected void addScriptValidation(
+            Parameter<Script> scriptParam,
+            Parameter<Boolean> indexParam,
+            Parameter<Boolean> docValuesParam
+        ) {
+            scriptParam.setValidator(s -> {
+                if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
+                if (s != null && copyTo.hasValues()) {
+                    throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
+                }
+            });
         }
 
         /**

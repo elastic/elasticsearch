@@ -382,7 +382,7 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
+        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null) ?
             sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates

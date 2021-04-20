@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -136,6 +138,11 @@ public class DiskThresholdMonitor {
 
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
+                if (isFrozenOnlyNode(routingNode)) {
+                    logger.warn("flood stage disk watermark [{}] exceeded on {}",
+                        diskThresholdSettings.describeFloodStageThreshold(), usage);
+                    continue;
+                }
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -152,6 +159,12 @@ public class DiskThresholdMonitor {
                 logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
                     diskThresholdSettings.describeFloodStageThreshold(), usage);
 
+                continue;
+            }
+
+            if (isFrozenOnlyNode(routingNode)) {
+                // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
+                // and this allows us to use more of the local storage for cache.
                 continue;
             }
 
@@ -351,5 +364,15 @@ public class DiskThresholdMonitor {
                 nodesToCleanUp.remove(node);
             }
         }
+    }
+
+    private boolean isFrozenOnlyNode(RoutingNode routingNode) {
+        if (routingNode == null) {
+            return false;
+        }
+        DiscoveryNode node = routingNode.node();
+        return node.getRoles().contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
+            node.getRoles().stream().filter(DiscoveryNodeRole::canContainData)
+                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -162,7 +163,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
+            .admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

@@ -155,6 +155,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
 
@@ -178,7 +179,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, null, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -201,7 +202,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void  testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, null, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -437,7 +438,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             for (int d = 0; d < totalDocs; d++) {
                 iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, 0), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)));
             }
-        }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
+        }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
                 equalTo(List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
@@ -447,7 +448,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 equalTo(List.of(totalDocs, 0L, 0L))
             );
             assertThat(impl, equalTo(RangeAggregator.FromFilters.class));
-            Map<?, ?> delegateDebug = (Map<?, ?>) debug.get("delegate_debug");
+            Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("r");
+            Map<?, ?> delegateDebug = (Map<?, ?>) topLevelDebug.get("delegate_debug");
             assertThat(delegateDebug, hasEntry("estimated_cost", totalDocs));
             assertThat(delegateDebug, hasEntry("max_cost", totalDocs));
         }, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));

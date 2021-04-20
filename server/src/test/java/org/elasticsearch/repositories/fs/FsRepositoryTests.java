@@ -46,6 +46,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -95,7 +96,7 @@ public class FsRepositoryTests extends ESTestCase {
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
-            final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                 repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, null,
@@ -104,7 +105,7 @@ public class FsRepositoryTests extends ESTestCase {
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             });
-            final String shardGeneration = future1.actionGet();
+            final String shardGeneration = future1.actionGet().getGeneration();
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
             DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -124,7 +125,7 @@ public class FsRepositoryTests extends ESTestCase {
             SnapshotId incSnapshotId = new SnapshotId("test1", "test1");
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
-            final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
                 repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit,

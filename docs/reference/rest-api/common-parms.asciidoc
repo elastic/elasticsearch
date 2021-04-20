@@ -1081,8 +1081,10 @@ tag::terminate_after[]
 query reaches this limit, {es} terminates the query early. {es} collects
 documents before sorting.
 +
-IMPORTANT: We do not recommend specifying this parameter. When possible, {es}
-performs early termination automatically.
+IMPORTANT: Use with caution. {es} applies this parameter to each shard handling
+the request. When possible, let {es} perform early termination automatically.
+Avoid specifying this parameter for requests that target data streams with
+backing indices across multiple data tiers.
 end::terminate_after[]
 
 tag::time[]

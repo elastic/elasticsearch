@@ -47,7 +47,7 @@ tasks.named("testJar").configure {
 }
 
 // location for keys and certificates
-File extraResourceDir = file("$buildDir/keystore")
+File extraResourceDir = file("$buildDir/extra_resource")
 File nodeKey = file("$extraResourceDir/testnode.pem")
 File nodeCert = file("$extraResourceDir/testnode.crt")
 // location for service tokens

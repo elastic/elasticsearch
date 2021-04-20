@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      features: headers
-
   - do:
       cluster.health:
         wait_for_status: yellow
@@ -37,6 +34,8 @@ teardown:
 
 ---
 "Test service account tokens":
+  - skip:
+      features: headers
   - do:
       security.create_service_token:
         namespace: elastic
@@ -58,7 +57,7 @@ teardown:
   - match: { "token.name": "api-token-1" }
 
   - do:
-      security.get_service_tokens:
+      security.get_service_credentials:
         namespace: elastic
         service: fleet-server
 
@@ -67,22 +66,21 @@ teardown:
   - match: { "tokens": { "api-token-1": {} } }
   - match: { "file_tokens": { "token1": {}} }
 
-# TODO: uncomment once cache clearing API is in place
-#  - do:
-#      security.clear_cached_service_tokens:
-#        namespace: elastic
-#        service: fleet-server
-#        name: api-token-1
-#
-#  - match: { _nodes.failed: 0 }
-#
-#  - do:
-#      security.clear_cached_service_tokens:
-#        namespace: elastic
-#        service: fleet-server
-#        name: [ "api-token-1", "does-not-exist" ]
-#
-#  - match: { _nodes.failed: 0 }
+  - do:
+      security.clear_cached_service_tokens:
+        namespace: elastic
+        service: fleet-server
+        name: api-token-1
+
+  - match: { _nodes.failed: 0 }
+
+  - do:
+      security.clear_cached_service_tokens:
+        namespace: elastic
+        service: fleet-server
+        name: [ "api-token-1", "does-not-exist" ]
+
+  - match: { _nodes.failed: 0 }
 
 
 

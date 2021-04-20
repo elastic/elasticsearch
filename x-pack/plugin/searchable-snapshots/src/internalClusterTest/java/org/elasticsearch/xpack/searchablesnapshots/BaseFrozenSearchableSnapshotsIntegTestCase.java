@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 public class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSearchableSnapshotsIntegTestCase {
@@ -27,9 +28,10 @@ public class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSearchableSn
                 FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
                 rarely()
                     ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB)
-                        : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                        ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
+                        : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
+                    : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
+                    : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString() // only use up to 0.1% disk to be friendly.
             );
         }
 

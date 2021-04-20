@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -186,7 +186,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 .cluster()
                 .prepareHealth(request.index)
                 .setLocal(true)
-                .setTimeout(request.timeout)
+                .setTimeout(request.timeout())
                 .setWaitForYellowStatus()
                 .setWaitForNoInitializingShards(true)
                 .execute(new ActionListener<>() {
@@ -215,7 +215,17 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 TimeValue.timeValueNanos(remainingNanos)
                             ).run();
                         } else {
-                            responseListener.onFailure(new ElasticsearchException("Primary shards were not active within timeout period."));
+                            int active = routingTable.primaryShardsActive();
+                            int total = indexMetadata.getNumberOfShards();
+                            responseListener.onFailure(
+                                new UnavailableShardsException(
+                                    null,
+                                    "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
+                                    request.timeout(),
+                                    total,
+                                    active
+                                )
+                            );
                         }
                     }
 

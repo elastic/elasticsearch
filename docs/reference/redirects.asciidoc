@@ -1524,3 +1524,36 @@ See <<processors>>.
 === Enrich policy definition
 
 See <<put-enrich-policy-api>>.
+<<<<<<< HEAD
+=======
+
+[role="exclude",id="rollup-api"]
+=== Rollup API
+
+See <<rollup-apis>>.
+
+[role="exclude",id="getting-started-install"]
+=== Get {es} up and running
+
+See <<run-elasticsearch>>.
+
+[role="exclude",id="getting-started-index"]
+=== Index some documents
+
+See <<add-data>>.
+
+[role="exclude",id="getting-started-search"]
+=== Start searching
+
+See <<qs-search-data>>.
+
+[role="exclude",id="getting-started-aggregations"]
+=== Analyze results with aggregations
+
+See <<getting-started>>.
+
+[role="exclude",id="getting-started-next-steps"]
+=== Where to go from here
+
+See <<getting-started>>.
+>>>>>>> b2130249b03... [DOCS] Refactor quick start guide and README (#71331)

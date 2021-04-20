@@ -58,16 +58,17 @@ DELETE /docs
 
 POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 {
-  "index": "docs"
+  "index": "docs",
+  "renamed_index": "my-index"
 }
 -----------------------------------
 // TEST[setup:setup-repository]
 ////
 
-Clears the cache of the index `docs`:
+Clears the cache of the index `my-index`:
 
 [source,console]
 --------------------------------------------------
-POST /docs/_searchable_snapshots/cache/clear
+POST /my-index/_searchable_snapshots/cache/clear
 --------------------------------------------------
 // TEST[continued]

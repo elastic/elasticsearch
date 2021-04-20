@@ -17,11 +17,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest,
@@ -52,6 +56,12 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     @Override
     protected NodeStats newNodeResponse(StreamInput in) throws IOException {
         return new NodeStats(in);
+    }
+
+    @Override
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
+        assert task instanceof CancellableTask;
+        return nodeOperation(nodeStatsRequest);
     }
 
     @Override
@@ -87,6 +97,11 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
 
         NodeStatsRequest(NodesStatsRequest request) {
             this.request = request;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
 
         @Override

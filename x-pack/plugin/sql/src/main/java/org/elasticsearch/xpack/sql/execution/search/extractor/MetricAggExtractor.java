@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.matrix.stats.MatrixAggregationInspectionHelper.hasValue;
 import static org.elasticsearch.search.aggregations.support.AggregationInspectionHelper.hasValue;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.convert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
@@ -65,13 +67,16 @@ public class MetricAggExtractor implements BucketExtractor {
         name = in.readString();
         property = in.readString();
         innerKey = in.readOptionalString();
-        String typeName = in.readOptionalString();
-        if (typeName != null) {
-            dataType = SqlDataTypes.fromTypeName(typeName);
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            String typeName = in.readOptionalString();
+            if (typeName != null) {
+                dataType = SqlDataTypes.fromTypeName(typeName);
+            } else {
+                dataType = null;
+            }
         } else {
-            dataType = null;
+            dataType = in.readBoolean() ? DATETIME : null;
         }
-
         zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
@@ -80,7 +85,11 @@ public class MetricAggExtractor implements BucketExtractor {
         out.writeString(name);
         out.writeString(property);
         out.writeOptionalString(innerKey);
-        out.writeOptionalString(dataType == null ? null : dataType.name());
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeOptionalString(dataType == null ? null : dataType.name());
+        } else {
+            out.writeBoolean(isDateBased(dataType));
+        }
     }
 
     String name() {

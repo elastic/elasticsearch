@@ -21,8 +21,8 @@ include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 [discrete]
-[[make-api-call]]
-=== Step 2. Make an API call
+[[send-requests-to-elasticsearch]]
+=== Step 2. Send requests to {es}
 
 You send data and other requests to {es} using REST APIs. This lets you interact
 with {es} using any client that sends HTTP requests, such as
@@ -423,7 +423,7 @@ Use aggregations to summarize data as metrics, statistics, or other analytics.
 
 The following search uses an aggregation to calculate the
 `average_response_size` using the `http.response.body.bytes` runtime field. The
-aggregation only runs on documents matching the `query`.
+aggregation only runs on documents that match the `query`.
 
 [source,console]
 ----

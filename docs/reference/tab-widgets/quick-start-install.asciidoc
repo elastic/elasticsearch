@@ -26,8 +26,8 @@ endif::[]
 
 **Install and run {kib} using Docker**
 
-While not required, we recommend installing {kib}. {kib} lets you analyze,
-visualize, and manage {es} data using an intuitive UI.
+To analyze, visualize, and manage {es} data using an intuitive UI, install
+{kib}.
 
 ifeval::["{release-state}"=="unreleased"]
 NOTE: No Docker image is currently available for {kib} {version}.

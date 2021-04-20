@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -130,7 +129,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         @Override
         public String[] indices() {
-            return new String[]{index};
+            return new String[] { index };
         }
 
         @Override
@@ -175,7 +174,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             final IndexRoutingTable routingTable = state.routingTable().index(index);
 
             if (routingTable.allPrimaryShardsActive()) {
-                afterIndexReady(request, listener, indexMetadata, request.timeout());
+                new CheckpointFetcher(client, request, listener, indexMetadata, request.timeout()).run();
             } else {
                 handleIndexNotReady(request, listener);
             }
@@ -208,7 +207,13 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
                         long remainingNanos = request.timeout().nanos() - elapsedNanos;
                         if (routingTable.allPrimaryShardsActive() && remainingNanos > 0) {
-                            afterIndexReady(request, responseListener, indexMetadata, TimeValue.timeValueNanos(remainingNanos));
+                            new CheckpointFetcher(
+                                client,
+                                request,
+                                responseListener,
+                                indexMetadata,
+                                TimeValue.timeValueNanos(remainingNanos)
+                            ).run();
                         } else {
                             responseListener.onFailure(new ElasticsearchException("Primary shards were not active within timeout period."));
                         }
@@ -221,92 +226,103 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                 });
         }
 
-        private void afterIndexReady(Request request, ActionListener<Response> listener, IndexMetadata indexMetadata, TimeValue timeout) {
-            final int numberOfShards = indexMetadata.getNumberOfShards();
-            if (request.waitForAdvance() && numberOfShards != 1) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "wait_for_advance only supports indices with one shard. " + "[shard count: " + numberOfShards + "]",
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-                return;
+        private static class CheckpointFetcher extends ActionRunnable<Response> {
+
+            private final NodeClient client;
+            private final Request request;
+            private final IndexMetadata indexMetadata;
+            private final TimeValue timeout;
+
+            private CheckpointFetcher(
+                NodeClient client,
+                Request request,
+                ActionListener<Response> listener,
+                IndexMetadata indexMetadata,
+                TimeValue timeout
+            ) {
+                super(listener);
+                this.client = client;
+                this.request = request;
+                this.indexMetadata = indexMetadata;
+                this.timeout = timeout;
             }
 
-            final long[] checkpoints;
-            final int currentCheckpointCount = request.checkpoints().length;
-            if (currentCheckpointCount != 0) {
-                if (currentCheckpointCount != numberOfShards) {
+            @Override
+            protected void doRun() {
+                final int numberOfShards = indexMetadata.getNumberOfShards();
+                if (request.waitForAdvance() && numberOfShards != 1) {
                     listener.onFailure(
                         new ElasticsearchStatusException(
-                            "number of checkpoints must equal number of shards. "
-                                + "[shard count: "
-                                + numberOfShards
-                                + ", checkpoint count: "
-                                + currentCheckpointCount
-                                + "]",
+                            "wait_for_advance only supports indices with one shard. " + "[shard count: " + numberOfShards + "]",
                             RestStatus.BAD_REQUEST
                         )
                     );
                     return;
                 }
-                checkpoints = request.checkpoints();
-            } else {
-                checkpoints = new long[numberOfShards];
-                for (int i = 0; i < numberOfShards; ++i) {
-                    checkpoints[i] = SequenceNumbers.NO_OPS_PERFORMED;
+
+                final long[] checkpoints;
+                final int currentCheckpointCount = request.checkpoints().length;
+                if (currentCheckpointCount != 0) {
+                    if (currentCheckpointCount != numberOfShards) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "number of checkpoints must equal number of shards. "
+                                    + "[shard count: "
+                                    + numberOfShards
+                                    + ", checkpoint count: "
+                                    + currentCheckpointCount
+                                    + "]",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                        return;
+                    }
+                    checkpoints = request.checkpoints();
+                } else {
+                    checkpoints = new long[numberOfShards];
+                    for (int i = 0; i < numberOfShards; ++i) {
+                        checkpoints[i] = SequenceNumbers.NO_OPS_PERFORMED;
+                    }
                 }
-            }
 
-            final AtomicArray<GetGlobalCheckpointsShardAction.Response> responses = new AtomicArray<>(numberOfShards);
-            final AtomicBoolean timedOut = new AtomicBoolean(false);
-            final CountDown countDown = new CountDown(numberOfShards);
-            for (int i = 0; i < numberOfShards; ++i) {
-                final int shardIndex = i;
-                GetGlobalCheckpointsShardAction.Request shardChangesRequest = new GetGlobalCheckpointsShardAction.Request(
-                    new ShardId(indexMetadata.getIndex(), shardIndex),
-                    request.waitForAdvance(),
-                    checkpoints[shardIndex],
-                    timeout
-                );
+                final AtomicArray<GetGlobalCheckpointsShardAction.Response> responses = new AtomicArray<>(numberOfShards);
+                final AtomicBoolean timedOut = new AtomicBoolean(false);
+                final CountDown countDown = new CountDown(numberOfShards);
+                for (int i = 0; i < numberOfShards; ++i) {
+                    final int shardIndex = i;
+                    GetGlobalCheckpointsShardAction.Request shardChangesRequest = new GetGlobalCheckpointsShardAction.Request(
+                        new ShardId(indexMetadata.getIndex(), shardIndex),
+                        request.waitForAdvance(),
+                        checkpoints[shardIndex],
+                        timeout
+                    );
 
-                client.execute(GetGlobalCheckpointsShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(GetGlobalCheckpointsShardAction.Response response) {
-                        assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
-                        if (response.timedOut()) {
-                            timedOut.set(true);
-                        }
-                        responses.set(shardIndex, response);
-                        if (countDown.countDown()) {
-                            long[] globalCheckpoints = new long[responses.length()];
-                            int i = 0;
-                            for (GetGlobalCheckpointsShardAction.Response r : responses.asList()) {
-                                globalCheckpoints[i++] = r.getGlobalCheckpoint();
+                    client.execute(GetGlobalCheckpointsShardAction.INSTANCE, shardChangesRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(GetGlobalCheckpointsShardAction.Response response) {
+                            assert responses.get(shardIndex) == null : "Already have a response for shard [" + shardIndex + "]";
+                            if (response.timedOut()) {
+                                timedOut.set(true);
                             }
-                            listener.onResponse(new Response(timedOut.get(), globalCheckpoints));
+                            responses.set(shardIndex, response);
+                            if (countDown.countDown()) {
+                                long[] globalCheckpoints = new long[responses.length()];
+                                int i = 0;
+                                for (GetGlobalCheckpointsShardAction.Response r : responses.asList()) {
+                                    globalCheckpoints[i++] = r.getGlobalCheckpoint();
+                                }
+                                listener.onResponse(new Response(timedOut.get(), globalCheckpoints));
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (countDown.fastForward()) {
-                            listener.onFailure(e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (countDown.fastForward()) {
+                                listener.onFailure(e);
+                            }
                         }
-                    }
-                });
-            }
-        }
-
-        private static class CheckpointFetcher extends ActionRunnable<Response> {
-
-            public CheckpointFetcher(ActionListener<Response> listener) {
-                super(listener);
-            }
-
-            @Override
-            protected void doRun() throws Exception {
-
+                    });
+                }
             }
         }
     }

@@ -90,8 +90,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
             DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
             DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
-            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }
 

@@ -438,7 +438,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             for (int d = 0; d < totalDocs; d++) {
                 iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, 0), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)));
             }
-        }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Object> debug) -> {
+        }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
                 equalTo(List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
@@ -448,7 +448,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 equalTo(List.of(totalDocs, 0L, 0L))
             );
             assertThat(impl, equalTo(RangeAggregator.FromFilters.class));
-            Map<?, ?> delegateDebug = (Map<?, ?>) debug.get("delegate_debug");
+            Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("r");
+            Map<?, ?> delegateDebug = (Map<?, ?>) topLevelDebug.get("delegate_debug");
             assertThat(delegateDebug, hasEntry("estimated_cost", totalDocs));
             assertThat(delegateDebug, hasEntry("max_cost", totalDocs));
         }, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));

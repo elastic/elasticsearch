@@ -370,7 +370,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 b.field("ignore_z_value", "true");
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [ignore_z_value] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [ignore_z_value] cannot be set in conjunction with field [script]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -379,7 +379,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 b.field("null_value", "POINT (1 1)");
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [null_value] cannot be set in conjunction with field [script]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -388,7 +388,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 b.field("ignore_malformed", "true");
             })));
             assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+                equalTo("Failed to parse mapping [_doc]: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
         }
     }
 }

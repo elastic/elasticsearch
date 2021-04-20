@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
@@ -247,12 +248,16 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             false,
             false,
             EMPTY_ARRAY,
-            TimeValue.timeValueMillis(between(1, 100))
+            TEN_SECONDS
         );
+
+        long start = System.nanoTime();
         ElasticsearchException exception = expectThrows(
             IndexNotFoundException.class,
             () -> client().execute(GetGlobalCheckpointsAction.INSTANCE, request).actionGet()
         );
+        long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
+        assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
     }
 
     public void testWaitOnIndexTimeout() {
@@ -295,7 +300,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
-        assertThat(elapsed, lessThan(30L));
+        assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
         assertThat(response.globalCheckpoints()[0], equalTo(0L));
         assertFalse(response.timedOut());
     }
@@ -391,7 +396,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
-        assertThat(elapsed, lessThan(30L));
+        assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
         assertThat(response.globalCheckpoints()[0], equalTo(0L));
         assertFalse(response.timedOut());
     }

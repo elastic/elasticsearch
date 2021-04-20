@@ -53,11 +53,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         setHeap(null); // remove test heap options, so the config directory can be removed
         enableGeoIpDownloader(installation);
         remove(distribution());
-
-        try (Stream<Path> files = Files.list(installation.config)) {
-            assertThat(files.collect(Collectors.toSet()), Matchers.contains(installation.config("elasticsearch.yml.rpmsave")));
-        }
-
+        
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());
 

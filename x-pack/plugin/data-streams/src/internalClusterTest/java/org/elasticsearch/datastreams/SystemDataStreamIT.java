@@ -8,6 +8,7 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
@@ -358,17 +359,27 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             options.add(Option.IGNORE_UNAVAILABLE);
             options.add(Option.ALLOW_NO_INDICES);
             request.indicesOptions(new IndicesOptions(options, request.indicesOptions().getExpandWildcards()));
-            client.execute(
-                DeleteDataStreamAction.INSTANCE,
-                request,
-                ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
-                    if (e instanceof ResourceNotFoundException) {
-                        SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                })
-            );
+            try {
+                client.execute(
+                    DeleteDataStreamAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
+                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                        if (unwrapped instanceof ResourceNotFoundException) {
+                            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
+                );
+            } catch (Exception e) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                if (unwrapped instanceof ResourceNotFoundException) {
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         }
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -14,6 +15,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -54,6 +57,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -277,22 +281,38 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
         Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
         if (dataStreamDescriptors.isEmpty() == false) {
-            client.execute(
-                DeleteDataStreamAction.INSTANCE,
-                new Request(
+            try {
+                Request request = new Request(
                     dataStreamDescriptors.stream()
                         .map(SystemDataStreamDescriptor::getDataStreamName)
                         .collect(Collectors.toList())
                         .toArray(Strings.EMPTY_ARRAY)
-                ),
-                ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
-                    if (e instanceof ResourceNotFoundException) {
-                        SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                })
-            );
+                );
+                EnumSet<Option> options = request.indicesOptions().getOptions();
+                options.add(Option.IGNORE_UNAVAILABLE);
+                options.add(Option.ALLOW_NO_INDICES);
+                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().getExpandWildcards()));
+
+                client.execute(
+                    DeleteDataStreamAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
+                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                        if (unwrapped instanceof ResourceNotFoundException) {
+                            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
+                );
+            } catch (Exception e) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                if (unwrapped instanceof ResourceNotFoundException) {
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         } else {
             SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
         }

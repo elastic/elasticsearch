@@ -12,6 +12,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -21,7 +22,7 @@ public class CachesStatsResponse {
     private final List<NodeCachesStats> nodeCachesStats;
 
     private CachesStatsResponse(List<NodeCachesStats> nodeCachesStats) {
-        this.nodeCachesStats = nodeCachesStats != null ? nodeCachesStats : List.of();
+        this.nodeCachesStats = nodeCachesStats != null ? nodeCachesStats : Collections.emptyList();
     }
 
     public List<NodeCachesStats> getNodeCachesStats() {

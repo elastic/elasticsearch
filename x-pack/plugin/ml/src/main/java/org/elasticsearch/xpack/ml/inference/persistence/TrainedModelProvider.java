@@ -1091,7 +1091,7 @@ public class TrainedModelProvider {
                                                         String modelId) throws ElasticsearchException {
 
         BytesReference[] bb = new BytesReference[docs.size()];
-        for (int i=0; i<docs.size(); i++) {
+        for (int i = 0; i < docs.size(); i++) {
             bb[i] = docs.get(i).getBinaryData();
         }
         BytesReference bytes = CompositeBytesReference.of(bb);
@@ -1104,7 +1104,7 @@ public class TrainedModelProvider {
 
         TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
         // Either we are missing the last doc, or some previous doc
-        if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+        if (lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
             throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
         }
         return bytes;

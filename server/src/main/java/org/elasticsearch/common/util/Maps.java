@@ -11,8 +11,10 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.Assertions;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -125,4 +127,23 @@ public class Maps {
                 .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
+    public static Map<String, Object> flatten(Map<String, Object> map, boolean ordered) {
+        return flatten(map, ordered, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> flatten(Map<String, Object> map, boolean ordered, String parentPath) {
+        Map<String, Object> flatMap = ordered ? new TreeMap() : new HashMap<>();
+        String prefix = parentPath != null ? parentPath + "." : "";
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                flatMap.putAll(flatten((Map<String, Object>) entry.getValue(), ordered, prefix + entry.getKey()));
+            } else {
+                flatMap.put(prefix + entry.getKey(), entry.getValue());
+            }
+        }
+
+        return flatMap;
+    }
 }

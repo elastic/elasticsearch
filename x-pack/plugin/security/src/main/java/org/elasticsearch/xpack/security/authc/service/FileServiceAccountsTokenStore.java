@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FileLineParser;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
@@ -47,7 +48,8 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
     private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
-    public FileServiceAccountsTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool) {
+    public FileServiceAccountsTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
+                                         CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         super(env.settings(), threadPool);
         file = resolveFile(env);
         FileWatcher watcher = new FileWatcher(file.getParent());
@@ -63,6 +65,7 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
             throw new IllegalStateException("Failed to load service_tokens file [" + file + "]", e);
         }
         refreshListeners = new CopyOnWriteArrayList<>(List.of(this::invalidateAll));
+        cacheInvalidatorRegistry.registerCacheInvalidator("file_service_account_token", this);
     }
 
     @Override
@@ -87,6 +90,11 @@ public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenSt
 
     public void addListener(Runnable listener) {
         refreshListeners.add(listener);
+    }
+
+    @Override
+    public boolean shouldClearOnSecurityIndexStateChange() {
+        return false;
     }
 
     private void notifyRefresh() {

@@ -91,6 +91,8 @@ public class Packages {
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, singletonList("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
+
+        ServerUtils.disableGeoIpDownloader(installation);
         return installation;
     }
 

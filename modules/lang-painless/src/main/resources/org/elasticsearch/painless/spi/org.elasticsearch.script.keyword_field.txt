@@ -6,7 +6,7 @@
 # Side Public License, v 1.
 #
 
-# The whitelist for string-valued runtime fields
+# The whitelist for keyword runtime fields
 
 # These two whitelists are required for painless to find the classes
 class org.elasticsearch.script.StringFieldScript @no_import {

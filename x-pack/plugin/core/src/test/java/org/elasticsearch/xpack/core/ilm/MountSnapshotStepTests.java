@@ -283,6 +283,9 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 assertThat(mountSearchableSnapshotRequest.ignoreIndexSettings()[0], is(LifecycleSettings.LIFECYCLE_NAME));
                 assertThat(mountSearchableSnapshotRequest.mountedIndexName(), is(restoredIndexPrefix + indexName));
                 assertThat(mountSearchableSnapshotRequest.snapshotIndexName(), is(expectedSnapshotIndexName));
+
+                // invoke the awaiting listener with a very generic 'response', just to fulfill the contract
+                listener.onResponse((Response) new RestoreSnapshotResponse((RestoreInfo) null));
             }
         };
     }

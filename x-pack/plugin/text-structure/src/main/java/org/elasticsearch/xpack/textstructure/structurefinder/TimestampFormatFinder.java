@@ -1064,8 +1064,10 @@ public final class TimestampFormatFinder {
         }
     }
 
-    @SuppressForbidden(reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
-        + "but here we are explicitly setting the locale on the formatter in a subsequent call")
+    @SuppressForbidden(
+        reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
+            + "but here we are explicitly setting the locale on the formatter in a subsequent call"
+    )
     private static DateTimeFormatter makeShortLocalizedDateTimeFormatterForLocale(Locale locale) {
         return DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale).withZone(ZoneOffset.UTC);
     }
@@ -1837,11 +1839,8 @@ public final class TimestampFormatFinder {
                 format = adjustFractionalSecondsFromEndOfExample(example, format);
             }
 
-            assert Character.isLetter(format.charAt(format.length() - 1)) : "Unexpected format ["
-                + format
-                + "] from example ["
-                + example
-                + "]";
+            assert Character.isLetter(format.charAt(format.length() - 1))
+                : "Unexpected format [" + format + "] from example [" + example + "]";
             assert format.length() == example.length() : "Unexpected format [" + format + "] from example [" + example + "]";
 
             return Collections.singletonList(format);

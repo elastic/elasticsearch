@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
+import java.util.function.IntConsumer;
 
 public class SharedBytes extends AbstractRefCounted {
 
@@ -47,10 +48,13 @@ public class SharedBytes extends AbstractRefCounted {
     // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
     // operations in #IO are not contention-free there (https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6265734)
     private final FileChannel fileChannel;
-
     private final Path path;
 
-    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment) throws IOException {
+    private final IntConsumer writeBytes;
+    private final IntConsumer readBytes;
+
+    SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
+        throws IOException {
         super("shared-bytes");
         this.numRegions = numRegions;
         this.regionSize = regionSize;
@@ -90,6 +94,8 @@ public class SharedBytes extends AbstractRefCounted {
             }
         }
         this.path = cacheFile;
+        this.writeBytes = writeBytes;
+        this.readBytes = readBytes;
     }
 
     /**
@@ -169,7 +175,9 @@ public class SharedBytes extends AbstractRefCounted {
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, long position) throws IOException {
             checkOffsets(position, dst.remaining());
-            return fileChannel.read(dst, position);
+            final int bytesRead = fileChannel.read(dst, position);
+            readBytes.accept(bytesRead);
+            return bytesRead;
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
@@ -178,7 +186,9 @@ public class SharedBytes extends AbstractRefCounted {
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
-            return fileChannel.write(src, position);
+            final int bytesWritten = fileChannel.write(src, position);
+            writeBytes.accept(bytesWritten);
+            return bytesWritten;
         }
 
         private void checkOffsets(long position, long length) {

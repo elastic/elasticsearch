@@ -77,10 +77,9 @@ public class TestFeatureResetIT extends TransformIntegTestCase {
         Map<String, Object> metadata = (Map<String, Object>)ESRestTestCase.entityAsMap(response).get("metadata");
         assertThat(metadata, is(not(nullValue())));
 
+        // after a successful reset we completely remove the transform metadata
         Map<String, Object> transformMetadata = (Map<String, Object>)metadata.get("transform");
-        assertThat(transformMetadata, is(not(nullValue())));
-        assertThat(transformMetadata.get("reset_mode"), is(false));
-
+        assertThat(transformMetadata, is(nullValue()));
 
         // assert transforms are gone
         assertThat(getTransform("_all").getCount(), equalTo(0L));

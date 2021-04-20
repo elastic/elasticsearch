@@ -116,7 +116,8 @@ public class FilterRepository implements Repository {
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
+                              ActionListener<ShardSnapshotResult> listener) {
         in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier, snapshotStatus,
             repositoryMetaVersion, userMetadata, listener);
     }
@@ -144,7 +145,7 @@ public class FilterRepository implements Repository {
 
     @Override
     public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                   ActionListener<String> listener) {
+                                   ActionListener<ShardSnapshotResult> listener) {
         in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
     }
 

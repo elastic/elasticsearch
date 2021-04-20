@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -496,7 +497,7 @@ public class TasksIT extends ESIntegTestCase {
                 .setActions(TestTaskPlugin.TestTaskAction.NAME).get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
-        future.get();
+        expectThrows(TaskCancelledException.class, future::actionGet);
 
         logger.info("--> checking that test tasks are not running");
         assertEquals(0,

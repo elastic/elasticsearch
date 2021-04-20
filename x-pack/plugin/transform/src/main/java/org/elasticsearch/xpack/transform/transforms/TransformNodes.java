@@ -5,15 +5,26 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.transform.action;
+package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -24,7 +35,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -151,5 +165,132 @@ public final class TransformNodes {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }
+    }
+
+    /**
+     * Check if cluster has at least 1 transform nodes and throw an exception if not.
+     * To be used by transport actions only.
+     *
+     * @param clusterState state
+     */
+    public static void throwIfNoTransformNodes(ClusterState clusterState) {
+        long transformNodes = getNumberOfTransformNodes(clusterState);
+        if (transformNodes == 0) {
+            throw ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
+        }
+    }
+
+    public static <Request extends TransportRequest, Response extends TransportResponse> boolean redirectToAnotherNodeIfNeeded(
+        ClusterState clusterState,
+        Settings nodeSettings,
+        boolean requiresRemote,
+        TransportService transportService,
+        String actionName,
+        Request request,
+        Writeable.Reader<Response> reader,
+        ActionListener<Response> listener
+    ) {
+        final boolean isTransformNode = DiscoveryNode.hasRole(nodeSettings, Transform.TRANSFORM_ROLE);
+        final boolean isRemoteClusterClientNode = DiscoveryNode.isRemoteClusterClient(nodeSettings);
+        final DiscoveryNodes nodes = clusterState.nodes();
+
+        if ((isTransformNode == false) || (requiresRemote && (isRemoteClusterClientNode == false))) {
+            Optional<DiscoveryNode> appropriateNode = selectAnyNodeThatCanRunThisTransform(nodes, requiresRemote);
+            if (appropriateNode.isPresent()) {
+                // Redirect the request to an appropriate node
+                transportService.sendRequest(
+                    appropriateNode.get(),
+                    actionName,
+                    request,
+                    new ActionListenerResponseHandler<>(listener, reader));
+            } else {
+                Map<String, String> explain = new TreeMap<>();
+                for (DiscoveryNode node : nodes) {
+                    nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, explain);
+                }
+                // There are no appropriate nodes in the cluster, fail
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "No appropriate node to run on, reasons [{}]",
+                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Select any node among provided nodes that satisfies all of the following:
+     *  - is a transform node
+     *  - is a remote_cluster_client node (in case this transform uses CCS, i.e. requires access to remote indices)
+     *  - runs at least version 7.13
+     *    This is needed as version 7.13 contains changes in wire format of {@code TransformDestIndexSettings} which are needed to correctly
+     *    read the redirected response.
+     *
+     * @param nodes nodes to select from
+     * @param requiresRemote whether this transform requires access to remote indices
+     * @return selected node or {@code Optional.empty()} if none of the nodes satisfy the conditions
+     */
+    static Optional<DiscoveryNode> selectAnyNodeThatCanRunThisTransform(DiscoveryNodes nodes, boolean requiresRemote) {
+        return StreamSupport.stream(nodes.spliterator(), false)
+            .filter(node -> nodeCanRunThisTransform(node, Version.V_7_13_0, requiresRemote, null))
+            .findAny();
+    }
+
+    public static boolean nodeCanRunThisTransform(DiscoveryNode node,
+                                                  Version minRequiredVersion,
+                                                  boolean requiresRemote,
+                                                  Map<String, String> explain) {
+        // version of the transform run on a node that has at least the same version
+        if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
+            if (explain != null) {
+                explain.put(
+                    node.getId(), "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion);
+            }
+            return false;
+        }
+
+        // transform enabled?
+        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "not a transform node");
+            }
+            return false;
+        }
+
+        // does the transform require a remote and remote is enabled?
+        if (requiresRemote && node.isRemoteClusterClient() == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
+            }
+            return false;
+        }
+
+        // we found no reason that the transform can not run on this node
+        return true;
+    }
+
+    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node,
+                                                       Version minRequiredVersion,
+                                                       Map<String, String> explain) {
+        if (node.canContainData() == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "not a data node");
+            }
+            return false;
+        }
+
+        // version of the transform run on a node that has at least the same version
+        if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
+            if (explain != null) {
+                explain.put(
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion
+                );
+            }
+            return false;
+        }
+
+        return true;
     }
 }

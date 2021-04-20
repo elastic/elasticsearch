@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.script.ScriptCompiler;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,7 +19,8 @@ import java.util.Map;
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        MappedFieldType mapper
+            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(new ContentPath()).fieldType();
 
         Map<String, Object> jsonPoint = new HashMap<>();
         jsonPoint.put("type", "Point");

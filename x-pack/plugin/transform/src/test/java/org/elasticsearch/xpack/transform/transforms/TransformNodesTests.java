@@ -5,12 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.transform.action;
+package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -21,6 +24,15 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE;
+import static org.elasticsearch.xpack.transform.Transform.TRANSFORM_ROLE;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TransformNodesTests extends ESTestCase {
 
@@ -200,5 +212,39 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
         assertEquals(0, transformNodeAssignments.getAssigned().size());
         assertEquals(0, transformNodeAssignments.getStopped().size());
+    }
+
+    public void testSelectAnyNodeThatCanRunThisTransform() {
+        DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true), isEmpty());
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false), isEmpty());
+
+        nodes =
+            DiscoveryNodes.builder()
+                .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+                .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
+                .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
+                .build();
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true), isEmpty());
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(equalTo("node-2")));
+
+        nodes =
+            DiscoveryNodes.builder()
+                .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+                .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
+                .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
+                .add(newDiscoveryNode("node-4", Version.V_7_13_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
+                .build();
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true).get().getId(), is(equalTo("node-4")));
+        assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(oneOf("node-2", "node-4")));
+    }
+
+    private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {
+        return new DiscoveryNode(
+            id,
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            new HashSet<>(Arrays.asList(roles)),
+            version);
     }
 }

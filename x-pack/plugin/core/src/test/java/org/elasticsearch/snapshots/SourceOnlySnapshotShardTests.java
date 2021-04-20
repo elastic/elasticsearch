@@ -67,6 +67,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -108,7 +109,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
-            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
                 snapshotRef.getIndexCommit(), null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future));
@@ -135,11 +136,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             SnapshotId snapshotId = new SnapshotId("test", "test");
-            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
                 snapshotRef.getIndexCommit(), null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future));
-            shardGeneration = future.actionGet();
+            shardGeneration = future.actionGet().getGeneration();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             totalFileCount = copy.getTotalFileCount();
@@ -152,11 +153,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_1", "test_1");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
                 snapshotRef.getIndexCommit(), null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future));
-            shardGeneration = future.actionGet();
+            shardGeneration = future.actionGet().getGeneration();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1.si, _1.fnm, _1.fdx, _1.fdt, _1.fdm
             assertEquals(6, copy.getIncrementalFileCount());
@@ -169,7 +170,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test_2", "test_2");
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId,
                 snapshotRef.getIndexCommit(), null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future));
@@ -217,7 +218,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-            final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> {
                 repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef.getIndexCommit(),
                     null, indexShardSnapshotStatus, Version.CURRENT, Collections.emptyMap(), future);
@@ -229,11 +230,20 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     shardGenerations,
                     ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
-                    new SnapshotInfo(snapshotId,
+                    new SnapshotInfo(
+                        snapshotId,
                         shardGenerations.indices().stream()
-                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), Collections.emptyList(), null, 1L,
-                        shardGenerations.totalShards(), Collections.emptyList(), true, Collections.emptyMap(), 0L
-                    ),
+                                .map(IndexId::getName).collect(Collectors.toList()),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        null,
+                        1L,
+                        shardGenerations.totalShards(),
+                        Collections.emptyList(),
+                        true,
+                        Collections.emptyMap(),
+                        0L,
+                        Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });

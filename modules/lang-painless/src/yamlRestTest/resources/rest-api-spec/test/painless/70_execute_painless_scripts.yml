@@ -266,6 +266,10 @@ setup:
 
 ---
 "Execute with string field context (single-value)":
+  - skip:
+      version:     " - 8.99.99"
+      reason:      Script while the script context gets renamed
+
   - do:
       scripts_painless_execute:
         body:
@@ -280,6 +284,10 @@ setup:
 
 ---
 "Execute with string field context (multi-value)":
+  - skip:
+      version:     " - 8.99.99"
+      reason:      Script while the script context gets renamed
+
   - do:
       scripts_painless_execute:
         body:

@@ -6,5 +6,7 @@
 You can use the following APIs to perform searchable snapshots operations.
 
 * <<searchable-snapshots-api-mount-snapshot,Mount snapshot>>
+* <<searchable-snapshots-api-cache-stats,Cache statistics>>
 
 include::mount-snapshot.asciidoc[]
+include::node-cache-stats.asciidoc[]

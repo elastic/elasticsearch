@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

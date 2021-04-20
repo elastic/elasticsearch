@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.transform.action;
+package org.elasticsearch.xpack.transform.transforms;
 
 import java.util.Collections;
 import java.util.Set;

@@ -66,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -720,6 +721,28 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
+    public void testDynamicTemplates() throws Exception {
+        IngestService ingestService = createWithProcessors(Collections.singletonMap(
+            "set", (factories, tag, description, config) ->
+                new FakeProcessor("set", "", "", (ingestDocument) -> ingestDocument.setFieldValue("_dynamic_templates",
+                    Map.of("foo", "bar", "foo.bar", "baz")))));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"set\" : {}}]}"), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        final IndexRequest indexRequest =
+            new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        CountDownLatch latch = new CountDownLatch(1);
+        final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail", e);};
+        final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), failureHandler, completionHandler,
+            indexReq -> {}, Names.WRITE);
+        latch.await();
+        assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
+    }
+
     public void testExecuteEmptyPipeline() throws Exception {
         IngestService ingestService = createWithProcessors(emptyMap());
         PutPipelineRequest putRequest =
@@ -765,6 +788,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
                 } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
+                } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }

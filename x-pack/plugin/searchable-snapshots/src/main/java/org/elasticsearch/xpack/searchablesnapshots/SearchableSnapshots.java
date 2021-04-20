@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.DedicatedFrozenNodeAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsNodeCachesStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -343,6 +345,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             PersistentCache.cleanUp(settings, nodeEnvironment);
         }
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
+        components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
         return Collections.unmodifiableList(components);
     }
@@ -479,7 +482,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class),
             new ActionHandler<>(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class),
             new ActionHandler<>(FrozenCacheInfoAction.INSTANCE, FrozenCacheInfoAction.TransportAction.class),
-            new ActionHandler<>(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class)
+            new ActionHandler<>(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class),
+            new ActionHandler<>(
+                TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
+                TransportSearchableSnapshotsNodeCachesStatsAction.class
+            )
         );
     }
 
@@ -495,7 +502,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return List.of(
             new RestSearchableSnapshotsStatsAction(),
             new RestClearSearchableSnapshotsCacheAction(),
-            new RestMountSearchableSnapshotAction()
+            new RestMountSearchableSnapshotAction(),
+            new RestSearchableSnapshotsNodeCachesStatsAction()
         );
     }
 
@@ -656,6 +664,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Releasables.close(frozenCacheService.get());
     }
 
+    /**
+     * Allows to inject the {@link CacheService} instance to transport actions
+     */
     public static final class CacheServiceSupplier implements Supplier<CacheService> {
 
         @Nullable
@@ -668,6 +679,24 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         @Override
         public CacheService get() {
             return cacheService;
+        }
+    }
+
+    /**
+     * Allows to inject the {@link FrozenCacheService} instance to transport actions
+     */
+    public static final class FrozenCacheServiceSupplier implements Supplier<FrozenCacheService> {
+
+        @Nullable
+        private final FrozenCacheService frozenCacheService;
+
+        FrozenCacheServiceSupplier(@Nullable FrozenCacheService frozenCacheService) {
+            this.frozenCacheService = frozenCacheService;
+        }
+
+        @Override
+        public FrozenCacheService get() {
+            return frozenCacheService;
         }
     }
 }

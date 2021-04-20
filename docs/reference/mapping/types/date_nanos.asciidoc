@@ -27,7 +27,7 @@ the default:
 For instance:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001?include_type_name=true
 {
   "mappings": {
@@ -77,7 +77,7 @@ GET my-index-000001/_search
 <5> Note that the `sort` values that are returned are all in
 nanoseconds-since-the-epoch.
 <6> Use `.nano` in scripts to return the nanosecond component of the date.
-<7> You can specify the format when fetching data using the <<search-fields-param,`fields` parameter>>.  
+<7> You can specify the format when fetching data using the <<search-fields-param,`fields` parameter>>.
 Use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>> or you'll get a rounded result.
 
 ////

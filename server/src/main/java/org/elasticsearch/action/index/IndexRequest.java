@@ -148,7 +148,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             requireAlias = false;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString, StreamInput::readString);
         }
     }
@@ -660,11 +660,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_8_0_0 + " or later");
+                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
             }
         }
     }

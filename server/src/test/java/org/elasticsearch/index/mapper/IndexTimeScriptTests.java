@@ -230,10 +230,5 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         public void emitValue(double v) {
             super.emit(v);
         }
-
-        public List<Object> extractValuesFromSource(String path) {
-            return super.extractFromSource(path);
-        }
     }
-
 }

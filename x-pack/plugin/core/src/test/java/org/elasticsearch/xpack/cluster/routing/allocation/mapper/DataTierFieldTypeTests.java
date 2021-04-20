@@ -16,8 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
 public class DataTierFieldTypeTests extends MapperServiceTestCase {
@@ -79,6 +82,17 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+    }
+
+    public void testFetchValue() throws IOException {
+        MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        SourceLookup lookup = new SourceLookup();
+
+        ValueFetcher valueFetcher = ft.valueFetcher(createContext(), null);
+        assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup));
+
+        ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
+        assertTrue(emptyValueFetcher.fetchValues(lookup).isEmpty());
     }
 
     private SearchExecutionContext createContext() {

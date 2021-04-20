@@ -493,7 +493,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
         }
         context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
-        createFieldNamesField(context);
+        context.addFieldExistsField(fieldType().name());
     }
 
     @Override

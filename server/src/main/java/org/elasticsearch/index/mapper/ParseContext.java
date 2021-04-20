@@ -292,6 +292,16 @@ public abstract class ParseContext {
         public Collection<String> getIgnoredFields() {
             return in.getIgnoredFields();
         }
+
+        @Override
+        public void addFieldExistsField(String field) {
+            in.addFieldExistsField(field);
+        }
+
+        @Override
+        public Collection<String> getFieldExistsFields() {
+            return in.getFieldExistsFields();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -307,6 +317,7 @@ public abstract class ParseContext {
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
+        private final Set<String> fieldNameFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
         private long numNestedDocs;
@@ -490,6 +501,16 @@ public abstract class ParseContext {
         public Collection<String> getIgnoredFields() {
             return Collections.unmodifiableCollection(ignoredFields);
         }
+
+        @Override
+        public void addFieldExistsField(String field) {
+            fieldNameFields.add(field);
+        }
+
+        @Override
+        public Collection<String> getFieldExistsFields() {
+            return Collections.unmodifiableCollection(fieldNameFields);
+        }
     }
 
     /**
@@ -508,6 +529,19 @@ public abstract class ParseContext {
      * Return the collection of fields that have been ignored so far.
      */
     public abstract Collection<String> getIgnoredFields();
+
+    /**
+     * Add the given {@code field} to the _fieldnames field
+     *
+     * Use this if an exists query run against the field cannot use docvalues
+     * or norms.
+     */
+    public abstract void addFieldExistsField(String field);
+
+    /**
+     * Return the collection of fields to be added to the _fieldnames field
+     */
+    public abstract Collection<String> getFieldExistsFields();
 
     public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
 

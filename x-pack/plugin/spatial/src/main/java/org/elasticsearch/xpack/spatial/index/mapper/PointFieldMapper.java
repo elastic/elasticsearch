@@ -122,7 +122,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<ParsedCar
         if (fieldType().hasDocValues()) {
             context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         } else if (fieldType().isStored() || fieldType().isSearchable()) {
-            createFieldNamesField(context);
+            context.addFieldExistsField(fieldType().name());
         }
         if (fieldType().isStored()) {
             context.doc().add(new StoredField(fieldType().name(), point.toString()));

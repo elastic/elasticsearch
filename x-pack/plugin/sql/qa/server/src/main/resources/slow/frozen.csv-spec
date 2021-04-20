@@ -49,7 +49,7 @@ M              |57
 sum
 SELECT SUM(salary) FROM FROZEN frozen_emp;
 
-  SUM(salary)
+  SUM(salary):l
 ---------------
 4824855
 ;

@@ -102,10 +102,10 @@ public abstract class ValuesSource {
 
     /**
      * {@linkplain ValuesSource} for fields who's values are best thought of
-     * as byte arrays without any other meaning. Aggregations that operate on
-     * these values presume only that {@link DocValueFormat#format(BytesRef)}
-     * will correctly convert the resulting {@link BytesRef} into something
-     * human readable.
+     * as byte arrays without any other meaning like {@code keyword} or
+     * {@code ip}. Aggregations that operate on these values presume only
+     * that {@link DocValueFormat#format(BytesRef)} will correctly convert
+     * the resulting {@link BytesRef} into something human readable.
      */
     public abstract static class Bytes extends ValuesSource {
 

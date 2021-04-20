@@ -207,6 +207,9 @@
 
 ---
 "Component and composable template validation":
+  - skip:
+      version: " - 7.12.99"
+      reason: "#58969 only available from 7.13.0"
   - do:
       cluster.put_component_template:
         name: my-ct

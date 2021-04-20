@@ -136,6 +136,9 @@
 
 ---
 "Component and composable templates can be retrieved and updated":
+  - skip:
+      version: " - 7.12.99"
+      reason: "#58969 only available from 7.13.0"
   - do:
       cluster.get_component_template:
         name: my-ct

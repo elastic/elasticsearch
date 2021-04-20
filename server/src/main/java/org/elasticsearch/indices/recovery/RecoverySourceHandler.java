@@ -41,7 +41,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -130,7 +129,7 @@ public class RecoverySourceHandler {
     }
 
     public void addListener(ActionListener<RecoveryResponse> listener) {
-        future.addListener(listener, EsExecutors.newDirectExecutorService());
+        future.addListener(listener);
     }
 
     /**

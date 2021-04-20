@@ -362,6 +362,43 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+
+---
+"Test transform where source query is invalid":
+  - do:
+      catch: /No handler for type \[bad-type\] declared on runtime field \[rt-field\]/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"],
+              "runtime_mappings": {"rt-field":{"type": "bad-type"}}
+            },
+            "dest": { "index": "dest-airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"],
+              "runtime_mappings": {"rt-field":{"type": "bad-type"}}
+            },
+            "dest": { "index": "dest-airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
 ---
 "Test alias scenarios":
   - do:

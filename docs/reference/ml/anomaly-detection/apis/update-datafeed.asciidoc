@@ -28,7 +28,7 @@ cluster privileges to use this API. See
 [[ml-update-datafeed-desc]]
 == {api-description-title}
 
-If you update a {dfeed} property, you must stop and start the {dfeed} for the 
+If you update a {dfeed} property, you must stop and start the {dfeed} for the
 change to be applied.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
@@ -70,6 +70,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
 (Optional, array)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 
+`indices_options`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
 `max_empty_searches`::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
@@ -96,6 +100,10 @@ the results of the other job.
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
 
+`runtime_mappings`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=runtime-mappings]
+
 `script_fields`::
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
@@ -104,9 +112,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 (Optional, unsigned integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
-`indices_options`::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
 [[ml-update-datafeed-example]]
 == {api-examples-title}

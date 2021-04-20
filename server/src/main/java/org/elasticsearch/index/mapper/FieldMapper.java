@@ -245,7 +245,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             indexScriptValues(searchLookup, readerContext, doc, parseContext);
         } catch (Exception e) {
-            if ("ignore".equals(onScriptError)) {
+            if ("continue".equals(onScriptError)) {
                 parseContext.addIgnoredField(name());
             } else {
                 throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
@@ -983,7 +983,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 "on_script_error",
                 true,
                 initializer,
-                "reject", "ignore").requiresParameters(dependentScriptParam);
+                "fail", "continue").requiresParameters(dependentScriptParam);
         }
     }
 

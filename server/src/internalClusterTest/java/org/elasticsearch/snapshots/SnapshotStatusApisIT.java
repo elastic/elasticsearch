@@ -260,7 +260,14 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
 
         unblockAllDataNodes(repoName);
-        assertThat(responseSnapshotTwo.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = responseSnapshotTwo.get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+
+        assertTrue(snapshotInfo.indexSnapshotDetails().toString(), snapshotInfo.indexSnapshotDetails().containsKey(indexOne));
+        final SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(indexOne);
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getShardCount(), equalTo(1));
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getMaxSegmentsPerShard(), greaterThanOrEqualTo(1));
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getSize().getBytes(), greaterThan(0L));
     }
 
     public void testGetSnapshotsNoRepos() {

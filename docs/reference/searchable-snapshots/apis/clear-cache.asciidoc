@@ -25,10 +25,6 @@ If the {es} {security-features} are enabled, you must have the
 for any included indices to use this API.
 For more information, see <<security-privileges>>.
 
-[[searchable-snapshots-api-clear-cache-desc]]
-==== {api-description-title}
-
-
 [[searchable-snapshots-api-clear-cache-path-params]]
 ==== {api-path-parms-title}
 
